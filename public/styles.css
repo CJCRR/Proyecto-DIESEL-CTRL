@@ -1,0 +1,39 @@
+/* Personalización de la interfaz */
+.active-tab { 
+    background-color: white; 
+    border-bottom: 3px solid #3b82f6; 
+    color: #1e293b; 
+}
+
+#resultados li:last-child {
+    border-bottom: none;
+}
+
+/* Scrollbar personalizado para los resultados */
+#resultados::-webkit-scrollbar {
+    width: 6px;
+}
+#resultados::-webkit-scrollbar-track {
+    background: #f8fafc;
+}
+#resultados::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+#resultados::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Animaciones suaves */
+section {
+    transition: transform 0.2s ease-in-out;
+}
+
+#producto-info {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diesel Ctrl - Gestión de Ventas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .active-tab { background-color: white; border-bottom: 3px solid #3b82f6; color: #1e293b; font-weight: 800; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+    <nav class="bg-slate-900 text-white p-4 shadow-xl">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
+            <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Sistema de Control de Ventas</div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- COLUMNA IZQUIERDA: VENTAS Y CARRITO -->
+        <div class="lg:col-span-8 space-y-4">
+            
+            <!-- Buscador de Productos -->
+            <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4"><i class="fas fa-search mr-2"></i>Nueva Venta</h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                    <div class="md:col-span-7 relative">
+                        <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Buscar Producto</label>
+                        <input id="buscar" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium" placeholder="Ingrese código o descripción...">
+                        <ul id="resultados" class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50"></ul>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Cant.</label>
+                        <input id="v_cantidad" type="number" value="1" min="1" class="w-full p-3 border rounded-xl outline-none font-bold text-center">
+                    </div>
+                    <div class="md:col-span-3">
+                        <button onclick="agregarAlCarrito()" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md">
+                            <i class="fas fa-plus mr-2"></i> Agregar
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Detalle de la Venta Actual -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
+                    <span class="text-[10px] font-black text-slate-400 uppercase">Productos en Lista</span>
+                    <span id="items-count" class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">0 ITEMS</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-white text-[10px] uppercase text-slate-400 font-black border-b">
+                            <tr>
+                                <th class="p-4">Código</th>
+                                <th class="p-4">Descripción</th>
+                                <th class="p-4 text-center">Cant</th>
+                                <th class="p-4 text-right">P. Unit</th>
+                                <th class="p-4 text-right">Subtotal</th>
+                                <th class="p-4 text-center"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="venta-items-cuerpo">
+                            <!-- Los productos agregados aparecerán aquí -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="vacio-msg" class="p-10 text-center text-slate-300 italic">No hay productos seleccionados</div>
+            </section>
+
+            <!-- SECCIÓN ADMINISTRATIVA (Agregado de nuevo) -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="flex border-b bg-slate-50">
+                    <button id="btn-tab-crear" onclick="switchAdminTab('crear')" class="flex-1 p-3 text-[10px] font-black uppercase tracking-widest active-tab transition-all">
+                        <i class="fas fa-box-open mr-2"></i>Nuevo Producto
+                    </button>
+                    <button id="btn-tab-ajuste" onclick="switchAdminTab('ajuste')" class="flex-1 p-3 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-all">
+                        <i class="fas fa-tools mr-2"></i>Ajustar Stock
+                    </button>
+                </div>
+                
+                <div id="panel-crear" class="p-6 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input id="i_codigo" placeholder="Código Único" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                        <input id="i_desc" placeholder="Descripción del Producto" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                        <input id="i_precio" type="number" placeholder="Precio USD" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                        <input id="i_stock" type="number" placeholder="Stock Inicial" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                    </div>
+                    <button onclick="crearProducto()" class="w-full bg-slate-900 text-white p-3 rounded-xl font-bold hover:bg-black transition-all">Guardar en Inventario</button>
+                </div>
+
+                <div id="panel-ajuste" class="p-6 space-y-4 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input id="a_codigo" placeholder="Código del producto" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                        <input id="a_diff" type="number" placeholder="Cantidad (+/-)" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                    </div>
+                    <select id="a_motivo" class="w-full p-3 border rounded-xl outline-none bg-white">
+                        <option value="Ingreso de Mercancía">Ingreso de Mercancía</option>
+                        <option value="Corrección de Inventario">Corrección de Inventario</option>
+                        <option value="Producto Dañado">Producto Dañado</option>
+                    </select>
+                    <button onclick="ajustarStock()" class="w-full bg-orange-500 text-white p-3 rounded-xl font-bold hover:bg-orange-600 transition-all">Aplicar Ajuste</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- COLUMNA DERECHA: TOTALES Y CLIENTE -->
+        <div class="lg:col-span-4 space-y-4">
+            <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 sticky top-4">
+                <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Resumen de Venta</h2>
+                <div class="space-y-4">
+                    <div class="relative">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Nombre del Cliente</label>
+                        <div class="relative">
+                            <i class="fas fa-user absolute left-3 top-4 text-slate-300"></i>
+                            <input id="v_cliente" placeholder="Ej. Juan Pérez" class="w-full p-3 pl-10 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Tasa Cambio (Bs / $)</label>
+                        <div class="relative">
+                            <i class="fas fa-exchange-alt absolute left-3 top-4 text-slate-300"></i>
+                            <input id="v_tasa" type="number" step="0.01" value="45.50" oninput="actualizarTabla()" class="w-full p-3 pl-10 border rounded-xl outline-none font-mono font-bold text-blue-600">
+                        </div>
+                    </div>
+                    
+                    <div class="bg-slate-900 text-white p-5 rounded-2xl space-y-3 shadow-inner">
+                        <div class="flex justify-between items-center opacity-60 text-xs uppercase font-bold tracking-widest">
+                            <span>Subtotal USD</span>
+                            <span>$<span id="total-usd">0.00</span></span>
+                        </div>
+                        <div class="h-[1px] bg-white opacity-10"></div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-[10px] font-black uppercase opacity-60 mb-1">Total a Pagar</span>
+                            <div class="text-right">
+                                <div class="text-2xl font-black leading-none"><span id="total-bs">0.00</span> Bs</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="btnVender" onclick="registrarVenta()" class="w-full bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-blue-200 hover:bg-blue-600 transition-all transform active:scale-95">
+                        REGISTRAR VENTA
+                    </button>
+                </div>
+
+                <!-- Historial Rápido -->
+                <div class="mt-8 pt-6 border-t border-slate-100">
+                    <h3 class="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-tighter italic">Últimos movimientos</h3>
+                    <div id="historial" class="space-y-2"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
