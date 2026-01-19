@@ -2,10 +2,42 @@ let carrito = [];
 let productoSeleccionado = null;
 let vendiendo = false;
 
+// Variables para PWA y Sincronización
+let isOnline = navigator.onLine;
+
 const buscarInput = document.getElementById('buscar');
 const resultadosUL = document.getElementById('resultados');
 const tablaCuerpo = document.getElementById('venta-items-cuerpo');
 const btnVender = document.getElementById('btnVender');
+const statusIndicator = document.createElement('div');
+
+// --- INICIALIZACIÓN DE INTERFAZ OFFLINE ---
+function setupOfflineUI() {
+    statusIndicator.id = 'status-indicator';
+    statusIndicator.className = `fixed bottom-4 right-4 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-lg ${isOnline ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`;
+    statusIndicator.innerHTML = isOnline ? '<i class="fas fa-wifi mr-2"></i> EN LÍNEA' : '<i class="fas fa-wifi-slash mr-2"></i> MODO OFFLINE';
+    document.body.appendChild(statusIndicator);
+
+    window.addEventListener('online', () => {
+        isOnline = true;
+        statusIndicator.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-full text-xs font-bold bg-green-500 text-white shadow-lg';
+        statusIndicator.innerHTML = '<i class="fas fa-wifi mr-2"></i> EN LÍNEA';
+        intentarSincronizar();
+    });
+
+    window.addEventListener('offline', () => {
+        isOnline = false;
+        statusIndicator.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg';
+        statusIndicator.innerHTML = '<i class="fas fa-wifi-slash mr-2"></i> MODO OFFLINE';
+    });
+}
+
+// --- GENERADOR DE ID GLOBAL (VEN-YYYY-MM-DD-UUID) ---
+function generarIDVenta() {
+    const fecha = new Date().toISOString().split('T')[0];
+    const randomPart = Math.random().toString(36).substring(2, 10).toUpperCase();
+    return `VEN-${fecha}-${randomPart}`;
+}
 
 // --- BÚSQUEDA Y SELECCIÓN ---
 buscarInput.addEventListener('input', () => {
@@ -58,8 +90,7 @@ function agregarAlCarrito() {
     
     if (!productoSeleccionado) return alert('Por favor, busque y seleccione un producto.');
     if (isNaN(cantidad) || cantidad <= 0) return alert('Ingrese una cantidad válida.');
-    
-    // Validar stock disponible
+
     if (cantidad > productoSeleccionado.stock) return alert('No hay suficiente stock disponible.');
 
     // Verificar si ya existe en el carrito para sumar o agregar nuevo
@@ -80,11 +111,6 @@ function agregarAlCarrito() {
 
     actualizarTabla();
     limpiarSeleccion();
-}
-
-function eliminarDelCarrito(index) {
-    carrito.splice(index, 1);
-    actualizarTabla();
 }
 
 function actualizarTabla() {
@@ -130,6 +156,11 @@ function actualizarTabla() {
     document.getElementById('total-bs').innerText = (totalUSD * tasa).toLocaleString('es-VE', {minimumFractionDigits: 2});
 }
 
+function eliminarDelCarrito(index) {
+    carrito.splice(index, 1);
+    actualizarTabla();
+}
+
 function limpiarSeleccion() {
     productoSeleccionado = null;
     buscarInput.value = '';
@@ -137,58 +168,174 @@ function limpiarSeleccion() {
     buscarInput.focus();
 }
 
+// --- FUNCIÓN DE IMPRESIÓN OFFLINE (GENERACIÓN LOCAL) ---
+function imprimirNotaLocal(venta) {
+    const ventana = window.open('', '_blank');
+    const fechaFormateada = new Date(venta.fecha).toLocaleString();
+    let totalBs = 0;
+    let totalUSD = 0;
+
+    const filasHTML = venta.items.map(item => {
+        const subtotalUSD = item.cantidad * item.precio_usd;
+        const subtotalBs = subtotalUSD * venta.tasa_bcv;
+        totalUSD += subtotalUSD;
+        totalBs += subtotalBs;
+        return `
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.codigo}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.descripcion}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.cantidad}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${item.precio_usd.toFixed(2)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${subtotalBs.toFixed(2)} Bs</td>
+            </tr>
+        `;
+    }).join('');
+
+    ventana.document.write(`
+        <html>
+        <head>
+            <title>Nota de Entrega - ${venta.id_global}</title>
+            <style>
+                body { font-family: sans-serif; padding: 20px; color: #333; }
+                .header { text-align: center; margin-bottom: 20px; }
+                .info { margin-bottom: 20px; display: flex; justify-content: space-between; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                .totals { text-align: right; }
+                .totals p { margin: 5px 0; font-size: 1.2em; }
+                @media print { .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>NOTA DE ENTREGA</h1>
+                <p>ID: ${venta.id_global}</p>
+            </div>
+            <div class="info">
+                <div>
+                    <p><strong>Cliente:</strong> ${venta.cliente}</p>
+                    <p><strong>Fecha:</strong> ${fechaFormateada}</p>
+                </div>
+                <div>
+                    <p><strong>Tasa:</strong> ${venta.tasa_bcv.toFixed(2)} Bs/$</p>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr style="background: #f4f4f4;">
+                        <th style="border: 1px solid #ddd; padding: 8px;">Código</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">Cant.</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">P. Unit ($)</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">Subtotal (Bs)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${filasHTML}
+                </tbody>
+            </table>
+            <div class="totals">
+                <p><strong>Total USD:</strong> $${totalUSD.toFixed(2)}</p>
+                <p><strong>Total Bs:</strong> ${totalBs.toFixed(2)} Bs</p>
+            </div>
+            <div class="no-print" style="margin-top: 30px; text-align: center;">
+                <button onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer;">Imprimir Nota</button>
+            </div>
+            <script>
+                window.onload = function() {
+                    // Opcional: window.print();
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    ventana.document.close();
+}
+
 // --- PROCESAR VENTA FINAL ---
-function registrarVenta() {
-    if (vendiendo) return;
-    if (carrito.length === 0) return alert('Debe agregar al menos un producto a la lista.');
+async function registrarVenta() {
+    if (vendiendo || carrito.length === 0) return;
     
     const cliente = document.getElementById('v_cliente').value.trim();
     const tasa = parseFloat(document.getElementById('v_tasa').value);
 
-    if (!cliente) return alert('El nombre del cliente es obligatorio.');
-    if (isNaN(tasa) || tasa <= 0) return alert('La tasa del día no es válida.');
+    if (!cliente || isNaN(tasa)) return alert('Datos incompletos');
+
+    const ventaData = {
+        id_global: generarIDVenta(),
+        items: [...carrito],
+        cliente,
+        tasa_bcv: tasa,
+        fecha: new Date().toISOString(),
+        sync: false
+    };
 
     vendiendo = true;
     btnVender.disabled = true;
-    btnVender.innerText = 'GUARDANDO...';
 
-    // Se envía el objeto 'items' que contiene el array del carrito
-    const payload = {
-        items: carrito,
-        cliente: cliente,
-        tasa_bcv: tasa
-    };
+    // Paso 1: Respaldo local preventivo
+    guardarVentaLocal(ventaData);
 
-    fetch('/ventas', {
+    if (!isOnline) {
+        // Modo Offline puro
+        imprimirNotaLocal(ventaData);
+        finalizarVentaUI();
+    } else {
+        // Intento Online
+        try {
+            const res = await fetch('/ventas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: carrito, cliente, tasa_bcv: tasa })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                marcarVentaComoSincronizada(ventaData.id_global);
+                window.open(`/nota/${data.ventaId}`, '_blank');
+                finalizarVentaUI();
+            } else {
+                throw new Error("Error servidor");
+            }
+        } catch (e) {
+            // Fallback: Si el servidor falla estando online, imprimimos local
+            imprimirNotaLocal(ventaData);
+            finalizarVentaUI();
+        }
+    }
+}
+
+function finalizarVentaUI() {
+    carrito = [];
+    actualizarTabla();
+    document.getElementById('v_cliente').value = '';
+    vendiendo = false;
+    btnVender.disabled = false;
+    actualizarHistorial();
+}
+
+async function enviarVentaAlServidor(venta) {
+    const res = await fetch('/ventas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    })
-    .then(async res => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Error en el servidor');
-        return data;
-    })
-    .then(data => {
-        alert('✅ Venta registrada correctamente');
-        // Abrir nota de entrega si el servidor retorna el ID
-        if (data.ventaId) window.open(`/nota/${data.ventaId}`, '_blank');
-        
-        // Limpiar estado tras éxito
-        carrito = [];
-        actualizarTabla();
-        document.getElementById('v_cliente').value = '';
-        actualizarHistorial();
-    })
-    .catch(err => {
-        console.error(err);
-        alert('❌ No se pudo completar la venta: ' + err.message);
-    })
-    .finally(() => {
-        vendiendo = false;
-        btnVender.disabled = false;
-        btnVender.innerText = 'REGISTRAR VENTA';
+        body: JSON.stringify(venta)
     });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    
+    marcarVentaComoSincronizada(venta.id_global);
+    return data; // Contiene el ID generado por el servidor
+}
+
+function guardarVentaLocal(venta) {
+    const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
+    historico.push(venta);
+    localStorage.setItem('ventas_pendientes', JSON.stringify(historico));
+}
+
+function marcarVentaComoSincronizada(idGlobal) {
+    const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
+    const nuevo = historico.map(v => v.id_global === idGlobal ? { ...v, sync: true } : v);
+    localStorage.setItem('ventas_pendientes', JSON.stringify(nuevo));
 }
 
 // --- ADMINISTRACIÓN DE PRODUCTOS ---
@@ -289,6 +436,19 @@ function actualizarHistorial() {
         });
 }
 
+function intentarSincronizar() {
+    const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
+    const pendientes = historico.filter(v => !v.sync);
+    if (pendientes.length === 0) return;
+
+    pendientes.reduce(async (promise, venta) => {
+        await promise;
+        return enviarVentaAlServidor(venta).catch(e => console.error(e));
+    }, Promise.resolve()).then(() => actualizarHistorial());
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    setupOfflineUI();
     actualizarHistorial();
+    if (isOnline) intentarSincronizar();
 });
