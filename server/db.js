@@ -23,7 +23,12 @@ const schema = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fecha TEXT,
     cliente TEXT,
+    cedula TEXT,
+    telefono TEXT,
     tasa_bcv REAL,
+    descuento REAL DEFAULT 0,
+    metodo_pago TEXT,
+    referencia TEXT,
     total_bs REAL
   );
 
@@ -59,6 +64,38 @@ try {
   }
 } catch (err) {
   console.warn('No se pudo actualizar esquema para categoria (ignorado):', err.message);
+}
+
+// Asegurar columnas en 'ventas' para descuento y metodo_pago (si la tabla ya existe)
+try {
+  const infoVentas = db.prepare("PRAGMA table_info('ventas')").all();
+  const hasDescuento = infoVentas.some(col => col.name === 'descuento');
+  const hasMetodo = infoVentas.some(col => col.name === 'metodo_pago');
+  const hasReferencia = infoVentas.some(col => col.name === 'referencia');
+  const hasCedula = infoVentas.some(col => col.name === 'cedula');
+  const hasTelefono = infoVentas.some(col => col.name === 'telefono');
+  if (!hasDescuento) {
+    db.prepare("ALTER TABLE ventas ADD COLUMN descuento REAL DEFAULT 0").run();
+    console.log('Columna descuento añadida a ventas');
+  }
+  if (!hasMetodo) {
+    db.prepare("ALTER TABLE ventas ADD COLUMN metodo_pago TEXT").run();
+    console.log('Columna metodo_pago añadida a ventas');
+  }
+  if (!hasReferencia) {
+    db.prepare("ALTER TABLE ventas ADD COLUMN referencia TEXT").run();
+    console.log('Columna referencia añadida a ventas');
+  }
+  if (!hasCedula) {
+    db.prepare("ALTER TABLE ventas ADD COLUMN cedula TEXT").run();
+    console.log('Columna cedula añadida a ventas');
+  }
+  if (!hasTelefono) {
+    db.prepare("ALTER TABLE ventas ADD COLUMN telefono TEXT").run();
+    console.log('Columna telefono añadida a ventas');
+  }
+} catch (err) {
+  console.warn('No se pudo actualizar esquema para ventas (ignorado):', err.message);
 }
 
 // Seed inicial (solo si está vacío para evitar duplicados en reinicios)

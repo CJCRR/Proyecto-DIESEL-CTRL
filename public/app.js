@@ -1,8 +1,9 @@
-import { sincronizarVentasPendientes } from './firebase-sync.js';
+import { sincronizarVentasPendientes, upsertClienteFirebase, obtenerClientesFirebase } from './firebase-sync.js';
 
 let carrito = [];
 let productoSeleccionado = null;
 let vendiendo = false;
+let clientesFrecuentesCache = [];
 
 // Variables para PWA y Sincronización
 let isOnline = navigator.onLine;
@@ -12,6 +13,37 @@ const resultadosUL = document.getElementById('resultados');
 const tablaCuerpo = document.getElementById('venta-items-cuerpo');
 const btnVender = document.getElementById('btnVender');
 const statusIndicator = document.createElement('div');
+// Toast container
+const toastContainer = document.createElement('div');
+toastContainer.id = 'toast-container';
+toastContainer.style.position = 'fixed';
+toastContainer.style.right = '1rem';
+toastContainer.style.bottom = '1rem';
+toastContainer.style.display = 'flex';
+toastContainer.style.flexDirection = 'column';
+toastContainer.style.gap = '0.5rem';
+toastContainer.style.zIndex = '60';
+document.body.appendChild(toastContainer);
+
+function showToast(text, type = 'info', ms = 3500) {
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.style.minWidth = '200px';
+    t.style.padding = '0.6rem 1rem';
+    t.style.borderRadius = '0.5rem';
+    t.style.color = 'white';
+    t.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
+    t.style.transform = 'translateY(10px)';
+    t.style.opacity = '0';
+    t.style.transition = 'transform .18s ease, opacity .18s ease';
+    t.style.background = type === 'success' ? '#16a34a' : type === 'error' ? '#dc2626' : '#0369a1';
+    t.innerText = text;
+    toastContainer.appendChild(t);
+    requestAnimationFrame(() => { t.style.transform = 'translateY(0)'; t.style.opacity = '1'; });
+    const remover = () => { t.style.transform = 'translateY(10px)'; t.style.opacity = '0'; setTimeout(() => t.remove(), 200); };
+    setTimeout(remover, ms);
+    t.addEventListener('click', remover);
+}
 
 // --- INICIALIZACIÓN DE INTERFAZ OFFLINE ---
 function setupOfflineUI() {
@@ -90,16 +122,18 @@ function agregarAlCarrito() {
     const cantidadInput = document.getElementById('v_cantidad');
     const cantidad = parseInt(cantidadInput.value);
     
-    if (!productoSeleccionado) return alert('Por favor, busque y seleccione un producto.');
-    if (isNaN(cantidad) || cantidad <= 0) return alert('Ingrese una cantidad válida.');
+    
 
-    if (cantidad > productoSeleccionado.stock) return alert('No hay suficiente stock disponible.');
+    // Replace alerts with toasts
+    if (!productoSeleccionado) { showToast('Por favor, busque y seleccione un producto.', 'error'); return; }
+    if (isNaN(cantidad) || cantidad <= 0) { showToast('Ingrese una cantidad válida.', 'error'); return; }
+    if (cantidad > productoSeleccionado.stock) { showToast('No hay suficiente stock disponible.', 'error'); return; }
 
     // Verificar si ya existe en el carrito para sumar o agregar nuevo
     const index = carrito.findIndex(item => item.codigo === productoSeleccionado.codigo);
     if (index !== -1) {
         if ((carrito[index].cantidad + cantidad) > productoSeleccionado.stock) {
-            return alert('La cantidad total en el carrito supera el stock físico.');
+            showToast('La cantidad total en el carrito supera el stock físico.', 'error'); return;
         }
         carrito[index].cantidad += cantidad;
     } else {
@@ -132,6 +166,7 @@ function actualizarTabla() {
 
     let totalUSD = 0;
     const tasa = parseFloat(document.getElementById('v_tasa').value) || 1;
+    const descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
 
     carrito.forEach((item, index) => {
         const subtotalUSD = item.cantidad * item.precio_usd;
@@ -155,7 +190,8 @@ function actualizarTabla() {
     });
 
     document.getElementById('total-usd').innerText = totalUSD.toFixed(2);
-    document.getElementById('total-bs').innerText = (totalUSD * tasa).toLocaleString('es-VE', {minimumFractionDigits: 2});
+    const totalAfterDiscount = totalUSD * (1 - Math.max(0, Math.min(100, descuento)) / 100);
+    document.getElementById('total-bs').innerText = (totalAfterDiscount * tasa).toLocaleString('es-VE', {minimumFractionDigits: 2});
 }
 
 function eliminarDelCarrito(index) {
@@ -171,85 +207,22 @@ function limpiarSeleccion() {
 }
 
 // --- FUNCIÓN DE IMPRESIÓN OFFLINE (GENERACIÓN LOCAL) ---
-function imprimirNotaLocal(venta) {
+async function ensureNotaTemplateLoaded() {
+    if (window.NotaTemplate && typeof window.NotaTemplate.buildNotaHTML === 'function') return;
+    await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/shared/nota-template.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+    });
+}
+
+async function imprimirNotaLocal(venta) {
+    await ensureNotaTemplateLoaded();
+    const html = window.NotaTemplate.buildNotaHTML({ venta });
     const ventana = window.open('', '_blank');
-    const fechaFormateada = new Date(venta.fecha).toLocaleString();
-    let totalBs = 0;
-    let totalUSD = 0;
-
-    const filasHTML = venta.items.map(item => {
-        const subtotalUSD = item.cantidad * item.precio_usd;
-        const subtotalBs = subtotalUSD * venta.tasa_bcv;
-        totalUSD += subtotalUSD;
-        totalBs += subtotalBs;
-        return `
-            <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.codigo}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.descripcion}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.cantidad}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${item.precio_usd.toFixed(2)}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${subtotalBs.toFixed(2)} Bs</td>
-            </tr>
-        `;
-    }).join('');
-
-    ventana.document.write(`
-        <html>
-        <head>
-            <title>Nota de Entrega - ${venta.id_global}</title>
-            <style>
-                body { font-family: sans-serif; padding: 20px; color: #333; }
-                .header { text-align: center; margin-bottom: 20px; }
-                .info { margin-bottom: 20px; display: flex; justify-content: space-between; }
-                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                .totals { text-align: right; }
-                .totals p { margin: 5px 0; font-size: 1.2em; }
-                @media print { .no-print { display: none; } }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>NOTA DE ENTREGA</h1>
-                <p>ID: ${venta.id_global}</p>
-            </div>
-            <div class="info">
-                <div>
-                    <p><strong>Cliente:</strong> ${venta.cliente}</p>
-                    <p><strong>Fecha:</strong> ${fechaFormateada}</p>
-                </div>
-                <div>
-                    <p><strong>Tasa:</strong> ${venta.tasa_bcv.toFixed(2)} Bs/$</p>
-                </div>
-            </div>
-            <table>
-                <thead>
-                    <tr style="background: #f4f4f4;">
-                        <th style="border: 1px solid #ddd; padding: 8px;">Código</th>
-                        <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
-                        <th style="border: 1px solid #ddd; padding: 8px;">Cant.</th>
-                        <th style="border: 1px solid #ddd; padding: 8px;">P. Unit ($)</th>
-                        <th style="border: 1px solid #ddd; padding: 8px;">Subtotal (Bs)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${filasHTML}
-                </tbody>
-            </table>
-            <div class="totals">
-                <p><strong>Total USD:</strong> $${totalUSD.toFixed(2)}</p>
-                <p><strong>Total Bs:</strong> ${totalBs.toFixed(2)} Bs</p>
-            </div>
-            <div class="no-print" style="margin-top: 30px; text-align: center;">
-                <button onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer;">Imprimir Nota</button>
-            </div>
-            <script>
-                window.onload = function() {
-                    // Opcional: window.print();
-                };
-            </script>
-        </body>
-        </html>
-    `);
+    ventana.document.write(html);
     ventana.document.close();
 }
 
@@ -258,15 +231,32 @@ async function registrarVenta() {
     if (vendiendo || carrito.length === 0) return;
     
     const cliente = document.getElementById('v_cliente').value.trim();
+    const cedula = document.getElementById('v_cedula') ? document.getElementById('v_cedula').value.trim() : '';
+    const telefono = document.getElementById('v_telefono') ? document.getElementById('v_telefono').value.trim() : '';
     const tasa = parseFloat(document.getElementById('v_tasa').value);
 
-    if (!cliente || isNaN(tasa)) return alert('Datos incompletos');
+    
+
+    // validations
+    const metodo = document.getElementById('v_metodo').value;
+    if (!metodo) { showToast('Seleccione un método de pago', 'error'); return; }
+    if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
+
+    const descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
+    const referencia = (document.getElementById('v_ref') && document.getElementById('v_ref').value)
+        ? document.getElementById('v_ref').value.trim()
+        : '';
 
     const ventaData = {
         id_global: generarIDVenta(),
         items: [...carrito],
         cliente,
+        cedula,
+        telefono,
         tasa_bcv: tasa,
+        descuento,
+        metodo_pago: metodo,
+        referencia,
         fecha: new Date().toISOString(),
         sync: false
     };
@@ -286,12 +276,12 @@ async function registrarVenta() {
 
             // Actualizar UI antes de abrir la nota para evitar que la impresión "corte"
             finalizarVentaUI();
-            // Abrir nota primero, luego mostrar alerta con ligero retardo para no bloquear la renderización
-            imprimirNotaLocal(ventaData);
-            setTimeout(() => alert('✅ Venta registrada exitosamente'), 300);
+            // Abrir nota primero, luego mostrar toast
+            await imprimirNotaLocal(ventaData);
+            setTimeout(() => showToast('✅ Venta registrada exitosamente', 'success'), 300);
     } catch (err) {
         console.error(err);
-        alert('❌ Error: ' + err.message);
+        showToast('❌ Error: ' + err.message, 'error');
     } finally {
         vendiendo = false;
         btnVender.disabled = false;
@@ -318,12 +308,113 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(() => console.log('✅ Service Worker activo'))
             .catch(err => console.error('❌ Error SW:', err));
     }
+
+    // Wire additional UI controls
+
+    const btnGuardarCliente = document.getElementById('btnGuardarCliente');
+    const selectClientes = document.getElementById('v_clientes_frecuentes');
+
+    const getFormCliente = () => ({
+        nombre: (document.getElementById('v_cliente')?.value || '').trim(),
+        cedula: (document.getElementById('v_cedula')?.value || '').trim(),
+        telefono: (document.getElementById('v_telefono')?.value || '').trim()
+    });
+
+    const renderClientes = () => {
+        if (!selectClientes) return;
+        selectClientes.innerHTML = '<option value="">- frecuentes -</option>' + clientesFrecuentesCache.map((c, idx) => {
+            const nombre = c.nombre || c.cliente || '';
+            const cedula = c.cedula || '';
+            const telefono = c.telefono || c.telefono_cliente || '';
+            const id = c.id || '';
+            return `<option value="${idx}" data-id="${id}" data-nombre="${nombre}" data-cedula="${cedula}" data-telefono="${telefono}">${nombre || 'Cliente sin nombre'}</option>`;
+        }).join('');
+    };
+
+    async function loadClientes() {
+        if (!selectClientes) return;
+        let list = [];
+        try {
+            list = await obtenerClientesFirebase();
+            if (list && list.length) {
+                localStorage.setItem('clientes_frecuentes_v2', JSON.stringify(list));
+            }
+        } catch (err) {
+            console.error('No se pudieron obtener clientes de Firebase, usando cache local', err);
+        }
+        if (!list || !list.length) {
+            list = JSON.parse(localStorage.getItem('clientes_frecuentes_v2') || '[]');
+        }
+        clientesFrecuentesCache = list || [];
+        renderClientes();
+    }
+
+    loadClientes();
+
+    async function upsertClienteDesdeFormulario() {
+        const cliente = getFormCliente();
+        if (!cliente.nombre) { showToast('Ingrese nombre de cliente', 'error'); return; }
+
+        const existente = cliente.cedula
+            ? clientesFrecuentesCache.find(c => (c.cedula || '').toLowerCase() === cliente.cedula.toLowerCase())
+            : clientesFrecuentesCache.find(c => (c.nombre || c.cliente) === cliente.nombre);
+
+        try {
+            const id = await upsertClienteFirebase({ ...cliente, id: existente?.id });
+            const actualizado = { ...cliente, id: id || existente?.id };
+            if (existente) {
+                clientesFrecuentesCache = clientesFrecuentesCache.map(c => {
+                    const mismaCedula = cliente.cedula && (c.cedula || '').toLowerCase() === cliente.cedula.toLowerCase();
+                    const mismoNombre = !cliente.cedula && (c.nombre || c.cliente) === cliente.nombre;
+                    return (mismaCedula || mismoNombre) ? { ...c, ...actualizado } : c;
+                });
+            } else {
+                clientesFrecuentesCache = [actualizado, ...clientesFrecuentesCache].slice(0, 50);
+            }
+            localStorage.setItem('clientes_frecuentes_v2', JSON.stringify(clientesFrecuentesCache));
+            renderClientes();
+            showToast(existente ? 'Cliente actualizado' : 'Cliente guardado', 'success');
+        } catch (err) {
+            console.error('No se pudo guardar/actualizar en Firebase, se mantiene en cache local', err);
+            // Mantener cache local sin abortar
+            const fallback = { ...cliente, id: existente?.id };
+            if (existente) {
+                clientesFrecuentesCache = clientesFrecuentesCache.map(c => {
+                    const mismaCedula = cliente.cedula && (c.cedula || '').toLowerCase() === cliente.cedula.toLowerCase();
+                    const mismoNombre = !cliente.cedula && (c.nombre || c.cliente) === cliente.nombre;
+                    return (mismaCedula || mismoNombre) ? { ...c, ...fallback } : c;
+                });
+            } else {
+                clientesFrecuentesCache = [fallback, ...clientesFrecuentesCache].slice(0, 50);
+            }
+            localStorage.setItem('clientes_frecuentes_v2', JSON.stringify(clientesFrecuentesCache));
+            renderClientes();
+            showToast('Guardado local (sin Firebase)', 'info');
+        }
+    }
+
+    if (btnGuardarCliente) btnGuardarCliente.addEventListener('click', upsertClienteDesdeFormulario);
+
+    if (selectClientes) selectClientes.addEventListener('change', (e) => {
+        const opt = e.target.selectedOptions[0];
+        if (!opt || !opt.dataset) return;
+        if (opt.value === '') return;
+        const nombre = opt.dataset.nombre || '';
+        const cedula = opt.dataset.cedula || '';
+        const telefono = opt.dataset.telefono || '';
+        if (document.getElementById('v_cliente')) document.getElementById('v_cliente').value = nombre;
+        if (document.getElementById('v_cedula')) document.getElementById('v_cedula').value = cedula;
+        if (document.getElementById('v_telefono')) document.getElementById('v_telefono').value = telefono;
+    });
 });
 
 function finalizarVentaUI() {
     carrito = [];
     actualizarTabla();
     document.getElementById('v_cliente').value = '';
+    if (document.getElementById('v_cedula')) document.getElementById('v_cedula').value = '';
+    if (document.getElementById('v_telefono')) document.getElementById('v_telefono').value = '';
+    if (document.getElementById('v_ref')) document.getElementById('v_ref').value = '';
     vendiendo = false;
     btnVender.disabled = false;
     actualizarHistorial();
@@ -445,6 +536,7 @@ function actualizarHistorial() {
             if (!cont) return;
             cont.innerHTML = '';
             data.slice(0, 5).forEach(v => {
+                const totalUsd = v.tasa_bcv ? (v.total_bs / v.tasa_bcv) : 0;
                 const div = document.createElement('div');
                 div.className = "group p-3 border rounded-xl flex justify-between items-center text-xs hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer";
                 div.onclick = () => window.open(`/nota/${v.id}`, '_blank');
@@ -452,9 +544,12 @@ function actualizarHistorial() {
                     <div class="flex flex-col">
                         <span class="font-black text-slate-700 uppercase">${v.cliente}</span>
                         <span class="text-[9px] text-slate-400 font-mono">${new Date(v.fecha).toLocaleString()}</span>
+                        ${ (v.cedula || v.telefono) ? `<span class="text-[9px] text-slate-400 font-mono">${v.cedula ? `ID: ${v.cedula}` : ''}${v.cedula && v.telefono ? ' | ' : ''}${v.telefono ? `Tel: ${v.telefono}` : ''}</span>` : '' }
+                        <span class="text-[9px] text-slate-400 font-mono mt-1">Tasa: ${Number(v.tasa_bcv || 0).toFixed(2)} | Desc: ${Number(v.descuento || 0)}% | Método: ${v.metodo_pago || ''}${v.referencia ? ` | Ref: ${v.referencia}` : ''}</span>
                     </div>
                     <div class="text-right">
-                        <span class="font-black text-blue-600 block">${v.total_bs.toFixed(2)} Bs</span>
+                        <span class="font-black text-blue-600 block">$${totalUsd.toFixed(2)}</span>
+                        <span class="text-[10px] text-slate-500 block">${v.total_bs.toFixed(2)} Bs</span>
                         <span class="text-[8px] text-slate-400 font-bold uppercase">Ver Nota <i class="fas fa-external-link-alt ml-1"></i></span>
                     </div>
                 `;
@@ -474,11 +569,7 @@ function intentarSincronizar() {
     }, Promise.resolve()).then(() => actualizarHistorial());
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    setupOfflineUI();
-    actualizarHistorial();
-    if (isOnline) intentarSincronizar();
-});
+// (Inicialización manejada más arriba en el archivo.)
 
 // Exponer funciones al scope global para que los atributos inline onclick funcionen
 // (cuando se carga `app.js` como módulo, las funciones no quedan en `window` automáticamente).
@@ -490,3 +581,4 @@ window.ajustarStock = ajustarStock;
 window.eliminarDelCarrito = eliminarDelCarrito;
 window.prepararParaAgregar = prepararParaAgregar;
 window.actualizarTabla = actualizarTabla;
+// undoLastLine removed

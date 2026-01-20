@@ -4,7 +4,7 @@ const db = require('../db');
 
 router.get('/ventas', (req, res) => {
     const ventas = db.prepare(`
-    SELECT id, fecha, cliente, total_bs, tasa_bcv
+    SELECT id, fecha, cliente, cedula, telefono, total_bs, tasa_bcv, descuento, metodo_pago, referencia
     FROM ventas
     ORDER BY fecha DESC
     LIMIT 100

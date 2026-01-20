@@ -1,4 +1,67 @@
-import { db, collection, addDoc, getDocs, updateDoc, doc, query, where } from './firebase-config.js';
+import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc } from './firebase-config.js';
+
+// --- CLIENTES ---
+async function upsertClienteFirebase(cliente) {
+    try {
+        const ref = collection(db, 'clientes');
+        const cedula = (cliente.cedula || '').trim();
+        const { id, ...clienteData } = cliente || {};
+        let targetId = null;
+
+        if (cedula) {
+            const q = query(ref, where('cedula', '==', cedula));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                targetId = snap.docs[0].id;
+            }
+        }
+
+        if (targetId) {
+            await updateDoc(doc(db, 'clientes', targetId), {
+                ...clienteData,
+                actualizado_en: new Date().toISOString()
+            });
+            console.log('✅ Cliente actualizado en Firebase:', targetId);
+            return targetId;
+        }
+
+        const docRef = await addDoc(ref, {
+            ...clienteData,
+            creado_en: new Date().toISOString()
+        });
+        console.log('✅ Cliente creado en Firebase:', docRef.id);
+        return docRef.id;
+    } catch (err) {
+        console.error('❌ Error guardando cliente en Firebase:', err);
+        throw err;
+    }
+}
+
+async function obtenerClientesFirebase() {
+    try {
+        const ref = collection(db, 'clientes');
+        const snapshot = await getDocs(ref);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+        console.error('❌ Error obteniendo clientes de Firebase:', err);
+        return [];
+    }
+}
+
+async function eliminarClienteFirebasePorCedula(cedula) {
+    try {
+        const ref = collection(db, 'clientes');
+        const q = query(ref, where('cedula', '==', cedula));
+        const snap = await getDocs(q);
+        const promises = snap.docs.map(d => deleteDoc(doc(db, 'clientes', d.id)));
+        await Promise.all(promises);
+        console.log(`✅ Cliente(s) eliminados para cédula ${cedula}`);
+        return snap.docs.map(d => d.id);
+    } catch (err) {
+        console.error('❌ Error eliminando cliente en Firebase:', err);
+        throw err;
+    }
+}
 
 // Enviar una venta a Firebase
 async function enviarVentaAFirebase(venta) {
@@ -108,9 +171,15 @@ async function descargarVentasDeFirebase() {
 
 export { enviarVentaAFirebase, obtenerVentasDeFirebase, sincronizarVentasPendientes, descargarVentasDeFirebase };
 
+// API de clientes
+export { upsertClienteFirebase, obtenerClientesFirebase, eliminarClienteFirebasePorCedula };
+
 // También exponer en el scope global para que `app.js` (no-module or simple calls)
 // pueda invocarlo sin hacer `import` (compatibilidad)
 if (typeof window !== 'undefined') {
     window.sincronizarVentasPendientes = sincronizarVentasPendientes;
     window.enviarVentaAFirebase = enviarVentaAFirebase;
+    window.upsertClienteFirebase = upsertClienteFirebase;
+    window.eliminarClienteFirebasePorCedula = eliminarClienteFirebasePorCedula;
+    window.obtenerClientesFirebase = obtenerClientesFirebase;
 }

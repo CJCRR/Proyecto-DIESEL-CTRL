@@ -1,9 +1,10 @@
 const DB_NAME = 'DieselCtrlDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORES = {
     VENTAS: 'ventas_pendientes',
     PRODUCTOS: 'productos',
-    SINCRONIZADAS: 'ventas_sincronizadas'
+    SINCRONIZADAS: 'ventas_sincronizadas',
+    CLIENTES: 'clientes'
 };
 
 async function abrirIndexedDB() {
@@ -30,6 +31,12 @@ async function abrirIndexedDB() {
             // Store para ventas sincronizadas
             if (!db.objectStoreNames.contains(STORES.SINCRONIZADAS)) {
                 db.createObjectStore(STORES.SINCRONIZADAS, { keyPath: 'id_global' });
+            }
+
+            // Store para clientes frecuentes
+            if (!db.objectStoreNames.contains(STORES.CLIENTES)) {
+                const clientesStore = db.createObjectStore(STORES.CLIENTES, { keyPath: 'cedula' });
+                clientesStore.createIndex('nombre', 'nombre', { unique: false });
             }
         };
     });
@@ -110,4 +117,47 @@ async function guardarProductoLocal(producto) {
         request.onerror = () => reject(request.error);
         request.onsuccess = () => resolve();
     });
+}
+
+async function guardarClienteLocal(cliente) {
+    const db = await abrirIndexedDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORES.CLIENTES], 'readwrite');
+        const store = transaction.objectStore(STORES.CLIENTES);
+        const request = store.put(cliente);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve();
+    });
+}
+
+async function obtenerClientesLocales() {
+    const db = await abrirIndexedDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORES.CLIENTES], 'readonly');
+        const store = transaction.objectStore(STORES.CLIENTES);
+        const request = store.getAll();
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result || []);
+    });
+}
+
+async function eliminarClienteLocal(cedula) {
+    const db = await abrirIndexedDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORES.CLIENTES], 'readwrite');
+        const store = transaction.objectStore(STORES.CLIENTES);
+        const request = store.delete(cedula);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve();
+    });
+}
+
+// Exponer helpers de clientes
+if (typeof window !== 'undefined') {
+    window.obtenerClientesLocales = obtenerClientesLocales;
+    window.guardarClienteLocal = guardarClienteLocal;
+    window.eliminarClienteLocal = eliminarClienteLocal;
 }

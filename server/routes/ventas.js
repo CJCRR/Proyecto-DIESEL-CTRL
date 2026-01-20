@@ -3,10 +3,10 @@ const router = express.Router();
 const db = require('../db');
 
 router.post('/', (req, res) => {
-    const { items, cliente, tasa_bcv } = req.body;
+    const { items, cliente, cedula = '', telefono = '', tasa_bcv, descuento = 0, metodo_pago = '', referencia = '' } = req.body;
 
     // LOG DE DEPURACIÓN: Para ver qué llega al servidor
-    console.log("Datos recibidos en /ventas:", { items, cliente, tasa_bcv });
+    console.log("Datos recibidos en /ventas:", { items, cliente, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia });
 
     // 1. Validaciones de estructura estrictas
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -21,17 +21,27 @@ router.post('/', (req, res) => {
         return res.status(400).json({ error: 'La tasa de cambio es inválida o no fue enviada' });
     }
 
+    if (typeof descuento !== 'number' && typeof descuento !== 'string') {
+        return res.status(400).json({ error: 'Descuento inválido' });
+    }
+
+    const descuentoNum = parseFloat(descuento) || 0;
+
+    if (!metodo_pago || metodo_pago.toString().trim() === '') {
+        return res.status(400).json({ error: 'El método de pago es obligatorio' });
+    }
+
     try {
         const fecha = new Date().toISOString();
         let totalGeneralBs = 0;
 
         // 2. Transacción para asegurar integridad (Todo o nada)
         const transaction = db.transaction(() => {
-            // Crear la cabecera de la venta con total 0 inicialmente
+            // Crear la cabecera de la venta con total 0 inicialmente, guardando descuento y metodo_pago
             const ventaResult = db.prepare(`
-                INSERT INTO ventas (fecha, cliente, tasa_bcv, total_bs)
-                VALUES (?, ?, ?, 0)
-            `).run(fecha, cliente, tasa_bcv);
+                INSERT INTO ventas (fecha, cliente, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+            `).run(fecha, cliente, cedula, telefono, tasa_bcv, descuentoNum, metodo_pago, referencia);
 
             const ventaId = ventaResult.lastInsertRowid;
 
@@ -62,8 +72,12 @@ router.post('/', (req, res) => {
                 `).run(item.cantidad, producto.id);
             }
 
+            // Aplicar descuento (porcentaje) al total acumulado
+            const multiplicador = 1 - Math.max(0, Math.min(100, descuentoNum)) / 100;
+            const totalConDescuento = totalGeneralBs * multiplicador;
+
             // Actualizar el total final sumado en la cabecera
-            db.prepare('UPDATE ventas SET total_bs = ? WHERE id = ?').run(totalGeneralBs, ventaId);
+            db.prepare('UPDATE ventas SET total_bs = ? WHERE id = ?').run(totalConDescuento, ventaId);
 
             return ventaId;
         });
