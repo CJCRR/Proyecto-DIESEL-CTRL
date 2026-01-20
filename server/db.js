@@ -16,6 +16,7 @@ const schema = `
     codigo TEXT UNIQUE,
     descripcion TEXT,
     precio_usd REAL,
+    costo_usd REAL DEFAULT 0,
     stock INTEGER DEFAULT 0
   );
 
@@ -23,6 +24,7 @@ const schema = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fecha TEXT,
     cliente TEXT,
+    vendedor TEXT,
     cedula TEXT,
     telefono TEXT,
     tasa_bcv REAL,
@@ -38,6 +40,7 @@ const schema = `
     producto_id INTEGER,
     cantidad INTEGER,
     precio_usd REAL,
+    costo_usd REAL DEFAULT 0,
     subtotal_bs REAL,
     FOREIGN KEY(venta_id) REFERENCES ventas(id),
     FOREIGN KEY(producto_id) REFERENCES productos(id)
@@ -58,9 +61,14 @@ db.exec(schema);
 try {
   const info = db.prepare("PRAGMA table_info('productos')").all();
   const hasCategoria = info.some(col => col.name === 'categoria');
+  const hasCosto = info.some(col => col.name === 'costo_usd');
   if (!hasCategoria) {
     db.prepare("ALTER TABLE productos ADD COLUMN categoria TEXT").run();
     console.log('Columna categoria añadida a productos');
+  }
+  if (!hasCosto) {
+    db.prepare("ALTER TABLE productos ADD COLUMN costo_usd REAL DEFAULT 0").run();
+    console.log('Columna costo_usd añadida a productos');
   }
 } catch (err) {
   console.warn('No se pudo actualizar esquema para categoria (ignorado):', err.message);
@@ -74,6 +82,7 @@ try {
   const hasReferencia = infoVentas.some(col => col.name === 'referencia');
   const hasCedula = infoVentas.some(col => col.name === 'cedula');
   const hasTelefono = infoVentas.some(col => col.name === 'telefono');
+  const hasVendedor = infoVentas.some(col => col.name === 'vendedor');
   if (!hasDescuento) {
     db.prepare("ALTER TABLE ventas ADD COLUMN descuento REAL DEFAULT 0").run();
     console.log('Columna descuento añadida a ventas');
@@ -94,8 +103,43 @@ try {
     db.prepare("ALTER TABLE ventas ADD COLUMN telefono TEXT").run();
     console.log('Columna telefono añadida a ventas');
   }
+  if (!hasVendedor) {
+    db.prepare("ALTER TABLE ventas ADD COLUMN vendedor TEXT").run();
+    console.log('Columna vendedor añadida a ventas');
+  }
 } catch (err) {
   console.warn('No se pudo actualizar esquema para ventas (ignorado):', err.message);
+}
+
+// Asegurar columna costo_usd en venta_detalle
+try {
+  const infoVD = db.prepare("PRAGMA table_info('venta_detalle')").all();
+  const hasCosto = infoVD.some(col => col.name === 'costo_usd');
+  if (!hasCosto) {
+    db.prepare("ALTER TABLE venta_detalle ADD COLUMN costo_usd REAL DEFAULT 0").run();
+    console.log('Columna costo_usd añadida a venta_detalle');
+  }
+
+  // Backfill costo_usd en venta_detalle con el costo del producto si está vacío
+  db.prepare(`
+    UPDATE venta_detalle
+    SET costo_usd = (
+      SELECT p.costo_usd FROM productos p WHERE p.id = venta_detalle.producto_id
+    )
+    WHERE costo_usd IS NULL
+  `).run();
+  db.prepare(`UPDATE venta_detalle SET costo_usd = 0 WHERE costo_usd IS NULL`).run();
+
+  // Backfill también cuando costo_usd es 0 pero el producto tiene costo > 0
+  db.prepare(`
+    UPDATE venta_detalle
+    SET costo_usd = (
+      SELECT p.costo_usd FROM productos p WHERE p.id = venta_detalle.producto_id AND p.costo_usd IS NOT NULL
+    )
+    WHERE (costo_usd = 0 OR costo_usd IS NULL)
+  `).run();
+} catch (err) {
+  console.warn('No se pudo actualizar esquema para venta_detalle (ignorado):', err.message);
 }
 
 // Seed inicial (solo si está vacío para evitar duplicados en reinicios)

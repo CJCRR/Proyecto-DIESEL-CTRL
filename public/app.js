@@ -231,6 +231,7 @@ async function registrarVenta() {
     if (vendiendo || carrito.length === 0) return;
     
     const cliente = document.getElementById('v_cliente').value.trim();
+    const vendedor = document.getElementById('v_vendedor') ? document.getElementById('v_vendedor').value.trim() : '';
     const cedula = document.getElementById('v_cedula') ? document.getElementById('v_cedula').value.trim() : '';
     const telefono = document.getElementById('v_telefono') ? document.getElementById('v_telefono').value.trim() : '';
     const tasa = parseFloat(document.getElementById('v_tasa').value);
@@ -241,6 +242,7 @@ async function registrarVenta() {
     const metodo = document.getElementById('v_metodo').value;
     if (!metodo) { showToast('Seleccione un método de pago', 'error'); return; }
     if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
+    if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa de cambio válida (> 0)', 'error'); return; }
 
     const descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
     const referencia = (document.getElementById('v_ref') && document.getElementById('v_ref').value)
@@ -251,6 +253,7 @@ async function registrarVenta() {
         id_global: generarIDVenta(),
         items: [...carrito],
         cliente,
+        vendedor,
         cedula,
         telefono,
         tasa_bcv: tasa,
@@ -412,6 +415,7 @@ function finalizarVentaUI() {
     carrito = [];
     actualizarTabla();
     document.getElementById('v_cliente').value = '';
+    if (document.getElementById('v_vendedor')) document.getElementById('v_vendedor').value = '';
     if (document.getElementById('v_cedula')) document.getElementById('v_cedula').value = '';
     if (document.getElementById('v_telefono')) document.getElementById('v_telefono').value = '';
     if (document.getElementById('v_ref')) document.getElementById('v_ref').value = '';
@@ -462,6 +466,7 @@ function crearProducto() {
         codigo: document.getElementById('i_codigo').value.trim(),
         descripcion: document.getElementById('i_desc').value.trim(),
         precio_usd: parseFloat(document.getElementById('i_precio').value),
+        costo_usd: parseFloat(document.getElementById('i_costo').value) || 0,
         stock: parseInt(document.getElementById('i_stock').value) || 0
     };
 
@@ -481,6 +486,7 @@ function crearProducto() {
         document.getElementById('i_codigo').value = '';
         document.getElementById('i_desc').value = '';
         document.getElementById('i_precio').value = '';
+        if (document.getElementById('i_costo')) document.getElementById('i_costo').value = '';
         document.getElementById('i_stock').value = '';
     })
     .catch(err => alert('Error: ' + err.message));
@@ -544,6 +550,7 @@ function actualizarHistorial() {
                     <div class="flex flex-col">
                         <span class="font-black text-slate-700 uppercase">${v.cliente}</span>
                         <span class="text-[9px] text-slate-400 font-mono">${new Date(v.fecha).toLocaleString()}</span>
+                        ${v.vendedor ? `<span class="text-[9px] text-slate-400 font-mono">Vend: ${v.vendedor}</span>` : ''}
                         ${ (v.cedula || v.telefono) ? `<span class="text-[9px] text-slate-400 font-mono">${v.cedula ? `ID: ${v.cedula}` : ''}${v.cedula && v.telefono ? ' | ' : ''}${v.telefono ? `Tel: ${v.telefono}` : ''}</span>` : '' }
                         <span class="text-[9px] text-slate-400 font-mono mt-1">Tasa: ${Number(v.tasa_bcv || 0).toFixed(2)} | Desc: ${Number(v.descuento || 0)}% | Método: ${v.metodo_pago || ''}${v.referencia ? ` | Ref: ${v.referencia}` : ''}</span>
                     </div>

@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../db');
 
 router.post('/', (req, res) => {
-    const { items, cliente, cedula = '', telefono = '', tasa_bcv, descuento = 0, metodo_pago = '', referencia = '' } = req.body;
+    const { items, cliente, vendedor = '', cedula = '', telefono = '', tasa_bcv, descuento = 0, metodo_pago = '', referencia = '' } = req.body;
 
     // LOG DE DEPURACIÓN: Para ver qué llega al servidor
     console.log("Datos recibidos en /ventas:", { items, cliente, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia });
@@ -39,15 +39,15 @@ router.post('/', (req, res) => {
         const transaction = db.transaction(() => {
             // Crear la cabecera de la venta con total 0 inicialmente, guardando descuento y metodo_pago
             const ventaResult = db.prepare(`
-                INSERT INTO ventas (fecha, cliente, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-            `).run(fecha, cliente, cedula, telefono, tasa_bcv, descuentoNum, metodo_pago, referencia);
+                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            `).run(fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuentoNum, metodo_pago, referencia);
 
             const ventaId = ventaResult.lastInsertRowid;
 
             for (const item of items) {
                 // Buscar producto real en DB por CÓDIGO
-                const producto = db.prepare('SELECT id, stock, precio_usd FROM productos WHERE codigo = ?').get(item.codigo);
+                const producto = db.prepare('SELECT id, stock, precio_usd, costo_usd FROM productos WHERE codigo = ?').get(item.codigo);
                 
                 if (!producto) {
                     throw new Error(`El producto con código ${item.codigo} no existe en la base de datos`);
@@ -62,9 +62,9 @@ router.post('/', (req, res) => {
 
                 // Insertar cada item en el detalle
                 db.prepare(`
-                    INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, subtotal_bs)
-                    VALUES (?, ?, ?, ?, ?)
-                `).run(ventaId, producto.id, item.cantidad, producto.precio_usd, subtotalBs);
+                    INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `).run(ventaId, producto.id, item.cantidad, producto.precio_usd, producto.costo_usd || 0, subtotalBs);
 
                 // Descontar del inventario
                 db.prepare(`

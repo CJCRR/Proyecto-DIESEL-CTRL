@@ -87,6 +87,7 @@
                         <input id="i_codigo" placeholder="Código Único" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
                         <input id="i_desc" placeholder="Descripción del Producto" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
                         <input id="i_precio" type="number" placeholder="Precio USD" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                        <input id="i_costo" type="number" placeholder="Costo USD" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
                         <input id="i_stock" type="number" placeholder="Stock Inicial" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
                     </div>
                     <button onclick="crearProducto()" class="w-full bg-slate-900 text-white p-3 rounded-xl font-bold hover:bg-black transition-all">Guardar en Inventario</button>
@@ -137,6 +138,10 @@
                         <div class="text-[11px] text-blue-600 font-semibold mt-1">
                             <a href="/clientes.html" class="hover:underline">Gestionar clientes (ver, editar, eliminar)</a>
                         </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Vendedor / Cajero</label>
+                        <input id="v_vendedor" placeholder="Nombre del vendedor" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Tasa Cambio (Bs / $)</label>

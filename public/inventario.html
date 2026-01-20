@@ -118,6 +118,8 @@
                         <label class="text-xs">Precio USD</label>
                         <input id="f_precio" type="number" step="0.01" class="w-full p-2 border rounded mb-2"
                             required />
+                        <label class="text-xs">Costo USD</label>
+                        <input id="f_costo" type="number" step="0.01" class="w-full p-2 border rounded mb-2" />
                         <label class="text-xs">Stock</label>
                         <input id="f_stock" type="number" class="w-full p-2 border rounded mb-2" required />
                         <label class="text-xs">Categoría</label>
@@ -153,6 +155,7 @@
             const f_codigo = document.getElementById('f_codigo');
             const f_desc = document.getElementById('f_desc');
             const f_precio = document.getElementById('f_precio');
+            const f_costo = document.getElementById('f_costo');
             const f_stock = document.getElementById('f_stock');
             const msg = document.getElementById('msg');
             const btnBorrar = document.getElementById('btnBorrar');
@@ -279,6 +282,7 @@
                         f_codigo.value = p.codigo;
                         f_desc.value = p.descripcion || '';
                         f_precio.value = p.precio_usd || 0;
+                        f_costo.value = p.costo_usd || 0;
                         f_stock.value = p.stock || 0;
                         const f_cat = document.getElementById('f_categoria'); if (f_cat) f_cat.value = p.categoria || '';
                         msg.innerText = '';
@@ -378,13 +382,13 @@
                     const previewRows = rows.slice(0, Math.min(10, rows.length));
                     let html = '<table class="w-full text-xs table-fixed border-collapse">';
                     html += '<thead><tr class="bg-slate-100"><th class="px-2 py-1 border">#</th>';
-                    const headerCols = ['codigo','descripcion','precio_usd','stock','categoria'];
+                    const headerCols = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria'];
                     headerCols.forEach(h => { html += `<th class="px-2 py-1 border">${h}</th>`; });
                     html += '</tr></thead><tbody>';
                     for (let i = 0; i < previewRows.length; i++){
                         const cols = previewRows[i];
                         html += `<tr class="odd:bg-white even:bg-slate-50"><td class="px-2 py-1 border">${i+1}</td>`;
-                        for (let j=0;j<5;j++){ html += `<td class="px-2 py-1 border">${(cols[j]||'').toString()}</td>`; }
+                        for (let j=0;j<6;j++){ html += `<td class="px-2 py-1 border">${(cols[j]||'').toString()}</td>`; }
                         html += '</tr>';
                     }
                     html += '</tbody></table>';
@@ -432,6 +436,7 @@
                     codigo: f_codigo.value.trim(),
                     descripcion: f_desc.value.trim(),
                     precio_usd: parseFloat(f_precio.value),
+                    costo_usd: parseFloat(f_costo.value) || 0,
                     stock: parseInt(f_stock.value) || 0,
                     categoria: (document.getElementById('f_categoria') && document.getElementById('f_categoria').value.trim()) || ''
                 };
@@ -445,7 +450,7 @@
                         if (!res.ok) throw new Error(d.error || 'Error crear');
                         msg.innerText = 'Producto creado.';
                     } else {
-                        const res = await fetch('/admin/productos/' + encodeURIComponent(body.codigo), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ descripcion: body.descripcion, precio_usd: body.precio_usd, stock: body.stock, categoria: body.categoria }) });
+                        const res = await fetch('/admin/productos/' + encodeURIComponent(body.codigo), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ descripcion: body.descripcion, precio_usd: body.precio_usd, costo_usd: body.costo_usd, stock: body.stock, categoria: body.categoria }) });
                         const d = await res.json();
                         if (!res.ok) throw new Error(d.error || 'Error actualizar');
                         msg.innerText = 'Producto actualizado.';
@@ -454,7 +459,7 @@
                     currentPage = 0;
                     await cargarProductos();
                     // Limpiar inputs excepto categoria (permite ingresar varios del mismo grupo)
-                    f_codigo.value = f_desc.value = f_precio.value = f_stock.value = '';
+                    f_codigo.value = f_desc.value = f_precio.value = f_costo.value = f_stock.value = '';
                     msg.innerText = '';
                     showToast(!exists ? 'Producto creado.' : 'Producto actualizado.', 'success');
                 } catch (err) {

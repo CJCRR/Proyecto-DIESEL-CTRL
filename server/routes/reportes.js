@@ -2,15 +2,87 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+function queryVentasRango({ desde, hasta, vendedor, metodo, limit = 500 }) {
+  const where = [];
+  const params = [];
+  if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+  if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  if (vendedor) { where.push("v.vendedor LIKE ?"); params.push('%' + vendedor + '%'); }
+  if (metodo) { where.push("v.metodo_pago = ?"); params.push(metodo); }
+  const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+  const rows = db.prepare(`
+    SELECT v.id, v.fecha, v.cliente, v.vendedor, v.metodo_pago, v.referencia,
+           v.tasa_bcv, v.descuento,
+           COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0) AS total_bs,
+           COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) / NULLIF(v.tasa_bcv,0),
+                    SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),
+                    v.total_bs) AS total_usd,
+           COALESCE(SUM(vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)), 0) AS bruto_bs,
+           COALESCE(SUM(vd.precio_usd * vd.cantidad), 0) AS bruto_usd,
+           COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad * COALESCE(v.tasa_bcv,1)), 0) AS costo_bs,
+           COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad), 0) AS costo_usd,
+           COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0)
+             - COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad * COALESCE(v.tasa_bcv,1)), 0) AS margen_bs,
+           COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) / NULLIF(v.tasa_bcv,0),
+                    SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),
+                    v.total_bs) - COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad),0) AS margen_usd
+    FROM ventas v
+    JOIN venta_detalle vd ON vd.venta_id = v.id
+    JOIN productos p ON p.id = vd.producto_id
+    ${whereSQL}
+    GROUP BY v.id
+    ORDER BY v.fecha DESC
+    LIMIT ?
+  `).all(...params, limit);
+
+  return rows;
+}
+
 router.get('/ventas', (req, res) => {
     const ventas = db.prepare(`
-    SELECT id, fecha, cliente, cedula, telefono, total_bs, tasa_bcv, descuento, metodo_pago, referencia
+    SELECT id, fecha, cliente, vendedor, cedula, telefono, total_bs, tasa_bcv, descuento, metodo_pago, referencia
     FROM ventas
     ORDER BY fecha DESC
     LIMIT 100
   `).all();
 
     res.json(ventas);
+});
+
+// GET /reportes/ventas-rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&vendedor=X&metodo=Y
+router.get('/ventas-rango', (req, res) => {
+  try {
+    const { desde, hasta, vendedor, metodo } = req.query;
+    const rows = queryVentasRango({ desde, hasta, vendedor, metodo, limit: 1000 });
+    res.json(rows);
+  } catch (err) {
+    console.error('Error en ventas-rango:', err);
+    res.status(500).json({ error: 'Error al obtener ventas por rango' });
+  }
+});
+
+// GET /reportes/ventas/export/csv
+router.get('/ventas/export/csv', (req, res) => {
+  try {
+    const { desde, hasta, vendedor, metodo } = req.query;
+    const rows = queryVentasRango({ desde, hasta, vendedor, metodo, limit: 5000 });
+    const header = ['fecha','cliente','vendedor','metodo_pago','referencia','tasa_bcv','descuento','total_bs','total_usd','bruto_bs','bruto_usd','costo_bs','costo_usd','margen_bs','margen_usd'];
+    const toCsv = (val) => {
+      if (val === null || val === undefined) return '';
+      const s = String(val);
+      if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+      return s;
+    };
+    const lines = rows.map(r => header.map(h => toCsv(r[h])).join(';'));
+    const csv = '\uFEFF' + header.join(';') + '\r\n' + lines.join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="ventas_rango.csv"');
+    res.send(csv);
+  } catch (err) {
+    console.error('Error exportando CSV:', err);
+    res.status(500).json({ error: 'Error al exportar CSV' });
+  }
 });
 
 // GET /reportes/kpis - indicadores clave para el dashboard
@@ -32,7 +104,7 @@ router.get('/kpis', (req, res) => {
 
     // calcular total en USD a partir de total_bs y tasa por venta
     const totalUsdRow = db.prepare(`
-      SELECT COALESCE(SUM(total_bs / NULLIF(tasa_bcv,0)), 0) as total_usd FROM ventas
+      SELECT COALESCE(SUM(CASE WHEN COALESCE(tasa_bcv,0) != 0 THEN total_bs / tasa_bcv ELSE total_bs END), 0) as total_usd FROM ventas
     `).get();
 
     res.json({
@@ -48,15 +120,23 @@ router.get('/kpis', (req, res) => {
 });
 
 
-// GET /reportes/top-productos?limit= - Top productos por ventas (cantidad y montos)
+// GET /reportes/top-productos?limit= - Top productos por ventas (cantidad, montos, costo y margen)
 router.get('/top-productos', (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     const rows = db.prepare(`
       SELECT p.codigo, p.descripcion,
-             SUM(vd.cantidad) as total_qty,
-             COALESCE(SUM(vd.subtotal_bs),0) as total_bs,
-             COALESCE(SUM(vd.subtotal_bs / NULLIF(v.tasa_bcv,0)),0) as total_usd
+        SUM(vd.cantidad) as total_qty,
+        COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),0) as total_bs,
+        COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)))/NULLIF(v.tasa_bcv,0),
+                 SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),0) as total_usd,
+        COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad * COALESCE(v.tasa_bcv,1)),0) as costo_bs,
+        COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad),0) as costo_usd,
+        COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),0)
+          - COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad * COALESCE(v.tasa_bcv,1)),0) as margen_bs,
+        COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)))/NULLIF(v.tasa_bcv,0),
+                 SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),0)
+          - COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad),0) as margen_usd
       FROM venta_detalle vd
       JOIN ventas v ON v.id = vd.venta_id
       JOIN productos p ON p.id = vd.producto_id
