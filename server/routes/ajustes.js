@@ -45,3 +45,21 @@ router.post('/', (req, res) => {
 });
 
 module.exports = router;
+
+// GET /admin/ajustes - Listar ajustes (últimos 100 por defecto)
+router.get('/', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const rows = db.prepare(`
+      SELECT a.id, a.producto_id, p.codigo, p.descripcion, a.diferencia, a.motivo, a.fecha
+      FROM ajustes_stock a
+      LEFT JOIN productos p ON p.id = a.producto_id
+      ORDER BY a.fecha DESC
+      LIMIT ?
+    `).all(limit);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error listando ajustes:', err);
+    res.status(500).json({ error: 'Error al listar ajustes' });
+  }
+});

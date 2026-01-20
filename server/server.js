@@ -14,6 +14,8 @@ const backupRoutes = require('./routes/backup');
 
 const app = express();
 app.use(express.json());
+// Permitir parsing de bodies de texto (usado para importar CSV como text/plain)
+app.use(express.text({ type: ['text/*', 'application/csv'] }));
 
 // Servir archivos estáticos desde la carpeta public
 // Esto servirá index.html, styles.css y app.js automáticamente

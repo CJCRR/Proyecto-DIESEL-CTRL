@@ -49,6 +49,18 @@ const schema = `
 
 db.exec(schema);
 
+// Asegurar columna 'categoria' en productos (agregar si no existe)
+try {
+  const info = db.prepare("PRAGMA table_info('productos')").all();
+  const hasCategoria = info.some(col => col.name === 'categoria');
+  if (!hasCategoria) {
+    db.prepare("ALTER TABLE productos ADD COLUMN categoria TEXT").run();
+    console.log('Columna categoria añadida a productos');
+  }
+} catch (err) {
+  console.warn('No se pudo actualizar esquema para categoria (ignorado):', err.message);
+}
+
 // Seed inicial (solo si está vacío para evitar duplicados en reinicios)
 const count = db.prepare('SELECT count(*) as c FROM productos').get();
 if (count.c === 0) {
