@@ -54,11 +54,16 @@ async function obtenerVentasPendientes(db) {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction([STORES.VENTAS], 'readonly');
         const store = transaction.objectStore(STORES.VENTAS);
-        const index = store.index('sync');
-        const request = index.getAll(false);
+        // No usar booleanos como clave en IDBIndex (no son tipos de clave válidos en todos
+        // los navegadores). Recuperamos todo y filtramos en JS.
+        const request = store.getAll();
 
         request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
+        request.onsuccess = () => {
+            const all = request.result || [];
+            const pendientes = all.filter(v => !v.sync);
+            resolve(pendientes);
+        };
     });
 }
 

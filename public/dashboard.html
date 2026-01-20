@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Diesel-CTRL — Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* pequeño ajuste visual */
+        #ventas-hoy, #ventas-semana, #total-bs { font-variant-numeric: tabular-nums; }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+    <nav class="bg-slate-900 text-white p-4 shadow">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-lg font-bold">DIESEL <span class="text-blue-400">CTRL</span> — Dashboard</h1>
+            <div class="text-sm opacity-60">Panel de control</div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section class="lg:col-span-8 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="p-4 bg-white rounded-xl shadow-sm border">
+                    <div class="text-xs uppercase text-slate-400 font-black">Ventas hoy</div>
+                    <div id="ventas-hoy" class="mt-3 text-2xl font-extrabold">--</div>
+                </div>
+                <div class="p-4 bg-white rounded-xl shadow-sm border">
+                    <div class="text-xs uppercase text-slate-400 font-black">Ventas semana</div>
+                    <div id="ventas-semana" class="mt-3 text-2xl font-extrabold">--</div>
+                </div>
+                <div class="p-4 bg-white rounded-xl shadow-sm border">
+                    <div class="text-xs uppercase text-slate-400 font-black">Total</div>
+                    <div id="total-bs" class="mt-3 text-2xl font-extrabold">--</div>
+                    <div id="total-usd" class="text-sm text-slate-500">-- USD</div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl p-4 border shadow-sm">
+                <h3 class="text-sm font-black text-slate-600 mb-2">Gráfico de ventas (placeholder)</h3>
+                <div class="h-48 bg-slate-100 rounded flex items-center justify-center text-slate-400">Aquí irá un gráfico</div>
+            </div>
+
+            <div class="bg-white rounded-xl p-4 border shadow-sm">
+                <h3 class="text-sm font-black text-slate-600 mb-2">Inventario</h3>
+                <div class="text-xs text-slate-500 mb-2">Totales: <span id="inv-total-usd">--</span> USD — <span id="inv-total-bs">--</span> Bs (tasa: <span id="inv-tasa">--</span>)</div>
+                <div id="inventario-list" class="space-y-2">
+                    <div class="text-sm text-slate-400">Cargando...</div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl p-4 border shadow-sm">
+                <h3 class="text-sm font-black text-slate-600 mb-2">Top productos por ventas</h3>
+                <div id="top-productos" class="space-y-2 text-sm text-slate-600">Cargando...</div>
+            </div>
+        </section>
+
+        <aside class="lg:col-span-4 space-y-6">
+            <div class="bg-white rounded-xl p-4 border shadow-sm">
+                <h4 class="text-xs uppercase text-slate-400 font-black mb-3">Filtrar inventario</h4>
+                <input id="filter" placeholder="Buscar código o descripción..." class="w-full p-2 border rounded" />
+            </div>
+
+            <div class="bg-white rounded-xl p-4 border shadow-sm">
+                <h4 class="text-xs uppercase text-slate-400 font-black mb-3">Últimas ventas</h4>
+                <div id="ultimas-ventas" class="space-y-2 text-sm text-slate-600">Cargando...</div>
+            </div>
+
+            <div class="bg-white rounded-xl p-4 border shadow-sm">
+                <h4 class="text-xs uppercase text-slate-400 font-black mb-3">Acciones rápidas</h4>
+                <div class="flex flex-col gap-2">
+                    <a href="index.html" class="block text-center p-2 bg-blue-600 text-white rounded">Abrir Punto de Venta</a>
+                    <a href="dashboard.html" class="block text-center p-2 bg-slate-200 rounded">Refrescar Dashboard</a>
+                    <button id="sincronizar-manual" class="p-2 bg-green-500 text-white rounded">Sincronizar ahora</button>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        // fetch minimal data from existing endpoints
+        async function cargarDashboard() {
+            try {
+                // KPIs rápidos
+                const kpisRes = await fetch('/reportes/kpis');
+                if (kpisRes.ok) {
+                    const kpis = await kpisRes.json();
+                    document.getElementById('ventas-hoy').innerText = kpis.ventasHoy;
+                    document.getElementById('ventas-semana').innerText = kpis.ventasSemana;
+                    document.getElementById('total-bs').innerText = Number(kpis.totalBs || 0).toFixed(2) + ' Bs';
+                    document.getElementById('total-usd').innerText = (kpis.totalUsd != null) ? (Number(kpis.totalUsd).toFixed(2) + ' USD') : '-- USD';
+                }
+
+                // Últimas ventas (para la lista)
+                const ventasRes = await fetch('/reportes/ventas');
+                const ventas = await ventasRes.json();
+                const ultimas = ventas.slice(0,5);
+                const ultEl = document.getElementById('ultimas-ventas');
+                ultEl.innerHTML = '';
+                ultimas.forEach(u => {
+                    const d = document.createElement('div');
+                    d.className = 'p-2 border rounded flex items-center justify-between';
+                    const left = `<div class="min-w-0"><div class="font-bold truncate">${u.cliente || '—'}</div><div class="text-[10px] text-slate-400">${new Date(u.fecha).toLocaleString()}</div></div>`;
+                    const montoBs = (u.total_bs != null) ? (Number(u.total_bs).toFixed(2) + ' Bs') : '-- Bs';
+                    const montoUsd = (u.tasa_bcv != null && u.tasa_bcv !== 0) ? (Number(u.total_bs / u.tasa_bcv).toFixed(2) + ' USD') : '-- USD';
+                    const right = `<div class="text-right ml-4 w-36"><div class="text-sm font-black">${montoBs}</div><div class="text-xs text-slate-400">${montoUsd}</div></div>`;
+                    d.innerHTML = left + right;
+                    ultEl.appendChild(d);
+                });
+
+                // Inventario detallado desde /reportes/inventario
+                const invRes = await fetch('/reportes/inventario');
+                if (invRes.ok) {
+                    const inv = await invRes.json();
+                    const invEl = document.getElementById('inventario-list');
+                    document.getElementById('inv-total-usd').innerText = Number(inv.totals.totalUsd || 0).toFixed(2) + ' USD';
+                    document.getElementById('inv-total-bs').innerText = Number(inv.totals.totalBs || 0).toFixed(2) + ' Bs';
+                    document.getElementById('inv-tasa').innerText = Number(inv.totals.tasa || 1).toFixed(2);
+                    invEl.innerHTML = '';
+                    (inv.items || []).slice(0, 10).forEach(p => {
+                        const el = document.createElement('div');
+                        el.className = 'flex justify-between items-center p-2 border-b';
+                        el.innerHTML = `<div><div class="font-bold">${p.codigo}</div><div class="text-xs text-slate-400">${p.descripcion}</div></div><div class="text-right"><div class="text-sm font-black">${p.stock}</div><div class="text-xs text-slate-400">${Number(p.total_usd||0).toFixed(2)} USD</div></div>`;
+                        invEl.appendChild(el);
+                    });
+                }
+
+                // Top productos por ventas
+                const topRes = await fetch('/reportes/top-productos?limit=10');
+                if (topRes.ok) {
+                    const tops = await topRes.json();
+                    const topEl = document.getElementById('top-productos');
+                    topEl.innerHTML = '';
+                    tops.forEach(t => {
+                        const row = document.createElement('div');
+                        row.className = 'flex justify-between items-center p-2 border-b';
+                        row.innerHTML = `<div><div class="font-bold">${t.codigo} — ${t.descripcion || ''}</div><div class="text-xs text-slate-400">Vendidos: ${t.total_qty}</div></div><div class="text-right"><div class="font-black">${Number(t.total_bs||0).toFixed(2)} Bs</div><div class="text-xs text-slate-400">${Number(t.total_usd||0).toFixed(2)} USD</div></div>`;
+                        topEl.appendChild(row);
+                    });
+                }
+            } catch (err) {
+                console.error('Error cargando dashboard', err);
+            }
+        }
+
+        document.getElementById('sincronizar-manual').addEventListener('click', () => {
+            if (typeof window.sincronizarVentasPendientes === 'function') window.sincronizarVentasPendientes();
+        });
+
+        cargarDashboard();
+    </script>
+</body>
+
+</html>

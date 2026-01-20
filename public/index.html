@@ -156,13 +156,9 @@
     </main>
 
     <script src="db-local.js"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('✅ Service Worker registrado'))
-                .catch(err => console.error('❌ Error Service Worker:', err));
-        }
-    </script>
-    <script src="app.js"></script>
+    <script src="service-worker.js"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="firebase-sync.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -2,6 +2,24 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// GET /productos - lista (paginada) de productos
+router.get('/', (req, res) => {
+    const limit = parseInt(req.query.limit) || 100;
+    try {
+        const productos = db.prepare(`
+            SELECT codigo, descripcion, precio_usd, stock
+            FROM productos
+            ORDER BY stock ASC, codigo ASC
+            LIMIT ?
+        `).all(limit);
+
+        res.json(productos);
+    } catch (err) {
+        console.error('Error obteniendo productos:', err);
+        res.status(500).json({ error: 'Error al obtener productos' });
+    }
+});
+
 router.get('/:codigo', (req, res) => {
     const { codigo } = req.params;
 

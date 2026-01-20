@@ -1,3 +1,5 @@
+import { sincronizarVentasPendientes } from './firebase-sync.js';
+
 let carrito = [];
 let productoSeleccionado = null;
 let vendiendo = false;
@@ -271,38 +273,52 @@ async function registrarVenta() {
 
     vendiendo = true;
     btnVender.disabled = true;
+    btnVender.innerText = 'Procesando...';
 
-    // Paso 1: Respaldo local preventivo
-    guardarVentaLocal(ventaData);
+    try {
+            // 1. GUARDAR EN IndexedDB (SIEMPRE) - usar función de db-local.js
+            await guardarVentaLocal(ventaData);
 
-    if (!isOnline) {
-        // Modo Offline puro
-        imprimirNotaLocal(ventaData);
-        finalizarVentaUI();
-    } else {
-        // Intento Online
-        try {
-            const res = await fetch('/ventas', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items: carrito, cliente, tasa_bcv: tasa })
-            });
-            const data = await res.json();
-            
-            if (res.ok) {
-                marcarVentaComoSincronizada(ventaData.id_global);
-                window.open(`/nota/${data.ventaId}`, '_blank');
-                finalizarVentaUI();
-            } else {
-                throw new Error("Error servidor");
+            // 2. SI ESTÁ ONLINE, INTENTAR SINCRONIZAR PENDIENTES
+            if (isOnline && typeof window.sincronizarVentasPendientes === 'function') {
+                await window.sincronizarVentasPendientes();
             }
-        } catch (e) {
-            // Fallback: Si el servidor falla estando online, imprimimos local
-            imprimirNotaLocal(ventaData);
+
+            // Actualizar UI antes de abrir la nota para evitar que la impresión "corte"
             finalizarVentaUI();
-        }
+            // Abrir nota primero, luego mostrar alerta con ligero retardo para no bloquear la renderización
+            imprimirNotaLocal(ventaData);
+            setTimeout(() => alert('✅ Venta registrada exitosamente'), 300);
+    } catch (err) {
+        console.error(err);
+        alert('❌ Error: ' + err.message);
+    } finally {
+        vendiendo = false;
+        btnVender.disabled = false;
+        btnVender.innerText = 'Vender';
     }
+    actualizarHistorial()
 }
+
+// --- INTENTAR SINCRONIZACIÓN CADA 30 SEGUNDOS ---
+document.addEventListener('DOMContentLoaded', () => {
+    setupOfflineUI();
+    actualizarHistorial();
+    
+    if (isOnline) {
+        sincronizarVentasPendientes();
+        setInterval(() => {
+            if (isOnline) sincronizarVentasPendientes();
+        }, 30000);
+    }
+
+    // Registrar service worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js')
+            .then(() => console.log('✅ Service Worker activo'))
+            .catch(err => console.error('❌ Error SW:', err));
+    }
+});
 
 function finalizarVentaUI() {
     carrito = [];
@@ -327,12 +343,23 @@ async function enviarVentaAlServidor(venta) {
 }
 
 function guardarVentaLocal(venta) {
+    // DEPRECATED: localStorage fallback removed. Use IndexedDB implementation in db-local.js
+    // If db-local.js is loaded, call that implementation instead.
+    if (typeof window.guardarVentaLocal === 'function' && window.guardarVentaLocal !== guardarVentaLocal) {
+        // db-local.js provides guardarVentaLocal; call it
+        return window.guardarVentaLocal(venta);
+    }
+    // Fallback: keep localStorage for compatibility
     const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
     historico.push(venta);
     localStorage.setItem('ventas_pendientes', JSON.stringify(historico));
 }
 
 function marcarVentaComoSincronizada(idGlobal) {
+    // Preferir IndexedDB implementation si existe
+    if (typeof window.abrirIndexedDB === 'function' && typeof window.marcarComoSincronizada === 'function') {
+        return abrirIndexedDB().then(db => marcarComoSincronizada(db, idGlobal));
+    }
     const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
     const nuevo = historico.map(v => v.id_global === idGlobal ? { ...v, sync: true } : v);
     localStorage.setItem('ventas_pendientes', JSON.stringify(nuevo));
@@ -452,3 +479,14 @@ document.addEventListener('DOMContentLoaded', () => {
     actualizarHistorial();
     if (isOnline) intentarSincronizar();
 });
+
+// Exponer funciones al scope global para que los atributos inline onclick funcionen
+// (cuando se carga `app.js` como módulo, las funciones no quedan en `window` automáticamente).
+window.agregarAlCarrito = agregarAlCarrito;
+window.registrarVenta = registrarVenta;
+window.switchAdminTab = switchAdminTab;
+window.crearProducto = crearProducto;
+window.ajustarStock = ajustarStock;
+window.eliminarDelCarrito = eliminarDelCarrito;
+window.prepararParaAgregar = prepararParaAgregar;
+window.actualizarTabla = actualizarTabla;
