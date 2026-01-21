@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { requireAuth } = require('./auth');
 
 const router = express.Router();
 
@@ -20,11 +21,11 @@ async function createBackup() {
     return { fileName, dest };
 }
 
-router.get('/export', (req, res) => {
+router.get('/export', requireAuth, (req, res) => {
     res.download(DB_PATH, `respaldo_${Date.now()}.sqlite`);
 });
 
-router.post('/create', async (_req, res) => {
+router.post('/create', requireAuth, async (_req, res) => {
     try {
         const { fileName } = await createBackup();
         res.json({ ok: true, file: fileName });

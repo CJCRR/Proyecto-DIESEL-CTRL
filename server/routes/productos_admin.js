@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { requireAuth } = require('./auth');
 
 // POST /admin/productos - Crear nuevo producto
-router.post('/', (req, res) => {
+router.post('/', requireAuth, (req, res) => {
     // 1. Saneamiento de entrada
     let { codigo, descripcion, precio_usd, costo_usd, stock, categoria } = req.body;
 
@@ -56,7 +57,7 @@ router.post('/', (req, res) => {
 });
 
 // GET /admin/productos - Listar productos (paginado opcional) con filtros
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
     const q = req.query.q ? String(req.query.q).trim().toLowerCase() : null;
@@ -93,7 +94,7 @@ router.get('/', (req, res) => {
 });
 
 // GET /admin/productos/export - Exportar todos los productos a CSV
-router.get('/export', (req, res) => {
+router.get('/export', requireAuth, (req, res) => {
     try {
         const rows = db.prepare('SELECT codigo, descripcion, precio_usd, costo_usd, stock, categoria FROM productos ORDER BY codigo').all();
         // Allow delimiter selection: comma (default), semicolon or tab
@@ -137,7 +138,7 @@ router.get('/export', (req, res) => {
 });
 
 // POST /admin/productos/import - Importar CSV enviado en el body como text/plain
-router.post('/import', (req, res) => {
+router.post('/import', requireAuth, (req, res) => {
     try {
         const text = (typeof req.body === 'string') ? req.body : '';
         if (!text) return res.status(400).json({ error: 'CSV vacío' });
@@ -262,7 +263,7 @@ router.post('/import', (req, res) => {
 });
 
 // PUT /admin/productos/:codigo - Actualizar producto por código
-router.put('/:codigo', (req, res) => {
+router.put('/:codigo', requireAuth, (req, res) => {
     let codigo = req.params.codigo ? req.params.codigo.trim().toUpperCase() : '';
     let { descripcion, precio_usd, costo_usd, stock, categoria } = req.body;
 

@@ -1,5 +1,7 @@
 import { obtenerClientesFirebase, upsertClienteFirebase, eliminarClienteFirebasePorCedula } from './firebase-sync.js';
 
+console.log('clientes.js v2.0 cargado - con autenticación');
+
 const tabla = document.getElementById('c_tabla');
 const buscar = document.getElementById('c_buscar');
 const nombreInput = document.getElementById('c_nombre');
@@ -60,7 +62,10 @@ async function cargarHistorial() {
         return;
     }
     try {
-        const res = await fetch(`/reportes/historial-cliente?q=${encodeURIComponent(q)}`);
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch(`/reportes/historial-cliente?q=${encodeURIComponent(q)}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (!res.ok) return;
         const rows = await res.json();
         body.innerHTML = rows

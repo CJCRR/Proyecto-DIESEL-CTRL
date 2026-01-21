@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { requireAuth } = require('./auth');
 
-router.post('/', (req, res) => {
-    const { items, cliente, vendedor = '', cedula = '', telefono = '', tasa_bcv, descuento = 0, metodo_pago = '', referencia = '' } = req.body;
+router.post('/', requireAuth, (req, res) => {
+    const { items, cliente, vendedor = '', cedula = '', telefono = '', tasa_bcv, descuento = 0, metodo_pago = '', referencia = '', usuario_id = null } = req.body;
 
     // LOG DE DEPURACIÓN: Para ver qué llega al servidor
     console.log("Datos recibidos en /ventas:", { items, cliente, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia });
@@ -39,9 +40,9 @@ router.post('/', (req, res) => {
         const transaction = db.transaction(() => {
             // Crear la cabecera de la venta con total 0 inicialmente, guardando descuento y metodo_pago
             const ventaResult = db.prepare(`
-                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-            `).run(fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuentoNum, metodo_pago, referencia);
+                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, usuario_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+            `).run(fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuentoNum, metodo_pago, referencia, usuario_id);
 
             const ventaId = ventaResult.lastInsertRowid;
 

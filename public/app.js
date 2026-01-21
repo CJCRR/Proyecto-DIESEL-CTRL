@@ -95,7 +95,10 @@ buscarInput.addEventListener('input', () => {
         return;
     }
 
-    fetch(`/buscar?q=${encodeURIComponent(q)}`)
+    const token = localStorage.getItem('auth_token');
+    fetch(`/buscar?q=${encodeURIComponent(q)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
         .then(res => res.json())
         .then(data => {
             resultadosUL.innerHTML = '';
@@ -421,7 +424,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnBackupNow) {
         btnBackupNow.addEventListener('click', async () => {
             try {
-                const r = await fetch('/backup/create', { method: 'POST' });
+                const token = localStorage.getItem('auth_token');
+                const r = await fetch('/backup/create', { 
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
                 if (r.ok) showToast('Backup creado', 'success'); else showToast('No se pudo crear backup', 'error');
             } catch (err) {
                 console.error(err);
@@ -433,7 +440,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Prefill tasa desde backend/config o localStorage
     (async () => {
         try {
-            const r = await fetch('/admin/ajustes/tasa-bcv');
+            const token = localStorage.getItem('auth_token');
+            const r = await fetch('/admin/ajustes/tasa-bcv', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (r.ok) {
                 const j = await r.json();
                 const input = document.getElementById('v_tasa');
@@ -543,10 +553,21 @@ function finalizarVentaUI() {
 }
 
 async function enviarVentaAlServidor(venta) {
+    // Obtener usuario actual para auditoría
+    const user = window.Auth ? window.Auth.getUser() : null;
+    const ventaConUsuario = {
+        ...venta,
+        usuario_id: user ? user.id : null
+    };
+    
+    const token = localStorage.getItem('auth_token');
     const res = await fetch('/ventas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(venta)
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(ventaConUsuario)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -592,9 +613,13 @@ function crearProducto() {
         return alert('Complete todos los campos del producto.');
     }
 
+    const token = localStorage.getItem('auth_token');
     fetch('/admin/productos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(body)
     })
     .then(r => r.json())
@@ -621,9 +646,13 @@ function ajustarStock() {
         return alert('Ingrese el código y la cantidad a ajustar.');
     }
 
+    const token = localStorage.getItem('auth_token');
     fetch('/admin/ajustes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(body)
     })
     .then(r => r.json())
@@ -653,7 +682,10 @@ function switchAdminTab(tab) {
 
 // --- REPORTES ---
 function actualizarHistorial() {
-    fetch('/reportes/ventas')
+    const token = localStorage.getItem('auth_token');
+    fetch('/reportes/ventas', {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
         .then(res => res.json())
         .then(data => {
             const cont = document.getElementById('historial');

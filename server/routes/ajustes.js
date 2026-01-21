@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { requireAuth } = require('./auth');
 
 // POST /admin/ajustes - Ajustar Stock (Entrada/Salida manual)
-router.post('/', (req, res) => {
+router.post('/', requireAuth, (req, res) => {
   const { codigo, diferencia, motivo } = req.body;
   const diff = parseInt(diferencia);
 
@@ -47,7 +48,7 @@ router.post('/', (req, res) => {
 module.exports = router;
 
 // GET /admin/ajustes - Listar ajustes (últimos 100 por defecto)
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
     const rows = db.prepare(`
@@ -81,7 +82,7 @@ function setConfig(clave, valor) {
 }
 
 // GET /ajustes/tasa-bcv
-router.get('/tasa-bcv', (req, res) => {
+router.get('/tasa-bcv', requireAuth, (req, res) => {
   try {
     const valor = parseFloat(getConfig('tasa_bcv', '1')) || 1;
     res.json({ tasa_bcv: valor });
@@ -91,7 +92,7 @@ router.get('/tasa-bcv', (req, res) => {
 });
 
 // POST /ajustes/tasa-bcv  { tasa_bcv }
-router.post('/tasa-bcv', (req, res) => {
+router.post('/tasa-bcv', requireAuth, (req, res) => {
   const { tasa_bcv } = req.body || {};
   const t = parseFloat(tasa_bcv);
   if (!t || isNaN(t) || t <= 0) return res.status(400).json({ error: 'Tasa inválida' });
@@ -104,7 +105,7 @@ router.post('/tasa-bcv', (req, res) => {
 });
 
 // POST /ajustes/tasa-bcv/actualizar - intenta consultar fuentes públicas
-router.post('/tasa-bcv/actualizar', async (req, res) => {
+router.post('/tasa-bcv/actualizar', requireAuth, async (req, res) => {
   const https = require('https');
   async function fetchJSON(url) {
     return new Promise((resolve, reject) => {
@@ -187,7 +188,7 @@ router.post('/tasa-bcv/actualizar', async (req, res) => {
 });
 
 // GET /ajustes/stock-minimo
-router.get('/stock-minimo', (req, res) => {
+router.get('/stock-minimo', requireAuth, (req, res) => {
   try {
     const v = parseInt(getConfig('stock_minimo', '3')) || 3;
     res.json({ stock_minimo: v });
@@ -197,7 +198,7 @@ router.get('/stock-minimo', (req, res) => {
 });
 
 // POST /ajustes/stock-minimo { stock_minimo }
-router.post('/stock-minimo', (req, res) => {
+router.post('/stock-minimo', requireAuth, (req, res) => {
   const n = parseInt(req.body?.stock_minimo);
   if (isNaN(n) || n < 0) return res.status(400).json({ error: 'Valor inválido' });
   try {

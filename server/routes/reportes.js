@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { requireAuth } = require('./auth');
 
 function queryVentasRango({ desde, hasta, vendedor, metodo, limit = 500 }) {
   const where = [];
@@ -39,7 +40,7 @@ function queryVentasRango({ desde, hasta, vendedor, metodo, limit = 500 }) {
   return rows;
 }
 
-router.get('/ventas', (req, res) => {
+router.get('/ventas', requireAuth, (req, res) => {
     const ventas = db.prepare(`
     SELECT id, fecha, cliente, vendedor, cedula, telefono, total_bs, tasa_bcv, descuento, metodo_pago, referencia
     FROM ventas
@@ -51,10 +52,11 @@ router.get('/ventas', (req, res) => {
 });
 
 // GET /reportes/ventas-rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&vendedor=X&metodo=Y
-router.get('/ventas-rango', (req, res) => {
+router.get('/ventas-rango', requireAuth, (req, res) => {
   try {
     const { desde, hasta, vendedor, metodo } = req.query;
     const rows = queryVentasRango({ desde, hasta, vendedor, metodo, limit: 1000 });
+    console.log('Ventas encontradas:', rows.length);
     res.json(rows);
   } catch (err) {
     console.error('Error en ventas-rango:', err);
@@ -63,7 +65,7 @@ router.get('/ventas-rango', (req, res) => {
 });
 
 // GET /reportes/ventas/export/csv
-router.get('/ventas/export/csv', (req, res) => {
+router.get('/ventas/export/csv', requireAuth, (req, res) => {
   try {
     const { desde, hasta, vendedor, metodo } = req.query;
     const rows = queryVentasRango({ desde, hasta, vendedor, metodo, limit: 5000 });
@@ -86,7 +88,7 @@ router.get('/ventas/export/csv', (req, res) => {
 });
 
 // GET /reportes/kpis - indicadores clave para el dashboard
-router.get('/kpis', (req, res) => {
+router.get('/kpis', requireAuth, (req, res) => {
   try {
     const ventasHoyRow = db.prepare(`
       SELECT COUNT(*) as count FROM ventas
@@ -121,7 +123,7 @@ router.get('/kpis', (req, res) => {
 
 
 // GET /reportes/top-productos?limit= - Top productos por ventas (cantidad, montos, costo y margen)
-router.get('/top-productos', (req, res) => {
+router.get('/top-productos', requireAuth, (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     const rows = db.prepare(`
@@ -153,7 +155,7 @@ router.get('/top-productos', (req, res) => {
 });
 
 // GET /reportes/inventario - reporte de inventario / kardex simple
-router.get('/inventario', (req, res) => {
+router.get('/inventario', requireAuth, (req, res) => {
   try {
     // obtener última tasa conocida para convertir a BS
     const tasaRow = db.prepare(`SELECT tasa_bcv FROM ventas WHERE tasa_bcv IS NOT NULL ORDER BY fecha DESC LIMIT 1`).get();
@@ -175,7 +177,7 @@ router.get('/inventario', (req, res) => {
   }
 });
 
-router.get('/ventas/:id', (req, res) => {
+router.get('/ventas/:id', requireAuth, (req, res) => {
     const venta = db.prepare(`
     SELECT * FROM ventas WHERE id = ?
   `).get(req.params.id);
@@ -197,7 +199,7 @@ router.get('/ventas/:id', (req, res) => {
 module.exports = router;
 
 // ===== Bajo stock =====
-router.get('/bajo-stock', (req, res) => {
+router.get('/bajo-stock', requireAuth, (req, res) => {
   try {
     const row = db.prepare(`SELECT valor FROM config WHERE clave='stock_minimo'`).get();
     const min = row && row.valor ? parseInt(row.valor) : 3;
@@ -217,7 +219,7 @@ router.get('/bajo-stock', (req, res) => {
 });
 
 // ===== Ranking de vendedores =====
-router.get('/vendedores', (req, res) => {
+router.get('/vendedores', requireAuth, (req, res) => {
   try {
     const { desde, hasta } = req.query;
     const where = [];
@@ -255,7 +257,7 @@ router.get('/vendedores', (req, res) => {
 });
 
 // ===== Historial por cliente =====
-router.get('/historial-cliente', (req, res) => {
+router.get('/historial-cliente', requireAuth, (req, res) => {
   try {
     const { q, limit } = req.query;
     if (!q || !q.trim()) return res.json([]);

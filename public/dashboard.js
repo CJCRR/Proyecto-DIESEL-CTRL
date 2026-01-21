@@ -23,7 +23,10 @@ function renderTopProductos() {
 
 async function cargarDashboard() {
     try {
-        const kpisRes = await fetch('/reportes/kpis');
+        const token = localStorage.getItem('auth_token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+        
+        const kpisRes = await fetch('/reportes/kpis', { headers });
         if (kpisRes.ok) {
             const kpis = await kpisRes.json();
             document.getElementById('ventas-hoy').innerText = kpis.ventasHoy;
@@ -34,17 +37,17 @@ async function cargarDashboard() {
             document.getElementById('total-usd').innerText = secundario;
         }
 
-        const tasaRes = await fetch('/admin/ajustes/tasa-bcv');
+        const tasaRes = await fetch('/admin/ajustes/tasa-bcv', { headers });
         if (tasaRes.ok) {
             const { tasa_bcv } = await tasaRes.json();
             document.getElementById('kpi-tasa').innerText = Number(tasa_bcv || 0).toFixed(2);
         }
-        const stockRes = await fetch('/admin/ajustes/stock-minimo');
+        const stockRes = await fetch('/admin/ajustes/stock-minimo', { headers });
         if (stockRes.ok) {
             const { stock_minimo } = await stockRes.json();
             document.getElementById('stock-minimo').value = stock_minimo;
         }
-        const bajoRes = await fetch('/reportes/bajo-stock');
+        const bajoRes = await fetch('/reportes/bajo-stock', { headers });
         if (bajoRes.ok) {
             const { items } = await bajoRes.json();
             const cont = document.getElementById('lista-bajo-stock');
@@ -57,7 +60,11 @@ async function cargarDashboard() {
             }
         }
 
-        const ventasRes = await fetch('/reportes/ventas');
+        const ventasRes = await fetch('/reportes/ventas', { headers });
+        if (!ventasRes.ok) {
+            console.error('Error cargando ventas');
+            return;
+        }
         const ventas = await ventasRes.json();
         const ultimas = ventas.slice(0, 5);
         const ultEl = document.getElementById('ultimas-ventas');
@@ -73,7 +80,7 @@ async function cargarDashboard() {
             ultEl.appendChild(d);
         });
 
-        const invRes = await fetch('/reportes/inventario');
+        const invRes = await fetch('/reportes/inventario', { headers });
         if (invRes.ok) {
             const inv = await invRes.json();
             const invEl = document.getElementById('inventario-list');
@@ -89,7 +96,7 @@ async function cargarDashboard() {
             });
         }
 
-        const topRes = await fetch('/reportes/top-productos?limit=10');
+        const topRes = await fetch('/reportes/top-productos?limit=10', { headers });
         if (topRes.ok) {
             cacheTop = await topRes.json();
             renderTopProductos();
@@ -106,7 +113,11 @@ document.getElementById('sincronizar-manual').addEventListener('click', () => {
 
 document.getElementById('btn-actualizar-tasa').addEventListener('click', async () => {
     try {
-        const r = await fetch('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST' });
+        const token = localStorage.getItem('auth_token');
+        const r = await fetch('/admin/ajustes/tasa-bcv/actualizar', { 
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
         const j = await r.json();
         const tasa = Number(j.tasa_bcv || 0);
         if (!Number.isNaN(tasa) && tasa > 0) {
@@ -126,9 +137,13 @@ document.getElementById('btn-actualizar-tasa').addEventListener('click', async (
 document.getElementById('btn-guardar-tasa').addEventListener('click', async () => {
     const val = parseFloat(document.getElementById('input-tasa').value);
     if (!val || Number.isNaN(val) || val <= 0) return;
+    const token = localStorage.getItem('auth_token');
     const r = await fetch('/admin/ajustes/tasa-bcv', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ tasa_bcv: val }),
     });
     if (r.ok) {
@@ -145,9 +160,13 @@ document.getElementById('btn-guardar-tasa').addEventListener('click', async () =
 document.getElementById('btn-guardar-stock').addEventListener('click', async () => {
     const n = parseInt(document.getElementById('stock-minimo').value, 10);
     if (Number.isNaN(n) || n < 0) return;
+    const token = localStorage.getItem('auth_token');
     await fetch('/admin/ajustes/stock-minimo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ stock_minimo: n }),
     });
     await cargarDashboard();
@@ -159,7 +178,10 @@ async function cargarVendedores() {
     const params = new URLSearchParams();
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
-    const r = await fetch(`/reportes/vendedores?${params.toString()}`);
+    const token = localStorage.getItem('auth_token');
+    const r = await fetch(`/reportes/vendedores?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
     if (!r.ok) return;
     cacheVend = await r.json();
     const tb = document.getElementById('tabla-vendedores');

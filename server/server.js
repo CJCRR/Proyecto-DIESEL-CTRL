@@ -11,6 +11,8 @@ const notasRoutes = require('./routes/nota');
 const reportesRoutes = require('./routes/reportes');
 const busquedaRoutes = require('./routes/busqueda');
 const backupRoutes = require('./routes/backup');
+const authRoutes = require('./routes/auth');
+const usuariosRoutes = require('./routes/usuarios');
 
 const app = express();
 app.use(express.json());
@@ -23,8 +25,10 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Registro de Rutas API
 // Nota: La ruta /ventas ahora deberá estar preparada para recibir un array de items
+app.use('/auth', authRoutes);
 app.use('/admin/productos', productosAdmin);
 app.use('/admin/ajustes', ajustesRoutes);
+app.use('/admin/usuarios', usuariosRoutes);
 app.use('/productos', productosRoutes);
 app.use('/ventas', ventasRoutes);
 app.use('/nota', notasRoutes);

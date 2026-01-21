@@ -165,6 +165,7 @@
         </main>
 
         <script>
+            console.log('inventario.html v2.0 - con autenticación');
             const lista = document.getElementById('lista');
             const q = document.getElementById('q');
             const form = document.getElementById('form');
@@ -240,7 +241,10 @@
                         if (stockFilter === 'out') params.set('stock_lt', '1');
                         if (stockFilter === 'low') params.set('stock_lt', '5');
                         if (stockFilter === 'medium') params.set('stock_lt', '20');
-                        const res = await fetch(`/admin/productos?${params.toString()}`);
+                        const token = localStorage.getItem('auth_token');
+                        const res = await fetch(`/admin/productos?${params.toString()}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
                     if (!res.ok) throw new Error('Error listando');
                     const data = await res.json();
                     productosCache = data.items || [];
@@ -257,7 +261,10 @@
             async function cargarAjustes() {
                 const el = document.getElementById('ajustes-list');
                 try {
-                    const res = await fetch('/admin/ajustes?limit=50');
+                    const token = localStorage.getItem('auth_token');
+                    const res = await fetch('/admin/ajustes?limit=50', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
                     if (!res.ok) throw new Error('Error ajustes');
                     const rows = await res.json();
                     el.innerHTML = '';
@@ -321,7 +328,10 @@
 
             btnExportCsv.addEventListener('click', async () => {
                 try {
-                    const res = await fetch('/admin/productos/export');
+                    const token = localStorage.getItem('auth_token');
+                    const res = await fetch('/admin/productos/export', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
                     if (!res.ok) throw new Error('Export failed');
                     const blob = await res.blob();
                     const url = URL.createObjectURL(blob);
@@ -418,7 +428,15 @@
                     const onConfirm = async () => {
                         importPreviewConfirm.disabled = true;
                         try {
-                            const res = await fetch('/admin/productos/import', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: text });
+                            const token = localStorage.getItem('auth_token');
+                            const res = await fetch('/admin/productos/import', { 
+                                method: 'POST', 
+                                headers: { 
+                                    'Content-Type': 'text/plain',
+                                    'Authorization': `Bearer ${token}`
+                                }, 
+                                body: text 
+                            });
                             const d = await res.json();
                             if (!res.ok) { console.error('Import error response:', d); const errMsg = d.error || d.details || 'Error importando CSV'; showToast(errMsg, 'error'); }
                             else {
@@ -460,13 +478,34 @@
                 // Decide POST (create) or PUT (update) based on existence
                 const exists = productosCache.find(p => p.codigo === body.codigo);
                 try {
+                    const token = localStorage.getItem('auth_token');
                     if (!exists) {
-                        const res = await fetch('/admin/productos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                        const res = await fetch('/admin/productos', { 
+                            method: 'POST', 
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            }, 
+                            body: JSON.stringify(body) 
+                        });
                         const d = await res.json();
                         if (!res.ok) throw new Error(d.error || 'Error crear');
                         msg.innerText = 'Producto creado.';
                     } else {
-                        const res = await fetch('/admin/productos/' + encodeURIComponent(body.codigo), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ descripcion: body.descripcion, precio_usd: body.precio_usd, costo_usd: body.costo_usd, stock: body.stock, categoria: body.categoria }) });
+                        const res = await fetch('/admin/productos/' + encodeURIComponent(body.codigo), { 
+                            method: 'PUT', 
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            }, 
+                            body: JSON.stringify({ 
+                                descripcion: body.descripcion, 
+                                precio_usd: body.precio_usd, 
+                                costo_usd: body.costo_usd, 
+                                stock: body.stock, 
+                                categoria: body.categoria 
+                            }) 
+                        });
                         const d = await res.json();
                         if (!res.ok) throw new Error(d.error || 'Error actualizar');
                         msg.innerText = 'Producto actualizado.';
@@ -497,7 +536,11 @@
                 });
                 modalOk.onclick = async () => {
                     try {
-                        const res = await fetch('/admin/productos/' + encodeURIComponent(codigo), { method: 'DELETE' });
+                        const token = localStorage.getItem('auth_token');
+                        const res = await fetch('/admin/productos/' + encodeURIComponent(codigo), { 
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
                         const d = await res.json();
                         if (!res.ok) throw new Error(d.error || 'Error eliminar');
                                                 msg.innerText = 'Producto eliminado.';
@@ -542,6 +585,7 @@
             cargarProductos();
             cargarAjustes();
         </script>
+        <script src="auth-guard.js"></script>
         <script>
             (() => {
                 const drawer = document.getElementById('drawer');

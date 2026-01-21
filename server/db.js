@@ -31,7 +31,9 @@ const schema = `
     descuento REAL DEFAULT 0,
     metodo_pago TEXT,
     referencia TEXT,
-    total_bs REAL
+    total_bs REAL,
+    usuario_id INTEGER,
+    FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
   );
 
   CREATE TABLE IF NOT EXISTS venta_detalle (
@@ -58,6 +60,26 @@ const schema = `
     clave TEXT PRIMARY KEY,
     valor TEXT,
     actualizado_en TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    nombre_completo TEXT,
+    rol TEXT DEFAULT 'vendedor',
+    activo INTEGER DEFAULT 1,
+    creado_en TEXT DEFAULT (datetime('now')),
+    ultimo_login TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS sesiones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    creado_en TEXT DEFAULT (datetime('now')),
+    expira_en TEXT,
+    FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
   );
 `;
 
@@ -89,6 +111,7 @@ try {
   const hasCedula = infoVentas.some(col => col.name === 'cedula');
   const hasTelefono = infoVentas.some(col => col.name === 'telefono');
   const hasVendedor = infoVentas.some(col => col.name === 'vendedor');
+  const hasUsuarioId = infoVentas.some(col => col.name === 'usuario_id');
   if (!hasDescuento) {
     db.prepare("ALTER TABLE ventas ADD COLUMN descuento REAL DEFAULT 0").run();
     console.log('Columna descuento añadida a ventas');
@@ -112,6 +135,10 @@ try {
   if (!hasVendedor) {
     db.prepare("ALTER TABLE ventas ADD COLUMN vendedor TEXT").run();
     console.log('Columna vendedor añadida a ventas');
+  }
+  if (!hasUsuarioId) {
+    db.prepare("ALTER TABLE ventas ADD COLUMN usuario_id INTEGER").run();
+    console.log('Columna usuario_id añadida a ventas');
   }
 } catch (err) {
   console.warn('No se pudo actualizar esquema para ventas (ignorado):', err.message);
@@ -146,6 +173,21 @@ try {
   `).run();
 } catch (err) {
   console.warn('No se pudo actualizar esquema para venta_detalle (ignorado):', err.message);
+}
+
+// Crear usuario admin por defecto si no existen usuarios
+try {
+  const usuariosCount = db.prepare('SELECT count(*) as c FROM usuarios').get();
+  if (usuariosCount.c === 0) {
+    // Password por defecto: "admin123" (en producción debería estar hasheado)
+    db.prepare(`
+      INSERT INTO usuarios (username, password, nombre_completo, rol)
+      VALUES ('admin', 'admin123', 'Administrador', 'admin')
+    `).run();
+    console.log('✅ Usuario admin creado (username: admin, password: admin123)');
+  }
+} catch (err) {
+  console.warn('No se pudo crear usuario admin:', err.message);
 }
 
 // Seed inicial (solo si está vacío para evitar duplicados en reinicios)
