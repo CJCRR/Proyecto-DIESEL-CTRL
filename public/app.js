@@ -30,6 +30,9 @@ window.addEventListener('sync-status', (evt) => {
     const detail = evt.detail || {};
     const type = detail.type === 'error' ? 'error' : detail.type === 'warn' ? 'info' : 'success';
     if (detail.message) showToast(detail.message, type, 5000);
+    const estadoEl = document.getElementById('sync-estado');
+    if (estadoEl && detail.message) estadoEl.textContent = detail.message;
+    actualizarSyncPendientes();
 });
 
 function showToast(text, type = 'info', ms = 3500) {
@@ -65,12 +68,14 @@ function setupOfflineUI() {
         statusIndicator.innerHTML = '<i class="fas fa-wifi mr-2"></i> EN LÍNEA';
             try { if (typeof window.sincronizarVentasPendientes === 'function') window.sincronizarVentasPendientes(); } catch (err) { console.warn('No se pudo disparar sync al reconectar', err); }
         intentarSincronizar();
+        actualizarSyncPendientes();
     });
 
     window.addEventListener('offline', () => {
         isOnline = false;
         statusIndicator.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg';
         statusIndicator.innerHTML = '<i class="fas fa-wifi-slash mr-2"></i> MODO OFFLINE';
+        actualizarSyncPendientes();
     });
 }
 
@@ -214,6 +219,26 @@ function limpiarSeleccion() {
     buscarInput.focus();
 }
 
+// --- PANEL DE SINCRONIZACIÓN ---
+async function actualizarSyncPendientes() {
+    try {
+        const cont = document.getElementById('sync-pendientes');
+        if (!cont) return;
+        let pendientes = 0;
+        if (typeof abrirIndexedDB === 'function' && typeof obtenerVentasPendientes === 'function') {
+            const db = await abrirIndexedDB();
+            const arr = await obtenerVentasPendientes(db);
+            pendientes = (arr || []).length;
+        } else {
+            const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
+            pendientes = historico.filter(v => !v.sync).length;
+        }
+        cont.textContent = String(pendientes);
+    } catch (err) {
+        console.warn('No se pudo calcular pendientes', err);
+    }
+}
+
 // --- FUNCIÓN DE IMPRESIÓN OFFLINE (GENERACIÓN LOCAL) ---
 async function ensureNotaTemplateLoaded() {
     if (window.NotaTemplate && typeof window.NotaTemplate.buildNotaHTML === 'function') return;
@@ -279,6 +304,7 @@ async function registrarVenta() {
     try {
         // 1. GUARDAR EN IndexedDB (SIEMPRE) - usar función de db-local.js
         await guardarVentaLocal(ventaData);
+        await actualizarSyncPendientes();
 
         // 1b. Si estamos offline, registrar background sync para que corra al volver la conexión
         if (!isOnline) {
@@ -317,6 +343,7 @@ async function registrarVenta() {
 document.addEventListener('DOMContentLoaded', () => {
     setupOfflineUI();
     actualizarHistorial();
+    actualizarSyncPendientes();
     
     if (isOnline) {
         sincronizarVentasPendientes();
@@ -373,6 +400,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     loadClientes();
+
+    // Acciones de sync/backup manual
+    const btnSyncNow = document.getElementById('btnSyncNow');
+    if (btnSyncNow) {
+        btnSyncNow.addEventListener('click', async () => {
+            try {
+                if (typeof window.sincronizarVentasPendientes === 'function') {
+                    await window.sincronizarVentasPendientes();
+                    actualizarSyncPendientes();
+                    showToast('Sync ejecutado', 'success');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Error al sincronizar', 'error');
+            }
+        });
+    }
+    const btnBackupNow = document.getElementById('btnBackupNow');
+    if (btnBackupNow) {
+        btnBackupNow.addEventListener('click', async () => {
+            try {
+                const r = await fetch('/backup/create', { method: 'POST' });
+                if (r.ok) showToast('Backup creado', 'success'); else showToast('No se pudo crear backup', 'error');
+            } catch (err) {
+                console.error(err);
+                showToast('Error de backup', 'error');
+            }
+        });
+    }
 
     // Prefill tasa desde backend/config o localStorage
     (async () => {
@@ -603,7 +659,7 @@ function actualizarHistorial() {
             const cont = document.getElementById('historial');
             if (!cont) return;
             cont.innerHTML = '';
-            data.slice(0, 5).forEach(v => {
+            data.slice(0, 3).forEach(v => {
                 const totalUsd = v.tasa_bcv ? (v.total_bs / v.tasa_bcv) : 0;
                 const div = document.createElement('div');
                 div.className = "group p-3 border rounded-xl flex justify-between items-center text-xs hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer";
@@ -611,10 +667,10 @@ function actualizarHistorial() {
                 div.innerHTML = `
                     <div class="flex flex-col">
                         <span class="font-black text-slate-700 uppercase">${v.cliente}</span>
+                        ${ (v.cedula || v.telefono) ? `<span class="text-[9px] text-slate-400 font-mono">${v.cedula ? `ID: ${v.cedula}` : ''}${v.cedula && v.telefono ? ' | ' : ''}${v.telefono ? `Tel: ${v.telefono}` : ''}</span>` : '' }
                         <span class="text-[9px] text-slate-400 font-mono">${new Date(v.fecha).toLocaleString()}</span>
                         ${v.vendedor ? `<span class="text-[9px] text-slate-400 font-mono">Vend: ${v.vendedor}</span>` : ''}
-                        ${ (v.cedula || v.telefono) ? `<span class="text-[9px] text-slate-400 font-mono">${v.cedula ? `ID: ${v.cedula}` : ''}${v.cedula && v.telefono ? ' | ' : ''}${v.telefono ? `Tel: ${v.telefono}` : ''}</span>` : '' }
-                        <span class="text-[9px] text-slate-400 font-mono mt-1">Tasa: ${Number(v.tasa_bcv || 0).toFixed(2)} | Desc: ${Number(v.descuento || 0)}% | Método: ${v.metodo_pago || ''}${v.referencia ? ` | Ref: ${v.referencia}` : ''}</span>
+                        <span class="text-[9px] text-slate-400 font-mono mt-1">Tasa: ${Number(v.tasa_bcv || 0).toFixed(2)} | Método: ${v.metodo_pago || ''}${v.referencia ? ` | Ref: ${v.referencia}` : ''}</span>
                     </div>
                     <div class="text-right">
                         <span class="font-black text-blue-600 block">$${totalUsd.toFixed(2)}</span>

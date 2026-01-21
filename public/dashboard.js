@@ -1,26 +1,9 @@
 // Lógica del dashboard separada de la plantilla HTML
 let MONEDA = 'USD';
 let cacheTop = [];
-let cacheRows = [];
 let cacheVend = [];
 
-function setPreset(rango) {
-    const hoy = new Date();
-    const fmt = (d) => d.toISOString().slice(0, 10);
-    if (rango === 'hoy') {
-        document.getElementById('rpt-desde').value = fmt(hoy);
-        document.getElementById('rpt-hasta').value = fmt(hoy);
-    } else if (rango === 'semana') {
-        const inicio = new Date(hoy);
-        inicio.setDate(hoy.getDate() - 6);
-        document.getElementById('rpt-desde').value = fmt(inicio);
-        document.getElementById('rpt-hasta').value = fmt(hoy);
-    } else if (rango === 'mes') {
-        const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-        document.getElementById('rpt-desde').value = fmt(inicio);
-        document.getElementById('rpt-hasta').value = fmt(hoy);
-    }
-}
+// (Se removieron presets de reportes del dashboard)
 
 function renderTopProductos() {
     const topEl = document.getElementById('top-productos');
@@ -36,31 +19,7 @@ function renderTopProductos() {
     });
 }
 
-function renderReporte() {
-    const tbody = document.getElementById('rpt-tabla');
-    tbody.innerHTML = '';
-    let total = 0;
-    let margen = 0;
-    cacheRows.forEach((r) => {
-        const t = MONEDA === 'USD' ? r.total_usd || 0 : r.total_bs || 0;
-        const m = MONEDA === 'USD' ? r.margen_usd || 0 : r.margen_bs || 0;
-        total += Number(t);
-        margen += Number(m);
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="p-2 whitespace-nowrap">${new Date(r.fecha).toLocaleString()}</td>
-            <td class="p-2">${r.cliente || ''}</td>
-            <td class="p-2">${r.vendedor || ''}</td>
-            <td class="p-2">${r.metodo_pago || ''}</td>
-            <td class="p-2 text-right font-semibold">${Number(t).toFixed(2)}</td>
-            <td class="p-2 text-right text-blue-700 font-semibold">${Number(m).toFixed(2)}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-    document.getElementById('rpt-resumen').innerText = `Ventas: ${cacheRows.length} | Total ${MONEDA}: ${total.toFixed(2)} | Margen ${MONEDA}: ${margen.toFixed(2)}`;
-    document.getElementById('th-total-moneda').innerText = `Total ${MONEDA}`;
-    document.getElementById('th-margen-moneda').innerText = `Margen ${MONEDA}`;
-}
+// (Se removió el render del reporte del dashboard)
 
 async function cargarDashboard() {
     try {
@@ -144,53 +103,6 @@ document.getElementById('sincronizar-manual').addEventListener('click', () => {
     if (typeof window.sincronizarVentasPendientes === 'function') window.sincronizarVentasPendientes();
 });
 
-async function cargarReporte() {
-    const desde = document.getElementById('rpt-desde').value;
-    const hasta = document.getElementById('rpt-hasta').value;
-    const vendedor = document.getElementById('rpt-vendedor').value.trim();
-    const metodo = document.getElementById('rpt-metodo').value;
-    const params = new URLSearchParams();
-    if (desde) params.set('desde', desde);
-    if (hasta) params.set('hasta', hasta);
-    if (vendedor) params.set('vendedor', vendedor);
-    if (metodo) params.set('metodo', metodo);
-    const res = await fetch(`/reportes/ventas-rango?${params.toString()}`);
-    if (!res.ok) return;
-    cacheRows = await res.json();
-    renderReporte();
-}
-
-document.getElementById('rpt-filtrar').addEventListener('click', cargarReporte);
-document.getElementById('rpt-export').addEventListener('click', () => {
-    const desde = document.getElementById('rpt-desde').value;
-    const hasta = document.getElementById('rpt-hasta').value;
-    const vendedor = document.getElementById('rpt-vendedor').value.trim();
-    const metodo = document.getElementById('rpt-metodo').value;
-    const params = new URLSearchParams();
-    if (desde) params.set('desde', desde);
-    if (hasta) params.set('hasta', hasta);
-    if (vendedor) params.set('vendedor', vendedor);
-    if (metodo) params.set('metodo', metodo);
-    window.open(`/reportes/ventas/export/csv?${params.toString()}`, '_blank');
-});
-
-document.getElementById('moneda-toggle').addEventListener('change', (e) => {
-    MONEDA = e.target.value;
-    cargarDashboard();
-    renderReporte();
-});
-document.getElementById('preset-hoy').addEventListener('click', () => {
-    setPreset('hoy');
-    cargarReporte();
-});
-document.getElementById('preset-semana').addEventListener('click', () => {
-    setPreset('semana');
-    cargarReporte();
-});
-document.getElementById('preset-mes').addEventListener('click', () => {
-    setPreset('mes');
-    cargarReporte();
-});
 
 document.getElementById('btn-actualizar-tasa').addEventListener('click', async () => {
     try {
@@ -262,7 +174,16 @@ async function cargarVendedores() {
 }
 
 document.getElementById('vend-filtrar').addEventListener('click', cargarVendedores);
-document.getElementById('moneda-toggle').addEventListener('change', cargarVendedores);
+
+const dashMoneda = document.getElementById('dash-moneda');
+if (dashMoneda) {
+    dashMoneda.value = MONEDA;
+    dashMoneda.addEventListener('change', (e) => {
+        MONEDA = e.target.value;
+        cargarDashboard();
+        cargarVendedores();
+    });
+}
 
 cargarDashboard();
 cargarVendedores();
