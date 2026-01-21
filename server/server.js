@@ -32,6 +32,19 @@ app.use('/reportes', reportesRoutes);
 app.use('/buscar', busquedaRoutes);
 app.use('/backup', backupRoutes);
 
+// Backup automático cada 6 horas (también ejecuta uno al iniciar)
+const runScheduledBackup = async () => {
+    if (!backupRoutes.createBackup) return;
+    try {
+        const { fileName } = await backupRoutes.createBackup();
+        console.log(`📦 Backup automático creado: ${fileName}`);
+    } catch (err) {
+        console.error('❌ Falló backup automático:', err.message);
+    }
+};
+setInterval(runScheduledBackup, 6 * 60 * 60 * 1000);
+runScheduledBackup();
+
 // Manejo de errores básico
 app.use((err, req, res, next) => {
     console.error(err.stack);

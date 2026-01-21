@@ -53,6 +53,12 @@ const schema = `
     motivo TEXT,
     fecha TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS config (
+    clave TEXT PRIMARY KEY,
+    valor TEXT,
+    actualizado_en TEXT
+  );
 `;
 
 db.exec(schema);
@@ -148,6 +154,19 @@ if (count.c === 0) {
     const insert = db.prepare('INSERT INTO productos (codigo, descripcion, precio_usd, stock) VALUES (?, ?, ?, ?)');
     insert.run('INJ-001', 'Inyector Cummins', 45.00, 10);
     insert.run('FLT-020', 'Filtro de Aceite', 12.50, 50);
+}
+
+// Valores por defecto en config
+try {
+  const ensureConfig = db.prepare(`INSERT OR IGNORE INTO config (clave, valor, actualizado_en) VALUES (?, ?, ?)`);
+  const now = new Date().toISOString();
+  ensureConfig.run('stock_minimo', '3', now);
+  // tasa_bcv: si existe una venta reciente, usarla; si no, default 1
+  const ultimaTasa = db.prepare(`SELECT tasa_bcv FROM ventas WHERE tasa_bcv IS NOT NULL AND tasa_bcv > 0 ORDER BY fecha DESC LIMIT 1`).get();
+  const tasa = (ultimaTasa && ultimaTasa.tasa_bcv) ? String(ultimaTasa.tasa_bcv) : '1';
+  ensureConfig.run('tasa_bcv', tasa, now);
+} catch (err) {
+  console.warn('No se pudo inicializar config (ignorado):', err.message);
 }
 
 module.exports = db;

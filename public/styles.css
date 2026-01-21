@@ -5,6 +5,10 @@
     color: #1e293b; 
 }
 
+#ventas-hoy, #ventas-semana, #total-bs {
+    font-variant-numeric: tabular-nums;
+}
+
 #resultados li:last-child {
     border-bottom: none;
 }

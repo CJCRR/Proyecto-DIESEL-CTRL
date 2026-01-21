@@ -195,3 +195,87 @@ router.get('/ventas/:id', (req, res) => {
 });
 
 module.exports = router;
+
+// ===== Bajo stock =====
+router.get('/bajo-stock', (req, res) => {
+  try {
+    const row = db.prepare(`SELECT valor FROM config WHERE clave='stock_minimo'`).get();
+    const min = row && row.valor ? parseInt(row.valor) : 3;
+    const items = db.prepare(`
+      SELECT codigo, descripcion, stock, precio_usd,
+             (COALESCE(precio_usd,0) * stock) AS total_usd
+      FROM productos
+      WHERE stock <= ?
+      ORDER BY stock ASC, codigo
+      LIMIT 100
+    `).all(min);
+    res.json({ min, items });
+  } catch (err) {
+    console.error('Error bajo-stock:', err);
+    res.status(500).json({ error: 'Error al obtener bajo stock' });
+  }
+});
+
+// ===== Ranking de vendedores =====
+router.get('/vendedores', (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const where = [];
+    const params = [];
+    if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+    if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+    const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+    const rows = db.prepare(`
+      SELECT COALESCE(v.vendedor, '—') as vendedor,
+             COUNT(DISTINCT v.id) as ventas,
+             COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), 0) as total_bs,
+             COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)))/NULLIF(v.tasa_bcv,0),
+                      SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),0) as total_usd,
+             COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad * COALESCE(v.tasa_bcv,1)),0) as costo_bs,
+             COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad),0) as costo_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      JOIN productos p ON p.id = vd.producto_id
+      ${whereSQL}
+      GROUP BY vendedor
+      ORDER BY total_usd DESC
+      LIMIT 100
+    `).all(...params);
+
+    const enriched = rows.map(r => ({
+      ...r,
+      margen_bs: Number(r.total_bs || 0) - Number(r.costo_bs || 0),
+      margen_usd: Number(r.total_usd || 0) - Number(r.costo_usd || 0)
+    }));
+    res.json(enriched);
+  } catch (err) {
+    console.error('Error ranking vendedores:', err);
+    res.status(500).json({ error: 'Error al obtener ranking de vendedores' });
+  }
+});
+
+// ===== Historial por cliente =====
+router.get('/historial-cliente', (req, res) => {
+  try {
+    const { q, limit } = req.query;
+    if (!q || !q.trim()) return res.json([]);
+    const lim = parseInt(limit) || 100;
+    const like = `%${q}%`;
+    const rows = db.prepare(`
+      SELECT v.id, v.fecha, v.cliente, v.vendedor, v.metodo_pago, v.tasa_bcv,
+             COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0) as total_bs,
+             COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)))/NULLIF(v.tasa_bcv,0),
+                      SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs) as total_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      WHERE v.cliente LIKE ? OR v.cedula LIKE ? OR v.telefono LIKE ?
+      GROUP BY v.id
+      ORDER BY v.fecha DESC
+      LIMIT ?
+    `).all(like, like, like, lim);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error historial-cliente:', err);
+    res.status(500).json({ error: 'Error al obtener historial' });
+  }
+});

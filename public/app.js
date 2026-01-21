@@ -25,6 +25,13 @@ toastContainer.style.gap = '0.5rem';
 toastContainer.style.zIndex = '60';
 document.body.appendChild(toastContainer);
 
+// Escuchar eventos de sincronización provenientes de firebase-sync.js
+window.addEventListener('sync-status', (evt) => {
+    const detail = evt.detail || {};
+    const type = detail.type === 'error' ? 'error' : detail.type === 'warn' ? 'info' : 'success';
+    if (detail.message) showToast(detail.message, type, 5000);
+});
+
 function showToast(text, type = 'info', ms = 3500) {
     const t = document.createElement('div');
     t.className = `toast ${type}`;
@@ -56,6 +63,7 @@ function setupOfflineUI() {
         isOnline = true;
         statusIndicator.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-full text-xs font-bold bg-green-500 text-white shadow-lg';
         statusIndicator.innerHTML = '<i class="fas fa-wifi mr-2"></i> EN LÍNEA';
+            try { if (typeof window.sincronizarVentasPendientes === 'function') window.sincronizarVentasPendientes(); } catch (err) { console.warn('No se pudo disparar sync al reconectar', err); }
         intentarSincronizar();
     });
 
@@ -269,19 +277,31 @@ async function registrarVenta() {
     btnVender.innerText = 'Procesando...';
 
     try {
-            // 1. GUARDAR EN IndexedDB (SIEMPRE) - usar función de db-local.js
-            await guardarVentaLocal(ventaData);
+        // 1. GUARDAR EN IndexedDB (SIEMPRE) - usar función de db-local.js
+        await guardarVentaLocal(ventaData);
 
-            // 2. SI ESTÁ ONLINE, INTENTAR SINCRONIZAR PENDIENTES
-            if (isOnline && typeof window.sincronizarVentasPendientes === 'function') {
-                await window.sincronizarVentasPendientes();
+        // 1b. Si estamos offline, registrar background sync para que corra al volver la conexión
+        if (!isOnline) {
+            try {
+                if ('serviceWorker' in navigator && 'SyncManager' in window) {
+                    const reg = await navigator.serviceWorker.ready;
+                    await reg.sync.register('sync-ventas');
+                }
+            } catch (err) {
+                console.warn('No se pudo registrar background sync', err);
             }
+        }
 
-            // Actualizar UI antes de abrir la nota para evitar que la impresión "corte"
-            finalizarVentaUI();
-            // Abrir nota primero, luego mostrar toast
-            await imprimirNotaLocal(ventaData);
-            setTimeout(() => showToast('✅ Venta registrada exitosamente', 'success'), 300);
+        // 2. SI ESTÁ ONLINE, INTENTAR SINCRONIZAR PENDIENTES
+        if (isOnline && typeof window.sincronizarVentasPendientes === 'function') {
+            await window.sincronizarVentasPendientes();
+        }
+
+        // Actualizar UI antes de abrir la nota para evitar que la impresión "corte"
+        finalizarVentaUI();
+        // Abrir nota primero, luego mostrar toast
+        await imprimirNotaLocal(ventaData);
+        setTimeout(() => showToast('✅ Venta registrada exitosamente', 'success'), 300);
     } catch (err) {
         console.error(err);
         showToast('❌ Error: ' + err.message, 'error');
@@ -354,6 +374,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadClientes();
 
+    // Prefill tasa desde backend/config o localStorage
+    (async () => {
+        try {
+            const r = await fetch('/admin/ajustes/tasa-bcv');
+            if (r.ok) {
+                const j = await r.json();
+                const input = document.getElementById('v_tasa');
+                if (input && j && j.tasa_bcv) input.value = Number(j.tasa_bcv).toFixed(2);
+            }
+        } catch {}
+        try {
+            const ls = localStorage.getItem('tasa_bcv');
+            if (ls) {
+                const input = document.getElementById('v_tasa');
+                if (input) input.value = Number(ls).toFixed(2);
+            }
+        } catch {}
+    })();
+
+    // Escuchar cambios desde el dashboard (otra pestaña)
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'tasa_bcv_updated') {
+            const val = parseFloat(e.newValue);
+            if (!isNaN(val) && val > 0) {
+                const input = document.getElementById('v_tasa');
+                if (input) { input.value = val.toFixed(2); actualizarTabla(); }
+            }
+        }
+    });
+
     async function upsertClienteDesdeFormulario() {
         const cliente = getFormCliente();
         if (!cliente.nombre) { showToast('Ingrese nombre de cliente', 'error'); return; }
@@ -408,6 +458,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.getElementById('v_cliente')) document.getElementById('v_cliente').value = nombre;
         if (document.getElementById('v_cedula')) document.getElementById('v_cedula').value = cedula;
         if (document.getElementById('v_telefono')) document.getElementById('v_telefono').value = telefono;
+        // Aplicar descuento/notas si vienen
+        try {
+            const cliente = clientesFrecuentesCache.find(c => (c.cedula || '') === cedula) || clientesFrecuentesCache.find(c => (c.nombre || c.cliente) === nombre) || {};
+            const desc = parseFloat(cliente.descuento);
+            if (!isNaN(desc) && document.getElementById('v_desc')) {
+                document.getElementById('v_desc').value = String(desc);
+                showToast(`Descuento ${desc}% aplicado por cliente`, 'info');
+            }
+            if (cliente.notas) {
+                showToast(`Nota cliente: ${cliente.notas}`, 'info', 4500);
+            }
+        } catch {}
     });
 });
 

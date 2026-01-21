@@ -6,6 +6,7 @@
     <title>Gestión de Clientes - Diesel Ctrl</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900">
     <nav class="bg-slate-900 text-white p-4 shadow-lg flex justify-between items-center">
@@ -32,6 +33,20 @@
                         <input id="c_telefono" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0414-0000000">
                     </div>
                 </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-500">Desc. % por cliente</label>
+                        <input id="c_descuento" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" type="number" step="0.01" min="0" max="100" placeholder="0">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="text-[11px] font-semibold text-slate-500">Tags (coma separada)</label>
+                        <input id="c_tags" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="mayorista, leal, efectivo">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Notas</label>
+                    <textarea id="c_notas" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" rows="3" placeholder="Observaciones, condiciones de crédito, etc."></textarea>
+                </div>
                 <div class="flex gap-2">
                     <button id="btnGuardarCliente" class="flex-1 bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"><i class="fas fa-save mr-2"></i>Guardar / Actualizar</button>
                     <button id="btnEliminarCliente" class="bg-red-100 text-red-700 p-3 rounded-xl font-bold hover:bg-red-200 transition-colors"><i class="fas fa-trash mr-2"></i>Eliminar</button>
@@ -57,111 +72,26 @@
                     <tbody id="c_tabla" class="divide-y"></tbody>
                 </table>
             </div>
+            <div class="mt-4">
+                <h3 class="text-xs uppercase text-slate-400 font-black mb-2">Historial del cliente</h3>
+                <div class="overflow-auto max-h-64 border rounded">
+                    <table class="w-full text-xs">
+                        <thead class="bg-slate-100 text-slate-500 uppercase">
+                            <tr>
+                                <th class="p-2 text-left">Fecha</th>
+                                <th class="p-2 text-left">Vendedor</th>
+                                <th class="p-2 text-right">Total USD</th>
+                            </tr>
+                        </thead>
+                        <tbody id="c_historial" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </div>
         </section>
     </main>
 
     <div id="toast" class="fixed right-4 bottom-4 space-y-2 z-50"></div>
 
-    <script type="module">
-        import { obtenerClientesFirebase, upsertClienteFirebase, eliminarClienteFirebasePorCedula } from './firebase-sync.js';
-
-        const tabla = document.getElementById('c_tabla');
-        const buscar = document.getElementById('c_buscar');
-        const nombreInput = document.getElementById('c_nombre');
-        const cedulaInput = document.getElementById('c_cedula');
-        const telefonoInput = document.getElementById('c_telefono');
-        const btnGuardar = document.getElementById('btnGuardarCliente');
-        const btnEliminar = document.getElementById('btnEliminarCliente');
-        const toast = document.getElementById('toast');
-
-        let clientes = [];
-        let seleccionado = null;
-
-        function showToast(msg, type = 'info') {
-            const el = document.createElement('div');
-            el.className = `px-3 py-2 rounded-lg text-white shadow ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-slate-800'}`;
-            el.innerText = msg;
-            toast.appendChild(el);
-            setTimeout(() => el.remove(), 2500);
-        }
-
-        function renderTabla(filtro = '') {
-            const f = filtro.toLowerCase();
-            const data = clientes.filter(c =>
-                (c.nombre || '').toLowerCase().includes(f) ||
-                (c.cedula || '').toLowerCase().includes(f)
-            );
-            tabla.innerHTML = data.map(c => `
-                <tr class="hover:bg-slate-50 cursor-pointer" data-cedula="${c.cedula || ''}">
-                    <td class="p-3 font-semibold text-slate-700">${c.nombre || ''}</td>
-                    <td class="p-3 text-slate-600">${c.cedula || ''}</td>
-                    <td class="p-3 text-slate-600">${c.telefono || ''}</td>
-                </tr>
-            `).join('');
-        }
-
-        function fillForm(c) {
-            seleccionado = c || null;
-            nombreInput.value = c?.nombre || '';
-            cedulaInput.value = c?.cedula || '';
-            telefonoInput.value = c?.telefono || '';
-        }
-
-        async function loadClientes() {
-            try {
-                clientes = await obtenerClientesFirebase();
-            } catch (err) {
-                console.error('No se pudieron obtener clientes', err);
-                showToast('No se pudieron obtener clientes', 'error');
-            }
-            renderTabla(buscar.value.trim());
-        }
-
-        async function guardarCliente() {
-            const cliente = {
-                nombre: nombreInput.value.trim(),
-                cedula: cedulaInput.value.trim(),
-                telefono: telefonoInput.value.trim()
-            };
-            if (!cliente.nombre) { showToast('Nombre es requerido', 'error'); return; }
-            try {
-                await upsertClienteFirebase(cliente);
-                showToast('Guardado/actualizado', 'success');
-                await loadClientes();
-                fillForm(null);
-            } catch (err) {
-                console.error(err);
-                showToast('Error guardando', 'error');
-            }
-        }
-
-        async function eliminarCliente() {
-            const cedula = cedulaInput.value.trim();
-            if (!cedula) { showToast('Cédula requerida para eliminar', 'error'); return; }
-            try {
-                await eliminarClienteFirebasePorCedula(cedula);
-                showToast('Cliente eliminado', 'success');
-                await loadClientes();
-                fillForm(null);
-            } catch (err) {
-                console.error(err);
-                showToast('Error eliminando', 'error');
-            }
-        }
-
-        tabla.addEventListener('click', (e) => {
-            const tr = e.target.closest('tr');
-            if (!tr) return;
-            const cedula = tr.dataset.cedula || '';
-            const c = clientes.find(x => (x.cedula || '') === cedula);
-            fillForm(c);
-        });
-
-        buscar.addEventListener('input', () => renderTabla(buscar.value.trim()));
-        btnGuardar.addEventListener('click', guardarCliente);
-        btnEliminar.addEventListener('click', eliminarCliente);
-
-        loadClientes();
-    </script>
+    <script type="module" src="clientes.js"></script>
 </body>
 </html>

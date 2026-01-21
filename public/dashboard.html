@@ -7,10 +7,6 @@
     <title>Diesel-CTRL — Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="styles.css">
-    <style>
-        /* pequeño ajuste visual */
-        #ventas-hoy, #ventas-semana, #total-bs { font-variant-numeric: tabular-nums; }
-    </style>
 </head>
 
 <body class="bg-slate-50 text-slate-900 min-h-screen">
@@ -37,6 +33,26 @@
                     <div class="text-xs uppercase text-slate-400 font-black">Total USD</div>
                     <div id="total-bs" class="mt-3 text-2xl font-extrabold">-- USD</div>
                     <div id="total-usd" class="text-sm text-slate-500">-- Bs</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="p-4 bg-white rounded-xl shadow-sm border">
+                    <div class="text-xs uppercase text-slate-400 font-black">Tasa BCV</div>
+                    <div class="mt-3 text-2xl font-extrabold" id="kpi-tasa">--</div>
+                    <div class="mt-2 flex gap-2">
+                        <button id="btn-actualizar-tasa" class="px-3 py-1 text-sm bg-blue-600 text-white rounded">Actualizar ahora</button>
+                        <input id="input-tasa" class="px-2 py-1 text-sm border rounded w-24" placeholder="manual" />
+                        <button id="btn-guardar-tasa" class="px-3 py-1 text-sm border rounded">Guardar</button>
+                    </div>
+                </div>
+                <div class="p-4 bg-white rounded-xl shadow-sm border md:col-span-2">
+                    <div class="text-xs uppercase text-slate-400 font-black mb-2">Bajo stock</div>
+                    <div class="flex items-center gap-2 mb-2 text-xs">
+                        Umbral: <input id="stock-minimo" class="px-2 py-1 border rounded w-16" />
+                        <button id="btn-guardar-stock" class="px-2 py-1 border rounded">Guardar</button>
+                    </div>
+                    <div id="lista-bajo-stock" class="max-h-40 overflow-auto text-sm text-slate-700">Cargando...</div>
                 </div>
             </div>
 
@@ -114,6 +130,28 @@
             </div>
 
             <div class="bg-white rounded-xl p-4 border shadow-sm">
+                <h4 class="text-xs uppercase text-slate-400 font-black mb-3">Ranking de vendedores</h4>
+                <div class="flex items-center gap-2 text-sm mb-2">
+                    <input id="vend-desde" type="date" class="p-2 border rounded" />
+                    <input id="vend-hasta" type="date" class="p-2 border rounded" />
+                    <button id="vend-filtrar" class="p-2 border rounded">Aplicar</button>
+                </div>
+                <div class="overflow-auto max-h-64 border rounded">
+                    <table class="w-full text-xs">
+                        <thead class="bg-slate-100 text-slate-500 uppercase">
+                            <tr>
+                                <th class="p-2 text-left">Vendedor</th>
+                                <th class="p-2 text-right">Ventas</th>
+                                <th class="p-2 text-right">Total</th>
+                                <th class="p-2 text-right">Margen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-vendedores" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl p-4 border shadow-sm">
                 <h4 class="text-xs uppercase text-slate-400 font-black mb-3">Acciones rápidas</h4>
                 <div class="flex flex-col gap-2">
                     <a href="index.html" class="block text-center p-2 bg-blue-600 text-white rounded">Abrir Punto de Venta</a>
@@ -124,173 +162,7 @@
         </aside>
     </main>
 
-    <script>
-        // fetch minimal data from existing endpoints
-        let MONEDA = 'USD';
-        let cacheTop = [];
-        let cacheRows = [];
-
-        function setPreset(rango) {
-            const hoy = new Date();
-            const fmt = (d) => d.toISOString().slice(0,10);
-            if (rango === 'hoy') {
-                document.getElementById('rpt-desde').value = fmt(hoy);
-                document.getElementById('rpt-hasta').value = fmt(hoy);
-            } else if (rango === 'semana') {
-                const inicio = new Date(hoy);
-                inicio.setDate(hoy.getDate() - 6);
-                document.getElementById('rpt-desde').value = fmt(inicio);
-                document.getElementById('rpt-hasta').value = fmt(hoy);
-            } else if (rango === 'mes') {
-                const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-                document.getElementById('rpt-desde').value = fmt(inicio);
-                document.getElementById('rpt-hasta').value = fmt(hoy);
-            }
-        }
-
-        function renderTopProductos() {
-            const topEl = document.getElementById('top-productos');
-            topEl.innerHTML = '';
-            cacheTop.forEach(t => {
-                const monto = MONEDA === 'USD' ? (t.total_usd || 0) : (t.total_bs || 0);
-                const margen = MONEDA === 'USD' ? (t.margen_usd || 0) : (t.margen_bs || 0);
-                const costo = MONEDA === 'USD' ? (t.costo_usd || 0) : (t.costo_bs || 0);
-                const row = document.createElement('div');
-                row.className = 'flex justify-between items-center p-2 border-b';
-                row.innerHTML = `<div><div class="font-bold">${t.codigo} — ${t.descripcion || ''}</div><div class="text-xs text-slate-400">Vendidos: ${t.total_qty}</div></div><div class="text-right"><div class="font-black">${Number(monto).toFixed(2)} ${MONEDA}</div><div class="text-xs text-green-700">Margen: ${Number(margen).toFixed(2)} ${MONEDA}</div><div class="text-[11px] text-slate-400">Costo: ${Number(costo).toFixed(2)} ${MONEDA}</div></div>`;
-                topEl.appendChild(row);
-            });
-        }
-
-        function renderReporte() {
-            const tbody = document.getElementById('rpt-tabla');
-            tbody.innerHTML = '';
-            let total = 0, margen = 0;
-            cacheRows.forEach(r => {
-                const t = MONEDA === 'USD' ? (r.total_usd || 0) : (r.total_bs || 0);
-                const m = MONEDA === 'USD' ? (r.margen_usd || 0) : (r.margen_bs || 0);
-                total += Number(t);
-                margen += Number(m);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="p-2 whitespace-nowrap">${new Date(r.fecha).toLocaleString()}</td>
-                    <td class="p-2">${r.cliente || ''}</td>
-                    <td class="p-2">${r.vendedor || ''}</td>
-                    <td class="p-2">${r.metodo_pago || ''}</td>
-                    <td class="p-2 text-right font-semibold">${Number(t).toFixed(2)}</td>
-                    <td class="p-2 text-right text-blue-700 font-semibold">${Number(m).toFixed(2)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-            document.getElementById('rpt-resumen').innerText = `Ventas: ${cacheRows.length} | Total ${MONEDA}: ${total.toFixed(2)} | Margen ${MONEDA}: ${margen.toFixed(2)}`;
-            document.getElementById('th-total-moneda').innerText = `Total ${MONEDA}`;
-            document.getElementById('th-margen-moneda').innerText = `Margen ${MONEDA}`;
-        }
-
-        async function cargarDashboard() {
-            try {
-                // KPIs rápidos
-                const kpisRes = await fetch('/reportes/kpis');
-                if (kpisRes.ok) {
-                    const kpis = await kpisRes.json();
-                    document.getElementById('ventas-hoy').innerText = kpis.ventasHoy;
-                    document.getElementById('ventas-semana').innerText = kpis.ventasSemana;
-                    const principal = MONEDA === 'USD' ? Number(kpis.totalUsd || 0).toFixed(2) + ' USD' : Number(kpis.totalBs || 0).toFixed(2) + ' Bs';
-                    const secundario = MONEDA === 'USD' ? Number(kpis.totalBs || 0).toFixed(2) + ' Bs' : Number(kpis.totalUsd || 0).toFixed(2) + ' USD';
-                    document.getElementById('total-bs').innerText = principal;
-                    document.getElementById('total-usd').innerText = secundario;
-                }
-
-                // Últimas ventas (para la lista)
-                const ventasRes = await fetch('/reportes/ventas');
-                const ventas = await ventasRes.json();
-                const ultimas = ventas.slice(0,5);
-                const ultEl = document.getElementById('ultimas-ventas');
-                ultEl.innerHTML = '';
-                ultimas.forEach(u => {
-                    const d = document.createElement('div');
-                    d.className = 'p-2 border rounded flex items-center justify-between';
-                    const left = `<div class="min-w-0"><div class="font-bold truncate">${u.cliente || '—'}</div><div class="text-[10px] text-slate-400">${new Date(u.fecha).toLocaleString()}</div></div>`;
-                    const montoBs = (u.total_bs != null) ? (Number(u.total_bs).toFixed(2) + ' Bs') : '-- Bs';
-                    const montoUsd = (u.tasa_bcv != null && u.tasa_bcv !== 0) ? (Number(u.total_bs / u.tasa_bcv).toFixed(2) + ' USD') : '-- USD';
-                    const right = `<div class="text-right ml-4 w-36"><div class="text-sm font-black">${montoBs}</div><div class="text-xs text-slate-400">${montoUsd}</div></div>`;
-                    d.innerHTML = left + right;
-                    ultEl.appendChild(d);
-                });
-
-                // Inventario detallado desde /reportes/inventario
-                const invRes = await fetch('/reportes/inventario');
-                if (invRes.ok) {
-                    const inv = await invRes.json();
-                    const invEl = document.getElementById('inventario-list');
-                    document.getElementById('inv-total-usd').innerText = Number(inv.totals.totalUsd || 0).toFixed(2) + ' USD';
-                    document.getElementById('inv-total-bs').innerText = Number(inv.totals.totalBs || 0).toFixed(2) + ' Bs';
-                    document.getElementById('inv-tasa').innerText = Number(inv.totals.tasa || 1).toFixed(2);
-                    invEl.innerHTML = '';
-                    (inv.items || []).slice(0, 10).forEach(p => {
-                        const el = document.createElement('div');
-                        el.className = 'flex justify-between items-center p-2 border-b';
-                        el.innerHTML = `<div><div class="font-bold">${p.codigo}</div><div class="text-xs text-slate-400">${p.descripcion}</div></div><div class="text-right"><div class="text-sm font-black">${p.stock}</div><div class="text-xs text-slate-400">${Number(p.total_usd||0).toFixed(2)} USD</div></div>`;
-                        invEl.appendChild(el);
-                    });
-                }
-
-                // Top productos por ventas
-                const topRes = await fetch('/reportes/top-productos?limit=10');
-                if (topRes.ok) {
-                    cacheTop = await topRes.json();
-                    renderTopProductos();
-                }
-            } catch (err) {
-                console.error('Error cargando dashboard', err);
-            }
-        }
-
-        document.getElementById('sincronizar-manual').addEventListener('click', () => {
-            if (typeof window.sincronizarVentasPendientes === 'function') window.sincronizarVentasPendientes();
-        });
-
-        async function cargarReporte() {
-            const desde = document.getElementById('rpt-desde').value;
-            const hasta = document.getElementById('rpt-hasta').value;
-            const vendedor = document.getElementById('rpt-vendedor').value.trim();
-            const metodo = document.getElementById('rpt-metodo').value;
-            const params = new URLSearchParams();
-            if (desde) params.set('desde', desde);
-            if (hasta) params.set('hasta', hasta);
-            if (vendedor) params.set('vendedor', vendedor);
-            if (metodo) params.set('metodo', metodo);
-            const res = await fetch('/reportes/ventas-rango?' + params.toString());
-            if (!res.ok) return;
-            cacheRows = await res.json();
-            renderReporte();
-        }
-
-        document.getElementById('rpt-filtrar').addEventListener('click', cargarReporte);
-        document.getElementById('rpt-export').addEventListener('click', () => {
-            const desde = document.getElementById('rpt-desde').value;
-            const hasta = document.getElementById('rpt-hasta').value;
-            const vendedor = document.getElementById('rpt-vendedor').value.trim();
-            const metodo = document.getElementById('rpt-metodo').value;
-            const params = new URLSearchParams();
-            if (desde) params.set('desde', desde);
-            if (hasta) params.set('hasta', hasta);
-            if (vendedor) params.set('vendedor', vendedor);
-            if (metodo) params.set('metodo', metodo);
-            window.open('/reportes/ventas/export/csv?' + params.toString(), '_blank');
-        });
-
-        document.getElementById('moneda-toggle').addEventListener('change', (e) => {
-            MONEDA = e.target.value;
-            cargarDashboard();
-            renderReporte();
-        });
-        document.getElementById('preset-hoy').addEventListener('click', () => { setPreset('hoy'); cargarReporte(); });
-        document.getElementById('preset-semana').addEventListener('click', () => { setPreset('semana'); cargarReporte(); });
-        document.getElementById('preset-mes').addEventListener('click', () => { setPreset('mes'); cargarReporte(); });
-
-        cargarDashboard();
-    </script>
+    <script type="module" src="dashboard.js"></script>
 </body>
 
 </html>

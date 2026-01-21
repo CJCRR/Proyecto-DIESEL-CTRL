@@ -1,5 +1,30 @@
 import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc } from './firebase-config.js';
 
+// Eventos de sincronización para UI (app.js escucha y muestra toasts)
+function emitSyncEvent(detail) {
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('sync-status', { detail }));
+    }
+}
+
+// Backoff progresivo cuando hay fallos consecutivos
+let retryTimer = null;
+let retryDelayMs = 5_000;
+const MAX_RETRY_DELAY = 5 * 60 * 1_000; // 5 minutos
+function scheduleRetry(reason) {
+    if (retryTimer) return;
+    emitSyncEvent({ type: 'warn', message: `Reintentando sync en ${Math.round(retryDelayMs / 1000)}s (${reason || 'error'})` });
+    retryTimer = setTimeout(() => {
+        retryTimer = null;
+        sincronizarVentasPendientes({ isRetry: true }).catch(() => {});
+    }, retryDelayMs);
+    retryDelayMs = Math.min(retryDelayMs * 2, MAX_RETRY_DELAY);
+}
+function resetRetry() {
+    retryDelayMs = 5_000;
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+}
+
 // --- CLIENTES ---
 async function upsertClienteFirebase(cliente) {
     try {
@@ -92,16 +117,23 @@ async function obtenerVentasDeFirebase() {
 }
 
 // Sincronizar todas las ventas pendientes de IndexedDB a Firebase
-async function sincronizarVentasPendientes() {
+async function sincronizarVentasPendientes({ isRetry = false } = {}) {
     try {
         const indexedDB_obj = await abrirIndexedDB();
         const ventasPendientes = await obtenerVentasPendientes(indexedDB_obj);
 
         console.log(`📤 Sincronizando ${ventasPendientes.length} ventas pendientes...`);
+        if (!ventasPendientes.length) {
+            resetRetry();
+            emitSyncEvent({ type: 'success', message: 'Sincronización al día' });
+            return;
+        }
 
+        let errores = 0;
         for (const venta of ventasPendientes) {
             let synced = false;
-            // 1) Intentar enviar al servidor local (/ventas)
+
+            // 1) Servidor local
             try {
                 const res = await fetch('/ventas', {
                     method: 'POST',
@@ -113,13 +145,13 @@ async function sincronizarVentasPendientes() {
                     console.log(`✅ Venta enviada al servidor: ${venta.id_global} -> ${data.ventaId || data.id || 'OK'}`);
                     synced = true;
                 } else {
-                    console.warn(`⚠️ Servidor respondió con estado ${res.status} para ${venta.id_global}`);
+                    console.warn(`⚠️ Servidor respondió ${res.status} para ${venta.id_global}`);
                 }
             } catch (err) {
                 console.warn(`⚠️ Error enviando al servidor ${venta.id_global}:`, err);
             }
 
-            // 2) Intentar enviar a Firebase (si falla servidor, aún intentamos mantener respaldo remoto)
+            // 2) Firebase (respaldo)
             try {
                 await enviarVentaAFirebase(venta);
                 console.log(`✅ Venta enviada a Firebase: ${venta.id_global}`);
@@ -128,7 +160,6 @@ async function sincronizarVentasPendientes() {
                 console.error(`❌ Error enviando a Firebase ${venta.id_global}:`, err);
             }
 
-            // 3) Marcar como sincronizada si al menos uno tuvo éxito
             if (synced) {
                 try {
                     await marcarComoSincronizada(indexedDB_obj, venta.id_global);
@@ -137,13 +168,21 @@ async function sincronizarVentasPendientes() {
                     console.error(`❌ No se pudo marcar como sincronizada ${venta.id_global}:`, err);
                 }
             } else {
-                console.warn(`❌ No se pudo sincronizar ${venta.id_global} en ninguna plataforma`);
+                errores += 1;
+                emitSyncEvent({ type: 'error', message: `No se pudo sincronizar ${venta.id_global}` });
             }
         }
 
-        console.log('✅ Sincronización completada');
+        if (errores > 0) {
+            scheduleRetry(`${errores} fallos`);
+        } else {
+            resetRetry();
+            emitSyncEvent({ type: 'success', message: 'Ventas sincronizadas (local + Firebase)' });
+        }
     } catch (err) {
         console.error('❌ Error en sincronización:', err);
+        emitSyncEvent({ type: 'error', message: 'Error general en sync' });
+        scheduleRetry('error general');
     }
 }
 
