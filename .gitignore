@@ -1,0 +1,12 @@
+# Dependencias y entornos
+node_modules/
+.env
+.env.*
+
+# Config Firebase (no subir claves reales)
+public/firebase-config.js
+
+# Backups/artefactos locales
+server/backups/
+*.sqlite
+*.db
