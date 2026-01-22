@@ -69,16 +69,15 @@
     </aside>
 
     <main class="container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- COLUMNA IZQUIERDA: VENTAS Y CARRITO -->
+        <!-- Izquierda: búsqueda y carrito -->
         <div class="lg:col-span-8 space-y-4">
-            
-            <!-- Buscador de Productos -->
             <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4"><i class="fas fa-search mr-2"></i>Nueva Venta</h2>
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                    <div class="md:col-span-7 relative">
-                        <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Buscar Producto</label>
+                <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <i class="fas fa-search"></i><span>Buscar y agregar</span>
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                    <div class="md:col-span-8 relative">
+                        <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Producto</label>
                         <input id="buscar" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium" placeholder="Ingrese código o descripción...">
                         <ul id="resultados" class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50"></ul>
                     </div>
@@ -86,18 +85,17 @@
                         <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Cant.</label>
                         <input id="v_cantidad" type="number" value="1" min="1" class="w-full p-3 border rounded-xl outline-none font-bold text-center">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
                         <button onclick="agregarAlCarrito()" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md">
-                            <i class="fas fa-plus mr-2"></i> Agregar
+                            <i class="fas fa-plus mr-2"></i>Agregar
                         </button>
                     </div>
                 </div>
             </section>
 
-            <!-- Detalle de la Venta Actual -->
             <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
-                    <span class="text-[10px] font-black text-slate-400 uppercase">Productos en Lista</span>
+                    <span class="text-[10px] font-black text-slate-400 uppercase">Carrito</span>
                     <span id="items-count" class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">0 ITEMS</span>
                 </div>
                 <div class="overflow-x-auto">
@@ -112,127 +110,63 @@
                                 <th class="p-4 text-center"></th>
                             </tr>
                         </thead>
-                        <tbody id="venta-items-cuerpo">
-                            <!-- Los productos agregados aparecerán aquí -->
-                        </tbody>
+                        <tbody id="venta-items-cuerpo"></tbody>
                     </table>
                 </div>
                 <div id="vacio-msg" class="p-10 text-center text-slate-300 italic">No hay productos seleccionados</div>
             </section>
-
-            <!-- SECCIÓN ADMINISTRATIVA (Agregado de nuevo) -->
-            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="flex border-b bg-slate-50">
-                    <button id="btn-tab-crear" onclick="switchAdminTab('crear')" class="flex-1 p-3 text-[10px] font-black uppercase tracking-widest active-tab transition-all">
-                        <i class="fas fa-box-open mr-2"></i>Nuevo Producto
-                    </button>
-                    <button id="btn-tab-ajuste" onclick="switchAdminTab('ajuste')" class="flex-1 p-3 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-all">
-                        <i class="fas fa-tools mr-2"></i>Ajustar Stock
-                    </button>
-                </div>
-                
-                <div id="panel-crear" class="p-6 space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input id="i_codigo" placeholder="Código Único" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
-                        <input id="i_desc" placeholder="Descripción del Producto" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
-                        <input id="i_precio" type="number" placeholder="Precio USD" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
-                        <input id="i_costo" type="number" placeholder="Costo USD" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
-                        <input id="i_stock" type="number" placeholder="Stock Inicial" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
-                    </div>
-                    <button onclick="crearProducto()" class="w-full bg-slate-900 text-white p-3 rounded-xl font-bold hover:bg-black transition-all">Guardar en Inventario</button>
-                </div>
-
-                <div id="panel-ajuste" class="p-6 space-y-4 hidden">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input id="a_codigo" placeholder="Código del producto" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
-                        <input id="a_diff" type="number" placeholder="Cantidad (+/-)" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
-                    </div>
-                    <select id="a_motivo" class="w-full p-3 border rounded-xl outline-none bg-white">
-                        <option value="Ingreso de Mercancía">Ingreso de Mercancía</option>
-                        <option value="Corrección de Inventario">Corrección de Inventario</option>
-                        <option value="Producto Dañado">Producto Dañado</option>
-                    </select>
-                    <button onclick="ajustarStock()" class="w-full bg-orange-500 text-white p-3 rounded-xl font-bold hover:bg-orange-600 transition-all">Aplicar Ajuste</button>
-                </div>
-            </section>
         </div>
 
-        <!-- COLUMNA DERECHA: TOTALES Y CLIENTE -->
+        <!-- Derecha: cliente, pago, totales -->
         <div class="lg:col-span-4 space-y-4">
-            <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 sticky top-4">
-                <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Resumen de Venta</h2>
-                <div class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 items-center p-3 border rounded-xl bg-slate-50">
-                        <div class="text-[11px] text-slate-500">
-                            Pendientes: <span id="sync-pendientes" class="font-black text-slate-700">0</span>
-                        </div>
-                        <div class="text-[11px] text-slate-500 md:col-span-2 truncate">
-                            Último estado: <span id="sync-estado" class="font-semibold text-slate-700">—</span>
-                        </div>
-                        <div class="md:col-span-3 flex gap-2">
-                            <button id="btnSyncNow" class="flex-1 p-2 bg-slate-200 rounded text-sm">Sincronizar ahora</button>
-                            <button id="btnBackupNow" class="p-2 bg-slate-200 rounded text-sm">Backup</button>
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 sticky top-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-xs font-black text-slate-400 uppercase">Cliente</div>
+                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <span>Pendientes</span>
+                        <span id="sync-pendientes" class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-black">0</span>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Cliente</label>
+                        <div class="grid grid-cols-12 gap-2 items-stretch">
+                            <div class="col-span-9 relative">
+                                <i class="fas fa-user absolute left-3 top-4 text-slate-300"></i>
+                                <input id="v_cliente" placeholder="Escriba para buscar o crear" class="w-full p-3 pl-10 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" autocomplete="off">
+                                <ul id="v_sugerencias_clientes" class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50"></ul>
+                            </div>
+                            <button id="btnGuardarCliente" class="col-span-3 p-3 bg-slate-200 rounded text-sm font-semibold">Guardar</button>
                         </div>
                     </div>
-                    <div class="relative space-y-3">
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Nombre del Cliente</label>
-                            <div class="relative">
-                                <i class="fas fa-user absolute left-3 top-4 text-slate-300"></i>
-                                <input id="v_cliente" placeholder="Ej. Juan Pérez" class="w-full p-3 pl-10 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Cédula</label>
-                                <input id="v_cedula" placeholder="V-00000000" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
-                            </div>
-                            <div>
-                                <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Teléfono</label>
-                                <input id="v_telefono" placeholder="0414-0000000" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
-                            </div>
-                        </div>
-                        <div class="mt-1 grid grid-cols-12 gap-2 items-stretch">
-                            <select id="v_clientes_frecuentes" class="col-span-9 p-2 border rounded-lg text-sm"></select>
-                            <button id="btnGuardarCliente" class="col-span-3 p-2 bg-slate-200 rounded text-sm">Guardar</button>
-                        </div>
-                        <div class="text-[11px] text-blue-600 font-semibold mt-1">
-                            <a href="/clientes.html" class="hover:underline">Gestionar clientes (ver, editar, eliminar)</a>
-                        </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input id="v_cedula" placeholder="V-00000000" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                        <input id="v_telefono" placeholder="0414-0000000" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                    </div>
+                    <div class="text-[11px] text-blue-600 font-semibold">
+                        <a href="/clientes.html" class="hover:underline">Gestionar clientes</a>
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Vendedor / Cajero</label>
                         <input id="v_vendedor" placeholder="Nombre del vendedor" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
                     </div>
-                    <div>
-                        <div class="flex items-center justify-between mb-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Tasa Cambio (Bs / $)</label>
-                            <span id="pv-kpi-tasa" class="text-[11px] font-black text-blue-600">--</span>
-                        </div>
-                        <div class="relative grid grid-cols-12 gap-2 items-center">
-                            <i class="fas fa-exchange-alt absolute left-3 top-4 text-slate-300"></i>
-                            <input id="v_tasa" type="number" step="0.01" value="45.50" oninput="actualizarTabla()" class="col-span-7 md:col-span-8 w-full p-3 pl-10 border rounded-xl outline-none font-mono font-bold text-blue-600">
-                            <button id="btn-pv-actualizar-tasa" class="col-span-5 md:col-span-4 p-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">Actualizar</button>
-                        </div>
-                        <div id="pv-tasa-alert" class="mt-1 text-[11px] font-semibold text-amber-600 hidden">Tasa sin actualizar &gt; 8h</div>
-                    </div>
-                    
-                    <div class="bg-slate-900 text-white p-5 rounded-2xl space-y-3 shadow-inner">
-                        <div class="flex justify-between items-center opacity-60 text-xs uppercase font-bold tracking-widest">
-                            <span>Subtotal USD</span>
-                            <span>$<span id="total-usd">0.00</span></span>
-                        </div>
-                        <div class="h-[1px] bg-white opacity-10"></div>
-                        <div class="flex justify-between items-end">
-                            <span class="text-[10px] font-black uppercase opacity-60 mb-1">Total a Pagar</span>
-                            <div class="text-right">
-                                <div class="text-2xl font-black leading-none"><span id="total-bs">0.00</span> Bs</div>
-                            </div>
-                        </div>
-                    </div>
+                </div>
 
-                    <div class="mt-4 grid grid-cols-3 gap-2">
-                        <input id="v_desc" type="number" min="0" max="100" value="Descuento %" class="p-3 border rounded-xl text-center" placeholder="Descuento %">
+                <div class="pt-4 border-t space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Tasa (Bs/$)</label>
+                        <span id="pv-kpi-tasa" class="text-[11px] font-black text-blue-600">--</span>
+                    </div>
+                    <div class="grid grid-cols-12 gap-2 items-center">
+                        <input id="v_tasa" type="number" step="0.01" value="45.50" oninput="actualizarTabla()" class="col-span-8 w-full p-3 border rounded-xl outline-none font-mono font-bold text-blue-600">
+                        <button id="btn-pv-actualizar-tasa" class="col-span-4 p-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">Actualizar</button>
+                    </div>
+                    <div id="pv-tasa-alert" class="text-[11px] font-semibold text-amber-600 hidden">Tasa sin actualizar &gt; 8h</div>
+                </div>
+
+                <div class="pt-4 border-t space-y-3">
+                    <div class="grid grid-cols-3 gap-2">
+                        <input id="v_desc" type="number" min="0" max="100" class="p-3 border rounded-xl text-center" placeholder="Descuento %">
                         <select id="v_metodo" class="p-3 border rounded-xl">
                             <option value="efectivo">Efectivo</option>
                             <option value="tarjeta">Tarjeta</option>
@@ -243,31 +177,46 @@
                         <input id="v_ref" type="text" class="p-3 border rounded-xl" placeholder="Referencia (opcional)">
                     </div>
 
-                    <div class="p-4 border rounded-2xl bg-slate-50 space-y-2">
-                        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Crédito</div>
-                        <label class="flex items-center gap-3 cursor-pointer select-none">
-                            <input id="v_credito" type="checkbox" class="h-5 w-5 rounded border-slate-300">
-                            <div>
-                                <div class="font-bold text-slate-700">Marcar venta a crédito</div>
-                            </div>
-                        </label>
-                        <div class="grid grid-cols-2 gap-2">
-                            <input id="v_dias" type="number" min="1" value="21" class="p-3 border rounded-xl" placeholder="Días de plazo">
-                            <input id="v_fecha_venc" type="date" class="p-3 border rounded-xl" placeholder="Fecha vencimiento (opcional)">
+                    <div class="p-3 border rounded-2xl bg-slate-50 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Crédito</div>
+                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
+                                <input id="v_credito" type="checkbox" class="h-4 w-4 rounded border-slate-300">
+                                <span>Venta a crédito</span>
+                            </label>
                         </div>
-                        <div class="text-[11px] text-slate-500">Si se establece fecha de vencimiento, se ignoran los días.</div>
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <input id="v_dias" type="number" min="1" value="21" class="p-2 border rounded-xl" placeholder="Días de plazo">
+                            <input id="v_fecha_venc" type="date" class="p-2 border rounded-xl" placeholder="Fecha de vencimiento">
+                        </div>
+                        <div class="text-[11px] text-slate-500">Si colocas fecha, se ignoran los días.</div>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t space-y-3">
+                    <div class="bg-slate-900 text-white p-4 rounded-2xl space-y-2 shadow-inner">
+                        <div class="flex justify-between items-center text-xs uppercase font-bold tracking-widest opacity-70">
+                            <span>Subtotal USD</span>
+                            <span>$<span id="total-usd">0.00</span></span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div class="text-[10px] font-black uppercase opacity-70">Total a pagar</div>
+                            <div class="text-2xl font-black leading-none text-right"><span id="total-bs">0.00</span> Bs</div>
+                        </div>
                     </div>
 
-                    <!-- Se eliminan botones de Deshacer y Confirmar; queda solo Vender -->
+                    <div class="flex gap-2 text-sm">
+                        <button id="btnSyncNow" class="flex-1 p-2 bg-slate-200 rounded">Sincronizar</button>
+                        <button id="btnBackupNow" class="p-2 bg-slate-200 rounded">Backup</button>
+                    </div>
 
                     <button id="btnVender" onclick="registrarVenta()" class="w-full bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-blue-200 hover:bg-blue-600 transition-all transform active:scale-95">
-                        REGISTRAR VENTA
+                        Registrar venta
                     </button>
                 </div>
 
-                <!-- Historial Rápido -->
-                <div class="mt-8 pt-6 border-t border-slate-100">
-                    <h3 class="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-tighter italic">Últimos movimientos</h3>
+                <div class="pt-4 border-t">
+                    <h3 class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-tighter italic">Últimos movimientos</h3>
                     <div id="historial" class="space-y-2"></div>
                 </div>
             </section>

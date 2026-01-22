@@ -488,7 +488,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Wire additional UI controls
 
     const btnGuardarCliente = document.getElementById('btnGuardarCliente');
-    const selectClientes = document.getElementById('v_clientes_frecuentes');
+    const inputNombreCliente = document.getElementById('v_cliente');
+    const ulSugerenciasClientes = document.getElementById('v_sugerencias_clientes');
 
     const getFormCliente = () => ({
         nombre: (document.getElementById('v_cliente')?.value || '').trim(),
@@ -496,19 +497,45 @@ document.addEventListener('DOMContentLoaded', () => {
         telefono: (document.getElementById('v_telefono')?.value || '').trim()
     });
 
-    const renderClientes = () => {
-        if (!selectClientes) return;
-        selectClientes.innerHTML = '<option value="">- frecuentes -</option>' + clientesFrecuentesCache.map((c, idx) => {
+    function renderSugerenciasClientes(list = []) {
+        if (!ulSugerenciasClientes) return;
+        ulSugerenciasClientes.innerHTML = '';
+        if (!list.length) { ulSugerenciasClientes.classList.add('hidden'); return; }
+        list.slice(0, 8).forEach(c => {
+            const li = document.createElement('li');
+            li.className = 'p-3 border-b hover:bg-slate-50 cursor-pointer flex justify-between items-center text-sm';
             const nombre = c.nombre || c.cliente || '';
             const cedula = c.cedula || '';
             const telefono = c.telefono || c.telefono_cliente || '';
-            const id = c.id || '';
-            return `<option value="${idx}" data-id="${id}" data-nombre="${nombre}" data-cedula="${cedula}" data-telefono="${telefono}">${nombre || 'Cliente sin nombre'}</option>`;
-        }).join('');
-    };
+            li.innerHTML = `
+                <div>
+                    <div class="font-semibold text-slate-700">${nombre || '(sin nombre)'}${cedula ? ` • ${cedula}` : ''}</div>
+                    ${telefono ? `<div class="text-[11px] text-slate-500">${telefono}</div>` : ''}
+                </div>
+            `;
+            li.addEventListener('click', () => {
+                if (inputNombreCliente) inputNombreCliente.value = nombre;
+                const ced = document.getElementById('v_cedula');
+                const tel = document.getElementById('v_telefono');
+                if (ced) ced.value = cedula;
+                if (tel) tel.value = telefono;
+                // aplicar descuento/notas si existen
+                try {
+                    const desc = parseFloat(c.descuento);
+                    if (!Number.isNaN(desc) && document.getElementById('v_desc')) {
+                        document.getElementById('v_desc').value = String(desc);
+                        showToast(`Descuento ${desc}% aplicado por cliente`, 'info');
+                    }
+                    if (c.notas) showToast(`Nota cliente: ${c.notas}`, 'info', 4500);
+                } catch {}
+                ulSugerenciasClientes.classList.add('hidden');
+            });
+            ulSugerenciasClientes.appendChild(li);
+        });
+        ulSugerenciasClientes.classList.remove('hidden');
+    }
 
     async function loadClientes() {
-        if (!selectClientes) return;
         let list = [];
         try {
             list = await obtenerClientesFirebase();
@@ -522,10 +549,34 @@ document.addEventListener('DOMContentLoaded', () => {
             list = JSON.parse(localStorage.getItem('clientes_frecuentes_v2') || '[]');
         }
         clientesFrecuentesCache = list || [];
-        renderClientes();
     }
 
     loadClientes();
+
+    // Autocompletar de clientes por nombre/cédula
+    if (inputNombreCliente) {
+        inputNombreCliente.addEventListener('input', (e) => {
+            const q = (e.target.value || '').toLowerCase().trim();
+            if (!q || q.length < 1) { if (ulSugerenciasClientes) ulSugerenciasClientes.classList.add('hidden'); return; }
+            const list = (clientesFrecuentesCache || []).filter(c => {
+                const nombre = (c.nombre || c.cliente || '').toLowerCase();
+                const cedula = (c.cedula || '').toLowerCase();
+                return nombre.includes(q) || (cedula && cedula.includes(q));
+            });
+            renderSugerenciasClientes(list);
+        });
+        inputNombreCliente.addEventListener('focus', () => {
+            const val = inputNombreCliente.value.trim().toLowerCase();
+            if (!val) {
+                renderSugerenciasClientes((clientesFrecuentesCache || []).slice(0, 8));
+            }
+        });
+        document.addEventListener('click', (ev) => {
+            if (!ulSugerenciasClientes) return;
+            const within = ulSugerenciasClientes.contains(ev.target) || inputNombreCliente.contains(ev.target);
+            if (!within) ulSugerenciasClientes.classList.add('hidden');
+        });
+    }
 
     // Acciones de sync/backup manual
     const btnSyncNow = document.getElementById('btnSyncNow');
@@ -614,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 clientesFrecuentesCache = [actualizado, ...clientesFrecuentesCache].slice(0, 50);
             }
             localStorage.setItem('clientes_frecuentes_v2', JSON.stringify(clientesFrecuentesCache));
-            renderClientes();
+            // actualizar cache ya se hizo arriba; no hay select que renderizar
             showToast(existente ? 'Cliente actualizado' : 'Cliente guardado', 'success');
         } catch (err) {
             console.error('No se pudo guardar/actualizar en Firebase, se mantiene en cache local', err);
@@ -630,36 +681,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 clientesFrecuentesCache = [fallback, ...clientesFrecuentesCache].slice(0, 50);
             }
             localStorage.setItem('clientes_frecuentes_v2', JSON.stringify(clientesFrecuentesCache));
-            renderClientes();
             showToast('Guardado local (sin Firebase)', 'info');
         }
     }
 
     if (btnGuardarCliente) btnGuardarCliente.addEventListener('click', upsertClienteDesdeFormulario);
-
-    if (selectClientes) selectClientes.addEventListener('change', (e) => {
-        const opt = e.target.selectedOptions[0];
-        if (!opt || !opt.dataset) return;
-        if (opt.value === '') return;
-        const nombre = opt.dataset.nombre || '';
-        const cedula = opt.dataset.cedula || '';
-        const telefono = opt.dataset.telefono || '';
-        if (document.getElementById('v_cliente')) document.getElementById('v_cliente').value = nombre;
-        if (document.getElementById('v_cedula')) document.getElementById('v_cedula').value = cedula;
-        if (document.getElementById('v_telefono')) document.getElementById('v_telefono').value = telefono;
-        // Aplicar descuento/notas si vienen
-        try {
-            const cliente = clientesFrecuentesCache.find(c => (c.cedula || '') === cedula) || clientesFrecuentesCache.find(c => (c.nombre || c.cliente) === nombre) || {};
-            const desc = parseFloat(cliente.descuento);
-            if (!isNaN(desc) && document.getElementById('v_desc')) {
-                document.getElementById('v_desc').value = String(desc);
-                showToast(`Descuento ${desc}% aplicado por cliente`, 'info');
-            }
-            if (cliente.notas) {
-                showToast(`Nota cliente: ${cliente.notas}`, 'info', 4500);
-            }
-        } catch {}
-    });
+    // fin autocompletar clientes
 });
 
 function finalizarVentaUI() {
