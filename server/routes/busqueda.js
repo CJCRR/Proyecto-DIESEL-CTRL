@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { requireAuth } = require('./auth');
 
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
     const q = req.query.q;
 
     if (!q || q.length < 2) {

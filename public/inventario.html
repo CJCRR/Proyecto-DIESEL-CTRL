@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Inventario — Diesel CTRL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Toasts */
+        #toast-container {
+            position: fixed;
+            right: 1rem;
+            bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 60;
+        }
+        .toast {
+            min-width: 200px;
+            padding: 0.6rem 1rem;
+            border-radius: 0.5rem;
+            color: white;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+            transform: translateY(10px);
+            opacity: 0;
+            transition: transform .18s ease, opacity .18s ease;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { background: #16a34a; }
+        .toast.error { background: #dc2626; }
+        .toast.info { background: #0369a1; }
+        /* Modal animations */
+        .modal-backdrop { transition: opacity .2s ease; }
+        .modal-panel { transform: scale(.96); opacity: 0; transition: transform .18s ease, opacity .18s ease; }
+        .modal-open .modal-panel { transform: scale(1); opacity: 1; }
+        .modal-open .modal-backdrop { opacity: 1; }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+    <nav class="bg-slate-900 text-white p-4 shadow-xl">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <button id="btn-menu" class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+                    <i class="fas fa-bars text-lg"></i>
+                </button>
+                <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
+            </div>
+            <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Inventario</div>
+        </div>
+    </nav>
+
+    <!-- Drawer de navegación -->
+    <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-40"></div>
+    <aside id="drawer" class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
+        <div class="p-5 flex items-center justify-between border-b border-slate-100">
+            <div>
+                <p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>
+                <p class="text-lg font-black text-slate-800">Diesel Ctrl</p>
+            </div>
+            <button id="drawer-close" class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
+                <i class="fas fa-xmark text-slate-500"></i>
+            </button>
+        </div>
+        <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700">
+            <a href="/index.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-cash-register text-blue-600"></i>
+                Punto de Venta
+            </a>
+            <a href="/inventario.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-boxes-stacked text-amber-600"></i>
+                Inventario
+            </a>
+            <a href="/dashboard.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-chart-line text-emerald-600"></i>
+                Dashboard
+            </a>
+            <a href="/clientes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-users text-indigo-600"></i>
+                Clientes
+            </a>
+            <a href="/reportes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-file-invoice text-rose-600"></i>
+                Reportes
+            </a>
+            <a href="/cobranzas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-money-check-dollar text-emerald-600"></i>
+                Cobranzas
+            </a>
+        </nav>
+        <div class="p-4 border-t border-slate-100 text-xs text-slate-500">
+            <p class="font-semibold">Atajos rápidos</p>
+            <p class="mt-1">Presione ESC para cerrar.</p>
+        </div>
+    </aside>
+
+        <main class="container mx-auto p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <section class="lg:col-span-2 bg-white p-4 rounded shadow">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="font-black">Productos</h2>
+                        <div class="flex gap-2 items-center">
+                            <input id="q" placeholder="Buscar..." class="p-2 border rounded w-60" />
+                            <select id="pageSize" class="p-2 border rounded">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50" selected>50</option>
+                            </select>
+                            <input id="filterCategoria" placeholder="Categoría" class="p-2 border rounded w-40" />
+                            <select id="filterStock" class="p-2 border rounded">
+                                <option value="all">Todos</option>
+                                <option value="out">Sin stock</option>
+                                <option value="low">Bajo (&lt;5)</option>
+                                <option value="medium">Medio (&lt;20)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="lista" class="space-y-2 text-sm"></div>
+                    <div class="flex justify-between items-center mt-4">
+                        <div id="paginacion-info" class="text-sm text-slate-500"></div>
+                        <div class="flex gap-2">
+                            <button id="prevPage" class="p-2 bg-slate-200 rounded">Anterior</button>
+                            <button id="nextPage" class="p-2 bg-slate-200 rounded">Siguiente</button>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="bg-white p-4 rounded shadow">
+                    <h3 class="font-black mb-2">Crear / Editar</h3>
+                    <form id="form">
+                        <label class="text-xs">Código</label>
+                        <input id="f_codigo" class="w-full p-2 border rounded mb-2" required />
+                        <label class="text-xs">Descripción</label>
+                        <input id="f_desc" class="w-full p-2 border rounded mb-2" required />
+                        <label class="text-xs">Precio USD</label>
+                        <input id="f_precio" type="number" step="0.01" class="w-full p-2 border rounded mb-2"
+                            required />
+                        <label class="text-xs">Costo USD</label>
+                        <input id="f_costo" type="number" step="0.01" class="w-full p-2 border rounded mb-2" />
+                        <label class="text-xs">Stock</label>
+                        <input id="f_stock" type="number" class="w-full p-2 border rounded mb-2" required />
+                        <label class="text-xs">Categoría</label>
+                        <input id="f_categoria" class="w-full p-2 border rounded mb-4" />
+
+                        <div class="flex gap-2">
+                            <button type="submit" id="btnGuardar"
+                                class="flex-1 bg-blue-600 text-white p-2 rounded">Guardar</button>
+                            <button type="button" id="btnBorrar"
+                                class="flex-1 bg-red-500 text-white p-2 rounded">Eliminar</button>
+                        </div>
+                        <div class="mt-3 text-sm" id="msg"></div>
+                    </form>
+                    <hr class="my-4">
+                    <h4 class="text-sm font-black mb-2">Import / Export CSV</h4>
+                    <input id="csvFile" type="file" accept="text/csv" class="mb-2" />
+                    <div class="flex gap-2 mb-4">
+                        <button id="btnImportCsv" class="flex-1 p-2 bg-indigo-600 text-white rounded">Importar CSV</button>
+                        <button id="btnExportCsv" class="p-2 bg-slate-200 rounded">Exportar CSV</button>
+                    </div>
+                    <!-- filtros movidos arriba -->
+                    <hr class="my-4">
+                    <h4 class="text-sm font-black mb-2">Historial de ajustes</h4>
+                    <div id="ajustes-list" class="text-sm text-slate-600 max-h-40 overflow-auto">Cargando...</div>
+                </aside>
+            </div>
+        </main>
+
+        <script>
+            console.log('inventario.html v2.0 - con autenticación');
+            const lista = document.getElementById('lista');
+            const q = document.getElementById('q');
+            const form = document.getElementById('form');
+            const f_codigo = document.getElementById('f_codigo');
+            const f_desc = document.getElementById('f_desc');
+            const f_precio = document.getElementById('f_precio');
+            const f_costo = document.getElementById('f_costo');
+            const f_stock = document.getElementById('f_stock');
+            const msg = document.getElementById('msg');
+            const btnBorrar = document.getElementById('btnBorrar');
+            const pageSize = document.getElementById('pageSize');
+            const prevPage = document.getElementById('prevPage');
+            const nextPage = document.getElementById('nextPage');
+            const pagInfo = document.getElementById('paginacion-info');
+
+            // Modal simple con animación
+            const modal = document.createElement('div');
+            modal.id = 'confirmModal';
+            modal.className = 'fixed inset-0 hidden items-center justify-center z-50';
+            modal.innerHTML = `
+      <div class="absolute inset-0 bg-black bg-opacity-40 modal-backdrop opacity-0"></div>
+      <div class="relative bg-white p-4 rounded shadow w-96 modal-panel">
+        <div id="modal-text" class="mb-4">¿Confirmar?</div>
+        <div class="flex justify-end gap-2">
+          <button id="modal-cancel" class="p-2 bg-slate-200 rounded">Cancelar</button>
+          <button id="modal-ok" class="p-2 bg-red-600 text-white rounded">Eliminar</button>
+        </div>
+      </div>
+    `;
+            document.body.appendChild(modal);
+            const modalText = modal.querySelector('#modal-text');
+            const modalCancel = modal.querySelector('#modal-cancel');
+            const modalOk = modal.querySelector('#modal-ok');
+
+                        // Import preview modal
+                        const previewModal = document.createElement('div');
+                        previewModal.id = 'importPreviewModal';
+                        previewModal.className = 'fixed inset-0 hidden items-center justify-center z-50';
+                        previewModal.innerHTML = `
+    <div class="absolute inset-0 bg-black bg-opacity-40 modal-backdrop opacity-0"></div>
+    <div class="relative bg-white p-4 rounded shadow w-11/12 max-w-3xl modal-panel">
+        <h3 class="font-bold mb-2">Vista previa de importación</h3>
+        <div id="importPreviewBody" class="max-h-64 overflow-auto text-sm border rounded p-2 mb-4"></div>
+        <div class="flex justify-end gap-2">
+            <button id="importPreviewCancel" class="p-2 bg-slate-200 rounded">Cancelar</button>
+            <button id="importPreviewConfirm" class="p-2 bg-indigo-600 text-white rounded">Confirmar importación</button>
+        </div>
+    </div>
+`;
+                        document.body.appendChild(previewModal);
+                        const importPreviewBody = previewModal.querySelector('#importPreviewBody');
+                        const importPreviewCancel = previewModal.querySelector('#importPreviewCancel');
+                        const importPreviewConfirm = previewModal.querySelector('#importPreviewConfirm');
+
+            let productosCache = [];
+            let currentPage = 0;
+            let currentTotal = 0;
+
+            async function cargarProductos() {
+                lista.innerHTML = 'Cargando...';
+                try {
+                    const limit = parseInt(pageSize.value);
+                    const offset = currentPage * limit;
+                        // aplicar filtros
+                        const categoriaVal = document.getElementById('filterCategoria') ? document.getElementById('filterCategoria').value.trim() : '';
+                        const stockFilter = document.getElementById('filterStock') ? document.getElementById('filterStock').value : 'all';
+                        const params = new URLSearchParams();
+                        params.set('limit', limit);
+                        params.set('offset', offset);
+                        if (categoriaVal) params.set('categoria', categoriaVal);
+                        const qv = document.getElementById('q') ? document.getElementById('q').value.trim() : '';
+                        if (qv) params.set('q', qv);
+                        if (stockFilter === 'out') params.set('stock_lt', '1');
+                        if (stockFilter === 'low') params.set('stock_lt', '5');
+                        if (stockFilter === 'medium') params.set('stock_lt', '20');
+                        const token = localStorage.getItem('auth_token');
+                        const res = await fetch(`/admin/productos?${params.toString()}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                    if (!res.ok) throw new Error('Error listando');
+                    const data = await res.json();
+                    productosCache = data.items || [];
+                    currentTotal = data.total || 0;
+                    renderList(productosCache);
+                    updatePaginationInfo();
+                } catch (err) {
+                    lista.innerHTML = '<div class="text-red-500">Error cargando productos</div>';
+                    console.error(err);
+                }
+            }
+
+            // cargar historial de ajustes
+            async function cargarAjustes() {
+                const el = document.getElementById('ajustes-list');
+                try {
+                    const token = localStorage.getItem('auth_token');
+                    const res = await fetch('/admin/ajustes?limit=50', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!res.ok) throw new Error('Error ajustes');
+                    const rows = await res.json();
+                    el.innerHTML = '';
+                    rows.forEach(r => {
+                        const d = document.createElement('div');
+                        d.className = 'p-2 border-b';
+                        d.innerHTML = `<div class="font-bold">${r.codigo || '—'} <span class="text-xs text-slate-400">(${r.diferencia>0?'+':''}${r.diferencia})</span></div><div class="text-xs text-slate-400">${r.motivo} — ${new Date(r.fecha).toLocaleString()}</div>`;
+                        el.appendChild(d);
+                    });
+                } catch (err) {
+                    el.innerHTML = '<div class="text-xs text-red-500">Error cargando ajustes</div>';
+                    console.error(err);
+                }
+            }
+
+            function updatePaginationInfo() {
+                const limit = parseInt(pageSize.value);
+                const start = currentPage * limit + 1;
+                const end = Math.min((currentPage + 1) * limit, currentTotal);
+                pagInfo.innerText = `${start}-${end} de ${currentTotal}`;
+                prevPage.disabled = currentPage === 0;
+                nextPage.disabled = end >= currentTotal;
+            }
+
+            function renderList(items) {
+                const qv = q.value.trim().toLowerCase();
+                const filtered = items.filter(p => !qv || p.codigo.toLowerCase().includes(qv) || (p.descripcion || '').toLowerCase().includes(qv));
+                if (filtered.length === 0) {
+                    lista.innerHTML = '<div class="text-sm text-slate-400">Sin resultados</div>';
+                    return;
+                }
+                lista.innerHTML = '';
+                filtered.forEach(p => {
+                    const el = document.createElement('div');
+                    el.className = 'p-3 border rounded flex justify-between items-center hover:bg-slate-50 cursor-pointer';
+                    el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria||''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div></div><div class="text-sm font-black">${p.stock}</div>`;
+                    el.onclick = () => {
+                        f_codigo.value = p.codigo;
+                        f_desc.value = p.descripcion || '';
+                        f_precio.value = p.precio_usd || 0;
+                        f_costo.value = p.costo_usd || 0;
+                        f_stock.value = p.stock || 0;
+                        const f_cat = document.getElementById('f_categoria'); if (f_cat) f_cat.value = p.categoria || '';
+                        msg.innerText = '';
+                    };
+                    lista.appendChild(el);
+                });
+            }
+
+            q.addEventListener('input', () => renderList(productosCache));
+            // Filter controls (moved to top)
+            const topFilterCategoria = document.getElementById('filterCategoria');
+            const topFilterStock = document.getElementById('filterStock');
+            if (topFilterCategoria) topFilterCategoria.addEventListener('input', () => { currentPage = 0; cargarProductos(); });
+            if (topFilterStock) topFilterStock.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
+
+                // Import / Export CSV handlers
+            const csvFile = document.getElementById('csvFile');
+            const btnImportCsv = document.getElementById('btnImportCsv');
+            const btnExportCsv = document.getElementById('btnExportCsv');
+
+            btnExportCsv.addEventListener('click', async () => {
+                try {
+                    const token = localStorage.getItem('auth_token');
+                    const res = await fetch('/admin/productos/export', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!res.ok) throw new Error('Export failed');
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'productos.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                    showToast('CSV exportado', 'info');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Error exportando CSV', 'error');
+                }
+            });
+
+            
+
+            // Helper: detect delimiter by counting in a sample
+            function detectDelimiter(text){
+                const raw = text.replace(/^\uFEFF/, '');
+                const lines = raw.split(/\r?\n/).slice(0,5).join('\n');
+                const counts = { '\t': (lines.match(/\t/g)||[]).length, ';': (lines.match(/;/g)||[]).length, ',': (lines.match(/,/g)||[]).length };
+                let delim = ';';
+                const max = Math.max(counts['\t'], counts[';'], counts[',']);
+                if (max === counts['\t']) delim = '\t';
+                else if (max === counts[',']) delim = ',';
+                return delim;
+            }
+
+            // Client-side parser for preview (supports quotes)
+            function parseDelimited(text, delim){
+                const rows = [];
+                let i = 0, len = text.length;
+                let cur = [];
+                let field = '';
+                let inQuotes = false;
+                while (i < len) {
+                    const ch = text[i];
+                    if (inQuotes) {
+                        if (ch === '"') {
+                            if (i+1 < len && text[i+1] === '"') { field += '"'; i += 2; continue; }
+                            inQuotes = false; i++; continue;
+                        } else { field += ch; i++; continue; }
+                    } else {
+                        if (ch === '"') { inQuotes = true; i++; continue; }
+                        if (ch === delim) { cur.push(field); field = ''; i++; continue; }
+                        if (ch === '\r') { i++; continue; }
+                        if (ch === '\n') { cur.push(field); rows.push(cur); cur = []; field = ''; i++; continue; }
+                        field += ch; i++; continue;
+                    }
+                }
+                if (field !== '' || inQuotes || cur.length) { cur.push(field); rows.push(cur); }
+                return rows.map(r => r.map(c => (c||'').toString()));
+            }
+
+            btnImportCsv.addEventListener('click', async () => {
+                const file = csvFile.files && csvFile.files[0];
+                if (!file) return showToast('Seleccione un archivo CSV', 'error');
+                const text = await file.text();
+                try {
+                    // detect and parse for preview
+                    const delim = detectDelimiter(text);
+                    const rows = parseDelimited(text.replace(/^\uFEFF/, ''), delim).filter(r => r.some(c => (c||'').toString().trim() !== ''));
+                    if (!rows || rows.length === 0) return showToast('Archivo sin filas', 'error');
+
+                    // determine if header
+                    let start = 0;
+                    const first = rows[0].map(c => (c||'').toString().toLowerCase());
+                    if (first.some(h => h.includes('codigo')) && first.some(h => h.includes('descripcion'))) start = 1;
+
+                    // build HTML preview table (up to 10 rows)
+                    const previewRows = rows.slice(0, Math.min(10, rows.length));
+                    let html = '<table class="w-full text-xs table-fixed border-collapse">';
+                    html += '<thead><tr class="bg-slate-100"><th class="px-2 py-1 border">#</th>';
+                    const headerCols = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria'];
+                    headerCols.forEach(h => { html += `<th class="px-2 py-1 border">${h}</th>`; });
+                    html += '</tr></thead><tbody>';
+                    for (let i = 0; i < previewRows.length; i++){
+                        const cols = previewRows[i];
+                        html += `<tr class="odd:bg-white even:bg-slate-50"><td class="px-2 py-1 border">${i+1}</td>`;
+                        for (let j=0;j<6;j++){ html += `<td class="px-2 py-1 border">${(cols[j]||'').toString()}</td>`; }
+                        html += '</tr>';
+                    }
+                    html += '</tbody></table>';
+                    importPreviewBody.innerHTML = html;
+
+                    // show modal
+                    previewModal.classList.remove('hidden');
+                    requestAnimationFrame(() => { previewModal.classList.add('modal-open'); previewModal.style.display = 'flex'; });
+
+                    // confirm handler: send original text to server
+                    const onConfirm = async () => {
+                        importPreviewConfirm.disabled = true;
+                        try {
+                            const token = localStorage.getItem('auth_token');
+                            const res = await fetch('/admin/productos/import', { 
+                                method: 'POST', 
+                                headers: { 
+                                    'Content-Type': 'text/plain',
+                                    'Authorization': `Bearer ${token}`
+                                }, 
+                                body: text 
+                            });
+                            const d = await res.json();
+                            if (!res.ok) { console.error('Import error response:', d); const errMsg = d.error || d.details || 'Error importando CSV'; showToast(errMsg, 'error'); }
+                            else {
+                                if (d.counts) {
+                                    const c = d.counts;
+                                    const msg = `Filas: ${c.dataRows}, Insertadas: ${c.inserted}, Actualizadas: ${c.updated}, Omitidas: ${c.skipped}, Errores: ${c.errors}`;
+                                    showToast(msg, 'success', 5000);
+                                } else showToast(d.message || 'Importado', 'success');
+                                currentPage = 0; cargarProductos();
+                            }
+                        } catch (err) { console.error(err); showToast('Error importando CSV', 'error'); }
+                        importPreviewConfirm.disabled = false;
+                        // close modal
+                        previewModal.classList.remove('modal-open');
+                        setTimeout(() => { previewModal.classList.add('hidden'); previewModal.style.display = ''; }, 220);
+                        importPreviewConfirm.removeEventListener('click', onConfirm);
+                    };
+
+                    importPreviewConfirm.addEventListener('click', onConfirm);
+                    importPreviewCancel.onclick = () => { previewModal.classList.remove('modal-open'); setTimeout(() => { previewModal.classList.add('hidden'); previewModal.style.display = ''; }, 220); };
+
+                } catch (err) {
+                    console.error(err);
+                    showToast('Error procesando archivo', 'error');
+                }
+            });
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const body = {
+                    codigo: f_codigo.value.trim(),
+                    descripcion: f_desc.value.trim(),
+                    precio_usd: parseFloat(f_precio.value),
+                    costo_usd: parseFloat(f_costo.value) || 0,
+                    stock: parseInt(f_stock.value) || 0,
+                    categoria: (document.getElementById('f_categoria') && document.getElementById('f_categoria').value.trim()) || ''
+                };
+
+                // Decide POST (create) or PUT (update) based on existence
+                const exists = productosCache.find(p => p.codigo === body.codigo);
+                try {
+                    const token = localStorage.getItem('auth_token');
+                    if (!exists) {
+                        const res = await fetch('/admin/productos', { 
+                            method: 'POST', 
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            }, 
+                            body: JSON.stringify(body) 
+                        });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.error || 'Error crear');
+                        msg.innerText = 'Producto creado.';
+                    } else {
+                        const res = await fetch('/admin/productos/' + encodeURIComponent(body.codigo), { 
+                            method: 'PUT', 
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            }, 
+                            body: JSON.stringify({ 
+                                descripcion: body.descripcion, 
+                                precio_usd: body.precio_usd, 
+                                costo_usd: body.costo_usd, 
+                                stock: body.stock, 
+                                categoria: body.categoria 
+                            }) 
+                        });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.error || 'Error actualizar');
+                        msg.innerText = 'Producto actualizado.';
+                    }
+                    // reload list at first page (do not overwrite user's top filter)
+                    currentPage = 0;
+                    await cargarProductos();
+                    // Limpiar inputs excepto categoria (permite ingresar varios del mismo grupo)
+                    f_codigo.value = f_desc.value = f_precio.value = f_costo.value = f_stock.value = '';
+                    msg.innerText = '';
+                    showToast(!exists ? 'Producto creado.' : 'Producto actualizado.', 'success');
+                } catch (err) {
+                    msg.innerText = 'Error: ' + err.message;
+                    console.error(err);
+                }
+            });
+
+            btnBorrar.addEventListener('click', () => {
+                const codigo = f_codigo.value.trim();
+                if (!codigo) return msg.innerText = 'Ingrese código para eliminar.';
+                modalText.innerText = `¿Eliminar producto ${codigo}? Esta acción no se puede deshacer.`;
+                // open modal with animation
+                modal.classList.remove('hidden');
+                // slight delay to allow CSS transitions
+                requestAnimationFrame(() => {
+                    modal.classList.add('modal-open');
+                    modal.style.display = 'flex';
+                });
+                modalOk.onclick = async () => {
+                    try {
+                        const token = localStorage.getItem('auth_token');
+                        const res = await fetch('/admin/productos/' + encodeURIComponent(codigo), { 
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.error || 'Error eliminar');
+                                                msg.innerText = 'Producto eliminado.';
+                                                f_codigo.value = f_desc.value = f_precio.value = f_stock.value = '';
+                                                showToast('Producto eliminado.', 'error');
+                        // close modal with animation
+                        modal.classList.remove('modal-open');
+                        setTimeout(() => { modal.classList.add('hidden'); modal.style.display = ''; }, 220);
+                        await cargarProductos();
+                    } catch (err) {
+                        msg.innerText = 'Error: ' + err.message;
+                        console.error(err);
+                    }
+                };
+                modalCancel.onclick = () => {
+                    modal.classList.remove('modal-open');
+                    setTimeout(() => { modal.classList.add('hidden'); modal.style.display = ''; }, 220);
+                };
+            });
+
+            prevPage.addEventListener('click', () => { if (currentPage > 0) { currentPage--; cargarProductos(); } });
+            nextPage.addEventListener('click', () => { const limit = parseInt(pageSize.value); if ((currentPage + 1) * limit < currentTotal) { currentPage++; cargarProductos(); } });
+            pageSize.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
+
+            // Toast container + function
+            const toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            document.body.appendChild(toastContainer);
+            function showToast(text, type = 'info', ms = 3500) {
+                const t = document.createElement('div');
+                t.className = `toast ${type}`;
+                t.innerText = text;
+                toastContainer.appendChild(t);
+                // show
+                requestAnimationFrame(() => t.classList.add('show'));
+                const remover = () => { t.classList.remove('show'); setTimeout(() => t.remove(), 200); };
+                setTimeout(remover, ms);
+                t.addEventListener('click', remover);
+            }
+
+            // Inicializar
+            cargarProductos();
+            cargarAjustes();
+        </script>
+        <script src="auth-guard.js"></script>
+        <script>
+            (() => {
+                const drawer = document.getElementById('drawer');
+                const backdrop = document.getElementById('drawer-backdrop');
+                const btnMenu = document.getElementById('btn-menu');
+                const btnClose = document.getElementById('drawer-close');
+
+                const openDrawer = () => {
+                    drawer.classList.remove('-translate-x-full');
+                    backdrop.classList.remove('hidden');
+                };
+
+                const closeDrawer = () => {
+                    drawer.classList.add('-translate-x-full');
+                    backdrop.classList.add('hidden');
+                };
+
+                if (btnMenu) btnMenu.addEventListener('click', openDrawer);
+                if (btnClose) btnClose.addEventListener('click', closeDrawer);
+                if (backdrop) backdrop.addEventListener('click', closeDrawer);
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') closeDrawer();
+                });
+            })();
+        </script>
+    </body>
+
+</html>

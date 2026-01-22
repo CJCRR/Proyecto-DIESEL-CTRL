@@ -14,10 +14,59 @@
 
     <nav class="bg-slate-900 text-white p-4 shadow-xl">
         <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
+            <div class="flex items-center gap-3">
+                <button id="btn-menu" class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+                    <i class="fas fa-bars text-lg"></i>
+                </button>
+                <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
+            </div>
             <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Sistema de Control de Ventas</div>
         </div>
     </nav>
+
+    <!-- Drawer de navegación -->
+    <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-40"></div>
+    <aside id="drawer" class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
+        <div class="p-5 flex items-center justify-between border-b border-slate-100">
+            <div>
+                <p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>
+                <p class="text-lg font-black text-slate-800">Diesel Ctrl</p>
+            </div>
+            <button id="drawer-close" class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
+                <i class="fas fa-xmark text-slate-500"></i>
+            </button>
+        </div>
+        <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700">
+            <a href="/index.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-cash-register text-blue-600"></i>
+                Punto de Venta
+            </a>
+            <a href="/inventario.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-boxes-stacked text-amber-600"></i>
+                Inventario
+            </a>
+            <a href="/dashboard.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-chart-line text-emerald-600"></i>
+                Dashboard
+            </a>
+            <a href="/clientes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-users text-indigo-600"></i>
+                Clientes
+            </a>
+            <a href="/reportes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-file-invoice text-rose-600"></i>
+                Reportes
+            </a>
+            <a href="/cobranzas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+                <i class="fas fa-money-check-dollar text-emerald-600"></i>
+                Cobranzas
+            </a>
+        </nav>
+        <div class="p-4 border-t border-slate-100 text-xs text-slate-500">
+            <p class="font-semibold">Atajos rápidos</p>
+            <p class="mt-1">Mantenga presionada la tecla ESC para cerrar.</p>
+        </div>
+    </aside>
 
     <main class="container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -87,6 +136,7 @@
                         <input id="i_codigo" placeholder="Código Único" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
                         <input id="i_desc" placeholder="Descripción del Producto" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
                         <input id="i_precio" type="number" placeholder="Precio USD" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
+                        <input id="i_costo" type="number" placeholder="Costo USD" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
                         <input id="i_stock" type="number" placeholder="Stock Inicial" class="p-3 border rounded-xl outline-none focus:ring-1 focus:ring-blue-400">
                     </div>
                     <button onclick="crearProducto()" class="w-full bg-slate-900 text-white p-3 rounded-xl font-bold hover:bg-black transition-all">Guardar en Inventario</button>
@@ -112,19 +162,59 @@
             <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 sticky top-4">
                 <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Resumen de Venta</h2>
                 <div class="space-y-4">
-                    <div class="relative">
-                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Nombre del Cliente</label>
-                        <div class="relative">
-                            <i class="fas fa-user absolute left-3 top-4 text-slate-300"></i>
-                            <input id="v_cliente" placeholder="Ej. Juan Pérez" class="w-full p-3 pl-10 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 items-center p-3 border rounded-xl bg-slate-50">
+                        <div class="text-[11px] text-slate-500">
+                            Pendientes: <span id="sync-pendientes" class="font-black text-slate-700">0</span>
+                        </div>
+                        <div class="text-[11px] text-slate-500 md:col-span-2 truncate">
+                            Último estado: <span id="sync-estado" class="font-semibold text-slate-700">—</span>
+                        </div>
+                        <div class="md:col-span-3 flex gap-2">
+                            <button id="btnSyncNow" class="flex-1 p-2 bg-slate-200 rounded text-sm">Sincronizar ahora</button>
+                            <button id="btnBackupNow" class="p-2 bg-slate-200 rounded text-sm">Backup</button>
+                        </div>
+                    </div>
+                    <div class="relative space-y-3">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Nombre del Cliente</label>
+                            <div class="relative">
+                                <i class="fas fa-user absolute left-3 top-4 text-slate-300"></i>
+                                <input id="v_cliente" placeholder="Ej. Juan Pérez" class="w-full p-3 pl-10 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Cédula</label>
+                                <input id="v_cedula" placeholder="V-00000000" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Teléfono</label>
+                                <input id="v_telefono" placeholder="0414-0000000" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                            </div>
+                        </div>
+                        <div class="mt-1 grid grid-cols-12 gap-2 items-stretch">
+                            <select id="v_clientes_frecuentes" class="col-span-9 p-2 border rounded-lg text-sm"></select>
+                            <button id="btnGuardarCliente" class="col-span-3 p-2 bg-slate-200 rounded text-sm">Guardar</button>
+                        </div>
+                        <div class="text-[11px] text-blue-600 font-semibold mt-1">
+                            <a href="/clientes.html" class="hover:underline">Gestionar clientes (ver, editar, eliminar)</a>
                         </div>
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Tasa Cambio (Bs / $)</label>
-                        <div class="relative">
-                            <i class="fas fa-exchange-alt absolute left-3 top-4 text-slate-300"></i>
-                            <input id="v_tasa" type="number" step="0.01" value="45.50" oninput="actualizarTabla()" class="w-full p-3 pl-10 border rounded-xl outline-none font-mono font-bold text-blue-600">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Vendedor / Cajero</label>
+                        <input id="v_vendedor" placeholder="Nombre del vendedor" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Tasa Cambio (Bs / $)</label>
+                            <span id="pv-kpi-tasa" class="text-[11px] font-black text-blue-600">--</span>
                         </div>
+                        <div class="relative grid grid-cols-12 gap-2 items-center">
+                            <i class="fas fa-exchange-alt absolute left-3 top-4 text-slate-300"></i>
+                            <input id="v_tasa" type="number" step="0.01" value="45.50" oninput="actualizarTabla()" class="col-span-7 md:col-span-8 w-full p-3 pl-10 border rounded-xl outline-none font-mono font-bold text-blue-600">
+                            <button id="btn-pv-actualizar-tasa" class="col-span-5 md:col-span-4 p-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">Actualizar</button>
+                        </div>
+                        <div id="pv-tasa-alert" class="mt-1 text-[11px] font-semibold text-amber-600 hidden">Tasa sin actualizar &gt; 8h</div>
                     </div>
                     
                     <div class="bg-slate-900 text-white p-5 rounded-2xl space-y-3 shadow-inner">
@@ -141,6 +231,35 @@
                         </div>
                     </div>
 
+                    <div class="mt-4 grid grid-cols-3 gap-2">
+                        <input id="v_desc" type="number" min="0" max="100" value="Descuento %" class="p-3 border rounded-xl text-center" placeholder="Descuento %">
+                        <select id="v_metodo" class="p-3 border rounded-xl">
+                            <option value="efectivo">Efectivo</option>
+                            <option value="tarjeta">Tarjeta</option>
+                            <option value="transferencia">Transferencia</option>
+                            <option value="pago_movil">Pago Movil</option>
+                            <option value="credito">Crédito</option>
+                        </select>
+                        <input id="v_ref" type="text" class="p-3 border rounded-xl" placeholder="Referencia (opcional)">
+                    </div>
+
+                    <div class="p-4 border rounded-2xl bg-slate-50 space-y-2">
+                        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Crédito</div>
+                        <label class="flex items-center gap-3 cursor-pointer select-none">
+                            <input id="v_credito" type="checkbox" class="h-5 w-5 rounded border-slate-300">
+                            <div>
+                                <div class="font-bold text-slate-700">Marcar venta a crédito</div>
+                            </div>
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input id="v_dias" type="number" min="1" value="21" class="p-3 border rounded-xl" placeholder="Días de plazo">
+                            <input id="v_fecha_venc" type="date" class="p-3 border rounded-xl" placeholder="Fecha vencimiento (opcional)">
+                        </div>
+                        <div class="text-[11px] text-slate-500">Si se establece fecha de vencimiento, se ignoran los días.</div>
+                    </div>
+
+                    <!-- Se eliminan botones de Deshacer y Confirmar; queda solo Vender -->
+
                     <button id="btnVender" onclick="registrarVenta()" class="w-full bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-blue-200 hover:bg-blue-600 transition-all transform active:scale-95">
                         REGISTRAR VENTA
                     </button>
@@ -155,6 +274,36 @@
         </div>
     </main>
 
-    <script src="app.js"></script>
+    <script src="db-local.js"></script>
+    <script src="service-worker.js"></script>
+    <script src="auth-guard.js"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="firebase-sync.js"></script>
+    <script>
+        (() => {
+            const drawer = document.getElementById('drawer');
+            const backdrop = document.getElementById('drawer-backdrop');
+            const btnMenu = document.getElementById('btn-menu');
+            const btnClose = document.getElementById('drawer-close');
+
+            const openDrawer = () => {
+                drawer.classList.remove('-translate-x-full');
+                backdrop.classList.remove('hidden');
+            };
+
+            const closeDrawer = () => {
+                drawer.classList.add('-translate-x-full');
+                backdrop.classList.add('hidden');
+            };
+
+            if (btnMenu) btnMenu.addEventListener('click', openDrawer);
+            if (btnClose) btnClose.addEventListener('click', closeDrawer);
+            if (backdrop) backdrop.addEventListener('click', closeDrawer);
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeDrawer();
+            });
+        })();
+    </script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>

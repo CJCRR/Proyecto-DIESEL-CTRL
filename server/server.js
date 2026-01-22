@@ -11,9 +11,14 @@ const notasRoutes = require('./routes/nota');
 const reportesRoutes = require('./routes/reportes');
 const busquedaRoutes = require('./routes/busqueda');
 const backupRoutes = require('./routes/backup');
+const authRoutes = require('./routes/auth');
+const usuariosRoutes = require('./routes/usuarios');
+const cobranzasRoutes = require('./routes/cobranzas');
 
 const app = express();
 app.use(express.json());
+// Permitir parsing de bodies de texto (usado para importar CSV como text/plain)
+app.use(express.text({ type: ['text/*', 'application/csv'] }));
 
 // Servir archivos estáticos desde la carpeta public
 // Esto servirá index.html, styles.css y app.js automáticamente
@@ -21,14 +26,30 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Registro de Rutas API
 // Nota: La ruta /ventas ahora deberá estar preparada para recibir un array de items
+app.use('/auth', authRoutes);
 app.use('/admin/productos', productosAdmin);
 app.use('/admin/ajustes', ajustesRoutes);
+app.use('/admin/usuarios', usuariosRoutes);
 app.use('/productos', productosRoutes);
 app.use('/ventas', ventasRoutes);
 app.use('/nota', notasRoutes);
 app.use('/reportes', reportesRoutes);
 app.use('/buscar', busquedaRoutes);
 app.use('/backup', backupRoutes);
+app.use('/cobranzas', cobranzasRoutes);
+
+// Backup automático cada 6 horas (también ejecuta uno al iniciar)
+const runScheduledBackup = async () => {
+    if (!backupRoutes.createBackup) return;
+    try {
+        const { fileName } = await backupRoutes.createBackup();
+        console.log(`📦 Backup automático creado: ${fileName}`);
+    } catch (err) {
+        console.error('❌ Falló backup automático:', err.message);
+    }
+};
+setInterval(runScheduledBackup, 6 * 60 * 60 * 1000);
+runScheduledBackup();
 
 // Manejo de errores básico
 app.use((err, req, res, next) => {
