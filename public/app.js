@@ -4,6 +4,8 @@ let carrito = [];
 let productoSeleccionado = null;
 let vendiendo = false;
 let clientesFrecuentesCache = [];
+let TASA_BCV_POS = 1;
+let TASA_BCV_UPDATED_POS = null;
 
 // Variables para PWA y Sincronización
 let isOnline = navigator.onLine;
@@ -24,6 +26,87 @@ toastContainer.style.flexDirection = 'column';
 toastContainer.style.gap = '0.5rem';
 toastContainer.style.zIndex = '60';
 document.body.appendChild(toastContainer);
+
+function setTasaUI(tasa, actualizadoEn) {
+    TASA_BCV_POS = Number(tasa || 1) || 1;
+    if (actualizadoEn) TASA_BCV_UPDATED_POS = actualizadoEn;
+    try {
+        localStorage.setItem('tasa_bcv', String(TASA_BCV_POS));
+        if (TASA_BCV_UPDATED_POS) localStorage.setItem('tasa_bcv_updated', TASA_BCV_UPDATED_POS);
+    } catch {}
+    const input = document.getElementById('v_tasa');
+    if (input) {
+        input.value = TASA_BCV_POS.toFixed(2);
+        actualizarTabla();
+    }
+    const kpi = document.getElementById('pv-kpi-tasa');
+    if (kpi) kpi.textContent = TASA_BCV_POS.toFixed(2);
+    const alertEl = document.getElementById('pv-tasa-alert');
+    if (alertEl) {
+        const diffHrs = TASA_BCV_UPDATED_POS ? (Date.now() - new Date(TASA_BCV_UPDATED_POS).getTime()) / 36e5 : null;
+        const show = diffHrs !== null && diffHrs > 8;
+        alertEl.classList.toggle('hidden', !show);
+        if (show) alertEl.textContent = `Tasa sin actualizar hace ${diffHrs.toFixed(1)}h`;
+    }
+}
+
+async function cargarTasaPV() {
+    try {
+        const token = localStorage.getItem('auth_token');
+        const r = await fetch('/admin/ajustes/tasa-bcv', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!r.ok) return;
+        const j = await r.json();
+        setTasaUI(j.tasa_bcv, j.actualizado_en);
+    } catch (err) {
+        console.warn('No se pudo cargar tasa BCV', err);
+    }
+}
+
+function precargarTasaCache() {
+    try {
+        const cached = localStorage.getItem('tasa_bcv');
+        const cachedUpdated = localStorage.getItem('tasa_bcv_updated');
+        if (cached) setTasaUI(Number(cached), cachedUpdated || null);
+    } catch {}
+}
+
+async function actualizarTasaPV() {
+    const val = parseFloat(document.getElementById('v_tasa')?.value || '');
+    const token = localStorage.getItem('auth_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
+
+    // Si hay un valor válido en el input, guardar manualmente; si no, actualizar automático
+    if (!Number.isNaN(val) && val > 0) {
+        try {
+            const r = await fetch('/admin/ajustes/tasa-bcv', {
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tasa_bcv: val }),
+            });
+            if (!r.ok) throw new Error('No se pudo guardar la tasa');
+            const j = await r.json();
+            setTasaUI(j.tasa_bcv ?? val, j.actualizado_en || new Date().toISOString());
+            showToast('Tasa guardada', 'success');
+        } catch (err) {
+            showToast('Error guardando tasa', 'error');
+        }
+        return;
+    }
+
+    // Modo auto-actualizar
+    try {
+        const r = await fetch('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST', headers });
+        if (!r.ok) throw new Error('No se pudo actualizar');
+        const j = await r.json();
+        const tasa = Number(j.tasa_bcv || 0);
+        if (tasa > 0) {
+            setTasaUI(tasa, j.actualizado_en || new Date().toISOString());
+            showToast('Tasa actualizada', 'success');
+        }
+    } catch (err) {
+        showToast('Error actualizando tasa', 'error');
+    }
+}
 
 // Escuchar eventos de sincronización provenientes de firebase-sync.js
 window.addEventListener('sync-status', (evt) => {
@@ -272,11 +355,15 @@ async function registrarVenta() {
     const telefono = document.getElementById('v_telefono') ? document.getElementById('v_telefono').value.trim() : '';
     const tasa = parseFloat(document.getElementById('v_tasa').value);
 
+    const isCredito = document.getElementById('v_credito')?.checked || false;
+    const diasVenc = parseInt(document.getElementById('v_dias')?.value, 10) || 21;
+    const fechaVenc = document.getElementById('v_fecha_venc')?.value || null;
+
     
 
     // validations
     const metodo = document.getElementById('v_metodo').value;
-    if (!metodo) { showToast('Seleccione un método de pago', 'error'); return; }
+    if (!isCredito && !metodo) { showToast('Seleccione un método de pago', 'error'); return; }
     if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
     if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa de cambio válida (> 0)', 'error'); return; }
 
@@ -284,6 +371,8 @@ async function registrarVenta() {
     const referencia = (document.getElementById('v_ref') && document.getElementById('v_ref').value)
         ? document.getElementById('v_ref').value.trim()
         : '';
+
+    const metodoFinal = isCredito ? 'CREDITO' : metodo;
 
     const ventaData = {
         id_global: generarIDVenta(),
@@ -294,8 +383,12 @@ async function registrarVenta() {
         telefono,
         tasa_bcv: tasa,
         descuento,
-        metodo_pago: metodo,
+        metodo_pago: metodoFinal,
         referencia,
+        cliente_doc: cedula,
+        credito: isCredito,
+        dias_vencimiento: diasVenc,
+        fecha_vencimiento: fechaVenc,
         fecha: new Date().toISOString(),
         sync: false
     };
@@ -347,12 +440,21 @@ document.addEventListener('DOMContentLoaded', () => {
     setupOfflineUI();
     actualizarHistorial();
     actualizarSyncPendientes();
+    precargarTasaCache();
+    cargarTasaPV();
     
     if (isOnline) {
         sincronizarVentasPendientes();
         setInterval(() => {
             if (isOnline) sincronizarVentasPendientes();
         }, 30000);
+    }
+    const vendFiltrar = document.getElementById('vend-filtrar');
+    if (vendFiltrar) vendFiltrar.addEventListener('click', cargarVendedores);
+
+    const btnPvActualizar = document.getElementById('btn-pv-actualizar-tasa');
+    if (btnPvActualizar) {
+        btnPvActualizar.addEventListener('click', actualizarTasaPV);
     }
 
     // Registrar service worker
@@ -361,6 +463,27 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(() => console.log('✅ Service Worker activo'))
             .catch(err => console.error('❌ Error SW:', err));
     }
+
+    // Toggle UI para ventas a crédito
+    const chkCredito = document.getElementById('v_credito');
+    const selMetodo = document.getElementById('v_metodo');
+    const inputRef = document.getElementById('v_ref');
+    const syncCreditoUI = () => {
+        const active = chkCredito?.checked;
+        if (selMetodo) {
+            selMetodo.disabled = !!active;
+            if (active) selMetodo.value = 'credito';
+        }
+        if (inputRef) {
+            inputRef.disabled = !!active;
+            if (active) inputRef.value = '';
+        }
+    };
+    if (chkCredito) {
+        chkCredito.addEventListener('change', syncCreditoUI);
+        syncCreditoUI();
+    }
+    window.syncCreditoUI = syncCreditoUI;
 
     // Wire additional UI controls
 
@@ -547,6 +670,10 @@ function finalizarVentaUI() {
     if (document.getElementById('v_cedula')) document.getElementById('v_cedula').value = '';
     if (document.getElementById('v_telefono')) document.getElementById('v_telefono').value = '';
     if (document.getElementById('v_ref')) document.getElementById('v_ref').value = '';
+    if (document.getElementById('v_credito')) document.getElementById('v_credito').checked = false;
+    if (document.getElementById('v_dias')) document.getElementById('v_dias').value = '21';
+    if (document.getElementById('v_fecha_venc')) document.getElementById('v_fecha_venc').value = '';
+    if (window.syncCreditoUI) window.syncCreditoUI();
     vendiendo = false;
     btnVender.disabled = false;
     actualizarHistorial();

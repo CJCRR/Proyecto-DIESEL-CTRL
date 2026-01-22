@@ -13,6 +13,7 @@ const busquedaRoutes = require('./routes/busqueda');
 const backupRoutes = require('./routes/backup');
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
+const cobranzasRoutes = require('./routes/cobranzas');
 
 const app = express();
 app.use(express.json());
@@ -35,6 +36,7 @@ app.use('/nota', notasRoutes);
 app.use('/reportes', reportesRoutes);
 app.use('/buscar', busquedaRoutes);
 app.use('/backup', backupRoutes);
+app.use('/cobranzas', cobranzasRoutes);
 
 // Backup automático cada 6 horas (también ejecuta uno al iniciar)
 const runScheduledBackup = async () => {

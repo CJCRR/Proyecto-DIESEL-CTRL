@@ -75,17 +75,18 @@ function getConfig(clave, def = null) {
 }
 
 // Utilidad: setear valor de config
-function setConfig(clave, valor) {
+function setConfig(clave, valor, fecha = new Date().toISOString()) {
   db.prepare(`INSERT INTO config (clave, valor, actualizado_en) VALUES (?, ?, ?)
               ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor, actualizado_en=excluded.actualizado_en`)
-    .run(clave, String(valor), new Date().toISOString());
+    .run(clave, String(valor), fecha);
 }
 
 // GET /ajustes/tasa-bcv
 router.get('/tasa-bcv', requireAuth, (req, res) => {
   try {
-    const valor = parseFloat(getConfig('tasa_bcv', '1')) || 1;
-    res.json({ tasa_bcv: valor });
+    const row = db.prepare(`SELECT valor, actualizado_en FROM config WHERE clave='tasa_bcv'`).get();
+    const valor = parseFloat(row?.valor ?? '1') || 1;
+    res.json({ tasa_bcv: valor, actualizado_en: row?.actualizado_en || null });
   } catch (err) {
     res.status(500).json({ error: 'No se pudo obtener tasa' });
   }
@@ -97,8 +98,9 @@ router.post('/tasa-bcv', requireAuth, (req, res) => {
   const t = parseFloat(tasa_bcv);
   if (!t || isNaN(t) || t <= 0) return res.status(400).json({ error: 'Tasa inválida' });
   try {
-    setConfig('tasa_bcv', t);
-    res.json({ ok: true, tasa_bcv: t });
+    const now = new Date().toISOString();
+    setConfig('tasa_bcv', t, now);
+    res.json({ ok: true, tasa_bcv: t, actualizado_en: now });
   } catch (err) {
     res.status(500).json({ error: 'No se pudo guardar tasa' });
   }
@@ -178,8 +180,9 @@ router.post('/tasa-bcv/actualizar', requireAuth, async (req, res) => {
       return res.status(200).json({ ok: false, tasa_bcv: previa, error: 'No fue posible obtener la tasa automáticamente' });
     }
 
-    setConfig('tasa_bcv', tasa);
-    res.json({ ok: true, tasa_bcv: tasa, previa });
+    const now = new Date().toISOString();
+    setConfig('tasa_bcv', tasa, now);
+    res.json({ ok: true, tasa_bcv: tasa, previa, actualizado_en: now });
   } catch (err) {
     console.error('Error actualizando tasa:', err.message);
     const previa = parseFloat(getConfig('tasa_bcv', '1')) || 1;

@@ -157,9 +157,14 @@ router.get('/top-productos', requireAuth, (req, res) => {
 // GET /reportes/inventario - reporte de inventario / kardex simple
 router.get('/inventario', requireAuth, (req, res) => {
   try {
-    // obtener última tasa conocida para convertir a BS
-    const tasaRow = db.prepare(`SELECT tasa_bcv FROM ventas WHERE tasa_bcv IS NOT NULL ORDER BY fecha DESC LIMIT 1`).get();
-    const tasa = tasaRow && tasaRow.tasa_bcv ? tasaRow.tasa_bcv : 1;
+    // obtener tasa desde config (preferida) o última venta como respaldo
+    const cfgTasaRow = db.prepare(`SELECT valor FROM config WHERE clave='tasa_bcv'`).get();
+    const cfgTasa = cfgTasaRow && cfgTasaRow.valor ? parseFloat(cfgTasaRow.valor) : null;
+    const ventaTasaRow = db.prepare(`SELECT tasa_bcv FROM ventas WHERE tasa_bcv IS NOT NULL ORDER BY fecha DESC LIMIT 1`).get();
+    const ventaTasa = ventaTasaRow && ventaTasaRow.tasa_bcv ? ventaTasaRow.tasa_bcv : null;
+    const tasa = (!Number.isNaN(cfgTasa) && cfgTasa > 0)
+      ? cfgTasa
+      : (!Number.isNaN(ventaTasa) && ventaTasa > 0 ? ventaTasa : 1);
 
     const productos = db.prepare(`
       SELECT codigo, descripcion, precio_usd, stock, (stock * COALESCE(precio_usd,0)) as total_usd
@@ -215,6 +220,165 @@ router.get('/bajo-stock', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error bajo-stock:', err);
     res.status(500).json({ error: 'Error al obtener bajo stock' });
+  }
+});
+
+// ===== Series y comparativas avanzadas para Dashboard =====
+
+// Ventas diarias: últimos N días
+router.get('/series/ventas-diarias', requireAuth, (req, res) => {
+  try {
+    const dias = Math.min(Math.max(parseInt(req.query.dias) || 30, 1), 180);
+    const rows = db.prepare(`
+      SELECT date(v.fecha) AS dia,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS total_usd,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS margen_bs,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad) AS margen_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      JOIN productos p ON p.id = vd.producto_id
+      WHERE date(v.fecha) >= date('now','localtime', ?)
+      GROUP BY dia
+      ORDER BY dia ASC
+    `).all(`-${dias-1} days`);
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Error series ventas-diarias:', err);
+    res.status(500).json({ error: 'Error al obtener ventas diarias' });
+  }
+});
+
+// Ventas mensuales: últimos N meses (YYYY-MM)
+router.get('/series/ventas-mensuales', requireAuth, (req, res) => {
+  try {
+    const meses = Math.min(Math.max(parseInt(req.query.meses) || 12, 1), 36);
+    const rows = db.prepare(`
+      SELECT strftime('%Y-%m', v.fecha) AS mes,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS total_usd,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS margen_bs,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad) AS margen_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      JOIN productos p ON p.id = vd.producto_id
+      WHERE date(v.fecha) >= date('now','localtime', ?)
+      GROUP BY mes
+      ORDER BY mes ASC
+    `).all(`-${meses*30} days`);
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Error series ventas-mensuales:', err);
+    res.status(500).json({ error: 'Error al obtener ventas mensuales' });
+  }
+});
+
+// Top clientes por monto (rango opcional)
+router.get('/top-clientes', requireAuth, (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 5, 1), 50);
+    const { desde, hasta } = req.query;
+    const where = [];
+    const params = [];
+    if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+    if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+    const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+    const rows = db.prepare(`
+      SELECT COALESCE(v.cliente, 'Sin nombre') AS cliente,
+        COUNT(DISTINCT v.id) AS ventas,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS total_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      ${whereSQL}
+      GROUP BY cliente
+      ORDER BY total_usd DESC
+      LIMIT ?
+    `).all(...params, limit);
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Error top-clientes:', err);
+    res.status(500).json({ error: 'Error al obtener top clientes' });
+  }
+});
+
+// Comparativa de vendedores
+router.get('/vendedores', requireAuth, (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const where = [];
+    const params = [];
+    if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+    if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+    const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+    const rows = db.prepare(`
+      SELECT COALESCE(v.vendedor, '—') AS vendedor,
+        COUNT(DISTINCT v.id) AS ventas,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS total_usd,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS margen_bs,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad) AS margen_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      JOIN productos p ON p.id = vd.producto_id
+      ${whereSQL}
+      GROUP BY vendedor
+      ORDER BY total_usd DESC
+      LIMIT 50
+    `).all(...params);
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Error vendedores:', err);
+    res.status(500).json({ error: 'Error al obtener comparativa de vendedores' });
+  }
+});
+
+// Margen en tiempo real (hoy y mes a la fecha)
+router.get('/margen/actual', requireAuth, (req, res) => {
+  try {
+    const hoy = db.prepare(`
+      SELECT 
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS ingresos_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS ingresos_usd,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS costos_bs,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad) AS costos_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      JOIN productos p ON p.id = vd.producto_id
+      WHERE date(v.fecha) = date('now','localtime')
+    `).get();
+
+    const mes = db.prepare(`
+      SELECT 
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS ingresos_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS ingresos_usd,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS costos_bs,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad) AS costos_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      JOIN productos p ON p.id = vd.producto_id
+      WHERE strftime('%Y-%m', v.fecha) = strftime('%Y-%m', 'now','localtime')
+    `).get();
+
+    const calc = (x) => ({
+      ingresos_bs: Number(x.ingresos_bs || 0),
+      ingresos_usd: Number(x.ingresos_usd || 0),
+      costos_bs: Number(x.costos_bs || 0),
+      costos_usd: Number(x.costos_usd || 0),
+      margen_bs: Number((x.ingresos_bs || 0) - (x.costos_bs || 0)),
+      margen_usd: Number((x.ingresos_usd || 0) - (x.costos_usd || 0)),
+    });
+
+    res.json({ hoy: calc(hoy || {}), mes: calc(mes || {}) });
+  } catch (err) {
+    console.error('Error margen actual:', err);
+    res.status(500).json({ error: 'Error al obtener margen' });
   }
 });
 

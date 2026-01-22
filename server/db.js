@@ -62,6 +62,38 @@ const schema = `
     actualizado_en TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS cuentas_cobrar (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_nombre TEXT,
+    cliente_doc TEXT,
+    venta_id INTEGER,
+    total_usd REAL DEFAULT 0,
+    tasa_bcv REAL DEFAULT 1,
+    saldo_usd REAL DEFAULT 0,
+    fecha_emision TEXT,
+    fecha_vencimiento TEXT,
+    estado TEXT DEFAULT 'pendiente',
+    notas TEXT,
+    creado_en TEXT DEFAULT (datetime('now')),
+    actualizado_en TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS pagos_cc (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cuenta_id INTEGER NOT NULL,
+    fecha TEXT,
+    monto_usd REAL DEFAULT 0,
+    moneda TEXT DEFAULT 'USD',
+    tasa_bcv REAL DEFAULT 1,
+    monto_moneda REAL DEFAULT 0,
+    metodo TEXT,
+    referencia TEXT,
+    notas TEXT,
+    usuario TEXT,
+    creado_en TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY(cuenta_id) REFERENCES cuentas_cobrar(id)
+  );
+
   CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
