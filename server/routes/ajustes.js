@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('./auth');
+const { insertAlerta } = require('./alertas');
 
 // POST /admin/ajustes - Ajustar Stock (Entrada/Salida manual)
 router.post('/', requireAuth, (req, res) => {
@@ -26,6 +27,9 @@ router.post('/', requireAuth, (req, res) => {
 
       // 1. Actualizar Producto
       db.prepare('UPDATE productos SET stock = ? WHERE id = ?').run(nuevoStock, producto.id);
+      if (nuevoStock <= 0) {
+        insertAlerta('stock', `Stock agotado: ${producto.codigo || codigo}`, { codigo: producto.codigo || codigo, nuevoStock });
+      }
 
       // 2. Registrar Auditoría
       db.prepare(`

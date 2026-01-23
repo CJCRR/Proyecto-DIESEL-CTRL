@@ -113,6 +113,15 @@ const schema = `
     expira_en TEXT,
     FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
   );
+
+  CREATE TABLE IF NOT EXISTS alertas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT,
+    mensaje TEXT,
+    data TEXT,
+    leido INTEGER DEFAULT 0,
+    creado_en TEXT DEFAULT (datetime('now'))
+  );
 `;
 
 db.exec(schema);

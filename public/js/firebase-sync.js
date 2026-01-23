@@ -1,4 +1,4 @@
-import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc } from './firebase-config.js';
+import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc } from '../config/firebase-config.js';
 
 // Eventos de sincronización para UI (app.js escucha y muestra toasts)
 function emitSyncEvent(detail) {

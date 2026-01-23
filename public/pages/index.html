@@ -37,27 +37,27 @@
             </button>
         </div>
         <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700">
-            <a href="/index.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+            <a href="/pages/index.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
                 <i class="fas fa-cash-register text-blue-600"></i>
                 Punto de Venta
             </a>
-            <a href="/inventario.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+            <a href="/pages/inventario.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
                 <i class="fas fa-boxes-stacked text-amber-600"></i>
                 Inventario
             </a>
-            <a href="/dashboard.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+            <a href="/pages/dashboard.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
                 <i class="fas fa-chart-line text-emerald-600"></i>
                 Dashboard
             </a>
-            <a href="/clientes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+            <a href="/pages/clientes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
                 <i class="fas fa-users text-indigo-600"></i>
                 Clientes
             </a>
-            <a href="/reportes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+            <a href="/pages/reportes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
                 <i class="fas fa-file-invoice text-rose-600"></i>
                 Reportes
             </a>
-            <a href="/cobranzas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+            <a href="/pages/cobranzas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
                 <i class="fas fa-money-check-dollar text-emerald-600"></i>
                 Cobranzas
             </a>
@@ -125,6 +125,7 @@
                     <div class="flex items-center gap-2 text-xs text-slate-500">
                         <span>Pendientes</span>
                         <span id="sync-pendientes" class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-black">0</span>
+                        <button id="btnSyncNow" class="px-2 py-1 border rounded text-[10px]">Sincronizar</button>
                     </div>
                 </div>
                 <div class="space-y-3">
@@ -144,7 +145,7 @@
                         <input id="v_telefono" placeholder="0414-0000000" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
                     </div>
                     <div class="text-[11px] text-blue-600 font-semibold">
-                        <a href="/clientes.html" class="hover:underline">Gestionar clientes</a>
+                        <a href="/pages/clientes.html" class="hover:underline">Gestionar clientes</a>
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Vendedor / Cajero</label>
@@ -205,10 +206,7 @@
                         </div>
                     </div>
 
-                    <div class="flex gap-2 text-sm">
-                        <button id="btnSyncNow" class="flex-1 p-2 bg-slate-200 rounded">Sincronizar</button>
-                        <button id="btnBackupNow" class="p-2 bg-slate-200 rounded">Backup</button>
-                    </div>
+                    <!-- Botones de sincronización/backup movidos al header; backup eliminado aquí -->
 
                     <button id="btnVender" onclick="registrarVenta()" class="w-full bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-blue-200 hover:bg-blue-600 transition-all transform active:scale-95">
                         Registrar venta
@@ -223,11 +221,12 @@
         </div>
     </main>
 
-    <script src="db-local.js"></script>
-    <script src="service-worker.js"></script>
-    <script src="auth-guard.js"></script>
-    <script type="module" src="firebase-config.js"></script>
-    <script type="module" src="firebase-sync.js"></script>
+    <script src="/js/db-local.js"></script>
+    <script src="/service-worker.js"></script>
+    <script src="/js/auth-guard.js"></script>
+    <script type="module" src="/config/firebase-config.js"></script>
+    <script type="module" src="/js/firebase-sync.js"></script>
+    <script type="module" src="/js/alerts.js"></script>
     <script>
         (() => {
             const drawer = document.getElementById('drawer');
@@ -253,6 +252,8 @@
             });
         })();
     </script>
-    <script type="module" src="app.js"></script>
+    <script src="/js/auth-guard.js"></script>
+    <script type="module" src="/js/alerts.js"></script>
+    <script type="module" src="/js/app.js"></script>
 </body>
 </html>

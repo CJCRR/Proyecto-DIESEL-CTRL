@@ -1,16 +1,21 @@
 const CACHE_NAME = 'diesel-ctrl-v2';
 const urlsToCache = [
     '/',
-    '/index.html',
     '/styles.css',
-    '/app.js',
-    '/dashboard.html',
-    '/dashboard.js',
-    '/clientes.html',
-    '/clientes.js',
-    '/db-local.js',
-    '/firebase-config.js',
-    '/firebase-sync.js',
+    '/pages/index.html',
+    '/pages/login.html',
+    '/pages/dashboard.html',
+    '/pages/clientes.html',
+    '/pages/reportes.html',
+    '/pages/cobranzas.html',
+    '/pages/inventario.html',
+    '/js/app.js',
+    '/js/dashboard.js',
+    '/js/clientes.js',
+    '/js/db-local.js',
+    '/js/auth-guard.js',
+    '/js/firebase-sync.js',
+    '/config/firebase-config.js',
     '/shared/nota-template.js'
 ];
 
@@ -91,12 +96,27 @@ self.addEventListener('activate', event => {
     self.clients.claim();
 });
 
+self.addEventListener('message', (event) => {
+    // Permite mostrar notificaciones desde la app con postMessage
+    if (event.data && event.data.type === 'SHOW_NOTIFICATION' && self.registration.showNotification) {
+        const { title, options } = event.data.payload || {};
+        if (title) self.registration.showNotification(title, options || {});
+    }
+});
+
 // Fetch - Network First, luego Cache
 self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET') return; // dejar pasar POST/PUT/etc.
     const url = new URL(event.request.url);
     // No interceptar recursos de terceros (Firebase, Google, CDNs, etc.)
     if (url.origin !== self.location.origin) return;
+
+    // Evitar cacheo/intercepción especial para rutas sensibles con autorización
+    // Estas deben ir directo a red para evitar 401 cacheados y problemas de sesión
+    if (url.pathname.startsWith('/auth') || url.pathname.startsWith('/alertas')) {
+        event.respondWith(fetch(event.request));
+        return;
+    }
 
     event.respondWith((async () => {
         try {
@@ -107,7 +127,7 @@ self.addEventListener('fetch', event => {
         } catch (err) {
             const cached = await caches.match(event.request);
             if (cached) return cached;
-            const fallback = await caches.match('/index.html');
+            const fallback = await caches.match('/pages/index.html');
             return fallback || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
         }
     })());

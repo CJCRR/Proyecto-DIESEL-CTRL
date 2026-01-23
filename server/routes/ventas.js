@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('./auth');
+const { insertAlerta } = require('./alertas');
 
 router.post('/', requireAuth, (req, res) => {
     const {
@@ -87,10 +88,14 @@ router.post('/', requireAuth, (req, res) => {
                     VALUES (?, ?, ?, ?, ?, ?)
                 `).run(ventaId, producto.id, item.cantidad, producto.precio_usd, producto.costo_usd || 0, subtotalBs);
 
-                // Descontar del inventario
+                // Descontar del inventario y verificar stock crítico
+                const nuevoStock = producto.stock - item.cantidad;
                 db.prepare(`
-                    UPDATE productos SET stock = stock - ? WHERE id = ?
-                `).run(item.cantidad, producto.id);
+                    UPDATE productos SET stock = ? WHERE id = ?
+                `).run(nuevoStock, producto.id);
+                if (nuevoStock <= 0) {
+                    insertAlerta('stock', `Stock agotado: ${item.codigo}`, { codigo: item.codigo, descripcion: producto.descripcion || '' });
+                }
             }
 
             // Aplicar descuento (porcentaje) al total acumulado

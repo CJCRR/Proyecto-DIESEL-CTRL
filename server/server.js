@@ -14,6 +14,7 @@ const backupRoutes = require('./routes/backup');
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
 const cobranzasRoutes = require('./routes/cobranzas');
+const { router: alertasRoutes } = require('./routes/alertas');
 
 const app = express();
 app.use(express.json());
@@ -21,8 +22,18 @@ app.use(express.json());
 app.use(express.text({ type: ['text/*', 'application/csv'] }));
 
 // Servir archivos estáticos desde la carpeta public
-// Esto servirá index.html, styles.css y app.js automáticamente
-app.use(express.static(path.join(__dirname, '../public')));
+const PUBLIC_DIR = path.join(__dirname, '../public');
+const PAGES_DIR = path.join(PUBLIC_DIR, 'pages');
+app.use(express.static(PUBLIC_DIR));
+
+// Redirecciones para la nueva ubicación de las vistas en /pages
+app.get('/', (req, res) => {
+    res.sendFile(path.join(PAGES_DIR, 'index.html'));
+});
+
+app.get('/index.html', (req, res) => {
+    res.redirect(301, '/');
+});
 
 // Registro de Rutas API
 // Nota: La ruta /ventas ahora deberá estar preparada para recibir un array de items
@@ -37,6 +48,7 @@ app.use('/reportes', reportesRoutes);
 app.use('/buscar', busquedaRoutes);
 app.use('/backup', backupRoutes);
 app.use('/cobranzas', cobranzasRoutes);
+app.use('/alertas', alertasRoutes);
 
 // Backup automático cada 6 horas (también ejecuta uno al iniciar)
 const runScheduledBackup = async () => {

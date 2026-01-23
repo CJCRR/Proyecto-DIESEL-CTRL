@@ -3,6 +3,33 @@ const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('./auth');
 
+// Clasificación ABC genérica por clave numérica (ej. total_usd o total_qty)
+function classifyABC(rows, valueKey, aThresh = 0.8, bThresh = 0.95) {
+  const total = rows.reduce((s, r) => s + Number(r[valueKey] || 0), 0);
+  let acc = 0;
+  return rows.map((r) => {
+    const val = Number(r[valueKey] || 0);
+    acc += val;
+    const share = total ? val / total : 0;
+    const cumulative = total ? acc / total : 0;
+    const clase = cumulative <= aThresh ? 'A' : cumulative <= bThresh ? 'B' : 'C';
+    return { ...r, share, cumulative, clase };
+  });
+}
+
+function parseAB(query) {
+  const toFrac = (v, def) => {
+    let n = parseFloat(v);
+    if (Number.isNaN(n)) return def;
+    if (n > 1) n = n / 100; // permitir 80/95
+    return Math.min(Math.max(n, 0.5), 0.99);
+  };
+  let a = toFrac(query.a_pct, 0.8);
+  let b = toFrac(query.b_pct, 0.95);
+  if (b <= a) b = Math.min(0.99, a + 0.05);
+  return { a, b };
+}
+
 function queryVentasRango({ desde, hasta, vendedor, metodo, limit = 500 }) {
   const where = [];
   const params = [];
@@ -154,6 +181,73 @@ router.get('/top-productos', requireAuth, (req, res) => {
   }
 });
 
+// GET /reportes/margen-productos?limit=&desde=&hasta= - ordenar por margen USD
+router.get('/margen-productos', requireAuth, (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 200);
+    const { desde, hasta } = req.query;
+    const where = [];
+    const params = [];
+    if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+    if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+    const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+    const rows = db.prepare(`
+      SELECT p.codigo, p.descripcion,
+        SUM(vd.cantidad) AS total_qty,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS total_usd,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS costo_bs,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad) AS costo_usd,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS margen_bs,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad) AS margen_usd
+      FROM venta_detalle vd
+      JOIN ventas v ON v.id = vd.venta_id
+      JOIN productos p ON p.id = vd.producto_id
+      ${whereSQL}
+      GROUP BY p.id
+      ORDER BY margen_usd DESC
+      LIMIT ?
+    `).all(...params, limit);
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Error obteniendo margen-productos:', err);
+    res.status(500).json({ error: 'Error al obtener margen por producto' });
+  }
+});
+
+// ABC de productos por facturación (volumen)
+router.get('/abc/productos', requireAuth, (req, res) => {
+  try {
+    const { a, b } = parseAB(req.query);
+    const { desde, hasta } = req.query;
+    const where = [];
+    const params = [];
+    if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+    if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+    const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+    const rows = db.prepare(`
+      SELECT p.codigo, p.descripcion,
+        SUM(vd.cantidad) AS total_qty,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS total_usd
+      FROM venta_detalle vd
+      JOIN ventas v ON v.id = vd.venta_id
+      JOIN productos p ON p.id = vd.producto_id
+      ${whereSQL}
+      GROUP BY p.id
+      ORDER BY total_usd DESC
+    `).all(...params);
+
+    res.json(classifyABC(rows, 'total_usd', a, b));
+  } catch (err) {
+    console.error('Error ABC productos:', err);
+    res.status(500).json({ error: 'Error al obtener ABC de productos' });
+  }
+});
+
 // GET /reportes/inventario - reporte de inventario / kardex simple
 router.get('/inventario', requireAuth, (req, res) => {
   try {
@@ -206,14 +300,16 @@ module.exports = router;
 // ===== Bajo stock =====
 router.get('/bajo-stock', requireAuth, (req, res) => {
   try {
+    const override = parseInt(req.query.umbral);
     const row = db.prepare(`SELECT valor FROM config WHERE clave='stock_minimo'`).get();
-    const min = row && row.valor ? parseInt(row.valor) : 3;
+    const conf = row && row.valor ? parseInt(row.valor) : 3;
+    const min = Number.isFinite(override) ? Math.max(0, override) : conf;
     const items = db.prepare(`
       SELECT codigo, descripcion, stock, precio_usd,
              (COALESCE(precio_usd,0) * stock) AS total_usd
       FROM productos
-      WHERE stock <= ?
-      ORDER BY stock ASC, codigo
+      WHERE CAST(stock AS INTEGER) <= ?
+      ORDER BY CAST(stock AS INTEGER) ASC, codigo
       LIMIT 100
     `).all(min);
     res.json({ min, items });
@@ -275,6 +371,47 @@ router.get('/series/ventas-mensuales', requireAuth, (req, res) => {
   }
 });
 
+// Tendencias mensuales con comparación mes a mes (delta)
+router.get('/tendencias/mensuales', requireAuth, (req, res) => {
+  try {
+    const meses = Math.min(Math.max(parseInt(req.query.meses) || 12, 1), 36);
+    const rows = db.prepare(`
+      SELECT strftime('%Y-%m', v.fecha) AS mes,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS total_usd,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS margen_bs,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad) AS margen_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      JOIN productos p ON p.id = vd.producto_id
+      WHERE date(v.fecha) >= date('now','localtime', ?)
+      GROUP BY mes
+      ORDER BY mes ASC
+    `).all(`-${meses*30} days`);
+
+    const enhanced = rows.map((row, idx) => {
+      const prev = idx > 0 ? rows[idx - 1] : null;
+      const delta = (curr, prevVal) => {
+        const c = Number(curr || 0);
+        const p = Number(prevVal || 0);
+        const abs = c - p;
+        const pct = p !== 0 ? abs / p : null;
+        return { abs, pct };
+      };
+      return {
+        ...row,
+        delta_total_usd: delta(row.total_usd, prev?.total_usd),
+        delta_margen_usd: delta(row.margen_usd, prev?.margen_usd)
+      };
+    });
+
+    res.json(enhanced);
+  } catch (err) {
+    console.error('Error tendencias mensuales:', err);
+    res.status(500).json({ error: 'Error al obtener tendencias mensuales' });
+  }
+});
+
 // Top clientes por monto (rango opcional)
 router.get('/top-clientes', requireAuth, (req, res) => {
   try {
@@ -303,6 +440,36 @@ router.get('/top-clientes', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error top-clientes:', err);
     res.status(500).json({ error: 'Error al obtener top clientes' });
+  }
+});
+
+// ABC de clientes por facturación (volumen)
+router.get('/abc/clientes', requireAuth, (req, res) => {
+  try {
+    const { a, b } = parseAB(req.query);
+    const { desde, hasta } = req.query;
+    const where = [];
+    const params = [];
+    if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+    if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+    const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+    const rows = db.prepare(`
+      SELECT COALESCE(v.cliente, 'Sin nombre') AS cliente,
+        COUNT(DISTINCT v.id) AS ventas,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS total_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      ${whereSQL}
+      GROUP BY cliente
+      ORDER BY total_usd DESC
+    `).all(...params);
+
+    res.json(classifyABC(rows, 'total_usd', a, b));
+  } catch (err) {
+    console.error('Error ABC clientes:', err);
+    res.status(500).json({ error: 'Error al obtener ABC de clientes' });
   }
 });
 
@@ -336,6 +503,52 @@ router.get('/vendedores', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error vendedores:', err);
     res.status(500).json({ error: 'Error al obtener comparativa de vendedores' });
+  }
+});
+
+// ROI por vendedor (margen / costo e ingresos)
+router.get('/vendedores/roi', requireAuth, (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const where = [];
+    const params = [];
+    if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+    if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+    const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+    const rows = db.prepare(`
+      SELECT COALESCE(v.vendedor, '—') AS vendedor,
+        COUNT(DISTINCT v.id) AS ventas,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS ingresos_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS ingresos_usd,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS costos_bs,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad) AS costos_usd,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS margen_bs,
+        SUM((vd.precio_usd - COALESCE(vd.costo_usd, p.costo_usd, 0)) * vd.cantidad) AS margen_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      JOIN productos p ON p.id = vd.producto_id
+      ${whereSQL}
+      GROUP BY vendedor
+      ORDER BY ingresos_usd DESC
+      LIMIT 100
+    `).all(...params);
+
+    const enriched = rows.map((r) => {
+      const ingresos = Number(r.ingresos_usd || 0);
+      const margen = Number(r.margen_usd || 0);
+      const costos = Number(r.costos_usd || 0);
+      return {
+        ...r,
+        margen_pct: ingresos !== 0 ? margen / ingresos : null,
+        roi: costos !== 0 ? margen / costos : null
+      };
+    });
+
+    res.json(enriched);
+  } catch (err) {
+    console.error('Error ROI vendedores:', err);
+    res.status(500).json({ error: 'Error al obtener ROI por vendedor' });
   }
 });
 

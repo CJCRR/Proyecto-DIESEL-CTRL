@@ -30,7 +30,7 @@ async function cargarUsuarios() {
     if (!res.ok) {
       if (res.status === 403) {
         alert('No tienes permisos para acceder a esta página');
-        window.location.href = '/dashboard.html';
+        window.location.href = '/pages/dashboard.html';
         return;
       }
       throw new Error('Error cargando usuarios');

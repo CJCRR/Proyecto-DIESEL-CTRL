@@ -32,7 +32,7 @@ async function verificarSesion(token) {
       const data = await res.json();
       if (data.valido) {
         // Sesión válida, redirigir
-        window.location.href = '/index.html';
+        window.location.href = '/pages/index.html';
       }
     } else {
       localStorage.removeItem('auth_token');
@@ -80,7 +80,7 @@ loginForm.addEventListener('submit', async (e) => {
       
       // Redirigir al POS
       setTimeout(() => {
-        window.location.href = '/index.html';
+        window.location.href = '/pages/index.html';
       }, 500);
     } else {
       mostrarError(data.error || 'Credenciales inválidas');

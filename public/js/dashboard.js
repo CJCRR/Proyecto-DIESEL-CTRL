@@ -12,6 +12,9 @@ let margenInterval = null;
 let TASA_BCV = 1;
 let KPI_TOTAL_USD = 0;
 let TASA_BCV_UPDATED = null;
+let TOP_LIMIT = parseInt(localStorage.getItem('top_limit') || '10', 10);
+let STOCK_UMBRAL = parseInt(localStorage.getItem('stock_umbral') || '1', 10);
+let AL_UMBRAL_TIMER = null;
 
 // (Se removieron presets de reportes del dashboard)
 
@@ -31,11 +34,46 @@ function renderTopProductos() {
 
 // (Se removió el render del reporte del dashboard)
 
+async function loadTopProductos(headers) {
+    try {
+        if (!headers) {
+            const token = localStorage.getItem('auth_token');
+            headers = { 'Authorization': `Bearer ${token}` };
+        }
+        const r = await fetch(`/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}`, { headers });
+        if (!r.ok) return;
+        cacheTop = await r.json();
+        renderTopProductos();
+    } catch (err) {
+        console.warn('No se pudo cargar top productos', err);
+    }
+}
+
 async function cargarDashboard() {
     try {
         const token = localStorage.getItem('auth_token');
         const headers = { 'Authorization': `Bearer ${token}` };
-        
+
+        const topSel = document.getElementById('top-limit');
+        if (topSel) {
+            if (![...topSel.options].some(o => o.value === String(TOP_LIMIT))) {
+                TOP_LIMIT = 10;
+                localStorage.setItem('top_limit', String(TOP_LIMIT));
+            }
+            topSel.value = String(TOP_LIMIT);
+            if (!topSel.dataset.bound) {
+                topSel.addEventListener('change', async (e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!Number.isNaN(v) && v > 0) {
+                        TOP_LIMIT = v;
+                        try { localStorage.setItem('top_limit', String(TOP_LIMIT)); } catch {}
+                        await loadTopProductos();
+                    }
+                });
+                topSel.dataset.bound = '1';
+            }
+        }
+
         const tasaRes = await fetch('/admin/ajustes/tasa-bcv', { headers });
         if (tasaRes.ok) {
             const { tasa_bcv, actualizado_en } = await tasaRes.json();
@@ -69,46 +107,24 @@ async function cargarDashboard() {
             document.getElementById('total-bs').innerText = principal;
             document.getElementById('total-usd').innerText = secundario;
         }
-        const stockRes = await fetch('/admin/ajustes/stock-minimo', { headers });
-        if (stockRes.ok) {
-            const { stock_minimo } = await stockRes.json();
-            document.getElementById('stock-minimo').value = stock_minimo;
-        }
-        const bajoRes = await fetch('/reportes/bajo-stock', { headers });
-        if (bajoRes.ok) {
-            const { items } = await bajoRes.json();
-            const cont = document.getElementById('lista-bajo-stock');
-            if (!items.length) {
-                cont.innerHTML = '<div class="text-slate-400">Sin alertas</div>';
-            } else {
-                cont.innerHTML = items
-                    .map((i) => `<div class="py-1 border-b">
-                        <div class="flex justify-between text-sm"><span class="font-semibold">${i.codigo}</span><span class="text-slate-500">${i.stock}</span></div>
-                        <div class="text-xs text-slate-500 truncate">${i.descripcion || ''}</div>
-                    </div>`)
-                    .join('');
-            }
-        }
 
         const ventasRes = await fetch('/reportes/ventas', { headers });
-        if (!ventasRes.ok) {
-            console.error('Error cargando ventas');
-            return;
+        if (ventasRes.ok) {
+            const ventas = await ventasRes.json();
+            const ultimas = ventas.slice(0, 3);
+            const ultEl = document.getElementById('ultimas-ventas');
+            ultEl.innerHTML = '';
+            ultimas.forEach((u) => {
+                const d = document.createElement('div');
+                d.className = 'p-2 border rounded flex items-center justify-between';
+                const left = `<div class="min-w-0"><div class="font-bold truncate">${u.cliente || '—'}</div><div class="text-[10px] text-slate-400">${new Date(u.fecha).toLocaleString()}</div></div>`;
+                const montoBs = u.total_bs != null ? `${Number(u.total_bs).toFixed(2)} Bs` : '-- Bs';
+                const montoUsd = u.tasa_bcv != null && u.tasa_bcv !== 0 ? `${Number(u.total_bs / u.tasa_bcv).toFixed(2)} USD` : '-- USD';
+                const right = `<div class="text-right ml-4 w-36"><div class="text-sm font-black">${montoBs}</div><div class="text-xs text-slate-400">${montoUsd}</div></div>`;
+                d.innerHTML = left + right;
+                ultEl.appendChild(d);
+            });
         }
-        const ventas = await ventasRes.json();
-        const ultimas = ventas.slice(0, 5);
-        const ultEl = document.getElementById('ultimas-ventas');
-        ultEl.innerHTML = '';
-        ultimas.forEach((u) => {
-            const d = document.createElement('div');
-            d.className = 'p-2 border rounded flex items-center justify-between';
-            const left = `<div class="min-w-0"><div class="font-bold truncate">${u.cliente || '—'}</div><div class="text-[10px] text-slate-400">${new Date(u.fecha).toLocaleString()}</div></div>`;
-            const montoBs = u.total_bs != null ? `${Number(u.total_bs).toFixed(2)} Bs` : '-- Bs';
-            const montoUsd = u.tasa_bcv != null && u.tasa_bcv !== 0 ? `${Number(u.total_bs / u.tasa_bcv).toFixed(2)} USD` : '-- USD';
-            const right = `<div class="text-right ml-4 w-36"><div class="text-sm font-black">${montoBs}</div><div class="text-xs text-slate-400">${montoUsd}</div></div>`;
-            d.innerHTML = left + right;
-            ultEl.appendChild(d);
-        });
 
         const invRes = await fetch('/reportes/inventario', { headers });
         if (invRes.ok) {
@@ -121,20 +137,16 @@ async function cargarDashboard() {
             if (invTasaEl) invTasaEl.innerText = Number(inv.totals.tasa || 1).toFixed(2);
         }
 
-        const topRes = await fetch('/reportes/top-productos?limit=10', { headers });
-        if (topRes.ok) {
-            cacheTop = await topRes.json();
-            renderTopProductos();
-        }
-
-        // Ventas diarias por defecto
+        await loadTopProductos(headers);
         await renderVentasSeries('diarias');
-
-        // Top clientes
         await renderTopClientes();
-
-        // Margen actual + sparkline
         await renderMargenActual();
+
+        await Promise.all([
+            loadTendencias(headers)
+        ]);
+
+        await renderAlertasTareas();
     } catch (err) {
         console.error('Error cargando dashboard', err);
     }
@@ -197,20 +209,7 @@ document.getElementById('btn-guardar-tasa').addEventListener('click', async () =
     }
 });
 
-document.getElementById('btn-guardar-stock').addEventListener('click', async () => {
-    const n = parseInt(document.getElementById('stock-minimo').value, 10);
-    if (Number.isNaN(n) || n < 0) return;
-    const token = localStorage.getItem('auth_token');
-    await fetch('/admin/ajustes/stock-minimo', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ stock_minimo: n }),
-    });
-    await cargarDashboard();
-});
+// Botón de guardar stock eliminado junto con el panel duplicado
 
 async function cargarVendedores() {
     const desde = document.getElementById('vend-desde').value;
@@ -219,18 +218,27 @@ async function cargarVendedores() {
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
     const token = localStorage.getItem('auth_token');
-    const r = await fetch(`/reportes/vendedores?${params.toString()}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+    const headers = { 'Authorization': `Bearer ${token}` };
+    const [rBase, rRoi] = await Promise.all([
+        fetch(`/reportes/vendedores?${params.toString()}`, { headers }),
+        fetch(`/reportes/vendedores/roi?${params.toString()}`, { headers })
+    ]);
+    if (!rBase.ok) return;
+    const baseRows = await rBase.json();
+    const roiRows = rRoi.ok ? await rRoi.json() : [];
+    const roiMap = new Map(roiRows.map(r => [r.vendedor || '—', r]));
+    cacheVend = baseRows.map(row => {
+        const extra = roiMap.get(row.vendedor || '—') || {};
+        return { ...row, roi: extra.roi, ingresos_usd: extra.ingresos_usd };
     });
-    if (!r.ok) return;
-    cacheVend = await r.json();
     const tb = document.getElementById('tabla-vendedores');
     tb.innerHTML = '';
     cacheVend.forEach((v) => {
         const total = MONEDA === 'USD' ? v.total_usd : v.total_bs;
         const margen = MONEDA === 'USD' ? v.margen_usd : v.margen_bs;
+        const roi = v.roi != null ? `${(v.roi * 100).toFixed(1)}%` : '—';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="p-2">${v.vendedor}</td><td class="p-2 text-right">${v.ventas}</td><td class="p-2 text-right">${Number(total || 0).toFixed(2)}</td><td class="p-2 text-right">${Number(margen || 0).toFixed(2)}</td>`;
+        tr.innerHTML = `<td class="p-2">${v.vendedor}</td><td class="p-2 text-right">${v.ventas}</td><td class="p-2 text-right">${Number(total || 0).toFixed(2)}</td><td class="p-2 text-right">${Number(margen || 0).toFixed(2)}</td><td class="p-2 text-right ${v.roi != null && v.roi >= 0 ? 'text-emerald-700' : 'text-amber-700'}">${roi}</td>`;
         tb.appendChild(tr);
     });
 
@@ -277,6 +285,8 @@ const iniciarRefrescoMargen = () => {
 
 cargarDashboard().then(iniciarRefrescoMargen);
 cargarVendedores();
+// refrescar alertas periódicamente
+setInterval(() => { renderAlertasTareas().catch(()=>{}); }, 60000);
 
 // ===== Nuevas funciones de gráficos =====
 
@@ -392,6 +402,114 @@ async function renderMargenVendedoresHoy(headers) {
     }
 }
 
+function fmtMoney(v) { return Number(v || 0).toFixed(2); }
+function fmtPct(p) { return p == null ? '—' : `${(p * 100).toFixed(1)}%`; }
+
+async function loadTendencias(headers) {
+    try {
+        if (!headers) {
+            const token = localStorage.getItem('auth_token');
+            headers = { 'Authorization': `Bearer ${token}` };
+        }
+        const r = await fetch('/reportes/tendencias/mensuales?meses=12', { headers });
+        if (!r.ok) return;
+        const rows = await r.json();
+        const el = document.getElementById('tendencias-list');
+        if (!el) return;
+        const recent = rows.slice(-6);
+        if (!recent.length) { el.innerHTML = '<div class="text-slate-400">Sin datos</div>'; return; }
+        el.innerHTML = recent.map(row => {
+            const delta = row.delta_margen_usd || {}; const pct = delta.pct;
+            const cls = pct == null ? 'text-slate-500' : pct >= 0 ? 'text-emerald-700' : 'text-rose-700';
+            const arrow = pct == null ? '' : (pct >= 0 ? '▲' : '▼');
+            return `<div class="p-2 border rounded flex items-center justify-between">
+                <div><div class="font-semibold">${row.mes}</div><div class="text-[10px] text-slate-400">Ventas $${fmtMoney(row.total_usd)} • Margen $${fmtMoney(row.margen_usd)}</div></div>
+                <div class="text-[11px] ${cls}">${arrow} ${fmtPct(pct)}</div>
+            </div>`;
+        }).join('');
+    } catch (err) {
+        console.warn('No se pudo cargar tendencias', err);
+    }
+}
+
 // Botones de periodo ventas
 document.getElementById('ventas-diarias-btn')?.addEventListener('click', () => renderVentasSeries('diarias'));
 document.getElementById('ventas-mensuales-btn')?.addEventListener('click', () => renderVentasSeries('mensuales'));
+
+// ===== Alertas / Tareas =====
+async function renderAlertasTareas() {
+    try {
+        const token = localStorage.getItem('auth_token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+        // Usar umbral configurable para stock bajo
+        const umbralActual = Number.isFinite(STOCK_UMBRAL) && STOCK_UMBRAL >= 0 ? STOCK_UMBRAL : 1;
+        const r = await fetch(`/alertas/tareas?umbral=${encodeURIComponent(umbralActual)}`, { headers });
+        if (!r.ok) return;
+        const j = await r.json();
+
+        const stock = Array.isArray(j.stock_bajo) ? j.stock_bajo : [];
+        const morosos = Array.isArray(j.morosos) ? j.morosos : [];
+        const backup = j.backup || {};
+
+        const stockCountEl = document.getElementById('al-stock-count');
+        const morososCountEl = document.getElementById('al-morosos-count');
+        const backupEl = document.getElementById('al-backup-status');
+        if (stockCountEl) stockCountEl.textContent = String(stock.length);
+        if (morososCountEl) morososCountEl.textContent = String(morosos.length);
+        if (backupEl) {
+            const hrs = backup.horas_desde_ultima != null ? Number(backup.horas_desde_ultima).toFixed(1) : '∞';
+            const necesita = backup.necesita_backup ? 'Necesita' : 'OK';
+            backupEl.textContent = `${necesita}${hrs !== '∞' ? ` (${hrs}h)` : ''}`;
+            backupEl.className = `text-sm font-bold ${backup.necesita_backup ? 'text-amber-600' : 'text-emerald-700'}`;
+        }
+
+        // Sincronizar UI de umbral (input + botón)
+        const umbralInput = document.getElementById('al-stock-umbral');
+        const umbralGuardar = document.getElementById('al-umbral-guardar');
+        if (umbralInput) umbralInput.value = String(umbralActual);
+        if (umbralInput && !umbralInput.dataset.bound) {
+            umbralInput.addEventListener('input', () => {
+                const val = parseInt(umbralInput.value, 10);
+                if (!Number.isNaN(val) && val >= 0) {
+                    STOCK_UMBRAL = val;
+                    try { localStorage.setItem('stock_umbral', String(STOCK_UMBRAL)); } catch {}
+                    if (AL_UMBRAL_TIMER) clearTimeout(AL_UMBRAL_TIMER);
+                    AL_UMBRAL_TIMER = setTimeout(() => { renderAlertasTareas(); }, 300);
+                }
+            });
+            umbralInput.dataset.bound = '1';
+        }
+        if (umbralGuardar && !umbralGuardar.dataset.bound) {
+            umbralGuardar.addEventListener('click', async () => {
+                const val = parseInt((document.getElementById('al-stock-umbral')?.value || '1'), 10);
+                if (!Number.isNaN(val) && val >= 0) {
+                    STOCK_UMBRAL = val;
+                    try { localStorage.setItem('stock_umbral', String(STOCK_UMBRAL)); } catch {}
+                    await renderAlertasTareas();
+                }
+            });
+            umbralGuardar.dataset.bound = '1';
+        }
+
+        // Lista combinada de pendientes (stock y morosos)
+        const pendEl = document.getElementById('al-pend-list');
+        if (pendEl) {
+            const rowsStock = stock.map(s => ({
+                tipo: 'STOCK',
+                html: `<div class=\"py-1 border-b\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-amber-100 text-amber-700\">STOCK</span><span class=\"font-semibold\">${s.codigo}</span></div><span class=\"text-slate-500\">${s.stock}</span></div><div class=\"text-xs text-slate-500 truncate\">${s.descripcion || ''}</div></div>`
+            }));
+            const rowsMor = morosos.map(m => ({
+                tipo: 'MOROSO',
+                html: `<div class=\"py-1 border-b\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-rose-100 text-rose-700\">MOROSO</span><span class=\"font-semibold\">${m.cliente_nombre || 'Cliente'}</span></div><span class=\"text-slate-500\">vence ${m.fecha_vencimiento}</span></div><div class=\"text-xs text-slate-500 truncate\">Saldo: $${Number(m.saldo_usd || 0).toFixed(2)} (${m.estado_calc || m.estado || ''})</div></div>`
+            }));
+            const combined = [...rowsStock, ...rowsMor];
+            pendEl.innerHTML = combined.length
+                ? combined.slice(0, 14).map(r => r.html).join('')
+                : '<div class="text-slate-400">Sin elementos</div>';
+        }
+    } catch (err) {
+        console.warn('No se pudo cargar alertas/tareas', err);
+    }
+}
+
+document.getElementById('alertas-refrescar')?.addEventListener('click', () => renderAlertasTareas());
