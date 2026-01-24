@@ -30,11 +30,12 @@ function parseAB(query) {
   return { a, b };
 }
 
-function queryVentasRango({ desde, hasta, vendedor, metodo, limit = 500 }) {
+function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500 }) {
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  if (cliente) { where.push("(v.cliente LIKE ? OR v.cedula LIKE ? OR v.telefono LIKE ?)"); params.push('%' + cliente + '%', '%' + cliente + '%', '%' + cliente + '%'); }
   if (vendedor) { where.push("v.vendedor LIKE ?"); params.push('%' + vendedor + '%'); }
   if (metodo) { where.push("v.metodo_pago = ?"); params.push(metodo); }
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
@@ -81,8 +82,8 @@ router.get('/ventas', requireAuth, (req, res) => {
 // GET /reportes/ventas-rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&vendedor=X&metodo=Y
 router.get('/ventas-rango', requireAuth, (req, res) => {
   try {
-    const { desde, hasta, vendedor, metodo } = req.query;
-    const rows = queryVentasRango({ desde, hasta, vendedor, metodo, limit: 1000 });
+    const { desde, hasta, cliente, vendedor, metodo } = req.query;
+    const rows = queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit: 1000 });
     console.log('Ventas encontradas:', rows.length);
     res.json(rows);
   } catch (err) {
@@ -94,8 +95,8 @@ router.get('/ventas-rango', requireAuth, (req, res) => {
 // GET /reportes/ventas/export/csv
 router.get('/ventas/export/csv', requireAuth, (req, res) => {
   try {
-    const { desde, hasta, vendedor, metodo } = req.query;
-    const rows = queryVentasRango({ desde, hasta, vendedor, metodo, limit: 5000 });
+    const { desde, hasta, cliente, vendedor, metodo } = req.query;
+    const rows = queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit: 5000 });
     const header = ['fecha','cliente','vendedor','metodo_pago','referencia','tasa_bcv','descuento','total_bs','total_usd','bruto_bs','bruto_usd','costo_bs','costo_usd','margen_bs','margen_usd'];
     const toCsv = (val) => {
       if (val === null || val === undefined) return '';
@@ -286,7 +287,7 @@ router.get('/ventas/:id', requireAuth, (req, res) => {
     }
 
     const detalles = db.prepare(`
-    SELECT p.descripcion, vd.cantidad, vd.precio_usd, vd.subtotal_bs
+    SELECT p.codigo, p.descripcion, vd.cantidad, vd.precio_usd, vd.subtotal_bs
     FROM venta_detalle vd
     JOIN productos p ON p.id = vd.producto_id
     WHERE vd.venta_id = ?

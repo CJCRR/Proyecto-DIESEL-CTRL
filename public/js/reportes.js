@@ -2,6 +2,10 @@
 console.log('reportes.js v2.0 cargado - con autenticación');
 let MONEDA = 'USD';
 let cacheRows = [];
+const detallesCache = new Map();
+let abiertoId = null;
+let cacheDev = [];
+let clienteTimer = null;
 
 function setPreset(rango) {
     const hoy = new Date();
@@ -32,8 +36,10 @@ function renderReporte() {
         total += Number(t);
         margen += Number(m);
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-      <td class="p-2 whitespace-nowrap">${new Date(r.fecha).toLocaleString()}</td>
+        tr.className = 'hover:bg-slate-50 cursor-pointer';
+        tr.dataset.id = String(r.id);
+                tr.innerHTML = `
+            <td class="p-2 whitespace-nowrap"><i id="venta-toggle-icon-${r.id}" class="fas fa-chevron-down mr-2 text-slate-500"></i>${new Date(r.fecha).toLocaleString()}</td>
       <td class="p-2">${r.cliente || ''}</td>
       <td class="p-2">${r.vendedor || ''}</td>
       <td class="p-2">${r.metodo_pago || ''}</td>
@@ -42,20 +48,129 @@ function renderReporte() {
       <td class="p-2 text-right text-blue-700 font-semibold">${Number(m).toFixed(2)}</td>
     `;
         tbody.appendChild(tr);
+
+        const detRow = document.createElement('tr');
+        detRow.className = 'hidden';
+        detRow.id = `venta-det-${r.id}`;
+        detRow.innerHTML = `<td colspan="7" class="p-2 bg-slate-50">
+            <div class="flex items-center justify-between">
+              <div class="text-[10px] uppercase text-slate-400 font-black">Detalles de la venta</div>
+              <a href="/nota/${r.id}" target="_blank" class="text-xs px-2 py-1 bg-slate-200 rounded">Ver nota</a>
+            </div>
+            <div class="text-xs text-slate-700 space-y-1" id="venta-det-list-${r.id}">Cargando...</div>
+        </td>`;
+        tbody.appendChild(detRow);
+
+        tr.addEventListener('click', async () => {
+            // cerrar el que esté abierto
+            if (abiertoId && abiertoId !== r.id) {
+                const prevRow = document.getElementById(`venta-det-${abiertoId}`);
+                if (prevRow) prevRow.classList.add('hidden');
+                const prevIcon = document.getElementById(`venta-toggle-icon-${abiertoId}`);
+                if (prevIcon) { prevIcon.classList.remove('fa-chevron-up'); prevIcon.classList.add('fa-chevron-down'); }
+                abiertoId = null;
+            }
+            const row = document.getElementById(`venta-det-${r.id}`);
+            if (!row) return;
+            const isHidden = row.classList.contains('hidden');
+            // toggle
+            row.classList.toggle('hidden');
+            const iconEl = document.getElementById(`venta-toggle-icon-${r.id}`);
+            if (iconEl) {
+                if (isHidden) { iconEl.classList.remove('fa-chevron-down'); iconEl.classList.add('fa-chevron-up'); }
+                else { iconEl.classList.remove('fa-chevron-up'); iconEl.classList.add('fa-chevron-down'); }
+            }
+            if (isHidden) {
+                // load if not cached
+                const cont = document.getElementById(`venta-det-list-${r.id}`);
+                if (!detallesCache.has(r.id)) {
+                    cont.textContent = 'Cargando...';
+                    try {
+                        const token = localStorage.getItem('auth_token');
+                        const res = await fetch(`/reportes/ventas/${r.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                        if (!res.ok) { cont.textContent = 'Error cargando detalle'; return; }
+                        const j = await res.json();
+                        detallesCache.set(r.id, j);
+                    } catch (err) {
+                        console.error('Error detalle venta', err);
+                        cont.textContent = 'Error cargando detalle';
+                        return;
+                    }
+                }
+                const { venta, detalles } = detallesCache.get(r.id) || { venta: {}, detalles: [] };
+                if (!detalles || !detalles.length) {
+                    cont.innerHTML = '<div class="text-slate-400">Sin detalles</div>';
+                    return;
+                }
+                const tasa = Number(venta?.tasa_bcv || r.tasa_bcv || 0) || 0;
+                const fmt = (v) => Number(v || 0).toFixed(2);
+                cont.innerHTML = detalles.map(d => {
+                    const codigo = d.codigo || d.producto_codigo || d.codigo_producto || d.producto || d.producto_id || '';
+                    const montoUsd = Number(d.precio_usd || 0) * Number(d.cantidad || 0);
+                    const montoBs = d.subtotal_bs != null ? Number(d.subtotal_bs || 0) : (montoUsd * (tasa || 1));
+                    const monto = MONEDA === 'USD' ? fmt(montoUsd) + ' USD' : fmt(montoBs) + ' Bs';
+                    const codePart = codigo ? `<span class=\"font-semibold\">${codigo}</span> — ` : '';
+                    return `<div class="flex items-center justify-between border-b pb-1">
+                        <div class="truncate">${codePart}<span class="text-slate-600">${d.descripcion || ''}</span></div>
+                        <div class="text-right min-w-[160px]"><span class="text-xs text-slate-500">Cant ${d.cantidad}</span> • <span class="font-semibold">${monto}</span></div>
+                    </div>`;
+                }).join('');
+                abiertoId = r.id;
+            } else {
+                abiertoId = null;
+            }
+        });
     });
     document.getElementById('rpt-resumen').innerText = `Ventas: ${cacheRows.length} | Total ${MONEDA}: ${total.toFixed(2)} | Margen ${MONEDA}: ${margen.toFixed(2)}`;
     document.getElementById('th-total-moneda').innerText = `Total ${MONEDA}`;
     document.getElementById('th-margen-moneda').innerText = `Margen ${MONEDA}`;
 }
 
+function renderClienteSugerencias(items) {
+    const list = document.getElementById('rpt-clientes-list');
+    if (!list) return;
+    const uniques = new Map();
+    (items || []).forEach((c) => {
+        const nombre = c.cliente || '';
+        if (!nombre || uniques.has(nombre)) return;
+        const labelParts = [nombre];
+        if (c.cedula) labelParts.push(`CI: ${c.cedula}`);
+        if (c.telefono) labelParts.push(`Tel: ${c.telefono}`);
+        uniques.set(nombre, labelParts.join(' · '));
+    });
+    list.innerHTML = Array.from(uniques.entries()).map(([val, label]) => `<option value="${val}">${label}</option>`).join('');
+}
+
+async function sugerirClientes(q) {
+    const list = document.getElementById('rpt-clientes-list');
+    if (!list) return;
+    if (!q || q.length < 2) {
+        list.innerHTML = '';
+        return;
+    }
+    try {
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch(`/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=8`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderClienteSugerencias(data || []);
+    } catch (err) {
+        console.error('Error sugiriendo clientes', err);
+    }
+}
+
 async function cargarReporte() {
     const desde = document.getElementById('rpt-desde').value;
     const hasta = document.getElementById('rpt-hasta').value;
+    const cliente = document.getElementById('rpt-cliente') ? document.getElementById('rpt-cliente').value.trim() : '';
     const vendedor = document.getElementById('rpt-vendedor').value.trim();
     const metodo = document.getElementById('rpt-metodo').value;
     const params = new URLSearchParams();
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
+    if (cliente) params.set('cliente', cliente);
     if (vendedor) params.set('vendedor', vendedor);
     if (metodo) params.set('metodo', metodo);
 
@@ -77,6 +192,19 @@ async function cargarReporte() {
     cacheRows = await res.json();
     console.log('Ventas cargadas:', cacheRows.length);
     renderReporte();
+
+    // Cargar devoluciones
+    try {
+        const devRes = await fetch(`/devoluciones/historial?${params.toString()}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (devRes.ok) {
+            cacheDev = await devRes.json();
+            renderDevoluciones();
+        }
+    } catch (err) {
+        console.error('Error devoluciones', err);
+    }
 }
 
 // Eventos
@@ -88,18 +216,49 @@ monedaSel.addEventListener('change', (e) => {
 
 document.getElementById('rpt-filtrar').addEventListener('click', cargarReporte);
 
+const clienteInput = document.getElementById('rpt-cliente');
+if (clienteInput) {
+    clienteInput.addEventListener('input', (e) => {
+        const q = e.target.value.trim();
+        clearTimeout(clienteTimer);
+        clienteTimer = setTimeout(() => sugerirClientes(q), 200);
+    });
+}
+
 document.getElementById('rpt-export').addEventListener('click', () => {
     const desde = document.getElementById('rpt-desde').value;
     const hasta = document.getElementById('rpt-hasta').value;
+    const cliente = document.getElementById('rpt-cliente') ? document.getElementById('rpt-cliente').value.trim() : '';
     const vendedor = document.getElementById('rpt-vendedor').value.trim();
     const metodo = document.getElementById('rpt-metodo').value;
     const params = new URLSearchParams();
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
+    if (cliente) params.set('cliente', cliente);
     if (vendedor) params.set('vendedor', vendedor);
     if (metodo) params.set('metodo', metodo);
     window.open(`/reportes/ventas/export/csv?${params.toString()}`, '_blank');
 });
+
+function renderDevoluciones() {
+    const cont = document.getElementById('rpt-dev');
+    if (!cont) return;
+    if (!cacheDev.length) {
+        cont.innerHTML = '<div class="text-xs text-slate-400">Sin devoluciones en el rango.</div>';
+        return;
+    }
+    cont.innerHTML = cacheDev.map(d => {
+        const total = MONEDA === 'USD' ? (d.total_usd || 0) : (d.total_bs || 0);
+        return `<div class="p-2 border-b flex items-center justify-between text-xs">
+            <div>
+                <div class="font-semibold text-slate-700">${d.cliente || ''}</div>
+                <div class="text-[11px] text-slate-500">#${d.id} • ${new Date(d.fecha).toLocaleString()}${d.referencia ? ' • Ref: ' + d.referencia : ''}</div>
+                ${d.motivo ? `<div class="text-[11px] text-slate-500">${d.motivo}</div>` : ''}
+            </div>
+            <div class="text-right font-black text-rose-600">${Number(total).toFixed(2)} ${MONEDA}</div>
+        </div>`;
+    }).join('');
+}
 
 document.getElementById('preset-hoy').addEventListener('click', () => { setPreset('hoy'); cargarReporte(); });
 document.getElementById('preset-semana').addEventListener('click', () => { setPreset('semana'); cargarReporte(); });

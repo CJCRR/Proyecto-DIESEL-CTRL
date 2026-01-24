@@ -14,6 +14,7 @@ const backupRoutes = require('./routes/backup');
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
 const cobranzasRoutes = require('./routes/cobranzas');
+const devolucionesRoutes = require('./routes/devoluciones');
 const { router: alertasRoutes } = require('./routes/alertas');
 
 const app = express();
@@ -45,6 +46,7 @@ app.use('/productos', productosRoutes);
 app.use('/ventas', ventasRoutes);
 app.use('/nota', notasRoutes);
 app.use('/reportes', reportesRoutes);
+app.use('/devoluciones', devolucionesRoutes);
 app.use('/buscar', busquedaRoutes);
 app.use('/backup', backupRoutes);
 app.use('/cobranzas', cobranzasRoutes);

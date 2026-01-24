@@ -6,6 +6,9 @@ let vendiendo = false;
 let clientesFrecuentesCache = [];
 let TASA_BCV_POS = 1;
 let TASA_BCV_UPDATED_POS = null;
+let modoDevolucion = false;
+let ventaSeleccionada = null;
+let ventasRecientesCache = [];
 
 // Variables para PWA y Sincronización
 let isOnline = navigator.onLine;
@@ -210,6 +213,7 @@ buscarInput.addEventListener('input', () => {
 });
 
 function prepararParaAgregar(p) {
+    if (modoDevolucion) { showToast('En modo devolución no puedes agregar productos manualmente. Selecciona una venta.', 'error'); return; }
     productoSeleccionado = p;
     buscarInput.value = `${p.codigo} - ${p.descripcion}`;
     resultadosUL.classList.add('hidden');
@@ -218,6 +222,7 @@ function prepararParaAgregar(p) {
 
 // --- GESTIÓN DEL CARRITO ---
 function agregarAlCarrito() {
+    if (modoDevolucion) { showToast('Usa la selección de venta para devolver.', 'error'); return; }
     const cantidadInput = document.getElementById('v_cantidad');
     const cantidad = parseInt(cantidadInput.value);
     
@@ -273,12 +278,15 @@ function actualizarTabla() {
         
         const tr = document.createElement('tr');
         tr.className = "border-b text-sm hover:bg-slate-50 transition-colors";
+        const qtyCell = modoDevolucion
+            ? `<input type="number" min="0" max="${item.maxCantidad || item.cantidad}" value="${item.cantidad}" class="w-16 text-center border rounded" data-idx="${index}" data-role="dev-qty">`
+            : `${item.cantidad}`;
         tr.innerHTML = `
             <td class="p-4 font-bold text-slate-600">${item.codigo}</td>
             <td class="p-4 text-slate-500">${item.descripcion}</td>
-            <td class="p-4 text-center font-bold">${item.cantidad}</td>
+            <td class="p-4 text-center font-bold">${qtyCell}</td>
             <td class="p-4 text-right text-slate-400 font-mono">$${item.precio_usd.toFixed(2)}</td>
-            <td class="p-4 text-right font-black text-blue-600 font-mono">$${subtotalUSD.toFixed(2)}</td>
+            <td class="p-4 text-right font-black ${modoDevolucion ? 'text-rose-600' : 'text-blue-600'} font-mono">$${subtotalUSD.toFixed(2)}</td>
             <td class="p-4 text-center">
                 <button onclick="eliminarDelCarrito(${index})" class="w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-all">
                     <i class="fas fa-trash-alt"></i>
@@ -288,9 +296,183 @@ function actualizarTabla() {
         tablaCuerpo.appendChild(tr);
     });
 
-    document.getElementById('total-usd').innerText = totalUSD.toFixed(2);
+    if (modoDevolucion) {
+        tablaCuerpo.querySelectorAll('input[data-role="dev-qty"]').forEach(inp => {
+            inp.addEventListener('input', (e) => {
+                const idx = parseInt(e.target.dataset.idx, 10);
+                let val = parseInt(e.target.value, 10) || 0;
+                const max = carrito[idx]?.maxCantidad || carrito[idx]?.cantidad || 0;
+                if (val < 0) val = 0;
+                if (val > max) val = max;
+                carrito[idx].cantidad = val;
+                actualizarTabla();
+            });
+        });
+    }
+
     const totalAfterDiscount = totalUSD * (1 - Math.max(0, Math.min(100, descuento)) / 100);
-    document.getElementById('total-bs').innerText = (totalAfterDiscount * tasa).toLocaleString('es-VE', {minimumFractionDigits: 2});
+    const sign = modoDevolucion ? -1 : 1;
+    document.getElementById('total-usd').innerText = (totalAfterDiscount * sign).toFixed(2);
+    document.getElementById('total-bs').innerText = (totalAfterDiscount * tasa * sign).toLocaleString('es-VE', {minimumFractionDigits: 2});
+}
+
+function setModoDevolucion(active) {
+    modoDevolucion = !!active;
+    const label = document.getElementById('pv-modo-label');
+    const btnVenta = document.getElementById('btn-tab-venta');
+    const btnDev = document.getElementById('btn-tab-devolucion');
+    const panelDev = document.getElementById('panel-devolucion');
+    const panelCredito = document.getElementById('panel-credito');
+    const panelVentaControls = document.querySelectorAll('[data-panel-venta]');
+    if (label) label.textContent = modoDevolucion ? 'Devolución' : 'Venta';
+    if (btnVenta && btnDev) {
+        btnVenta.classList.toggle('active-tab', !modoDevolucion);
+        btnVenta.classList.toggle('text-slate-500', modoDevolucion);
+        btnDev.classList.toggle('active-tab', modoDevolucion);
+        btnDev.classList.toggle('text-slate-500', !modoDevolucion);
+    }
+    if (panelDev) panelDev.classList.toggle('hidden', !modoDevolucion);
+    if (panelVentaControls && panelVentaControls.length) {
+        panelVentaControls.forEach(el => {
+            el.classList.toggle('hidden', modoDevolucion);
+            // No forzar mostrar el panel de crédito en modo venta; dejar que syncCreditoUI lo controle
+            if (!modoDevolucion && el === panelCredito) {
+                el.classList.add('hidden');
+            }
+        });
+    }
+    if (btnVender) {
+        btnVender.textContent = modoDevolucion ? 'Registrar devolución' : 'Registrar venta';
+        btnVender.classList.toggle('bg-blue-500', !modoDevolucion);
+        btnVender.classList.toggle('bg-rose-500', modoDevolucion);
+    }
+    // Deshabilitar búsqueda manual en modo devolución
+    if (buscarInput) buscarInput.disabled = modoDevolucion;
+    const qtyInput = document.getElementById('v_cantidad');
+    if (qtyInput) qtyInput.disabled = modoDevolucion;
+    const btnAgregar = document.querySelector('button[onclick="agregarAlCarrito()"]');
+    if (btnAgregar) btnAgregar.disabled = modoDevolucion;
+    if (modoDevolucion) {
+        carrito = [];
+        ventaSeleccionada = null;
+        renderVentaSeleccionada();
+    }
+    actualizarTabla();
+    if (window.syncCreditoUI) window.syncCreditoUI();
+}
+
+function toggleDevolucion() {
+    setModoDevolucion(!modoDevolucion);
+}
+
+async function cargarVentasRecientes() {
+    try {
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch('/reportes/ventas', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Error cargando ventas');
+        ventasRecientesCache = await res.json();
+        renderVentasRecientes();
+    } catch (err) {
+        console.error(err);
+        showToast('No se pudieron cargar ventas recientes', 'error');
+    }
+}
+
+function renderVentasRecientes(filter = '') {
+    const cont = document.getElementById('dev-ventas-list');
+    if (!cont) return;
+    const val = (filter || '').toLowerCase();
+    const list = (ventasRecientesCache || []).filter(v => {
+        if (!val) return true;
+        return (v.cliente || '').toLowerCase().includes(val)
+            || (v.referencia || '').toLowerCase().includes(val)
+            || String(v.id).includes(val);
+    }).slice(0, 20);
+    if (!list.length) {
+        cont.innerHTML = '<div class="text-slate-400">Sin coincidencias</div>';
+        return;
+    }
+    cont.innerHTML = list.map(v => {
+        const totalUsd = v.tasa_bcv ? (v.total_bs / v.tasa_bcv) : 0;
+        return `<div class="p-3 border rounded-xl bg-white flex items-center justify-between">
+            <div>
+                <div class="font-semibold text-slate-700">${v.cliente || 'Sin nombre'}</div>
+                <div class="text-[11px] text-slate-500">#${v.id} • ${new Date(v.fecha).toLocaleString()}</div>
+                <div class="text-[11px] text-slate-500">Ref: ${v.referencia || '—'} • ${v.metodo_pago || ''}</div>
+            </div>
+            <div class="text-right">
+                <div class="font-black text-blue-600">$${Number(totalUsd || 0).toFixed(2)}</div>
+                <button class="mt-1 px-2 py-1 text-xs bg-rose-500 text-white rounded" data-dev-sel="${v.id}">Seleccionar</button>
+            </div>
+        </div>`;
+    }).join('');
+    cont.querySelectorAll('[data-dev-sel]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = parseInt(btn.dataset.devSel, 10);
+            if (!Number.isInteger(id)) return;
+            cargarVentaParaDevolucion(id);
+        });
+    });
+}
+
+async function cargarVentaParaDevolucion(id) {
+    try {
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch(`/reportes/ventas/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Venta no encontrada');
+        const { venta, detalles } = await res.json();
+        ventaSeleccionada = venta;
+        carrito = (detalles || []).map(d => ({
+            codigo: d.codigo,
+            descripcion: d.descripcion,
+            precio_usd: d.precio_usd || 0,
+            cantidad: d.cantidad,
+            maxCantidad: d.cantidad,
+            subtotal_bs: d.subtotal_bs || 0
+        }));
+        // Prellenar datos de cabecera con la venta original
+        const cli = document.getElementById('v_cliente');
+        const ced = document.getElementById('v_cedula');
+        const tel = document.getElementById('v_telefono');
+        const vend = document.getElementById('v_vendedor');
+        if (cli) cli.value = venta?.cliente || '';
+        if (ced) ced.value = venta?.cedula || '';
+        if (tel) tel.value = venta?.telefono || '';
+        if (vend) vend.value = venta?.vendedor || '';
+        cargarHistorialDevoluciones(venta?.cliente || '', venta?.cedula || '');
+        renderVentaSeleccionada();
+        actualizarTabla();
+    } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Error cargando venta', 'error');
+    }
+}
+
+function renderVentaSeleccionada() {
+    const info = document.getElementById('dev-venta-info');
+    const detalle = document.getElementById('dev-venta-detalle');
+    if (!info || !detalle) return;
+    if (!ventaSeleccionada) {
+        info.classList.add('hidden');
+        detalle.classList.add('hidden');
+        return;
+    }
+    info.classList.remove('hidden');
+    const totalUsd = ventaSeleccionada.tasa_bcv ? (ventaSeleccionada.total_bs / ventaSeleccionada.tasa_bcv) : 0;
+    info.innerHTML = `<div class="flex justify-between">
+        <div>
+            <div class="font-semibold text-slate-700">${ventaSeleccionada.cliente || ''}</div>
+            <div class="text-[11px] text-slate-500">#${ventaSeleccionada.id} • ${new Date(ventaSeleccionada.fecha).toLocaleString()}</div>
+            <div class="text-[11px] text-slate-500">Ref: ${ventaSeleccionada.referencia || '—'}</div>
+        </div>
+        <div class="text-right text-sm font-black text-rose-600">$${Number(totalUsd || 0).toFixed(2)}</div>
+    </div>`;
+
+    detalle.classList.remove('hidden');
+    detalle.innerHTML = carrito.map((d, idx) => `<div class="flex items-center justify-between border-b pb-1">
+        <div class="text-slate-700">${d.codigo} — ${d.descripcion}</div>
+        <div class="text-xs text-slate-500">Vendidos: ${d.maxCantidad}</div>
+    </div>`).join('');
 }
 
 function eliminarDelCarrito(index) {
@@ -347,6 +529,10 @@ async function imprimirNotaLocal(venta) {
 
 // --- PROCESAR VENTA FINAL ---
 async function registrarVenta() {
+    if (modoDevolucion) {
+        await registrarDevolucion();
+        return;
+    }
     if (vendiendo || carrito.length === 0) return;
     
     const cliente = document.getElementById('v_cliente').value.trim();
@@ -355,14 +541,15 @@ async function registrarVenta() {
     const telefono = document.getElementById('v_telefono') ? document.getElementById('v_telefono').value.trim() : '';
     const tasa = parseFloat(document.getElementById('v_tasa').value);
 
-    const isCredito = document.getElementById('v_credito')?.checked || false;
+    const selMetodo = document.getElementById('v_metodo');
+    const isCredito = (selMetodo?.value === 'credito');
     const diasVenc = parseInt(document.getElementById('v_dias')?.value, 10) || 21;
     const fechaVenc = document.getElementById('v_fecha_venc')?.value || null;
 
     
 
     // validations
-    const metodo = document.getElementById('v_metodo').value;
+    const metodo = selMetodo ? selMetodo.value : '';
     if (!isCredito && !metodo) { showToast('Seleccione un método de pago', 'error'); return; }
     if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
     if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa de cambio válida (> 0)', 'error'); return; }
@@ -430,9 +617,133 @@ async function registrarVenta() {
     } finally {
         vendiendo = false;
         btnVender.disabled = false;
-        btnVender.innerText = 'Vender';
+        btnVender.textContent = 'Registrar venta';
     }
     actualizarHistorial()
+}
+
+async function registrarDevolucion() {
+    if (vendiendo || carrito.length === 0) return;
+
+    const cliente = document.getElementById('v_cliente').value.trim();
+    const cedula = document.getElementById('v_cedula') ? document.getElementById('v_cedula').value.trim() : '';
+    const telefono = document.getElementById('v_telefono') ? document.getElementById('v_telefono').value.trim() : '';
+    const tasa = parseFloat(document.getElementById('v_tasa').value);
+    const motivo = document.getElementById('dev-motivo') ? document.getElementById('dev-motivo').value.trim() : '';
+    const ventaOriginalId = ventaSeleccionada ? ventaSeleccionada.id : null;
+
+    if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
+    if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa de cambio válida (> 0)', 'error'); return; }
+
+    if (!ventaOriginalId) { showToast('Selecciona una venta a devolver', 'error'); return; }
+
+    const items = carrito
+        .filter(item => Number(item.cantidad) > 0)
+        .map(item => ({ codigo: item.codigo, cantidad: item.cantidad }));
+    if (!items.length) { showToast('Coloca cantidades a devolver', 'error'); return; }
+
+    vendiendo = true;
+    btnVender.disabled = true;
+    btnVender.textContent = 'Procesando...';
+
+    try {
+        const token = localStorage.getItem('auth_token');
+        const usuario = window.Auth ? window.Auth.getUser() : null;
+        const refDev = ventaSeleccionada?.referencia || `DEV-${ventaOriginalId}`;
+        const res = await fetch('/devoluciones', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                items,
+                cliente,
+                cedula,
+                telefono,
+                tasa_bcv: tasa,
+                referencia: refDev,
+                motivo,
+                venta_original_id: ventaOriginalId,
+                usuario_id: usuario ? usuario.id : null
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Error al registrar devolución');
+        }
+
+        await res.json();
+        finalizarVentaUI();
+        setModoDevolucion(false);
+        showToast('Devolución registrada', 'success');
+        cargarHistorialDevoluciones(cliente, cedula);
+    } catch (err) {
+        console.error(err);
+        showToast('❌ Error: ' + err.message, 'error');
+    } finally {
+        vendiendo = false;
+        btnVender.disabled = false;
+        btnVender.textContent = 'Registrar venta';
+    }
+}
+
+function renderHistorialDevoluciones(list = []) {
+    const cont = document.getElementById('dev-historial');
+    if (!cont) return;
+    if (!list.length) {
+        cont.classList.remove('hidden');
+        cont.innerHTML = '<div class="text-slate-400 text-xs">Sin devoluciones previas para este cliente.</div>';
+        return;
+    }
+    cont.classList.remove('hidden');
+    cont.innerHTML = list.slice(0, 5).map(d => {
+        const fecha = new Date(d.fecha).toLocaleString();
+        return `<div class="p-3 border rounded-xl bg-slate-50 flex items-center justify-between">
+            <div>
+                <div class="font-semibold text-slate-700">${d.cliente || ''}</div>
+                <div class="text-[11px] text-slate-500">${fecha}${d.motivo ? ' • ' + d.motivo : ''}</div>
+                ${d.referencia ? `<div class="text-[11px] text-slate-500">Ref: ${d.referencia}</div>` : ''}
+            </div>
+            <div class="text-right text-[11px]">
+                <div class="font-black text-rose-600">$${Number(d.total_usd || 0).toFixed(2)}</div>
+                <div class="text-slate-500">${Number(d.total_bs || 0).toFixed(2)} Bs</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function aplicarDescuentoDevolucion(list = []) {
+    if (!list.length) return;
+    const inputDesc = document.getElementById('v_desc');
+    if (!inputDesc) return;
+    const actual = parseFloat(inputDesc.value || '0') || 0;
+    if (actual > 0) return;
+    inputDesc.value = '5';
+    showToast('Descuento 5% aplicado por devolución previa del cliente', 'info');
+    actualizarTabla();
+}
+
+async function cargarHistorialDevoluciones(cliente, cedula) {
+    const cont = document.getElementById('dev-historial');
+    if (!cont) return;
+    if (!cliente && !cedula) { cont.innerHTML = '<div class="text-slate-400 text-xs">Sin cliente seleccionado.</div>'; return; }
+    cont.innerHTML = '<div class="text-slate-400 text-xs">Cargando devoluciones...</div>';
+    try {
+        const params = new URLSearchParams();
+        if (cliente) params.set('cliente', cliente);
+        if (cedula) params.set('cedula', cedula);
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch(`/devoluciones/historial?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Error cargando historial');
+        const data = await res.json();
+        renderHistorialDevoluciones(data || []);
+        aplicarDescuentoDevolucion(data || []);
+    } catch (err) {
+        console.error(err);
+        cont.innerHTML = '<div class="text-rose-600 text-xs">Error cargando historial de devoluciones.</div>';
+    }
 }
 
 // --- INTENTAR SINCRONIZACIÓN CADA 30 SEGUNDOS ---
@@ -457,6 +768,22 @@ document.addEventListener('DOMContentLoaded', () => {
         btnPvActualizar.addEventListener('click', actualizarTasaPV);
     }
 
+    const btnTabVenta = document.getElementById('btn-tab-venta');
+    const btnTabDev = document.getElementById('btn-tab-devolucion');
+    if (btnTabVenta) btnTabVenta.addEventListener('click', () => setModoDevolucion(false));
+    if (btnTabDev) btnTabDev.addEventListener('click', () => setModoDevolucion(true));
+    const btnDevBuscar = document.getElementById('btn-dev-buscar');
+    const inpDevBuscar = document.getElementById('dev-buscar-id');
+    if (btnDevBuscar && inpDevBuscar) {
+        btnDevBuscar.addEventListener('click', () => renderVentasRecientes(inpDevBuscar.value));
+        inpDevBuscar.addEventListener('keyup', (e) => { if (e.key === 'Enter') renderVentasRecientes(inpDevBuscar.value); });
+    }
+    const btnDevRecientes = document.getElementById('btn-dev-recientes');
+    if (btnDevRecientes) btnDevRecientes.addEventListener('click', () => cargarVentasRecientes());
+
+    const btnToggleDev = document.getElementById('btn-toggle-devolucion');
+    if (btnToggleDev) btnToggleDev.addEventListener('click', toggleDevolucion);
+
     // Registrar service worker
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/service-worker.js')
@@ -464,25 +791,22 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.error('❌ Error SW:', err));
     }
 
-    // Toggle UI para ventas a crédito
-    const chkCredito = document.getElementById('v_credito');
+    // Toggle UI para ventas a crédito (acordeón por método o checkbox)
     const selMetodo = document.getElementById('v_metodo');
     const inputRef = document.getElementById('v_ref');
+    const panelCredito = document.getElementById('panel-credito');
     const syncCreditoUI = () => {
-        const active = chkCredito?.checked;
-        if (selMetodo) {
-            selMetodo.disabled = !!active;
-            if (active) selMetodo.value = 'credito';
-        }
+        const active = (selMetodo?.value === 'credito');
         if (inputRef) {
             inputRef.disabled = !!active;
             if (active) inputRef.value = '';
         }
+        if (panelCredito) {
+            panelCredito.classList.toggle('hidden', !active);
+        }
     };
-    if (chkCredito) {
-        chkCredito.addEventListener('change', syncCreditoUI);
-        syncCreditoUI();
-    }
+    if (selMetodo) selMetodo.addEventListener('change', syncCreditoUI);
+    syncCreditoUI();
     window.syncCreditoUI = syncCreditoUI;
 
     // Wire additional UI controls
@@ -528,6 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (c.notas) showToast(`Nota cliente: ${c.notas}`, 'info', 4500);
                 } catch {}
+                cargarHistorialDevoluciones(nombre, cedula);
                 ulSugerenciasClientes.classList.add('hidden');
             });
             ulSugerenciasClientes.appendChild(li);
@@ -570,6 +895,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!val) {
                 renderSugerenciasClientes((clientesFrecuentesCache || []).slice(0, 8));
             }
+        });
+        inputNombreCliente.addEventListener('blur', () => {
+            const nombre = inputNombreCliente.value.trim();
+            const ced = document.getElementById('v_cedula') ? document.getElementById('v_cedula').value.trim() : '';
+            if (nombre) cargarHistorialDevoluciones(nombre, ced);
         });
         document.addEventListener('click', (ev) => {
             if (!ulSugerenciasClientes) return;
@@ -687,6 +1017,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnGuardarCliente) btnGuardarCliente.addEventListener('click', upsertClienteDesdeFormulario);
     // fin autocompletar clientes
+
+    setModoDevolucion(false);
+    cargarVentasRecientes();
 });
 
 function finalizarVentaUI() {
@@ -697,9 +1030,15 @@ function finalizarVentaUI() {
     if (document.getElementById('v_cedula')) document.getElementById('v_cedula').value = '';
     if (document.getElementById('v_telefono')) document.getElementById('v_telefono').value = '';
     if (document.getElementById('v_ref')) document.getElementById('v_ref').value = '';
-    if (document.getElementById('v_credito')) document.getElementById('v_credito').checked = false;
     if (document.getElementById('v_dias')) document.getElementById('v_dias').value = '21';
     if (document.getElementById('v_fecha_venc')) document.getElementById('v_fecha_venc').value = '';
+    const devRef = document.getElementById('dev-venta-ref');
+    const devMot = document.getElementById('dev-motivo');
+    if (devRef) devRef.value = '';
+    if (devMot) devMot.value = '';
+    ventaSeleccionada = null;
+    renderVentaSeleccionada();
+    setModoDevolucion(false);
     if (window.syncCreditoUI) window.syncCreditoUI();
     vendiendo = false;
     btnVender.disabled = false;
@@ -835,38 +1174,74 @@ function switchAdminTab(tab) {
 }
 
 // --- REPORTES ---
-function actualizarHistorial() {
-    const token = localStorage.getItem('auth_token');
-    fetch('/reportes/ventas', {
-        headers: { 'Authorization': `Bearer ${token}` }
-    })
-        .then(res => res.json())
-        .then(data => {
-            const cont = document.getElementById('historial');
-            if (!cont) return;
-            cont.innerHTML = '';
-            data.slice(0, 3).forEach(v => {
-                const totalUsd = v.tasa_bcv ? (v.total_bs / v.tasa_bcv) : 0;
-                const div = document.createElement('div');
-                div.className = "group p-3 border rounded-xl flex justify-between items-center text-xs hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer";
-                div.onclick = () => window.open(`/nota/${v.id}`, '_blank');
-                div.innerHTML = `
-                    <div class="flex flex-col">
-                        <span class="font-black text-slate-700 uppercase">${v.cliente}</span>
-                        ${ (v.cedula || v.telefono) ? `<span class="text-[9px] text-slate-400 font-mono">${v.cedula ? `ID: ${v.cedula}` : ''}${v.cedula && v.telefono ? ' | ' : ''}${v.telefono ? `Tel: ${v.telefono}` : ''}</span>` : '' }
-                        <span class="text-[9px] text-slate-400 font-mono">${new Date(v.fecha).toLocaleString()}</span>
-                        ${v.vendedor ? `<span class="text-[9px] text-slate-400 font-mono">Vend: ${v.vendedor}</span>` : ''}
-                        <span class="text-[9px] text-slate-400 font-mono mt-1">Tasa: ${Number(v.tasa_bcv || 0).toFixed(2)} | Método: ${v.metodo_pago || ''}${v.referencia ? ` | Ref: ${v.referencia}` : ''}</span>
+async function actualizarHistorial() {
+    const cont = document.getElementById('historial');
+    if (!cont) return;
+    cont.innerHTML = '<div class="text-slate-400 text-xs">Cargando movimientos...</div>';
+    try {
+        const token = localStorage.getItem('auth_token');
+        const [ventasRes, devRes] = await Promise.all([
+            fetch('/reportes/ventas', { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch('/devoluciones/historial?limit=20', { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
+        const ventas = ventasRes.ok ? await ventasRes.json() : [];
+        const devoluciones = devRes.ok ? await devRes.json() : [];
+
+        const movimientos = [
+            ...(ventas || []).map(v => ({ tipo: 'VENTA', ...v })),
+            ...(devoluciones || []).map(d => ({ tipo: 'DEV', ...d }))
+        ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 3);
+
+        cont.innerHTML = '';
+        if (!movimientos.length) {
+            cont.innerHTML = '<div class="text-slate-400 text-xs">Sin movimientos.</div>';
+            return;
+        }
+
+        movimientos.forEach(mov => {
+            const isDev = mov.tipo === 'DEV';
+            const fechaTxt = new Date(mov.fecha).toLocaleString();
+            const tasa = Number(mov.tasa_bcv || mov.tasa || 0) || null;
+            const baseBs = Number(mov.total_bs || 0);
+            const baseUsd = mov.total_usd != null
+                ? Number(mov.total_usd)
+                : (tasa ? baseBs / tasa : 0);
+            const totalBs = isDev ? -Math.abs(baseBs) : baseBs;
+            const totalUsd = isDev ? -Math.abs(baseUsd) : baseUsd;
+            const cliente = mov.cliente || 'Sin nombre';
+            const cedula = mov.cedula || mov.cliente_doc || '';
+            const telefono = mov.telefono || '';
+            const referencia = mov.referencia || '';
+            const vendedor = mov.vendedor || '';
+            const metodo = mov.metodo_pago || (isDev ? 'DEVOLUCIÓN' : '');
+            const badge = `<span class="px-2 py-1 rounded-full text-[10px] font-bold ${isDev ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}">${isDev ? 'Devolución' : 'Venta'}</span>`;
+            const div = document.createElement('div');
+            const clickable = !isDev && mov.id;
+            div.className = `group p-3 border rounded-xl flex justify-between items-center text-xs ${clickable ? 'hover:border-blue-200 hover:bg-blue-50 cursor-pointer' : 'cursor-default bg-white'}`;
+            if (clickable) div.onclick = () => window.open(`/nota/${mov.id}`, '_blank');
+            div.innerHTML = `
+                <div class="flex flex-col">
+                    <div class="flex items-center gap-2">
+                        ${badge}
+                        <span class="font-black text-slate-700 uppercase">${cliente}</span>
                     </div>
-                    <div class="text-right">
-                        <span class="font-black text-blue-600 block">$${totalUsd.toFixed(2)}</span>
-                        <span class="text-[10px] text-slate-500 block">${v.total_bs.toFixed(2)} Bs</span>
-                        <span class="text-[8px] text-slate-400 font-bold uppercase">Ver Nota <i class="fas fa-external-link-alt ml-1"></i></span>
-                    </div>
-                `;
-                cont.appendChild(div);
-            });
+                    ${(cedula || telefono) ? `<span class="text-[9px] text-slate-400 font-mono">${cedula ? `ID: ${cedula}` : ''}${cedula && telefono ? ' | ' : ''}${telefono ? `Tel: ${telefono}` : ''}</span>` : ''}
+                    <span class="text-[9px] text-slate-400 font-mono">${fechaTxt}</span>
+                    ${vendedor ? `<span class="text-[9px] text-slate-400 font-mono">Vend: ${vendedor}</span>` : ''}
+                    <span class="text-[9px] text-slate-400 font-mono mt-1">${isDev ? '' : `Tasa: ${Number(tasa || 0).toFixed(2)} | `}Método: ${metodo}${referencia ? ` | Ref: ${referencia}` : ''}</span>
+                </div>
+                <div class="text-right">
+                    <span class="font-black ${isDev ? 'text-rose-600' : 'text-blue-600'} block">${totalUsd < 0 ? '-' : ''}$${Math.abs(totalUsd).toFixed(2)}</span>
+                    <span class="text-[10px] text-slate-500 block">${totalBs < 0 ? '-' : ''}${Math.abs(totalBs).toFixed(2)} Bs</span>
+                    <span class="text-[8px] text-slate-400 font-bold uppercase">${isDev ? 'Devolución registrada' : 'Ver Nota'}${!isDev ? ' <i class="fas fa-external-link-alt ml-1"></i>' : ''}</span>
+                </div>
+            `;
+            cont.appendChild(div);
         });
+    } catch (err) {
+        console.error(err);
+        cont.innerHTML = '<div class="text-rose-600 text-xs">No se pudo cargar historial.</div>';
+    }
 }
 
 function intentarSincronizar() {

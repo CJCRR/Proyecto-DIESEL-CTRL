@@ -56,9 +56,11 @@
           <option value="BS">Bs</option>
         </select>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-6 gap-2 text-sm">
+      <div class="grid grid-cols-1 md:grid-cols-7 gap-2 text-sm">
         <input id="rpt-desde" type="date" class="p-2 border rounded" placeholder="Desde">
         <input id="rpt-hasta" type="date" class="p-2 border rounded" placeholder="Hasta">
+        <input id="rpt-cliente" class="p-2 border rounded" placeholder="Cliente" list="rpt-clientes-list">
+        <datalist id="rpt-clientes-list"></datalist>
         <input id="rpt-vendedor" class="p-2 border rounded" placeholder="Vendedor">
         <select id="rpt-metodo" class="p-2 border rounded">
           <option value="">Método (todos)</option>
@@ -91,6 +93,10 @@
           </thead>
           <tbody id="rpt-tabla" class="divide-y"></tbody>
         </table>
+      </div>
+      <div class="mt-4 bg-white border rounded p-3">
+        <div class="text-[10px] font-black text-slate-500 uppercase mb-2">Devoluciones</div>
+        <div id="rpt-dev" class="text-xs text-slate-700 space-y-2"></div>
       </div>
     </section>
   </main>

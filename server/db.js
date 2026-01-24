@@ -36,6 +36,24 @@ const schema = `
     FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
   );
 
+  CREATE TABLE IF NOT EXISTS devoluciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha TEXT,
+    cliente TEXT,
+    cliente_doc TEXT,
+    telefono TEXT,
+    tasa_bcv REAL,
+    referencia TEXT,
+    motivo TEXT,
+    venta_original_id INTEGER,
+    total_bs REAL DEFAULT 0,
+    total_usd REAL DEFAULT 0,
+    usuario_id INTEGER,
+    notas TEXT,
+    FOREIGN KEY(venta_original_id) REFERENCES ventas(id),
+    FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+  );
+
   CREATE TABLE IF NOT EXISTS venta_detalle (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     venta_id INTEGER,
@@ -45,6 +63,17 @@ const schema = `
     costo_usd REAL DEFAULT 0,
     subtotal_bs REAL,
     FOREIGN KEY(venta_id) REFERENCES ventas(id),
+    FOREIGN KEY(producto_id) REFERENCES productos(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS devolucion_detalle (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    devolucion_id INTEGER,
+    producto_id INTEGER,
+    cantidad INTEGER,
+    precio_usd REAL,
+    subtotal_bs REAL,
+    FOREIGN KEY(devolucion_id) REFERENCES devoluciones(id),
     FOREIGN KEY(producto_id) REFERENCES productos(id)
   );
   
