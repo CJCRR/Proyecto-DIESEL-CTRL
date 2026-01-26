@@ -49,7 +49,7 @@ router.post('/', requireAuth, (req, res) => {
   }
 });
 
-module.exports = router;
+// Export moved to end to ensure all routes are registered before export
 
 // GET /admin/ajustes - Listar ajustes (últimos 100 por defecto)
 router.get('/', requireAuth, (req, res) => {
@@ -83,6 +83,18 @@ function setConfig(clave, valor, fecha = new Date().toISOString()) {
   db.prepare(`INSERT INTO config (clave, valor, actualizado_en) VALUES (?, ?, ?)
               ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor, actualizado_en=excluded.actualizado_en`)
     .run(clave, String(valor), fecha);
+}
+
+// Utilidad: obtener config JSON segura
+function getConfigJSON(clave, defObj = {}) {
+  const raw = getConfig(clave, null);
+  if (!raw) return defObj;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : defObj;
+  } catch (err) {
+    return defObj;
+  }
 }
 
 // GET /ajustes/tasa-bcv
@@ -215,3 +227,138 @@ router.post('/stock-minimo', requireAuth, (req, res) => {
     res.status(500).json({ error: 'No se pudo guardar stock mínimo' });
   }
 });
+
+// ====== CONFIG GENERAL (empresa, colores, descuentos volumen, política de devoluciones) ======
+const DEFAULT_EMPRESA = {
+  nombre: 'Diesel CTRL',
+  logo_url: '',
+  color_primario: '#2563eb',
+  color_secundario: '#0f172a',
+  color_acento: '#f97316'
+};
+
+const DEFAULT_DESCUENTOS_VOLUMEN = [];
+
+const DEFAULT_DEVOLUCION = {
+  habilitado: true,
+  dias_max: 30,
+  requiere_referencia: true,
+  recargo_restock_pct: 0
+};
+
+// Configuración de la Nota de Entrega (plantilla)
+const DEFAULT_NOTA = {
+  header_logo_url: '',
+  brand_logos: [],
+  rif: '',
+  telefonos: '',
+  ubicacion: '',
+  encabezado_texto: '¡Tu Proveedor de Confianza!',
+  terminos: 'LOS BIENES AQUÍ FACTURADOS ESTÁN EXENTOS DEL PAGO DEL I.V.A. SEGÚN ART. 18#10 DE LA LEY DEL IMPUESTO AL VALOR AGREGADO Y ART. 19 DEL REGLAMENTO DE LEY.',
+  pie: 'Total a Pagar:',
+  pie_usd: 'Total USD',
+  pie_bs: 'Total Bs',
+  iva_pct: 0,
+  resaltar_color: '#fff59d', // amarillo suave para resaltar filas
+  layout: 'compact' // compact = media carta, standard = diseño anterior
+};
+
+router.get('/config', requireAuth, (req, res) => {
+  try {
+    const empresa = getConfigJSON('empresa_config', DEFAULT_EMPRESA);
+    const descuentos = getConfigJSON('descuentos_volumen', DEFAULT_DESCUENTOS_VOLUMEN);
+    const devolucion = getConfigJSON('devolucion_politica', DEFAULT_DEVOLUCION);
+    const nota = getConfigJSON('nota_config', DEFAULT_NOTA);
+    res.json({ empresa, descuentos_volumen: descuentos, devolucion, nota });
+  } catch (err) {
+    console.error('Error obteniendo config general', err.message);
+    res.status(500).json({ error: 'No se pudo obtener configuración' });
+  }
+});
+
+router.post('/config', requireAuth, (req, res) => {
+  try {
+    const { empresa = {}, descuentos_volumen = [], devolucion = {}, nota = {} } = req.body || {};
+
+    const safeEmpresa = {
+      nombre: (empresa.nombre || '').toString().slice(0, 120),
+      logo_url: (empresa.logo_url || '').toString().slice(0, 500),
+      color_primario: empresa.color_primario || DEFAULT_EMPRESA.color_primario,
+      color_secundario: empresa.color_secundario || DEFAULT_EMPRESA.color_secundario,
+      color_acento: empresa.color_acento || DEFAULT_EMPRESA.color_acento,
+    };
+
+    const safeDescuentos = Array.isArray(descuentos_volumen)
+      ? descuentos_volumen
+          .map(t => ({
+            min_qty: Math.max(1, parseInt(t.min_qty, 10) || 0),
+            descuento_pct: Math.max(0, Math.min(100, parseFloat(t.descuento_pct) || 0))
+          }))
+          .filter(t => t.min_qty > 0 && t.descuento_pct > 0)
+          .sort((a, b) => a.min_qty - b.min_qty)
+      : DEFAULT_DESCUENTOS_VOLUMEN;
+
+    const safeDevolucion = {
+      habilitado: !!devolucion.habilitado,
+      dias_max: Math.max(0, parseInt(devolucion.dias_max, 10) || DEFAULT_DEVOLUCION.dias_max),
+      requiere_referencia: devolucion.requiere_referencia !== false,
+      recargo_restock_pct: Math.max(0, Math.min(100, parseFloat(devolucion.recargo_restock_pct) || 0)),
+    };
+
+    const safeNota = {
+      header_logo_url: (nota.header_logo_url || '').toString().slice(0, 500),
+      brand_logos: Array.isArray(nota.brand_logos) ? nota.brand_logos.slice(0, 8).map(u => (u || '').toString().slice(0, 500)) : [],
+      rif: (nota.rif || '').toString().slice(0, 120),
+      telefonos: (nota.telefonos || '').toString().slice(0, 200),
+      ubicacion: (nota.ubicacion || '').toString().slice(0, 240),
+      encabezado_texto: (nota.encabezado_texto || DEFAULT_NOTA.encabezado_texto).toString().slice(0, 200),
+      terminos: (nota.terminos || DEFAULT_NOTA.terminos).toString().slice(0, 800),
+      pie: (nota.pie || DEFAULT_NOTA.pie).toString().slice(0, 120),
+      pie_usd: (nota.pie_usd || DEFAULT_NOTA.pie_usd).toString().slice(0, 60),
+      pie_bs: (nota.pie_bs || DEFAULT_NOTA.pie_bs).toString().slice(0, 60),
+      iva_pct: Math.max(0, Math.min(100, parseFloat(nota.iva_pct) || 0)),
+      resaltar_color: (nota.resaltar_color || DEFAULT_NOTA.resaltar_color).toString().slice(0, 20),
+      layout: ['compact', 'standard'].includes(nota.layout) ? nota.layout : DEFAULT_NOTA.layout
+    };
+
+    const now = new Date().toISOString();
+    setConfig('empresa_config', JSON.stringify(safeEmpresa), now);
+    setConfig('descuentos_volumen', JSON.stringify(safeDescuentos), now);
+    setConfig('devolucion_politica', JSON.stringify(safeDevolucion), now);
+    setConfig('nota_config', JSON.stringify(safeNota), now);
+
+    res.json({ ok: true, empresa: safeEmpresa, descuentos_volumen: safeDescuentos, devolucion: safeDevolucion, nota: safeNota });
+  } catch (err) {
+    console.error('Error guardando config general', err.message);
+    res.status(500).json({ error: 'No se pudo guardar configuración' });
+  }
+});
+
+// ==== Upload de imágenes (data URL) ====
+const fs = require('fs');
+const path = require('path');
+router.post('/upload-image', requireAuth, (req, res) => {
+  try {
+    const { dataUrl, filename } = req.body || {};
+    if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+      return res.status(400).json({ error: 'Formato inválido. Se espera data URL.' });
+    }
+    const match = dataUrl.match(/^data:(image\/(png|jpeg|jpg|webp));base64,(.+)$/i);
+    if (!match) return res.status(400).json({ error: 'Solo se permiten imágenes PNG/JPG/WebP en base64.' });
+    const ext = match[2].toLowerCase() === 'jpeg' ? 'jpg' : match[2].toLowerCase();
+    const base64 = match[3];
+    const buffer = Buffer.from(base64, 'base64');
+    const safeName = (filename || `img_${Date.now()}`).replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 64);
+    const uploadsDir = path.join(__dirname, '../../public/uploads');
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    const filePath = path.join(uploadsDir, `${Date.now()}_${safeName}.${ext}`);
+    fs.writeFileSync(filePath, buffer);
+    const url = `/uploads/${path.basename(filePath)}`;
+    res.json({ ok: true, url });
+  } catch (err) {
+    console.error('Upload falló:', err.message);
+    res.status(500).json({ error: 'No se pudo subir imagen' });
+  }
+});
+
+module.exports = router;

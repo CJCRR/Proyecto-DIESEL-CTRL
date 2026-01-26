@@ -3,6 +3,18 @@ const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('./auth');
 
+function getDevolucionPolicy() {
+  const row = db.prepare(`SELECT valor FROM config WHERE clave='devolucion_politica'`).get();
+  const def = { habilitado: true, dias_max: 30, requiere_referencia: true, recargo_restock_pct: 0 };
+  if (!row || !row.valor) return def;
+  try {
+    const parsed = JSON.parse(row.valor);
+    return { ...def, ...(parsed || {}) };
+  } catch (err) {
+    return def;
+  }
+}
+
 function obtenerDevueltosPrevios(ventaId) {
   const rows = db.prepare(`
     SELECT dd.producto_id, SUM(dd.cantidad) as devuelto
@@ -30,6 +42,11 @@ router.post('/', requireAuth, (req, res) => {
     usuario_id = null,
   } = req.body;
 
+  const policy = getDevolucionPolicy();
+  if (!policy.habilitado) {
+    return res.status(400).json({ error: 'Las devoluciones están deshabilitadas por configuración.' });
+  }
+
   if (!items || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: 'La devolución no contiene productos.' });
   }
@@ -56,7 +73,16 @@ router.post('/', requireAuth, (req, res) => {
 
         let originalDetalles = [];
         let devueltosPrevios = new Map();
+        let ventaOriginal = null;
         if (venta_original_id) {
+          ventaOriginal = db.prepare('SELECT id, fecha FROM ventas WHERE id = ?').get(venta_original_id);
+          if (!ventaOriginal) throw new Error('VENTA_ORIGINAL_NO_ENCONTRADA');
+          if (policy && policy.dias_max && policy.dias_max > 0) {
+            const diffDias = (new Date(fecha).getTime() - new Date(ventaOriginal.fecha).getTime()) / 86400000;
+            if (diffDias > policy.dias_max) {
+              throw new Error(`La devolución supera el límite de ${policy.dias_max} días`);
+            }
+          }
           originalDetalles = db.prepare('SELECT producto_id, cantidad, precio_usd, subtotal_bs FROM venta_detalle WHERE venta_id = ?').all(venta_original_id);
           devueltosPrevios = obtenerDevueltosPrevios(venta_original_id);
         }
@@ -109,6 +135,9 @@ router.post('/', requireAuth, (req, res) => {
     res.json({ message: 'Devolución registrada', devolucionId: devId, total_bs: totalBs, total_usd: totalUsd });
   } catch (err) {
     console.error('Error registrando devolución:', err.message);
+    if (err.message && err.message.includes('límite')) {
+      return res.status(400).json({ error: err.message });
+    }
     res.status(400).json({ error: err.message || 'Error al registrar devolución' });
   }
 });

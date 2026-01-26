@@ -17,7 +17,12 @@
         </button>
         <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
       </div>
-      <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Usuarios</div>
+      <div class="flex items-center gap-3">
+        <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Usuarios</div>
+        <a href="/pages/ajustes.html" title="Ajustes" class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+          <i class="fas fa-gear text-base"></i>
+        </a>
+      </div>
     </div>
   </nav>
 
@@ -36,7 +41,7 @@
     <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700">
       <a href="/pages/index.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-cash-register text-blue-600"></i>Punto de Venta</a>
       <a href="/pages/inventario.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-boxes-stacked text-amber-600"></i>Inventario</a>
-      <a href="/pages/dashboard.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-chart-line text-emerald-600"></i>Dashboard</a>
+      <a href="/pages/dashboard.html" class="admin-only-nav flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-chart-line text-emerald-600"></i>Dashboard</a>
       <a href="/pages/clientes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-users text-indigo-600"></i>Clientes</a>
       <a href="/pages/reportes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-file-invoice text-rose-600"></i>Reportes</a>
       <a href="/pages/cobranzas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-money-check-dollar text-emerald-600"></i>Cobranzas</a>
@@ -175,6 +180,7 @@
     })();
   </script>
   <script src="/js/auth-guard.js"></script>
+  <script src="/js/theme.js"></script>
   <script type="module" src="/js/alerts.js"></script>
   <script src="/js/usuarios.js"></script>
 </body>

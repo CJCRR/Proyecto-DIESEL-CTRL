@@ -9,6 +9,8 @@ let TASA_BCV_UPDATED_POS = null;
 let modoDevolucion = false;
 let ventaSeleccionada = null;
 let ventasRecientesCache = [];
+let configGeneral = { empresa: {}, descuentos_volumen: [], devolucion: {} };
+let lastAutoDescuentoVolumen = null;
 
 // Variables para PWA y Sincronización
 let isOnline = navigator.onLine;
@@ -71,6 +73,44 @@ function precargarTasaCache() {
         const cachedUpdated = localStorage.getItem('tasa_bcv_updated');
         if (cached) setTasaUI(Number(cached), cachedUpdated || null);
     } catch {}
+}
+
+async function cargarConfigGeneral() {
+    try {
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch('/admin/ajustes/config', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error('No se pudo obtener configuración');
+        const data = await res.json();
+        configGeneral = {
+            empresa: data.empresa || {},
+            descuentos_volumen: data.descuentos_volumen || [],
+            devolucion: data.devolucion || {}
+        };
+        aplicarTemaEmpresa();
+    } catch (err) {
+        console.warn('Config general no cargada', err.message);
+    }
+}
+
+function aplicarTemaEmpresa() {
+    if (!configGeneral || !configGeneral.empresa) return;
+    const root = document.documentElement;
+    const { color_primario, color_secundario, color_acento } = configGeneral.empresa;
+    if (color_primario) root.style.setProperty('--brand-primary', color_primario);
+    if (color_secundario) root.style.setProperty('--brand-secondary', color_secundario);
+    if (color_acento) root.style.setProperty('--brand-accent', color_acento);
+}
+
+function validarPoliticaDevolucionLocal(venta) {
+    const policy = configGeneral?.devolucion || {};
+    if (policy.habilitado === false) return 'Las devoluciones están deshabilitadas.';
+    if (!venta || !venta.fecha) return null;
+    const diasMax = parseInt(policy.dias_max, 10) || 0;
+    if (diasMax > 0) {
+        const diffDias = (Date.now() - new Date(venta.fecha).getTime()) / 86400000;
+        if (diffDias > diasMax) return `La devolución supera el límite de ${diasMax} días.`;
+    }
+    return null;
 }
 
 async function actualizarTasaPV() {
@@ -270,7 +310,7 @@ function actualizarTabla() {
 
     let totalUSD = 0;
     const tasa = parseFloat(document.getElementById('v_tasa').value) || 1;
-    const descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
+    let descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
 
     carrito.forEach((item, index) => {
         const subtotalUSD = item.cantidad * item.precio_usd;
@@ -308,6 +348,31 @@ function actualizarTabla() {
                 actualizarTabla();
             });
         });
+    }
+
+    // Descuento automático por volumen (solo en ventas)
+    if (!modoDevolucion && Array.isArray(configGeneral?.descuentos_volumen) && configGeneral.descuentos_volumen.length) {
+        const qtyTotal = carrito.reduce((s, it) => s + (Number(it.cantidad) || 0), 0);
+        const tier = [...configGeneral.descuentos_volumen]
+            .sort((a, b) => b.min_qty - a.min_qty)
+            .find(t => qtyTotal >= Number(t.min_qty || 0));
+        if (tier && Number(tier.descuento_pct) > 0) {
+            const autoDesc = Number(tier.descuento_pct);
+            if (autoDesc !== descuento) {
+                const inputDesc = document.getElementById('v_desc');
+                if (inputDesc) inputDesc.value = String(autoDesc);
+                descuento = autoDesc;
+                if (lastAutoDescuentoVolumen !== autoDesc) {
+                    showToast(`Descuento ${autoDesc}% aplicado por volumen (≥ ${tier.min_qty})`, 'info');
+                }
+                lastAutoDescuentoVolumen = autoDesc;
+            }
+        } else if (lastAutoDescuentoVolumen !== null && descuento === lastAutoDescuentoVolumen) {
+            const inputDesc = document.getElementById('v_desc');
+            if (inputDesc) inputDesc.value = '0';
+            descuento = 0;
+            lastAutoDescuentoVolumen = null;
+        }
     }
 
     const totalAfterDiscount = totalUSD * (1 - Math.max(0, Math.min(100, descuento)) / 100);
@@ -509,10 +574,24 @@ async function actualizarSyncPendientes() {
 
 // --- FUNCIÓN DE IMPRESIÓN OFFLINE (GENERACIÓN LOCAL) ---
 async function ensureNotaTemplateLoaded() {
-    if (window.NotaTemplate && typeof window.NotaTemplate.buildNotaHTML === 'function') return;
+    // Detectar layout desde config local
+    let layout = 'compact';
+    try {
+        const cached = localStorage.getItem('nota_config');
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.layout) layout = parsed.layout;
+        }
+    } catch {}
+    const targetId = layout === 'standard' ? 'nota-template-lib-std' : 'nota-template-lib-compact';
+    const targetSrc = layout === 'standard' ? '/shared/nota-template.js' : '/shared/nota-template-compact.js';
+    if (window.NotaTemplate && window.NotaTemplate.layout === layout && typeof window.NotaTemplate.buildNotaHTML === 'function') return;
     await new Promise((resolve, reject) => {
+        const existing = document.getElementById(targetId);
+        if (existing) { existing.onload = resolve; existing.onerror = reject; return; }
         const s = document.createElement('script');
-        s.src = '/shared/nota-template.js';
+        s.id = targetId;
+        s.src = targetSrc;
         s.onload = resolve;
         s.onerror = reject;
         document.head.appendChild(s);
@@ -521,7 +600,7 @@ async function ensureNotaTemplateLoaded() {
 
 async function imprimirNotaLocal(venta) {
     await ensureNotaTemplateLoaded();
-    const html = window.NotaTemplate.buildNotaHTML({ venta });
+    const html = await window.NotaTemplate.buildNotaHTML({ venta });
     const ventana = window.open('', '_blank');
     ventana.document.write(html);
     ventana.document.close();
@@ -637,6 +716,9 @@ async function registrarDevolucion() {
 
     if (!ventaOriginalId) { showToast('Selecciona una venta a devolver', 'error'); return; }
 
+    const policyError = validarPoliticaDevolucionLocal(ventaSeleccionada);
+    if (policyError) { showToast(policyError, 'error'); return; }
+
     const items = carrito
         .filter(item => Number(item.cantidad) > 0)
         .map(item => ({ codigo: item.codigo, cantidad: item.cantidad }));
@@ -749,6 +831,7 @@ async function cargarHistorialDevoluciones(cliente, cedula) {
 // --- INTENTAR SINCRONIZACIÓN CADA 30 SEGUNDOS ---
 document.addEventListener('DOMContentLoaded', () => {
     setupOfflineUI();
+    cargarConfigGeneral();
     actualizarHistorial();
     actualizarSyncPendientes();
     precargarTasaCache();

@@ -42,6 +42,26 @@
   setTimeout(() => {
     const drawer = document.getElementById('drawer');
     if (drawer && user) {
+      // Mostrar/ocultar accesos solo admin
+      const gearButtons = document.querySelectorAll('.admin-only-gear');
+      gearButtons.forEach(btn => {
+        if (user.rol === 'admin') {
+          btn.style.removeProperty('display');
+        } else {
+          btn.style.display = 'none';
+        }
+      });
+
+      // Ocultar enlaces marcados solo para admin
+      const adminLinks = document.querySelectorAll('.admin-only-nav');
+      adminLinks.forEach(link => {
+        if (user.rol === 'admin') {
+          link.style.removeProperty('display');
+        } else {
+          link.style.display = 'none';
+        }
+      });
+
       // Mostrar link de usuarios solo para admins
       if (user.rol === 'admin') {
         const nav = drawer.querySelector('nav');

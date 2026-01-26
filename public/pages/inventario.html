@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Inventario — Diesel CTRL</title>
+    <link rel="stylesheet" href="/styles.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -49,7 +50,12 @@
                 </button>
                 <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
             </div>
-            <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Inventario</div>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-black uppercase tracking-widest opacity-50 hidden sm:block">Inventario</span>
+                <a href="/pages/ajustes.html" title="Ajustes" class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+                    <i class="fas fa-gear text-base"></i>
+                </a>
+            </div>
         </div>
     </nav>
 
@@ -74,7 +80,7 @@
                 <i class="fas fa-boxes-stacked text-amber-600"></i>
                 Inventario
             </a>
-            <a href="/pages/dashboard.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+            <a href="/pages/dashboard.html" class="admin-only-nav flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
                 <i class="fas fa-chart-line text-emerald-600"></i>
                 Dashboard
             </a>
@@ -600,6 +606,7 @@
             cargarAjustes();
         </script>
         <script src="/js/auth-guard.js"></script>
+        <script src="/js/theme.js"></script>
         <script type="module" src="/js/alerts.js"></script>
         <script>
             (() => {

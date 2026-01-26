@@ -1,9 +1,31 @@
 /* Personalización de la interfaz */
 .active-tab { 
     background-color: white; 
-    border-bottom: 3px solid #3b82f6; 
+    border-bottom: 3px solid var(--brand-primary, #3b82f6); 
     color: #1e293b; 
 }
+
+:root {
+    --brand-primary: #2563eb;
+    --brand-secondary: #0f172a;
+    --brand-accent: #f97316;
+}
+
+/* Overrides suaves para usar la paleta configurada */
+nav.bg-slate-900 { background-color: var(--brand-secondary, #0f172a) !important; }
+.bg-blue-600 { background-color: var(--brand-primary, #2563eb) !important; }
+.bg-blue-700 { background-color: var(--brand-primary, #2563eb) !important; filter: brightness(0.92); }
+.text-blue-600 { color: var(--brand-primary, #2563eb) !important; }
+.border-blue-500 { border-color: var(--brand-primary, #3b82f6) !important; }
+.bg-amber-600 { background-color: var(--brand-accent, #f97316) !important; }
+.text-amber-600 { color: var(--brand-accent, #f97316) !important; }
+
+/* Botón primario hover */
+.hover\:bg-blue-700:hover { background-color: var(--brand-primary, #2563eb) !important; filter: brightness(0.92); }
+
+/* Badges y highlights */
+.bg-emerald-100.text-emerald-700 { color: var(--brand-primary, #2563eb) !important; border-color: var(--brand-primary, #2563eb) !important; }
+.bg-emerald-100 { background-color: color-mix(in srgb, var(--brand-primary, #2563eb) 20%, white) !important; }
 
 #ventas-hoy, #ventas-semana, #total-bs {
     font-variant-numeric: tabular-nums;

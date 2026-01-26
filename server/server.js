@@ -18,9 +18,10 @@ const devolucionesRoutes = require('./routes/devoluciones');
 const { router: alertasRoutes } = require('./routes/alertas');
 
 const app = express();
-app.use(express.json());
+// Ampliar límite para subir imágenes base64 desde ajustes
+app.use(express.json({ limit: '10mb' }));
 // Permitir parsing de bodies de texto (usado para importar CSV como text/plain)
-app.use(express.text({ type: ['text/*', 'application/csv'] }));
+app.use(express.text({ type: ['text/*', 'application/csv'], limit: '10mb' }));
 
 // Servir archivos estáticos desde la carpeta public
 const PUBLIC_DIR = path.join(__dirname, '../public');

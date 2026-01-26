@@ -16,6 +16,7 @@
       return venta.items.map(it => ({
         codigo: it.codigo || '',
         descripcion: it.descripcion || '',
+        marca: it.marca || '',
         cantidad: number(it.cantidad),
         precio_usd: number(it.precio_usd)
       }));
@@ -24,6 +25,7 @@
       return detalles.map(d => ({
         codigo: d.codigo || '',
         descripcion: d.descripcion || '',
+        marca: d.marca || d.nombre_marca || '',
         cantidad: number(d.cantidad),
         precio_usd: number(d.precio_usd)
       }));
@@ -31,7 +33,32 @@
     return [];
   }
 
-  function buildNotaHTML({ venta = {}, detalles = [] }) {
+  async function getNotaConfig() {
+    // Intenta cache local primero
+    try {
+      const cached = typeof localStorage !== 'undefined' ? localStorage.getItem('nota_config') : null;
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    // Intentar solicitar al backend si estamos en navegador
+    if (typeof fetch !== 'undefined') {
+      try {
+        const token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') : null;
+        const res = await fetch('/admin/ajustes/config', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+        if (res.ok) {
+          const j = await res.json();
+          const nota = j && j.nota ? j.nota : {};
+          try { localStorage.setItem('nota_config', JSON.stringify(nota)); } catch {}
+          return nota;
+        }
+      } catch {}
+    }
+    return {
+      header_logo_url: '', brand_logos: [], rif: '', telefonos: '', ubicacion: '',
+      encabezado_texto: '¡Tu Proveedor de Confianza!', terminos: '', pie: 'Total a Pagar:', resaltar_color: '#fff59d'
+    };
+  }
+
+  async function buildNotaHTML({ venta = {}, detalles = [] }) {
     const tasa = number(venta.tasa_bcv) || 1;
     const descuentoPct = clampPct(venta.descuento);
     const metodo = (venta.metodo_pago || '').toString();
@@ -68,57 +95,116 @@
 
     const idTexto = venta.id_global ? venta.id_global : (venta.id ? `VENTA-${venta.id}` : '');
 
+    const notaCfg = await getNotaConfig();
+    const brandImgs = (notaCfg.brand_logos || []).map(u => `<img src="${u}" style="height:26px;margin:0 6px;object-fit:contain;">`).join('');
+    const headerLogoUrl = (notaCfg.header_logo_url || venta.empresa_logo_url || '').toString();
+    const headerLogo = headerLogoUrl ? `<img src="${headerLogoUrl}" style="height:42px;object-fit:contain;">` : '';
+
+    const ivaPct = clampPct(notaCfg.iva_pct || 0);
+    const ivaUSD = totalUSDConDesc * (ivaPct / 100);
+    const ivaBs = totalBsDesc * (ivaPct / 100);
+    const totalUSDFinal = totalUSDConDesc + ivaUSD;
+    const totalBsFinal = totalBsDesc + ivaBs;
+
     const html = `
       <html>
       <head>
         <title>Nota de Entrega - ${idTexto}</title>
         <style>
-          body { font-family: sans-serif; padding: 20px; color: #333; }
-          .header { text-align: center; margin-bottom: 20px; }
-          .info { margin-bottom: 20px; display: flex; justify-content: space-between; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          .totals { text-align: right; }
-          .totals p { margin: 5px 0; font-size: 1.2em; }
+          body { font-family: Arial, Helvetica, sans-serif; padding: 18px; color: #111827; }
+          .header-top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+          .marca-bar { display:flex; align-items:center; gap:8px; }
+          .empresa-box { font-size:12px; color:#374151; }
+          .encabezado { text-align:right; font-size:12px; color:#111827; font-weight:700; }
+          .paneles { margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+          .panel { border:1px solid #111827; padding:8px; }
+          .panel h4 { margin:0 0 6px 0; font-size:12px; font-weight:800; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          th, td { border: 1px solid #bdbdbd; padding: 6px; font-size:12px; }
+          thead th { background:#f1f5f9; text-transform:uppercase; font-weight:800; color:#475569; }
+          tr.highlight td { background:${notaCfg.resaltar_color || '#fff59d'}; }
+          .totales { margin-top:12px; display:grid; grid-template-columns:1fr 320px; gap:12px; align-items:start; }
+          .tot-card { border:1px solid #e5e7eb; padding:8px; }
+          .tot-card .row { display:flex; justify-content:space-between; margin:4px 0; }
+          .pie { margin-top:8px; font-size:11px; color:#374151; text-align:center; }
           @media print { .no-print { display: none; } }
         </style>
       </head>
       <body>
-        <div class="header">
-          <h1>NOTA DE ENTREGA</h1>
-          <p>ID: ${idTexto}</p>
-        </div>
-        <div class="info">
-          <div>
-            <p><strong>Cliente:</strong> ${venta.cliente || ''}</p>
-            ${venta.cedula ? `<p><strong>Cédula:</strong> ${venta.cedula}</p>` : ''}
-            ${venta.telefono ? `<p><strong>Teléfono:</strong> ${venta.telefono}</p>` : ''}
-            <p><strong>Fecha:</strong> ${fechaTexto}</p>
+        <div class="header-top">
+          <div style="display:flex; align-items:center; gap:12px;">
+            ${headerLogo}
+            <div class="empresa-box">
+              <div style="font-weight:900; letter-spacing:1px; font-size:16px;">${venta.empresa_nombre || 'DIESEL CTRL'}</div>
+              <div>RIF: ${notaCfg.rif || '—'}</div>
+              <div>${notaCfg.telefonos || ''}</div>
+              <div>${notaCfg.ubicacion || ''}</div>
+            </div>
           </div>
-          <div>
-            <p><strong>Tasa:</strong> ${tasa.toFixed(2)} Bs/$</p>
-            <p><strong>Descuento:</strong> ${descuentoPct}%</p>
-            <p><strong>Método:</strong> ${metodo}</p>
-            ${venta.referencia ? `<p><strong>Referencia:</strong> ${String(venta.referencia)}</p>` : ''}
+          <div class="marca-bar">${brandImgs}</div>
+        </div>
+        <div style="margin-top:6px; text-align:right; font-size:12px; font-weight:700;">${idTexto}</div>
+        <div class="encabezado">${notaCfg.encabezado_texto || ''}</div>
+
+        <div class="paneles">
+          <div class="panel">
+            <h4>CLIENTE</h4>
+            <div><strong>Cliente:</strong> ${venta.cliente || ''}</div>
+            ${venta.cedula ? `<div><strong>R.I.F / C.I:</strong> ${venta.cedula}</div>` : ''}
+            ${venta.telefono ? `<div><strong>Teléfonos:</strong> ${venta.telefono}</div>` : ''}
+
+          </div>
+          <div class="panel">
+            <h4>NOTA DESPACHO</h4>
+            <div><strong>EMISIÓN:</strong> ${fechaTexto}</div>
+            <div><strong>TASA B.C.V:</strong> ${tasa.toFixed(2)}</div>
+            <div><strong>VENDEDOR:</strong> ${venta.vendedor || ''}</div>
           </div>
         </div>
         <table>
           <thead>
             <tr style="background: #f4f4f4;">
-              <th style="border: 1px solid #ddd; padding: 8px;">Código</th>
-              <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
-              <th style="border: 1px solid #ddd; padding: 8px;">Cant.</th>
-              <th style="border: 1px solid #ddd; padding: 8px;">P. Unit ($)</th>
-              <th style="border: 1px solid #ddd; padding: 8px;">Subtotal (Bs)</th>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Marca</th>
+              <th>Cant</th>
+              <th>Precio $</th>
+              <th>Total $</th>
+              <th>Precio Bs.</th>
+              <th>Total Bs.</th>
             </tr>
           </thead>
           <tbody>
-            ${filasHTML}
+            ${items.map((item, idx) => {
+              const lineUsd = number(item.precio_usd) * number(item.cantidad);
+              const lineBs = lineUsd * tasa;
+              const precioBs = number(item.precio_usd) * tasa;
+              const rowCls = idx === items.length - 1 ? 'highlight' : '';
+              return (
+                `<tr class="${rowCls}">`+
+                `<td>${item.codigo}</td>`+
+                `<td>${item.descripcion}</td>`+
+                `<td>${item.marca || ''}</td>`+
+                `<td style="text-align:center;">${item.cantidad}</td>`+
+                `<td style="text-align:right;">${number(item.precio_usd).toFixed(2)}</td>`+
+                `<td style="text-align:right;">${lineUsd.toFixed(2)}</td>`+
+                `<td style="text-align:right;">${precioBs.toFixed(2)}</td>`+
+                `<td style="text-align:right;">${lineBs.toFixed(2)}</td>`+
+                `</tr>`
+              );
+            }).join('')}
           </tbody>
         </table>
-        <div class="totals">
-          <p><strong>Total USD:</strong> $${totalUSDConDesc.toFixed(2)}</p>
-          <p><strong>Total Bs:</strong> ${totalBsDesc.toFixed(2)} Bs</p>
+        <div class="totales">
+          <div></div>
+          <div class="tot-card">
+            <div class="row"><span>Total Items</span><span>${items.reduce((a,b)=>a+number(b.cantidad),0)}</span></div>
+            <div class="row"><span>Impuesto / I.V.A (${ivaPct}%)</span><span>$${ivaUSD.toFixed(2)} • Bs ${ivaBs.toFixed(2)}</span></div>
+            <div class="row" style="font-weight:800"><span>${notaCfg.pie_usd || 'Total USD'}</span><span>$${totalUSDFinal.toFixed(2)}</span></div>
+            <div class="row" style="font-weight:800"><span>${notaCfg.pie_bs || 'Total Bs'}</span><span>Bs ${totalBsFinal.toFixed(2)}</span></div>
+          </div>
         </div>
+        <div class="pie">${notaCfg.terminos || ''}</div>
         <div class="no-print" style="margin-top: 30px; text-align: center;">
           <button onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer;">Imprimir Nota</button>
         </div>
@@ -129,5 +215,5 @@
     return html;
   }
 
-  return { buildNotaHTML };
+  return { layout: 'standard', buildNotaHTML };
 });
