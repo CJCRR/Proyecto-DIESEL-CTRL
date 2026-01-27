@@ -185,7 +185,7 @@
             <div class="totales">
               <div class="box" style="border:1px solid #000; min-height:48px; font-size:9px;">NOTA</div>
               <div class="tot-box">
-                <div class="tot-row"><div>Total Items</div><div class="right">${items.reduce((a,b)=>a+number(b.cantidad),0)}</div></div>
+                <div class="tot-row"><div>Sub-total Bs</div><div class="right">Bs ${totalBsDesc.toFixed(2)}</div></div>
                 <div class="tot-row"><div>Impuesto / I.V.A (${ivaPct}%)</div><div class="right">$${ivaUSD.toFixed(2)} / Bs ${ivaBs.toFixed(2)}</div></div>
                 <div class="tot-row" style="font-weight:800; grid-template-columns: 1fr 1fr;">
                   <div>${notaCfg.pie || 'Total a Pagar:'}</div>

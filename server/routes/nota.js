@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const path = require('path');
-const { buildNotaHTML } = require(path.join(__dirname, '..', '..', 'public', 'shared', 'nota-template.js'));
+const tplCompact = require(path.join(__dirname, '..', '..', 'public', 'shared', 'nota-template-compact.js'));
+const tplStandard = require(path.join(__dirname, '..', '..', 'public', 'shared', 'nota-template.js'));
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const ventaId = req.params.id;
 
   const venta = db.prepare(`
@@ -22,8 +23,24 @@ router.get('/:id', (req, res) => {
     WHERE vd.venta_id = ?
   `).all(ventaId);
 
-  const html = buildNotaHTML({ venta, detalles });
-  res.send(html);
+  try {
+    // Leer configuración para escoger plantilla (compact/standard)
+    const cfgRow = db.prepare(`SELECT valor FROM config WHERE clave='nota_config'`).get();
+    let layout = 'compact';
+    if (cfgRow && cfgRow.valor) {
+      try { layout = JSON.parse(cfgRow.valor).layout || 'compact'; } catch {}
+    }
+    const tpl = layout === 'standard' ? tplStandard : tplCompact;
+    const html = tpl && tpl.buildNotaHTML
+      ? await tpl.buildNotaHTML({ venta, detalles })
+      : '<html><body><pre>Plantilla no disponible</pre></body></html>';
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(html || '<html><body><pre>Nota vacía</pre></body></html>');
+  } catch (err) {
+    console.error('Error construyendo nota:', err);
+    res.status(500).send('Error generando la nota');
+  }
 });
 
 module.exports = router;
