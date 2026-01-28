@@ -1,3 +1,5 @@
+import { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas } from './firebase-sync.js';
+
 let configCache = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
 
 const toastContainer = document.getElementById('toast-container');
@@ -183,6 +185,7 @@ function setupUI() {
         document.getElementById('btnDemoNota')?.addEventListener('click', printDemoNota);
     document.getElementById('btnUploadLogo')?.addEventListener('click', () => uploadHelper('n_logo'));
     document.getElementById('btnUploadMarca')?.addEventListener('click', () => uploadMarcaHelper());
+    document.getElementById('btnPurgeAll')?.addEventListener('click', purgeAllData);
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -319,4 +322,38 @@ async function printDemoNota(){
     win.document.write(html);
     win.document.close();
     setTimeout(() => { win.focus(); win.print(); }, 300);
+}
+
+async function purgeAllData() {
+    const confirmText = prompt('Esta acción borrará TODOS los datos. Escribe BORRAR para continuar:');
+    if (confirmText !== 'BORRAR') {
+        showToast('Operación cancelada', 'info');
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch('/admin/ajustes/purge-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ confirm: 'BORRAR' })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'No se pudo borrar la base de datos');
+        }
+
+        let firebaseClientes = 0;
+        let firebaseVentas = 0;
+        try { firebaseClientes = await borrarClientesFirebaseTodos(); } catch (err) { console.warn(err); }
+        try { firebaseVentas = await borrarVentasFirebaseTodas(); } catch (err) { console.warn(err); }
+
+        try { localStorage.removeItem('clientes_frecuentes_v2'); } catch (err) { console.warn(err); }
+        try { await window.borrarDatosLocales?.(); } catch (err) { console.warn(err); }
+
+        showToast(`Datos borrados. Firebase clientes: ${firebaseClientes}, ventas: ${firebaseVentas}`, 'success');
+        setTimeout(() => window.location.reload(), 1200);
+    } catch (err) {
+        showToast(err.message || 'Error borrando datos', 'error');
+    }
 }

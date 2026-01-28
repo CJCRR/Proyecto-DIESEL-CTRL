@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { requireAuth } = require('./auth');
+const { requireAuth, requireRole } = require('./auth');
 const { insertAlerta } = require('./alertas');
 
 // POST /admin/ajustes - Ajustar Stock (Entrada/Salida manual)
@@ -331,6 +331,41 @@ router.post('/config', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error guardando config general', err.message);
     res.status(500).json({ error: 'No se pudo guardar configuración' });
+  }
+});
+
+// POST /admin/ajustes/purge-data - borrar datos transaccionales
+router.post('/purge-data', requireAuth, requireRole('admin'), (req, res) => {
+  const { confirm } = req.body || {};
+  if (confirm !== 'BORRAR') {
+    return res.status(400).json({ error: 'Confirmación inválida' });
+  }
+
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM devolucion_detalle').run();
+      db.prepare('DELETE FROM devoluciones').run();
+      db.prepare('DELETE FROM venta_detalle').run();
+      db.prepare('DELETE FROM ventas').run();
+      db.prepare('DELETE FROM pagos_cc').run();
+      db.prepare('DELETE FROM cuentas_cobrar').run();
+      db.prepare('DELETE FROM ajustes_stock').run();
+      db.prepare('DELETE FROM productos').run();
+      db.prepare('DELETE FROM alertas').run();
+
+      const hasSeq = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sqlite_sequence'").get();
+      if (hasSeq) {
+        db.prepare(`DELETE FROM sqlite_sequence WHERE name IN (
+          'devolucion_detalle','devoluciones','venta_detalle','ventas','pagos_cc',
+          'cuentas_cobrar','ajustes_stock','productos','alertas'
+        )`).run();
+      }
+    })();
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error borrando datos:', err.message);
+    res.status(500).json({ error: 'No se pudo borrar la base de datos' });
   }
 });
 

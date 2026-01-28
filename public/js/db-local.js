@@ -155,9 +155,19 @@ async function eliminarClienteLocal(cedula) {
     });
 }
 
+async function borrarDatosLocales() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(DB_NAME);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => reject(new Error('Cierre otras pestañas para borrar datos locales'));
+    });
+}
+
 // Exponer helpers de clientes
 if (typeof window !== 'undefined') {
     window.obtenerClientesLocales = obtenerClientesLocales;
     window.guardarClienteLocal = guardarClienteLocal;
     window.eliminarClienteLocal = eliminarClienteLocal;
+    window.borrarDatosLocales = borrarDatosLocales;
 }

@@ -88,6 +88,22 @@ async function eliminarClienteFirebasePorCedula(cedula) {
     }
 }
 
+    async function borrarColeccionFirebase(nombre) {
+        const ref = collection(db, nombre);
+        const snapshot = await getDocs(ref);
+        const promises = snapshot.docs.map(d => deleteDoc(doc(db, nombre, d.id)));
+        await Promise.all(promises);
+        return snapshot.size || snapshot.docs.length || 0;
+    }
+
+    async function borrarClientesFirebaseTodos() {
+        return borrarColeccionFirebase('clientes');
+    }
+
+    async function borrarVentasFirebaseTodas() {
+        return borrarColeccionFirebase('ventas');
+    }
+
 // Enviar una venta a Firebase
 async function enviarVentaAFirebase(venta) {
     try {
@@ -213,6 +229,7 @@ async function descargarVentasDeFirebase() {
 }
 
 export { enviarVentaAFirebase, obtenerVentasDeFirebase, sincronizarVentasPendientes, descargarVentasDeFirebase };
+export { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas };
 
 // API de clientes
 export { upsertClienteFirebase, obtenerClientesFirebase, eliminarClienteFirebasePorCedula };
@@ -225,4 +242,6 @@ if (typeof window !== 'undefined') {
     window.upsertClienteFirebase = upsertClienteFirebase;
     window.eliminarClienteFirebasePorCedula = eliminarClienteFirebasePorCedula;
     window.obtenerClientesFirebase = obtenerClientesFirebase;
+        window.borrarClientesFirebaseTodos = borrarClientesFirebaseTodos;
+        window.borrarVentasFirebaseTodas = borrarVentasFirebaseTodas;
 }
