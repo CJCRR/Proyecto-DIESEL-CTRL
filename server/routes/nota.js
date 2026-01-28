@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const path = require('path');
+const { requireAuth } = require('./auth');
 const tplCompact = require(path.join(__dirname, '..', '..', 'public', 'shared', 'nota-template-compact.js'));
 const tplStandard = require(path.join(__dirname, '..', '..', 'public', 'shared', 'nota-template.js'));
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAuth, async (req, res) => {
   const ventaId = req.params.id;
 
   const venta = db.prepare(`

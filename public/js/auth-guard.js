@@ -1,51 +1,73 @@
 // Protección de autenticación para todas las páginas
 (function() {
+  // Forzar uso de cookies httpOnly (no tokens en localStorage)
+  try { localStorage.removeItem('auth_token'); } catch {}
+
+  // Wrapper global de fetch para enviar cookies y limpiar Authorization inválido
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    const opts = { ...init, credentials: 'same-origin' };
+    if (opts.headers) {
+      const headers = new Headers(opts.headers);
+      const auth = headers.get('Authorization') || '';
+      if (/^Bearer\s*(null|undefined)?\s*$/i.test(auth)) {
+        headers.delete('Authorization');
+      }
+      opts.headers = headers;
+    }
+    return originalFetch(input, opts);
+  };
+
   // Verificar si estamos en la página de login
   if (window.location.pathname.includes('/pages/login.html')) {
     return;
   }
 
-  const token = localStorage.getItem('auth_token');
   const user = JSON.parse(localStorage.getItem('auth_user') || 'null');
 
-  if (!token || !user) {
-    // No autenticado, redirigir a login
+  function applyRoleGuards(u) {
+    if (window.location.pathname.includes('/pages/dashboard.html') && u.rol !== 'admin') {
+      window.location.href = '/pages/index.html';
+      return false;
+    }
+    return true;
+  }
+
+  function verificarSesion() {
+    return fetch('/auth/verificar', { credentials: 'same-origin' })
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(data => {
+        if (data && data.valido && data.usuario) {
+          localStorage.setItem('auth_user', JSON.stringify(data.usuario));
+          return data.usuario;
+        }
+        return Promise.reject(new Error('Sesión inválida'));
+      });
+  }
+
+  function redirectLogin() {
+    localStorage.removeItem('auth_user');
     window.location.href = '/pages/login.html';
-    return;
   }
 
-  // Bloquear acceso a dashboard para roles no admin
-  if (window.location.pathname.includes('/pages/dashboard.html') && user.rol !== 'admin') {
-    window.location.href = '/pages/index.html';
-    return;
+  if (user) {
+    if (!applyRoleGuards(user)) return;
+    verificarSesion().catch(() => redirectLogin());
+  } else {
+    verificarSesion()
+      .then(u => { if (!applyRoleGuards(u)) return; })
+      .catch(() => redirectLogin());
   }
-
-  // Verificar sesión en el servidor
-  fetch('/auth/verificar', {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  })
-  .then(res => {
-    if (!res.ok) {
-      // Sesión inválida
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      window.location.href = '/pages/login.html';
-    }
-  })
-  .catch(err => {
-    console.error('Error verificando autenticación:', err);
-  });
 
   // Agregar botón de logout al drawer si existe
   setTimeout(() => {
     const drawer = document.getElementById('drawer');
-    if (drawer && user) {
+    const currentUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
+    if (drawer && currentUser) {
       // Mostrar/ocultar accesos solo admin
       const gearButtons = document.querySelectorAll('.admin-only-gear');
       gearButtons.forEach(btn => {
-        if (user.rol === 'admin') {
+        if (currentUser.rol === 'admin') {
           btn.style.removeProperty('display');
         } else {
           btn.style.display = 'none';
@@ -55,7 +77,7 @@
       // Ocultar enlaces marcados solo para admin
       const adminLinks = document.querySelectorAll('.admin-only-nav');
       adminLinks.forEach(link => {
-        if (user.rol === 'admin') {
+        if (currentUser.rol === 'admin') {
           link.style.removeProperty('display');
         } else {
           link.style.display = 'none';
@@ -63,7 +85,7 @@
       });
 
       // Mostrar link de usuarios solo para admins
-      if (user.rol === 'admin') {
+      if (currentUser.rol === 'admin') {
         const nav = drawer.querySelector('nav');
         if (nav) {
           // Evitar duplicados si ya existe un enlace a usuarios
@@ -80,7 +102,7 @@
       }
 
       // Ocultar dashboard para roles no admin
-      if (user.rol !== 'admin') {
+      if (currentUser.rol !== 'admin') {
         const dashboardLinks = document.querySelectorAll('a[href="/pages/dashboard.html"]');
         dashboardLinks.forEach(link => {
           link.style.display = 'none';
@@ -99,8 +121,8 @@
             <i class="fas fa-user text-blue-600"></i>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-bold text-slate-800 truncate">${user.nombre || user.username}</p>
-            <p class="text-xs text-slate-500 uppercase">${user.rol}</p>
+            <p class="text-sm font-bold text-slate-800 truncate">${currentUser.nombre || currentUser.username}</p>
+            <p class="text-xs text-slate-500 uppercase">${currentUser.rol}</p>
           </div>
         </div>
         <button id="btn-logout" class="w-full p-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-semibold transition">
@@ -121,10 +143,9 @@
           try {
             await fetch('/auth/logout', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ token })
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({})
             });
           } catch (err) {
             console.error('Error cerrando sesión:', err);
@@ -140,16 +161,23 @@
 
   // Exportar utilidades de auth
   window.Auth = {
-    getToken: () => localStorage.getItem('auth_token'),
     getUser: () => JSON.parse(localStorage.getItem('auth_user') || 'null'),
+    getToken: () => null,
     isAdmin: () => {
       const user = JSON.parse(localStorage.getItem('auth_user') || 'null');
       return user && user.rol === 'admin';
     },
     logout: () => {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      window.location.href = '/pages/login.html';
+      try {
+        fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' })
+          .finally(() => {
+            localStorage.removeItem('auth_user');
+            window.location.href = '/pages/login.html';
+          });
+      } catch {
+        localStorage.removeItem('auth_user');
+        window.location.href = '/pages/login.html';
+      }
     }
   };
 })();

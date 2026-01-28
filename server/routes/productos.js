@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { requireAuth } = require('./auth');
 
 // GET /productos - lista (paginada) de productos
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
     try {
         const productos = db.prepare(`
@@ -20,7 +21,7 @@ router.get('/', (req, res) => {
     }
 });
 
-router.get('/:codigo', (req, res) => {
+router.get('/:codigo', requireAuth, (req, res) => {
     const { codigo } = req.params;
 
     const producto = db

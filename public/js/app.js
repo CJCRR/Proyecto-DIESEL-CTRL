@@ -32,6 +32,8 @@ toastContainer.style.gap = '0.5rem';
 toastContainer.style.zIndex = '60';
 document.body.appendChild(toastContainer);
 
+const authFetch = (url, options = {}) => fetch(url, { ...options, credentials: 'same-origin' });
+
 function setTasaUI(tasa, actualizadoEn) {
     TASA_BCV_POS = Number(tasa || 1) || 1;
     if (actualizadoEn) TASA_BCV_UPDATED_POS = actualizadoEn;
@@ -57,8 +59,7 @@ function setTasaUI(tasa, actualizadoEn) {
 
 async function cargarTasaPV() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const r = await fetch('/admin/ajustes/tasa-bcv', { headers: { 'Authorization': `Bearer ${token}` } });
+        const r = await authFetch('/admin/ajustes/tasa-bcv');
         if (!r.ok) return;
         const j = await r.json();
         setTasaUI(j.tasa_bcv, j.actualizado_en);
@@ -77,8 +78,7 @@ function precargarTasaCache() {
 
 async function cargarConfigGeneral() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const res = await fetch('/admin/ajustes/config', { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await authFetch('/admin/ajustes/config');
         if (!res.ok) throw new Error('No se pudo obtener configuración');
         const data = await res.json();
         configGeneral = {
@@ -115,15 +115,13 @@ function validarPoliticaDevolucionLocal(venta) {
 
 async function actualizarTasaPV() {
     const val = parseFloat(document.getElementById('v_tasa')?.value || '');
-    const token = localStorage.getItem('auth_token');
-    const headers = { 'Authorization': `Bearer ${token}` };
 
     // Si hay un valor válido en el input, guardar manualmente; si no, actualizar automático
     if (!Number.isNaN(val) && val > 0) {
         try {
-            const r = await fetch('/admin/ajustes/tasa-bcv', {
+            const r = await authFetch('/admin/ajustes/tasa-bcv', {
                 method: 'POST',
-                headers: { ...headers, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tasa_bcv: val }),
             });
             if (!r.ok) throw new Error('No se pudo guardar la tasa');
@@ -138,7 +136,7 @@ async function actualizarTasaPV() {
 
     // Modo auto-actualizar
     try {
-        const r = await fetch('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST', headers });
+        const r = await authFetch('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST' });
         if (!r.ok) throw new Error('No se pudo actualizar');
         const j = await r.json();
         const tasa = Number(j.tasa_bcv || 0);
@@ -221,10 +219,7 @@ buscarInput.addEventListener('input', () => {
         return;
     }
 
-    const token = localStorage.getItem('auth_token');
-    fetch(`/buscar?q=${encodeURIComponent(q)}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-    })
+    authFetch(`/buscar?q=${encodeURIComponent(q)}`)
         .then(res => res.json())
         .then(data => {
             resultadosUL.innerHTML = '';
@@ -432,8 +427,7 @@ function toggleDevolucion() {
 
 async function cargarVentasRecientes() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const res = await fetch('/reportes/ventas', { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await authFetch('/reportes/ventas');
         if (!res.ok) throw new Error('Error cargando ventas');
         ventasRecientesCache = await res.json();
         renderVentasRecientes();
@@ -482,8 +476,7 @@ function renderVentasRecientes(filter = '') {
 
 async function cargarVentaParaDevolucion(id) {
     try {
-        const token = localStorage.getItem('auth_token');
-        const res = await fetch(`/reportes/ventas/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await authFetch(`/reportes/ventas/${id}`);
         if (!res.ok) throw new Error('Venta no encontrada');
         const { venta, detalles } = await res.json();
         ventaSeleccionada = venta;
@@ -729,14 +722,12 @@ async function registrarDevolucion() {
     btnVender.textContent = 'Procesando...';
 
     try {
-        const token = localStorage.getItem('auth_token');
         const usuario = window.Auth ? window.Auth.getUser() : null;
         const refDev = ventaSeleccionada?.referencia || `DEV-${ventaOriginalId}`;
-        const res = await fetch('/devoluciones', {
+        const res = await authFetch('/devoluciones', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 items,
@@ -816,8 +807,7 @@ async function cargarHistorialDevoluciones(cliente, cedula) {
         const params = new URLSearchParams();
         if (cliente) params.set('cliente', cliente);
         if (cedula) params.set('cedula', cedula);
-        const token = localStorage.getItem('auth_token');
-        const res = await fetch(`/devoluciones/historial?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await authFetch(`/devoluciones/historial?${params.toString()}`);
         if (!res.ok) throw new Error('Error cargando historial');
         const data = await res.json();
         renderHistorialDevoluciones(data || []);
@@ -1011,10 +1001,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnBackupNow) {
         btnBackupNow.addEventListener('click', async () => {
             try {
-                const token = localStorage.getItem('auth_token');
-                const r = await fetch('/backup/create', { 
+                const r = await authFetch('/backup/create', { 
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (r.ok) showToast('Backup creado', 'success'); else showToast('No se pudo crear backup', 'error');
             } catch (err) {
@@ -1027,10 +1015,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Prefill tasa desde backend/config o localStorage
     (async () => {
         try {
-            const token = localStorage.getItem('auth_token');
-            const r = await fetch('/admin/ajustes/tasa-bcv', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const r = await authFetch('/admin/ajustes/tasa-bcv');
             if (r.ok) {
                 const j = await r.json();
                 const input = document.getElementById('v_tasa');
@@ -1136,12 +1121,10 @@ async function enviarVentaAlServidor(venta) {
         usuario_id: user ? user.id : null
     };
     
-    const token = localStorage.getItem('auth_token');
-    const res = await fetch('/ventas', {
+    const res = await authFetch('/ventas', {
         method: 'POST',
         headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify(ventaConUsuario)
     });
@@ -1189,12 +1172,10 @@ function crearProducto() {
         return alert('Complete todos los campos del producto.');
     }
 
-    const token = localStorage.getItem('auth_token');
-    fetch('/admin/productos', {
+    authFetch('/admin/productos', {
         method: 'POST',
         headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
     })
@@ -1222,12 +1203,10 @@ function ajustarStock() {
         return alert('Ingrese el código y la cantidad a ajustar.');
     }
 
-    const token = localStorage.getItem('auth_token');
-    fetch('/admin/ajustes', {
+    authFetch('/admin/ajustes', {
         method: 'POST',
         headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
     })
@@ -1262,10 +1241,9 @@ async function actualizarHistorial() {
     if (!cont) return;
     cont.innerHTML = '<div class="text-slate-400 text-xs">Cargando movimientos...</div>';
     try {
-        const token = localStorage.getItem('auth_token');
         const [ventasRes, devRes] = await Promise.all([
-            fetch('/reportes/ventas', { headers: { 'Authorization': `Bearer ${token}` } }),
-            fetch('/devoluciones/historial?limit=20', { headers: { 'Authorization': `Bearer ${token}` } })
+            authFetch('/reportes/ventas'),
+            authFetch('/devoluciones/historial?limit=20')
         ]);
         const ventas = ventasRes.ok ? await ventasRes.json() : [];
         const devoluciones = devRes.ok ? await devRes.json() : [];

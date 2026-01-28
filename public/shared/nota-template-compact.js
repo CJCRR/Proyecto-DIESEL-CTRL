@@ -38,8 +38,7 @@
     } catch {}
     if (typeof fetch !== 'undefined') {
       try {
-        const token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') : null;
-        const res = await fetch('/admin/ajustes/config', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+        const res = await fetch('/admin/ajustes/config', { credentials: 'same-origin' });
         if (res.ok) {
           const j = await res.json();
           const nota = j && j.nota ? j.nota : {};

@@ -1,5 +1,6 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 
 // CRÍTICA TÉCNICA:
 // Usar rutas relativas simples ('../database.sqlite') es peligroso porque depende
@@ -131,7 +132,10 @@ const schema = `
     rol TEXT DEFAULT 'vendedor',
     activo INTEGER DEFAULT 1,
     creado_en TEXT DEFAULT (datetime('now')),
-    ultimo_login TEXT
+    ultimo_login TEXT,
+    must_change_password INTEGER DEFAULT 0,
+    failed_attempts INTEGER DEFAULT 0,
+    locked_until TEXT
   );
 
   CREATE TABLE IF NOT EXISTS sesiones (
@@ -155,106 +159,139 @@ const schema = `
 
 db.exec(schema);
 
-// Asegurar columna 'categoria' en productos (agregar si no existe)
-try {
-  const info = db.prepare("PRAGMA table_info('productos')").all();
-  const hasCategoria = info.some(col => col.name === 'categoria');
-  const hasCosto = info.some(col => col.name === 'costo_usd');
-  if (!hasCategoria) {
-    db.prepare("ALTER TABLE productos ADD COLUMN categoria TEXT").run();
-    console.log('Columna categoria añadida a productos');
-  }
-  if (!hasCosto) {
-    db.prepare("ALTER TABLE productos ADD COLUMN costo_usd REAL DEFAULT 0").run();
-    console.log('Columna costo_usd añadida a productos');
-  }
-} catch (err) {
-  console.warn('No se pudo actualizar esquema para categoria (ignorado):', err.message);
-}
+// Migraciones controladas
+db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT DEFAULT (datetime('now')))`);
 
-// Asegurar columnas en 'ventas' para descuento y metodo_pago (si la tabla ya existe)
-try {
-  const infoVentas = db.prepare("PRAGMA table_info('ventas')").all();
-  const hasDescuento = infoVentas.some(col => col.name === 'descuento');
-  const hasMetodo = infoVentas.some(col => col.name === 'metodo_pago');
-  const hasReferencia = infoVentas.some(col => col.name === 'referencia');
-  const hasCedula = infoVentas.some(col => col.name === 'cedula');
-  const hasTelefono = infoVentas.some(col => col.name === 'telefono');
-  const hasVendedor = infoVentas.some(col => col.name === 'vendedor');
-  const hasUsuarioId = infoVentas.some(col => col.name === 'usuario_id');
-  if (!hasDescuento) {
-    db.prepare("ALTER TABLE ventas ADD COLUMN descuento REAL DEFAULT 0").run();
-    console.log('Columna descuento añadida a ventas');
+const columnExists = (table, col) => {
+  try {
+    const info = db.prepare(`PRAGMA table_info('${table}')`).all();
+    return info.some(c => c.name === col);
+  } catch {
+    return false;
   }
-  if (!hasMetodo) {
-    db.prepare("ALTER TABLE ventas ADD COLUMN metodo_pago TEXT").run();
-    console.log('Columna metodo_pago añadida a ventas');
-  }
-  if (!hasReferencia) {
-    db.prepare("ALTER TABLE ventas ADD COLUMN referencia TEXT").run();
-    console.log('Columna referencia añadida a ventas');
-  }
-  if (!hasCedula) {
-    db.prepare("ALTER TABLE ventas ADD COLUMN cedula TEXT").run();
-    console.log('Columna cedula añadida a ventas');
-  }
-  if (!hasTelefono) {
-    db.prepare("ALTER TABLE ventas ADD COLUMN telefono TEXT").run();
-    console.log('Columna telefono añadida a ventas');
-  }
-  if (!hasVendedor) {
-    db.prepare("ALTER TABLE ventas ADD COLUMN vendedor TEXT").run();
-    console.log('Columna vendedor añadida a ventas');
-  }
-  if (!hasUsuarioId) {
-    db.prepare("ALTER TABLE ventas ADD COLUMN usuario_id INTEGER").run();
-    console.log('Columna usuario_id añadida a ventas');
-  }
-} catch (err) {
-  console.warn('No se pudo actualizar esquema para ventas (ignorado):', err.message);
-}
+};
 
-// Asegurar columna costo_usd en venta_detalle
-try {
-  const infoVD = db.prepare("PRAGMA table_info('venta_detalle')").all();
-  const hasCosto = infoVD.some(col => col.name === 'costo_usd');
-  if (!hasCosto) {
-    db.prepare("ALTER TABLE venta_detalle ADD COLUMN costo_usd REAL DEFAULT 0").run();
-    console.log('Columna costo_usd añadida a venta_detalle');
+const indexExists = (name) => {
+  try {
+    const row = db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name=?`).get(name);
+    return !!row;
+  } catch {
+    return false;
   }
+};
 
-  // Backfill costo_usd en venta_detalle con el costo del producto si está vacío
-  db.prepare(`
-    UPDATE venta_detalle
-    SET costo_usd = (
-      SELECT p.costo_usd FROM productos p WHERE p.id = venta_detalle.producto_id
-    )
-    WHERE costo_usd IS NULL
-  `).run();
-  db.prepare(`UPDATE venta_detalle SET costo_usd = 0 WHERE costo_usd IS NULL`).run();
+const migrations = [
+  {
+    id: '001_productos_categoria_costo',
+    up: () => {
+      if (!columnExists('productos', 'categoria')) {
+        db.prepare("ALTER TABLE productos ADD COLUMN categoria TEXT").run();
+      }
+      if (!columnExists('productos', 'costo_usd')) {
+        db.prepare("ALTER TABLE productos ADD COLUMN costo_usd REAL DEFAULT 0").run();
+      }
+    }
+  },
+  {
+    id: '002_ventas_campos_extra',
+    up: () => {
+      const cols = [
+        ['descuento', "ALTER TABLE ventas ADD COLUMN descuento REAL DEFAULT 0"],
+        ['metodo_pago', "ALTER TABLE ventas ADD COLUMN metodo_pago TEXT"],
+        ['referencia', "ALTER TABLE ventas ADD COLUMN referencia TEXT"],
+        ['cedula', "ALTER TABLE ventas ADD COLUMN cedula TEXT"],
+        ['telefono', "ALTER TABLE ventas ADD COLUMN telefono TEXT"],
+        ['vendedor', "ALTER TABLE ventas ADD COLUMN vendedor TEXT"],
+        ['usuario_id', "ALTER TABLE ventas ADD COLUMN usuario_id INTEGER"]
+      ];
+      cols.forEach(([name, sql]) => { if (!columnExists('ventas', name)) db.prepare(sql).run(); });
+    }
+  },
+  {
+    id: '003_venta_detalle_costo',
+    up: () => {
+      if (!columnExists('venta_detalle', 'costo_usd')) {
+        db.prepare("ALTER TABLE venta_detalle ADD COLUMN costo_usd REAL DEFAULT 0").run();
+      }
+      db.prepare(`
+        UPDATE venta_detalle
+        SET costo_usd = (
+          SELECT p.costo_usd FROM productos p WHERE p.id = venta_detalle.producto_id
+        )
+        WHERE costo_usd IS NULL
+      `).run();
+      db.prepare(`UPDATE venta_detalle SET costo_usd = 0 WHERE costo_usd IS NULL`).run();
+      db.prepare(`
+        UPDATE venta_detalle
+        SET costo_usd = (
+          SELECT p.costo_usd FROM productos p WHERE p.id = venta_detalle.producto_id AND p.costo_usd IS NOT NULL
+        )
+        WHERE (costo_usd = 0 OR costo_usd IS NULL)
+      `).run();
+    }
+  },
+  {
+    id: '004_usuarios_seguridad',
+    up: () => {
+      if (!columnExists('usuarios', 'must_change_password')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN must_change_password INTEGER DEFAULT 0").run();
+      }
+      if (!columnExists('usuarios', 'failed_attempts')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN failed_attempts INTEGER DEFAULT 0").run();
+      }
+      if (!columnExists('usuarios', 'locked_until')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN locked_until TEXT").run();
+      }
+    }
+  },
+  {
+    id: '005_indices_basicos',
+    up: () => {
+      if (!indexExists('idx_productos_codigo')) db.prepare('CREATE INDEX IF NOT EXISTS idx_productos_codigo ON productos (codigo)').run();
+      if (!indexExists('idx_ventas_fecha')) db.prepare('CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON ventas (fecha)').run();
+      if (!indexExists('idx_venta_detalle_venta_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_venta_detalle_venta_id ON venta_detalle (venta_id)').run();
+      if (!indexExists('idx_venta_detalle_producto_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_venta_detalle_producto_id ON venta_detalle (producto_id)').run();
+      if (!indexExists('idx_devolucion_detalle_devolucion_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_devolucion_detalle_devolucion_id ON devolucion_detalle (devolucion_id)').run();
+    }
+  }
+];
 
-  // Backfill también cuando costo_usd es 0 pero el producto tiene costo > 0
-  db.prepare(`
-    UPDATE venta_detalle
-    SET costo_usd = (
-      SELECT p.costo_usd FROM productos p WHERE p.id = venta_detalle.producto_id AND p.costo_usd IS NOT NULL
-    )
-    WHERE (costo_usd = 0 OR costo_usd IS NULL)
-  `).run();
-} catch (err) {
-  console.warn('No se pudo actualizar esquema para venta_detalle (ignorado):', err.message);
-}
+const applyMigrations = () => {
+  const has = db.prepare('SELECT id FROM schema_migrations WHERE id = ?');
+  const insert = db.prepare('INSERT INTO schema_migrations (id) VALUES (?)');
+  migrations.forEach(m => {
+    if (has.get(m.id)) return;
+    const tx = db.transaction(() => {
+      m.up();
+      insert.run(m.id);
+    });
+    try {
+      tx();
+      console.log(`✅ Migración aplicada: ${m.id}`);
+    } catch (err) {
+      console.warn(`❌ Error migración ${m.id}:`, err.message);
+    }
+  });
+};
+
+applyMigrations();
 
 // Crear usuario admin por defecto si no existen usuarios
 try {
   const usuariosCount = db.prepare('SELECT count(*) as c FROM usuarios').get();
   if (usuariosCount.c === 0) {
-    // Password por defecto: "admin123" (en producción debería estar hasheado)
-    db.prepare(`
-      INSERT INTO usuarios (username, password, nombre_completo, rol)
-      VALUES ('admin', 'admin123', 'Administrador', 'admin')
-    `).run();
-    console.log('✅ Usuario admin creado (username: admin, password: admin123)');
+    const adminUser = process.env.ADMIN_USERNAME;
+    const adminPass = process.env.ADMIN_PASSWORD;
+    if (adminUser && adminPass) {
+      const hash = bcrypt.hashSync(adminPass, 10);
+      db.prepare(`
+        INSERT INTO usuarios (username, password, nombre_completo, rol, must_change_password)
+        VALUES (?, ?, ?, 'admin', 1)
+      `).run(adminUser, hash, 'Administrador');
+      console.log('✅ Usuario admin inicial creado (debe cambiar contraseña)');
+    } else {
+      console.warn('⚠️ No se creó usuario admin: configure ADMIN_USERNAME y ADMIN_PASSWORD');
+    }
   }
 } catch (err) {
   console.warn('No se pudo crear usuario admin:', err.message);

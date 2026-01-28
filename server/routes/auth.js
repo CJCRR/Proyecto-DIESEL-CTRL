@@ -2,14 +2,33 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 
 // Generar token único
 function generarToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Intente más tarde.' }
+});
+
+function limpiarSesionesExpiradas() {
+  try {
+    db.prepare("DELETE FROM sesiones WHERE expira_en IS NOT NULL AND datetime(expira_en) <= datetime('now')").run();
+  } catch (err) {
+    console.warn('No se pudo limpiar sesiones expiradas:', err.message);
+  }
+}
+
 // POST /auth/login - Iniciar sesión
-router.post('/login', (req, res) => {
+router.post('/login', loginLimiter, (req, res) => {
+  limpiarSesionesExpiradas();
   const { username, password } = req.body;
   
   if (!username || !password) {
@@ -18,14 +37,41 @@ router.post('/login', (req, res) => {
 
   try {
     const usuario = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo
+      SELECT id, username, nombre_completo, rol, activo, password, failed_attempts, locked_until, must_change_password
       FROM usuarios
-      WHERE username = ? AND password = ? AND activo = 1
-    `).get(username, password);
+      WHERE username = ? AND activo = 1
+    `).get(username);
 
     if (!usuario) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
+
+    if (usuario.locked_until && new Date(usuario.locked_until) > new Date()) {
+      return res.status(429).json({ error: 'Cuenta bloqueada temporalmente. Intente más tarde.' });
+    }
+
+    const isBcrypt = typeof usuario.password === 'string' && /^\$2[aby]\$/.test(usuario.password);
+    let ok = false;
+    if (isBcrypt) {
+      ok = bcrypt.compareSync(password, usuario.password);
+    } else {
+      ok = password === usuario.password;
+      if (ok) {
+        const newHash = bcrypt.hashSync(password, 10);
+        db.prepare('UPDATE usuarios SET password = ? WHERE id = ?').run(newHash, usuario.id);
+      }
+    }
+
+    if (!ok) {
+      const newFailed = (usuario.failed_attempts || 0) + 1;
+      const lockUntil = newFailed >= 5 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
+      db.prepare('UPDATE usuarios SET failed_attempts = ?, locked_until = ? WHERE id = ?')
+        .run(newFailed, lockUntil, usuario.id);
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    // Reset de intentos fallidos al iniciar sesión exitoso
+    db.prepare('UPDATE usuarios SET failed_attempts = 0, locked_until = NULL WHERE id = ?').run(usuario.id);
 
     // Crear sesión
     const token = generarToken();
@@ -42,6 +88,13 @@ router.post('/login', (req, res) => {
       UPDATE usuarios SET ultimo_login = datetime('now') WHERE id = ?
     `).run(usuario.id);
 
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 8 * 60 * 60 * 1000
+    });
+
     res.json({
       success: true,
       token,
@@ -49,7 +102,8 @@ router.post('/login', (req, res) => {
         id: usuario.id,
         username: usuario.username,
         nombre: usuario.nombre_completo,
-        rol: usuario.rol
+        rol: usuario.rol,
+        must_change_password: !!usuario.must_change_password
       }
     });
   } catch (err) {
@@ -60,7 +114,7 @@ router.post('/login', (req, res) => {
 
 // POST /auth/logout - Cerrar sesión
 router.post('/logout', (req, res) => {
-  const { token } = req.body;
+  const token = req.body?.token || req.headers.authorization?.replace('Bearer ', '') || req.cookies?.auth_token;
   
   if (token) {
     try {
@@ -70,12 +124,14 @@ router.post('/logout', (req, res) => {
     }
   }
   
+  res.clearCookie('auth_token');
   res.json({ success: true });
 });
 
 // GET /auth/verificar - Verificar si el token es válido
 router.get('/verificar', (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
+  limpiarSesionesExpiradas();
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.auth_token;
   
   if (!token) {
     return res.status(401).json({ error: 'Token no proporcionado' });
@@ -83,7 +139,7 @@ router.get('/verificar', (req, res) => {
 
   try {
     const sesion = db.prepare(`
-      SELECT s.*, u.username, u.nombre_completo, u.rol
+      SELECT s.*, u.username, u.nombre_completo, u.rol, u.must_change_password
       FROM sesiones s
       JOIN usuarios u ON u.id = s.usuario_id
       WHERE s.token = ? AND datetime(s.expira_en) > datetime('now')
@@ -99,7 +155,8 @@ router.get('/verificar', (req, res) => {
         id: sesion.usuario_id,
         username: sesion.username,
         nombre: sesion.nombre_completo,
-        rol: sesion.rol
+        rol: sesion.rol,
+        must_change_password: !!sesion.must_change_password
       }
     });
   } catch (err) {
@@ -110,7 +167,8 @@ router.get('/verificar', (req, res) => {
 
 // Middleware para proteger rutas (exportable)
 function requireAuth(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
+  limpiarSesionesExpiradas();
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.auth_token;
   
   if (!token) {
     return res.status(401).json({ error: 'No autorizado' });

@@ -46,10 +46,8 @@ async function showNotification(title, body) {
 }
 
 async function fetchJSON(url) {
-  const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || localStorage.getItem('auth_token');
   const res = await fetch(url, {
-    credentials: 'same-origin',
-    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    credentials: 'same-origin'
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -90,8 +88,6 @@ async function pollMorosos() {
 function startAlerts() {
   // Evitar correr en login
   if (window.location.pathname.includes('/pages/login.html')) return;
-  const token = (window.Auth && window.Auth.getToken && window.Auth.getToken()) || localStorage.getItem('auth_token');
-  if (!token) return; // no iniciar polling si no hay sesión
   pollStock();
   pollMorosos();
   setInterval(() => {

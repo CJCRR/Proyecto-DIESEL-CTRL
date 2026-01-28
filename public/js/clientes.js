@@ -62,9 +62,8 @@ async function cargarHistorial() {
         return;
     }
     try {
-        const token = localStorage.getItem('auth_token');
         const res = await fetch(`/reportes/historial-cliente?q=${encodeURIComponent(q)}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'same-origin'
         });
         if (!res.ok) return;
         const rows = await res.json();

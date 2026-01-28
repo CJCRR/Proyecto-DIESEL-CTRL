@@ -16,6 +16,7 @@
     }
 
     async function loadAndApply() {
+        if (window.location.pathname.includes('/pages/login.html')) return;
         // Usa cache local si existe
         try {
             const cached = localStorage.getItem('empresa_config');
@@ -26,9 +27,8 @@
         } catch {}
 
         try {
-            const token = localStorage.getItem('auth_token');
             const res = await fetch('/admin/ajustes/config', {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                credentials: 'same-origin'
             });
             if (!res.ok) return;
             const data = await res.json();

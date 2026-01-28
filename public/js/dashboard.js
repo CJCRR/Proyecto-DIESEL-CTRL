@@ -16,6 +16,8 @@ let TOP_LIMIT = parseInt(localStorage.getItem('top_limit') || '10', 10);
 let STOCK_UMBRAL = parseInt(localStorage.getItem('stock_umbral') || '1', 10);
 let AL_UMBRAL_TIMER = null;
 
+const authFetch = (url, options = {}) => fetch(url, { ...options, credentials: 'same-origin' });
+
 // (Se removieron presets de reportes del dashboard)
 
 function renderTopProductos() {
@@ -34,13 +36,9 @@ function renderTopProductos() {
 
 // (Se removió el render del reporte del dashboard)
 
-async function loadTopProductos(headers) {
+async function loadTopProductos() {
     try {
-        if (!headers) {
-            const token = localStorage.getItem('auth_token');
-            headers = { 'Authorization': `Bearer ${token}` };
-        }
-        const r = await fetch(`/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}`, { headers });
+        const r = await authFetch(`/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}`);
         if (!r.ok) return;
         cacheTop = await r.json();
         renderTopProductos();
@@ -51,9 +49,6 @@ async function loadTopProductos(headers) {
 
 async function cargarDashboard() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const headers = { 'Authorization': `Bearer ${token}` };
-
         const topSel = document.getElementById('top-limit');
         if (topSel) {
             if (![...topSel.options].some(o => o.value === String(TOP_LIMIT))) {
@@ -74,7 +69,7 @@ async function cargarDashboard() {
             }
         }
 
-        const tasaRes = await fetch('/admin/ajustes/tasa-bcv', { headers });
+        const tasaRes = await authFetch('/admin/ajustes/tasa-bcv');
         if (tasaRes.ok) {
             const { tasa_bcv, actualizado_en } = await tasaRes.json();
             TASA_BCV = Number(tasa_bcv || 1) || 1;
@@ -90,7 +85,7 @@ async function cargarDashboard() {
             }
         }
 
-        const kpisRes = await fetch('/reportes/kpis', { headers });
+        const kpisRes = await authFetch('/reportes/kpis');
         if (kpisRes.ok) {
             const kpis = await kpisRes.json();
             document.getElementById('ventas-hoy').innerText = kpis.ventasHoy;
@@ -108,7 +103,7 @@ async function cargarDashboard() {
             document.getElementById('total-usd').innerText = secundario;
         }
 
-        const ventasRes = await fetch('/reportes/ventas', { headers });
+        const ventasRes = await authFetch('/reportes/ventas');
         if (ventasRes.ok) {
             const ventas = await ventasRes.json();
             const ultimas = ventas.slice(0, 3);
@@ -126,7 +121,7 @@ async function cargarDashboard() {
             });
         }
 
-        const invRes = await fetch('/reportes/inventario', { headers });
+        const invRes = await authFetch('/reportes/inventario');
         if (invRes.ok) {
             const inv = await invRes.json();
             const invUsdEl = document.getElementById('inv-total-usd');
@@ -137,13 +132,13 @@ async function cargarDashboard() {
             if (invTasaEl) invTasaEl.innerText = Number(inv.totals.tasa || 1).toFixed(2);
         }
 
-        await loadTopProductos(headers);
+        await loadTopProductos();
         await renderVentasSeries('diarias');
         await renderTopClientes();
         await renderMargenActual();
 
         await Promise.all([
-            loadTendencias(headers)
+            loadTendencias()
         ]);
 
         await renderAlertasTareas();
@@ -159,10 +154,8 @@ document.getElementById('sincronizar-manual').addEventListener('click', () => {
 
 document.getElementById('btn-actualizar-tasa').addEventListener('click', async () => {
     try {
-        const token = localStorage.getItem('auth_token');
-        const r = await fetch('/admin/ajustes/tasa-bcv/actualizar', { 
+        const r = await authFetch('/admin/ajustes/tasa-bcv/actualizar', { 
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` }
         });
         const j = await r.json();
         const tasa = Number(j.tasa_bcv || 0);
@@ -186,12 +179,10 @@ document.getElementById('btn-actualizar-tasa').addEventListener('click', async (
 document.getElementById('btn-guardar-tasa').addEventListener('click', async () => {
     const val = parseFloat(document.getElementById('input-tasa').value);
     if (!val || Number.isNaN(val) || val <= 0) return;
-    const token = localStorage.getItem('auth_token');
-    const r = await fetch('/admin/ajustes/tasa-bcv', {
+    const r = await authFetch('/admin/ajustes/tasa-bcv', {
         method: 'POST',
         headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({ tasa_bcv: val }),
     });
@@ -217,11 +208,9 @@ async function cargarVendedores() {
     const params = new URLSearchParams();
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
-    const token = localStorage.getItem('auth_token');
-    const headers = { 'Authorization': `Bearer ${token}` };
     const [rBase, rRoi] = await Promise.all([
-        fetch(`/reportes/vendedores?${params.toString()}`, { headers }),
-        fetch(`/reportes/vendedores/roi?${params.toString()}`, { headers })
+        authFetch(`/reportes/vendedores?${params.toString()}`),
+        authFetch(`/reportes/vendedores/roi?${params.toString()}`)
     ]);
     if (!rBase.ok) return;
     const baseRows = await rBase.json();
@@ -292,10 +281,8 @@ setInterval(() => { renderAlertasTareas().catch(()=>{}); }, 60000);
 
 async function renderVentasSeries(tipo) {
     try {
-        const token = localStorage.getItem('auth_token');
-        const headers = { 'Authorization': `Bearer ${token}` };
         const endpoint = tipo === 'mensuales' ? '/reportes/series/ventas-mensuales?meses=12' : '/reportes/series/ventas-diarias?dias=30';
-        const r = await fetch(endpoint, { headers });
+        const r = await authFetch(endpoint);
         if (!r.ok) return;
         const rows = await r.json();
         const labels = rows.map(x => (tipo === 'mensuales' ? x.mes : x.dia));
@@ -323,9 +310,7 @@ async function renderVentasSeries(tipo) {
 
 async function renderTopClientes() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const headers = { 'Authorization': `Bearer ${token}` };
-        const r = await fetch('/reportes/top-clientes?limit=5', { headers });
+        const r = await authFetch('/reportes/top-clientes?limit=5');
         if (!r.ok) return;
         const rows = await r.json();
         const labels = rows.map(x => x.cliente);
@@ -346,9 +331,7 @@ async function renderTopClientes() {
 
 async function renderMargenActual() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const headers = { 'Authorization': `Bearer ${token}` };
-        const r = await fetch('/reportes/margen/actual', { headers });
+        const r = await authFetch('/reportes/margen/actual');
         if (!r.ok) return;
         const j = await r.json();
         const hoy = MONEDA === 'USD' ? j.hoy.margen_usd : j.hoy.margen_bs;
@@ -357,7 +340,7 @@ async function renderMargenActual() {
         document.getElementById('margen-mes').innerText = `${Number(mes || 0).toFixed(2)} ${MONEDA}`;
 
         // Sparkline con últimos 30 días de margen
-        const r2 = await fetch('/reportes/series/ventas-diarias?dias=30', { headers });
+        const r2 = await authFetch('/reportes/series/ventas-diarias?dias=30');
         if (!r2.ok) return;
         const rows = await r2.json();
         const labels = rows.map(x => x.dia);
@@ -372,16 +355,16 @@ async function renderMargenActual() {
         charts.margen = new Chart(ctx, cfg);
 
         // Margen de hoy por vendedor
-        await renderMargenVendedoresHoy(headers);
+        await renderMargenVendedoresHoy();
     } catch (err) {
         console.error('No se pudo renderizar margen actual', err);
     }
 }
 
-async function renderMargenVendedoresHoy(headers) {
+async function renderMargenVendedoresHoy() {
     try {
         const hoy = new Date().toISOString().slice(0,10);
-        const r = await fetch(`/reportes/vendedores?desde=${hoy}&hasta=${hoy}`, { headers });
+        const r = await authFetch(`/reportes/vendedores?desde=${hoy}&hasta=${hoy}`);
         if (!r.ok) return;
         const rows = await r.json();
         const cont = document.getElementById('margen-vendedores');
@@ -405,13 +388,9 @@ async function renderMargenVendedoresHoy(headers) {
 function fmtMoney(v) { return Number(v || 0).toFixed(2); }
 function fmtPct(p) { return p == null ? '—' : `${(p * 100).toFixed(1)}%`; }
 
-async function loadTendencias(headers) {
+async function loadTendencias() {
     try {
-        if (!headers) {
-            const token = localStorage.getItem('auth_token');
-            headers = { 'Authorization': `Bearer ${token}` };
-        }
-        const r = await fetch('/reportes/tendencias/mensuales?meses=12', { headers });
+        const r = await authFetch('/reportes/tendencias/mensuales?meses=12');
         if (!r.ok) return;
         const rows = await r.json();
         const el = document.getElementById('tendencias-list');
@@ -439,11 +418,9 @@ document.getElementById('ventas-mensuales-btn')?.addEventListener('click', () =>
 // ===== Alertas / Tareas =====
 async function renderAlertasTareas() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const headers = { 'Authorization': `Bearer ${token}` };
         // Usar umbral configurable para stock bajo
         const umbralActual = Number.isFinite(STOCK_UMBRAL) && STOCK_UMBRAL >= 0 ? STOCK_UMBRAL : 1;
-        const r = await fetch(`/alertas/tareas?umbral=${encodeURIComponent(umbralActual)}`, { headers });
+        const r = await authFetch(`/alertas/tareas?umbral=${encodeURIComponent(umbralActual)}`);
         if (!r.ok) return;
         const j = await r.json();
 

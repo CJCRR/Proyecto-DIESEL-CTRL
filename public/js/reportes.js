@@ -86,8 +86,7 @@ function renderReporte() {
                 if (!detallesCache.has(r.id)) {
                     cont.textContent = 'Cargando...';
                     try {
-                        const token = localStorage.getItem('auth_token');
-                        const res = await fetch(`/reportes/ventas/${r.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                        const res = await fetch(`/reportes/ventas/${r.id}`, { credentials: 'same-origin' });
                         if (!res.ok) { cont.textContent = 'Error cargando detalle'; return; }
                         const j = await res.json();
                         detallesCache.set(r.id, j);
@@ -149,9 +148,8 @@ async function sugerirClientes(q) {
         return;
     }
     try {
-        const token = localStorage.getItem('auth_token');
         const res = await fetch(`/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=8`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'same-origin'
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -174,14 +172,8 @@ async function cargarReporte() {
     if (vendedor) params.set('vendedor', vendedor);
     if (metodo) params.set('metodo', metodo);
 
-    const token = localStorage.getItem('auth_token');
-    console.log('Cargando reporte con token:', token ? 'presente' : 'ausente');
-    console.log('Parámetros:', params.toString());
-
     const res = await fetch(`/reportes/ventas-rango?${params.toString()}`, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
+        credentials: 'same-origin'
     });
 
     if (!res.ok) {
@@ -196,7 +188,7 @@ async function cargarReporte() {
     // Cargar devoluciones
     try {
         const devRes = await fetch(`/devoluciones/historial?${params.toString()}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'same-origin'
         });
         if (devRes.ok) {
             cacheDev = await devRes.json();

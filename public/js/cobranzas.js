@@ -105,8 +105,7 @@ function renderDetalle(data) {
 
 async function cargarResumen() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const r = await fetch('/cobranzas/resumen', { headers: { 'Authorization': `Bearer ${token}` } });
+        const r = await fetch('/cobranzas/resumen', { credentials: 'same-origin' });
         if (!r.ok) throw new Error('No se pudo cargar resumen');
         const j = await r.json();
         renderResumen(j);
@@ -117,13 +116,12 @@ async function cargarResumen() {
 
 async function cargarCuentas() {
     try {
-        const token = localStorage.getItem('auth_token');
         const q = document.getElementById('f_buscar').value || '';
         const est = document.getElementById('f_estado').value || '';
         const params = new URLSearchParams();
         if (q) params.append('cliente', q);
         if (est) params.append('estado', est);
-        const r = await fetch(`/cobranzas?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const r = await fetch(`/cobranzas?${params.toString()}`, { credentials: 'same-origin' });
         if (!r.ok) throw new Error('No se pudo cargar cuentas');
         const j = await r.json();
         cuentas = j;
@@ -140,8 +138,7 @@ async function cargarCuentas() {
 
 async function cargarDetalle(id) {
     try {
-        const token = localStorage.getItem('auth_token');
-        const r = await fetch(`/cobranzas/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const r = await fetch(`/cobranzas/${id}`, { credentials: 'same-origin' });
         if (!r.ok) throw new Error('No se pudo obtener detalle');
         const j = await r.json();
         renderDetalle(j);
@@ -153,8 +150,7 @@ async function cargarDetalle(id) {
 
 async function prefijarTasa() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const r = await fetch('/admin/ajustes/tasa-bcv', { headers: { 'Authorization': `Bearer ${token}` } });
+        const r = await fetch('/admin/ajustes/tasa-bcv', { credentials: 'same-origin' });
         if (!r.ok) return;
         const j = await r.json();
         const input = document.getElementById('p_tasa');
@@ -176,10 +172,10 @@ async function registrarPago(evt) {
     const notas = document.getElementById('p_notas').value || '';
     if (!monto || monto <= 0) { showToast('Monto inválido', 'error'); return; }
     try {
-        const token = localStorage.getItem('auth_token');
         const r = await fetch(`/cobranzas/${cuentaSeleccionada.id}/pago`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ monto, moneda, tasa_bcv: tasa, metodo, referencia, notas })
         });
         const j = await r.json();

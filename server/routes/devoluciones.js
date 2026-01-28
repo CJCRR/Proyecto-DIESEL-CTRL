@@ -3,6 +3,17 @@ const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('./auth');
 
+const MAX_ITEMS = 200;
+const MAX_TEXT = 120;
+const MAX_DOC = 40;
+const MAX_REF = 120;
+const MAX_MOTIVO = 240;
+
+function safeStr(v, max) {
+  if (v === null || v === undefined) return '';
+  return String(v).trim().slice(0, max);
+}
+
 function getDevolucionPolicy() {
   const row = db.prepare(`SELECT valor FROM config WHERE clave='devolucion_politica'`).get();
   const def = { habilitado: true, dias_max: 30, requiere_referencia: true, recargo_restock_pct: 0 };
@@ -50,14 +61,25 @@ router.post('/', requireAuth, (req, res) => {
   if (!items || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: 'La devolución no contiene productos.' });
   }
-  if (!cliente || !cliente.trim()) {
+  if (items.length > MAX_ITEMS) {
+    return res.status(400).json({ error: 'Demasiados items en la devolución.' });
+  }
+  const clienteSafe = safeStr(cliente, MAX_TEXT);
+  if (!clienteSafe) {
     return res.status(400).json({ error: 'El nombre del cliente es obligatorio.' });
+  }
+  const cedulaSafe = safeStr(cedula, MAX_DOC);
+  const telefonoSafe = safeStr(telefono, MAX_DOC);
+  const referenciaSafe = safeStr(referencia, MAX_REF);
+  const motivoSafe = safeStr(motivo, MAX_MOTIVO);
+  if (venta_original_id !== null && venta_original_id !== undefined) {
+    const idNum = parseInt(venta_original_id, 10);
+    if (Number.isNaN(idNum) || idNum <= 0) return res.status(400).json({ error: 'Venta original inválida.' });
   }
   const tasa = parseFloat(tasa_bcv);
   if (!tasa || Number.isNaN(tasa) || tasa <= 0) {
     return res.status(400).json({ error: 'Tasa BCV inválida.' });
   }
-
   try {
     const fecha = new Date().toISOString();
     let totalBs = 0;
@@ -67,7 +89,7 @@ router.post('/', requireAuth, (req, res) => {
       const info = db.prepare(`
           INSERT INTO devoluciones (fecha, cliente, cliente_doc, telefono, tasa_bcv, referencia, motivo, venta_original_id, total_bs, total_usd, usuario_id)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
-        `).run(fecha, cliente, cedula, telefono, tasa, referencia, motivo, venta_original_id, usuario_id);
+        `).run(fecha, clienteSafe, cedulaSafe, telefonoSafe, tasa, referenciaSafe, motivoSafe, venta_original_id, usuario_id);
 
       const devId = info.lastInsertRowid;
 
@@ -88,12 +110,11 @@ router.post('/', requireAuth, (req, res) => {
         }
 
       for (const item of items) {
-        const codigo = item.codigo;
+        const codigo = safeStr(item.codigo, 64);
         const cantidad = Math.abs(parseInt(item.cantidad, 10));
-        if (!codigo || !cantidad || Number.isNaN(cantidad) || cantidad <= 0) {
+        if (!codigo || !cantidad || Number.isNaN(cantidad) || cantidad <= 0 || cantidad > 100000) {
           throw new Error('Producto o cantidad inválida en la devolución');
         }
-
         const producto = db.prepare('SELECT id, precio_usd, stock FROM productos WHERE codigo = ?').get(codigo);
         if (!producto) {
           throw new Error(`El producto ${codigo} no existe`);

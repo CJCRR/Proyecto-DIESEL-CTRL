@@ -148,15 +148,14 @@ async function sincronizarVentasPendientes({ isRetry = false } = {}) {
         let errores = 0;
         for (const venta of ventasPendientes) {
             let synced = false;
-            const token = localStorage.getItem('auth_token');
 
             // 1) Servidor local
             try {
                 const res = await fetch('/ventas', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 
-                        'Content-Type': 'application/json',
-                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(venta)
                 });

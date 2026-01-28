@@ -22,9 +22,8 @@ const passwordHint = document.getElementById('password-hint');
 // Cargar usuarios
 async function cargarUsuarios() {
   try {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch('/admin/usuarios', {
-      headers: { 'Authorization': `Bearer ${token}` }
+      credentials: 'same-origin'
     });
 
     if (!res.ok) {
@@ -167,7 +166,6 @@ async function guardarUsuario(e) {
   }
 
   try {
-    const token = localStorage.getItem('auth_token');
     let res;
 
     if (modoEdicion) {
@@ -175,9 +173,9 @@ async function guardarUsuario(e) {
       const id = inputId.value;
       res = await fetch(`/admin/usuarios/${id}`, {
         method: 'PUT',
+        credentials: 'same-origin',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(datos)
       });
@@ -185,9 +183,9 @@ async function guardarUsuario(e) {
       // Crear
       res = await fetch('/admin/usuarios', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(datos)
       });
@@ -219,10 +217,9 @@ async function desactivarUsuario(id) {
   }
 
   try {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`/admin/usuarios/${id}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
+      credentials: 'same-origin'
     });
 
     const result = await res.json();
@@ -250,10 +247,9 @@ async function activarUsuario(id) {
   }
 
   try {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`/admin/usuarios/${id}/activar`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
+      credentials: 'same-origin'
     });
 
     const result = await res.json();
@@ -280,10 +276,9 @@ async function eliminarUsuario(id) {
   if (!confirmado) return;
 
   try {
-    const token = localStorage.getItem('auth_token');
     const res = await fetch(`/admin/usuarios/${id}/eliminar`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
+      credentials: 'same-origin'
     });
 
     const result = await res.json();

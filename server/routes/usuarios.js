@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth, requireRole } = require('./auth');
+const bcrypt = require('bcryptjs');
 
 // GET /admin/usuarios - Listar todos los usuarios (solo admin)
 router.get('/', requireAuth, requireRole('admin'), (req, res) => {
@@ -48,10 +49,11 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
     }
 
     // Crear usuario
+    const hash = bcrypt.hashSync(password, 10);
     const result = db.prepare(`
       INSERT INTO usuarios (username, password, nombre_completo, rol)
       VALUES (?, ?, ?, ?)
-    `).run(username, password, nombre_completo || username, rol || 'vendedor');
+    `).run(username, hash, nombre_completo || username, rol || 'vendedor');
 
     const nuevoUsuario = db.prepare(`
       SELECT id, username, nombre_completo, rol, activo, creado_en
@@ -112,8 +114,10 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
     }
 
     if (password !== undefined) {
+      const hash = bcrypt.hashSync(password, 10);
       updates.push('password = ?');
-      params.push(password);
+      params.push(hash);
+      updates.push('must_change_password = 0');
     }
 
     if (updates.length === 0) {

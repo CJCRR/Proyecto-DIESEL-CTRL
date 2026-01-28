@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { requireAuth } = require('./auth');
+const { requireAuth, requireRole } = require('./auth');
+
+const MAX_IMPORT_ROWS = 5000;
+const MAX_FIELD_LEN = 200;
 
 // POST /admin/productos - Crear nuevo producto
 router.post('/', requireAuth, (req, res) => {
@@ -206,6 +209,9 @@ router.post('/import', requireAuth, (req, res) => {
         const findStmt = db.prepare('SELECT id FROM productos WHERE codigo = ?');
 
         const toImport = nonEmpty.slice(start);
+        if (toImport.length > MAX_IMPORT_ROWS) {
+            return res.status(400).json({ error: `CSV demasiado grande. Máximo ${MAX_IMPORT_ROWS} filas.` });
+        }
         if (toImport.length === 0) return res.status(400).json({ error: 'No se encontraron filas de datos para importar' });
 
         const inserted = [];
@@ -217,15 +223,15 @@ router.post('/import', requireAuth, (req, res) => {
             for (let idx = 0; idx < rowsToImport.length; idx++) {
                 const cols = rowsToImport[idx];
                 try {
-                    let codigo = (cols[0] || '').toString().trim();
+                    let codigo = (cols[0] || '').toString().trim().slice(0, MAX_FIELD_LEN);
                     if (!codigo) { skipped.push({ row: idx + start + 1, reason: 'codigo vacío' }); continue; }
                     codigo = codigo.toUpperCase();
-                    const descripcion = (cols[1] || '').toString().trim();
+                    const descripcion = (cols[1] || '').toString().trim().slice(0, MAX_FIELD_LEN);
                     const precio = parseFloat((cols[2] || '').toString().trim()) || 0;
                     const costo = parseFloat((cols[3] || '').toString().trim());
                     const costoVal = isNaN(costo) ? 0 : costo;
                     const stock = parseInt((cols[4] || '').toString().trim()) || 0;
-                    const categoria = (cols[5] || '').toString().trim() || null;
+                    const categoria = (cols[5] || '').toString().trim().slice(0, MAX_FIELD_LEN) || null;
                     const ex = findStmt.get(codigo);
                     if (ex) {
                         update.run(descripcion, precio, costoVal, stock, categoria, codigo);
@@ -299,7 +305,7 @@ router.put('/:codigo', requireAuth, (req, res) => {
 });
 
 // DELETE /admin/productos/:codigo - Eliminar producto por código
-router.delete('/:codigo', (req, res) => {
+router.delete('/:codigo', requireAuth, requireRole('admin'), (req, res) => {
     const codigo = req.params.codigo ? req.params.codigo.trim().toUpperCase() : '';
     if (!codigo) return res.status(400).json({ error: 'Código inválido' });
 

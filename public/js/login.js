@@ -7,9 +7,10 @@ const errorMessage = document.getElementById('error-message');
 const errorText = document.getElementById('error-text');
 
 // Verificar si ya está autenticado
-const token = localStorage.getItem('auth_token');
-if (token) {
-  verificarSesion(token);
+try { localStorage.removeItem('auth_token'); } catch {}
+const cachedUser = localStorage.getItem('auth_user');
+if (cachedUser) {
+  verificarSesion();
 }
 
 function mostrarError(mensaje) {
@@ -20,22 +21,20 @@ function mostrarError(mensaje) {
   }, 5000);
 }
 
-async function verificarSesion(token) {
+async function verificarSesion() {
   try {
     const res = await fetch('/auth/verificar', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      credentials: 'same-origin'
     });
 
     if (res.ok) {
       const data = await res.json();
       if (data.valido) {
+        if (data.usuario) localStorage.setItem('auth_user', JSON.stringify(data.usuario));
         // Sesión válida, redirigir
         window.location.href = '/pages/index.html';
       }
     } else {
-      localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
     }
   } catch (err) {
@@ -60,6 +59,7 @@ loginForm.addEventListener('submit', async (e) => {
   try {
     const res = await fetch('/auth/login', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json'
       },
@@ -69,8 +69,7 @@ loginForm.addEventListener('submit', async (e) => {
     const data = await res.json();
 
     if (res.ok && data.success) {
-      // Guardar token y datos de usuario
-      localStorage.setItem('auth_token', data.token);
+      // Guardar solo datos de usuario (cookie httpOnly maneja la sesión)
       localStorage.setItem('auth_user', JSON.stringify(data.usuario));
       
       // Mostrar mensaje de éxito breve

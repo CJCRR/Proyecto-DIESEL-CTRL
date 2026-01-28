@@ -134,8 +134,7 @@ function setForms(cfg) {
 
 async function loadConfig() {
     try {
-        const token = localStorage.getItem('auth_token');
-        const res = await fetch('/admin/ajustes/config', { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await fetch('/admin/ajustes/config', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('No se pudo cargar configuración');
         const data = await res.json();
         configCache = data;
@@ -154,10 +153,10 @@ async function saveConfig(section) {
         payload.devolucion = { ...configCache.devolucion, ...payload.devolucion };
         payload.nota = { ...configCache.nota, ...payload.nota };
 
-        const token = localStorage.getItem('auth_token');
         const res = await fetch('/admin/ajustes/config', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error('No se pudo guardar ajustes');
@@ -262,10 +261,10 @@ function renderPreview() {
 
         async function uploadDataUrl(dataUrl, name){
             try {
-                const token = localStorage.getItem('auth_token');
                 const res = await fetch('/admin/ajustes/upload-image', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ dataUrl, filename: name })
                 });
                 if (!res.ok) throw new Error('Error subiendo imagen');
@@ -332,10 +331,10 @@ async function purgeAllData() {
     }
 
     try {
-        const token = localStorage.getItem('auth_token');
         const res = await fetch('/admin/ajustes/purge-data', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ confirm: 'BORRAR' })
         });
         if (!res.ok) {

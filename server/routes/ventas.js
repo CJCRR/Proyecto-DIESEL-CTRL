@@ -4,6 +4,23 @@ const db = require('../db');
 const { requireAuth } = require('./auth');
 const { insertAlerta } = require('./alertas');
 
+const MAX_ITEMS = 200;
+const MAX_TEXT = 120;
+const MAX_DOC = 40;
+const MAX_REF = 120;
+const MAX_METODO = 40;
+
+function isValidDateString(val) {
+    if (!val) return false;
+    const d = new Date(val);
+    return !Number.isNaN(d.getTime());
+}
+
+function safeStr(v, max) {
+    if (v === null || v === undefined) return '';
+    return String(v).trim().slice(0, max);
+}
+
 router.post('/', requireAuth, (req, res) => {
     const {
         items,
@@ -22,15 +39,18 @@ router.post('/', requireAuth, (req, res) => {
         fecha_vencimiento = null,
     } = req.body;
 
-    // LOG DE DEPURACIÓN: Para ver qué llega al servidor
-    console.log("Datos recibidos en /ventas:", { items, cliente, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia });
 
     // 1. Validaciones de estructura estrictas
     if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ error: 'El carrito está vacío o es inválido' });
     }
+
+    if (items.length > MAX_ITEMS) {
+        return res.status(400).json({ error: 'Demasiados items en la venta' });
+    }
     
-    if (!cliente || cliente.trim() === "") {
+    const clienteSafe = safeStr(cliente, MAX_TEXT);
+    if (!clienteSafe) {
         return res.status(400).json({ error: 'El nombre del cliente es obligatorio' });
     }
 
@@ -42,12 +62,38 @@ router.post('/', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Descuento inválido' });
     }
 
-    const descuentoNum = parseFloat(descuento) || 0;
+    const descuentoNum = Math.max(0, Math.min(100, parseFloat(descuento) || 0));
 
     const metodoPagoFinal = credito ? (metodo_pago || 'CREDITO') : metodo_pago;
 
     if (!metodoPagoFinal || metodoPagoFinal.toString().trim() === '') {
         return res.status(400).json({ error: 'El método de pago es obligatorio' });
+    }
+
+    const vendedorSafe = safeStr(vendedor, MAX_TEXT);
+    const cedulaSafe = safeStr(cedula, MAX_DOC);
+    const telefonoSafe = safeStr(telefono, MAX_DOC);
+    const referenciaSafe = safeStr(referencia, MAX_REF);
+    const metodoSafe = safeStr(metodoPagoFinal, MAX_METODO);
+    const clienteDocSafe = safeStr(cliente_doc, MAX_DOC);
+
+    if (dias_vencimiento !== null && dias_vencimiento !== undefined) {
+        const dias = parseInt(dias_vencimiento, 10);
+        if (Number.isNaN(dias) || dias < 1 || dias > 365) {
+            return res.status(400).json({ error: 'Días de vencimiento inválidos' });
+        }
+    }
+
+    if (fecha_vencimiento && !isValidDateString(fecha_vencimiento)) {
+        return res.status(400).json({ error: 'Fecha de vencimiento inválida' });
+    }
+
+    for (const item of items) {
+        const codigo = safeStr(item.codigo, 64);
+        const cantidad = parseInt(item.cantidad, 10);
+        if (!codigo || Number.isNaN(cantidad) || cantidad <= 0 || cantidad > 100000) {
+            return res.status(400).json({ error: 'Item inválido en la venta' });
+        }
     }
 
     try {
@@ -61,7 +107,7 @@ router.post('/', requireAuth, (req, res) => {
             const ventaResult = db.prepare(`
                 INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, usuario_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-            `).run(fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuentoNum, metodoPagoFinal, referencia, usuario_id);
+            `).run(fecha, clienteSafe, vendedorSafe, cedulaSafe, telefonoSafe, tasa_bcv, descuentoNum, metodoSafe, referenciaSafe, usuario_id);
 
             const ventaId = ventaResult.lastInsertRowid;
 
@@ -116,7 +162,7 @@ router.post('/', requireAuth, (req, res) => {
                     INSERT INTO cuentas_cobrar (cliente_nombre, cliente_doc, venta_id, total_usd, tasa_bcv, saldo_usd, fecha_emision, fecha_vencimiento, estado, notas, creado_en, actualizado_en)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, datetime('now'), datetime('now'))
                 `);
-                const info = stmt.run(cliente, cliente_doc || cedula || '', ventaId, totalConDescuentoUsd, tasa_bcv, totalConDescuentoUsd, fecha, fvISO, 'Venta a crédito');
+                const info = stmt.run(clienteSafe, clienteDocSafe || cedulaSafe || '', ventaId, totalConDescuentoUsd, tasa_bcv, totalConDescuentoUsd, fecha, fvISO, 'Venta a crédito');
                 cuentaCobrarId = info.lastInsertRowid;
             }
 

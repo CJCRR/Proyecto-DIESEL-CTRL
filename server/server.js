@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const db = require('./db');
+const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 
 // Importación de Rutas
 const productosAdmin = require('./routes/productos_admin');
@@ -18,6 +20,10 @@ const devolucionesRoutes = require('./routes/devoluciones');
 const { router: alertasRoutes } = require('./routes/alertas');
 
 const app = express();
+app.use(helmet({
+    contentSecurityPolicy: false
+}));
+app.use(cookieParser());
 // Ampliar límite para subir imágenes base64 desde ajustes
 app.use(express.json({ limit: '10mb' }));
 // Permitir parsing de bodies de texto (usado para importar CSV como text/plain)
