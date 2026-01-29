@@ -11,6 +11,7 @@ let ventaSeleccionada = null;
 let ventasRecientesCache = [];
 let configGeneral = { empresa: {}, descuentos_volumen: [], devolucion: {} };
 let lastAutoDescuentoVolumen = null;
+let historialModo = 'ventas';
 
 // Variables para PWA y Sincronización
 let isOnline = navigator.onLine;
@@ -33,6 +34,29 @@ toastContainer.style.zIndex = '60';
 document.body.appendChild(toastContainer);
 
 const authFetch = (url, options = {}) => fetch(url, { ...options, credentials: 'same-origin' });
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+async function apiFetchJson(url, options = {}) {
+    if (!navigator.onLine) throw new Error('Sin conexión a internet');
+    const res = await authFetch(url, options);
+    const contentType = res.headers.get('content-type') || '';
+    let data = null;
+    if (contentType.includes('application/json')) {
+        data = await res.json().catch(() => null);
+    } else {
+        data = await res.text().catch(() => null);
+    }
+    if (!res.ok) {
+        const msg = (data && data.error) ? data.error : (typeof data === 'string' && data) ? data : `HTTP ${res.status}`;
+        throw new Error(msg);
+    }
+    return data;
+}
 
 function setTasaUI(tasa, actualizadoEn) {
     TASA_BCV_POS = Number(tasa || 1) || 1;
@@ -59,9 +83,7 @@ function setTasaUI(tasa, actualizadoEn) {
 
 async function cargarTasaPV() {
     try {
-        const r = await authFetch('/admin/ajustes/tasa-bcv');
-        if (!r.ok) return;
-        const j = await r.json();
+        const j = await apiFetchJson('/admin/ajustes/tasa-bcv');
         setTasaUI(j.tasa_bcv, j.actualizado_en);
     } catch (err) {
         console.warn('No se pudo cargar tasa BCV', err);
@@ -78,9 +100,7 @@ function precargarTasaCache() {
 
 async function cargarConfigGeneral() {
     try {
-        const res = await authFetch('/admin/ajustes/config');
-        if (!res.ok) throw new Error('No se pudo obtener configuración');
-        const data = await res.json();
+        const data = await apiFetchJson('/admin/ajustes/config');
         configGeneral = {
             empresa: data.empresa || {},
             descuentos_volumen: data.descuentos_volumen || [],
@@ -113,19 +133,59 @@ function validarPoliticaDevolucionLocal(venta) {
     return null;
 }
 
+async function cargarPresupuestoEnPOS(presupuestoId) {
+    try {
+        const data = await apiFetchJson(`/presupuestos/${encodeURIComponent(presupuestoId)}`);
+        const { presupuesto, detalles } = data || {};
+        if (!presupuesto) throw new Error('Presupuesto no encontrado');
+
+        const cli = document.getElementById('v_cliente');
+        const ced = document.getElementById('v_cedula');
+        const tel = document.getElementById('v_telefono');
+        const tasaInput = document.getElementById('v_tasa');
+        const descInput = document.getElementById('v_desc');
+        const refInput = document.getElementById('v_ref');
+
+        if (cli) cli.value = presupuesto.cliente || '';
+        if (ced) ced.value = presupuesto.cliente_doc || '';
+        if (tel) tel.value = presupuesto.telefono || '';
+        if (tasaInput) tasaInput.value = Number(presupuesto.tasa_bcv || 1).toFixed(2);
+        if (descInput) descInput.value = String(presupuesto.descuento || 0);
+        if (refInput) refInput.value = `PRES-${presupuesto.id}`;
+
+        carrito = (detalles || []).map(d => ({
+            codigo: d.codigo,
+            descripcion: d.descripcion,
+            precio_usd: Number(d.precio_usd || 0),
+            cantidad: Number(d.cantidad || 0)
+        }));
+
+        setModoDevolucion(false);
+        ventaSeleccionada = null;
+        actualizarTabla();
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('presupuesto');
+            window.history.replaceState({}, '', url.toString());
+        } catch {}
+        showToast('Presupuesto cargado en POS', 'success');
+    } catch (err) {
+        console.error(err);
+        showToast(err.message || 'No se pudo cargar presupuesto', 'error');
+    }
+}
+
 async function actualizarTasaPV() {
     const val = parseFloat(document.getElementById('v_tasa')?.value || '');
 
     // Si hay un valor válido en el input, guardar manualmente; si no, actualizar automático
     if (!Number.isNaN(val) && val > 0) {
         try {
-            const r = await authFetch('/admin/ajustes/tasa-bcv', {
+            const j = await apiFetchJson('/admin/ajustes/tasa-bcv', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tasa_bcv: val }),
             });
-            if (!r.ok) throw new Error('No se pudo guardar la tasa');
-            const j = await r.json();
             setTasaUI(j.tasa_bcv ?? val, j.actualizado_en || new Date().toISOString());
             showToast('Tasa guardada', 'success');
         } catch (err) {
@@ -136,9 +196,7 @@ async function actualizarTasaPV() {
 
     // Modo auto-actualizar
     try {
-        const r = await authFetch('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST' });
-        if (!r.ok) throw new Error('No se pudo actualizar');
-        const j = await r.json();
+        const j = await apiFetchJson('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST' });
         const tasa = Number(j.tasa_bcv || 0);
         if (tasa > 0) {
             setTasaUI(tasa, j.actualizado_en || new Date().toISOString());
@@ -211,7 +269,7 @@ function generarIDVenta() {
 }
 
 // --- BÚSQUEDA Y SELECCIÓN ---
-buscarInput.addEventListener('input', () => {
+buscarInput.addEventListener('input', async () => {
     const q = buscarInput.value.trim();
     if (q.length < 2) {
         resultadosUL.innerHTML = '';
@@ -219,32 +277,33 @@ buscarInput.addEventListener('input', () => {
         return;
     }
 
-    authFetch(`/buscar?q=${encodeURIComponent(q)}`)
-        .then(res => res.json())
-        .then(data => {
-            resultadosUL.innerHTML = '';
-            if (data.length > 0) {
-                resultadosUL.classList.remove('hidden');
-                data.forEach(p => {
-                    const li = document.createElement('li');
-                    li.className = "p-3 border-b hover:bg-slate-50 cursor-pointer flex justify-between items-center transition-colors";
-                    li.innerHTML = `
-                        <div class="flex flex-col">
-                            <span class="font-bold text-slate-700">${p.codigo}</span>
-                            <span class="text-xs text-slate-400">${p.descripcion}</span>
-                        </div>
-                        <div class="text-right">
-                            <span class="block text-blue-600 font-black">$${p.precio_usd}</span>
-                            <span class="block text-[9px] font-bold text-slate-400 uppercase">Stock: ${p.stock}</span>
-                        </div>
-                    `;
-                    li.onclick = () => prepararParaAgregar(p);
-                    resultadosUL.appendChild(li);
-                });
-            } else {
-                resultadosUL.classList.add('hidden');
-            }
-        });
+    try {
+        const data = await apiFetchJson(`/buscar?q=${encodeURIComponent(q)}`);
+        resultadosUL.innerHTML = '';
+        if (data.length > 0) {
+            resultadosUL.classList.remove('hidden');
+            data.forEach(p => {
+                const li = document.createElement('li');
+                li.className = "p-3 border-b hover:bg-slate-50 cursor-pointer flex justify-between items-center transition-colors";
+                li.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="font-bold text-slate-700">${escapeHtml(p.codigo)}</span>
+                        <span class="text-xs text-slate-400">${escapeHtml(p.descripcion)}</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="block text-blue-600 font-black">$${escapeHtml(p.precio_usd)}</span>
+                        <span class="block text-[9px] font-bold text-slate-400 uppercase">Stock: ${escapeHtml(p.stock)}</span>
+                    </div>
+                `;
+                li.onclick = () => prepararParaAgregar(p);
+                resultadosUL.appendChild(li);
+            });
+        } else {
+            resultadosUL.classList.add('hidden');
+        }
+    } catch (err) {
+        resultadosUL.classList.add('hidden');
+    }
 });
 
 function prepararParaAgregar(p) {
@@ -317,8 +376,8 @@ function actualizarTabla() {
             ? `<input type="number" min="0" max="${item.maxCantidad || item.cantidad}" value="${item.cantidad}" class="w-16 text-center border rounded" data-idx="${index}" data-role="dev-qty">`
             : `${item.cantidad}`;
         tr.innerHTML = `
-            <td class="p-4 font-bold text-slate-600">${item.codigo}</td>
-            <td class="p-4 text-slate-500">${item.descripcion}</td>
+            <td class="p-4 font-bold text-slate-600">${escapeHtml(item.codigo)}</td>
+            <td class="p-4 text-slate-500">${escapeHtml(item.descripcion)}</td>
             <td class="p-4 text-center font-bold">${qtyCell}</td>
             <td class="p-4 text-right text-slate-400 font-mono">$${item.precio_usd.toFixed(2)}</td>
             <td class="p-4 text-right font-black ${modoDevolucion ? 'text-rose-600' : 'text-blue-600'} font-mono">$${subtotalUSD.toFixed(2)}</td>
@@ -427,9 +486,7 @@ function toggleDevolucion() {
 
 async function cargarVentasRecientes() {
     try {
-        const res = await authFetch('/reportes/ventas');
-        if (!res.ok) throw new Error('Error cargando ventas');
-        ventasRecientesCache = await res.json();
+        ventasRecientesCache = await apiFetchJson('/reportes/ventas');
         renderVentasRecientes();
     } catch (err) {
         console.error(err);
@@ -455,9 +512,9 @@ function renderVentasRecientes(filter = '') {
         const totalUsd = v.tasa_bcv ? (v.total_bs / v.tasa_bcv) : 0;
         return `<div class="p-3 border rounded-xl bg-white flex items-center justify-between">
             <div>
-                <div class="font-semibold text-slate-700">${v.cliente || 'Sin nombre'}</div>
-                <div class="text-[11px] text-slate-500">#${v.id} • ${new Date(v.fecha).toLocaleString()}</div>
-                <div class="text-[11px] text-slate-500">Ref: ${v.referencia || '—'} • ${v.metodo_pago || ''}</div>
+                <div class="font-semibold text-slate-700">${escapeHtml(v.cliente || 'Sin nombre')}</div>
+                <div class="text-[11px] text-slate-500">#${escapeHtml(v.id)} • ${escapeHtml(new Date(v.fecha).toLocaleString())}</div>
+                <div class="text-[11px] text-slate-500">Ref: ${escapeHtml(v.referencia || '—')} • ${escapeHtml(v.metodo_pago || '')}</div>
             </div>
             <div class="text-right">
                 <div class="font-black text-blue-600">$${Number(totalUsd || 0).toFixed(2)}</div>
@@ -476,9 +533,7 @@ function renderVentasRecientes(filter = '') {
 
 async function cargarVentaParaDevolucion(id) {
     try {
-        const res = await authFetch(`/reportes/ventas/${id}`);
-        if (!res.ok) throw new Error('Venta no encontrada');
-        const { venta, detalles } = await res.json();
+        const { venta, detalles } = await apiFetchJson(`/reportes/ventas/${id}`);
         ventaSeleccionada = venta;
         carrito = (detalles || []).map(d => ({
             codigo: d.codigo,
@@ -519,17 +574,17 @@ function renderVentaSeleccionada() {
     const totalUsd = ventaSeleccionada.tasa_bcv ? (ventaSeleccionada.total_bs / ventaSeleccionada.tasa_bcv) : 0;
     info.innerHTML = `<div class="flex justify-between">
         <div>
-            <div class="font-semibold text-slate-700">${ventaSeleccionada.cliente || ''}</div>
-            <div class="text-[11px] text-slate-500">#${ventaSeleccionada.id} • ${new Date(ventaSeleccionada.fecha).toLocaleString()}</div>
-            <div class="text-[11px] text-slate-500">Ref: ${ventaSeleccionada.referencia || '—'}</div>
+            <div class="font-semibold text-slate-700">${escapeHtml(ventaSeleccionada.cliente || '')}</div>
+            <div class="text-[11px] text-slate-500">#${escapeHtml(ventaSeleccionada.id)} • ${escapeHtml(new Date(ventaSeleccionada.fecha).toLocaleString())}</div>
+            <div class="text-[11px] text-slate-500">Ref: ${escapeHtml(ventaSeleccionada.referencia || '—')}</div>
         </div>
         <div class="text-right text-sm font-black text-rose-600">$${Number(totalUsd || 0).toFixed(2)}</div>
     </div>`;
 
     detalle.classList.remove('hidden');
     detalle.innerHTML = carrito.map((d, idx) => `<div class="flex items-center justify-between border-b pb-1">
-        <div class="text-slate-700">${d.codigo} — ${d.descripcion}</div>
-        <div class="text-xs text-slate-500">Vendidos: ${d.maxCantidad}</div>
+        <div class="text-slate-700">${escapeHtml(d.codigo)} — ${escapeHtml(d.descripcion)}</div>
+        <div class="text-xs text-slate-500">Vendidos: ${escapeHtml(d.maxCantidad)}</div>
     </div>`).join('');
 }
 
@@ -543,6 +598,39 @@ function limpiarSeleccion() {
     buscarInput.value = '';
     document.getElementById('v_cantidad').value = 1;
     buscarInput.focus();
+}
+
+async function registrarPresupuesto() {
+    if (vendiendo || carrito.length === 0) return;
+    const cliente = document.getElementById('v_cliente').value.trim();
+    const cedula = document.getElementById('v_cedula') ? document.getElementById('v_cedula').value.trim() : '';
+    const telefono = document.getElementById('v_telefono') ? document.getElementById('v_telefono').value.trim() : '';
+    const tasa = parseFloat(document.getElementById('v_tasa').value);
+    const descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
+    const notas = document.getElementById('v_ref') ? document.getElementById('v_ref').value.trim() : '';
+
+    if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
+    if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa válida', 'error'); return; }
+
+    const items = carrito.map(item => ({ codigo: item.codigo, cantidad: item.cantidad }));
+
+    vendiendo = true;
+    try {
+        const res = await apiFetchJson('/presupuestos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items, cliente, cedula, telefono, tasa_bcv: tasa, descuento, notas })
+        });
+        showToast('Presupuesto guardado', 'success');
+        finalizarVentaUI();
+        if (res && res.presupuestoId) {
+            window.open(`/presupuestos/nota/${encodeURIComponent(res.presupuestoId)}`, '_blank');
+        }
+    } catch (err) {
+        showToast(err.message || 'Error guardando presupuesto', 'error');
+    } finally {
+        vendiendo = false;
+    }
 }
 
 // --- PANEL DE SINCRONIZACIÓN ---
@@ -724,7 +812,7 @@ async function registrarDevolucion() {
     try {
         const usuario = window.Auth ? window.Auth.getUser() : null;
         const refDev = ventaSeleccionada?.referencia || `DEV-${ventaOriginalId}`;
-        const res = await authFetch('/devoluciones', {
+        const data = await apiFetchJson('/devoluciones', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -741,13 +829,7 @@ async function registrarDevolucion() {
                 usuario_id: usuario ? usuario.id : null
             })
         });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'Error al registrar devolución');
-        }
-
-        await res.json();
+        void data;
         finalizarVentaUI();
         setModoDevolucion(false);
         showToast('Devolución registrada', 'success');
@@ -775,9 +857,9 @@ function renderHistorialDevoluciones(list = []) {
         const fecha = new Date(d.fecha).toLocaleString();
         return `<div class="p-3 border rounded-xl bg-slate-50 flex items-center justify-between">
             <div>
-                <div class="font-semibold text-slate-700">${d.cliente || ''}</div>
-                <div class="text-[11px] text-slate-500">${fecha}${d.motivo ? ' • ' + d.motivo : ''}</div>
-                ${d.referencia ? `<div class="text-[11px] text-slate-500">Ref: ${d.referencia}</div>` : ''}
+                <div class="font-semibold text-slate-700">${escapeHtml(d.cliente || '')}</div>
+                <div class="text-[11px] text-slate-500">${escapeHtml(fecha)}${d.motivo ? ' • ' + escapeHtml(d.motivo) : ''}</div>
+                ${d.referencia ? `<div class="text-[11px] text-slate-500">Ref: ${escapeHtml(d.referencia)}</div>` : ''}
             </div>
             <div class="text-right text-[11px]">
                 <div class="font-black text-rose-600">$${Number(d.total_usd || 0).toFixed(2)}</div>
@@ -807,9 +889,7 @@ async function cargarHistorialDevoluciones(cliente, cedula) {
         const params = new URLSearchParams();
         if (cliente) params.set('cliente', cliente);
         if (cedula) params.set('cedula', cedula);
-        const res = await authFetch(`/devoluciones/historial?${params.toString()}`);
-        if (!res.ok) throw new Error('Error cargando historial');
-        const data = await res.json();
+        const data = await apiFetchJson(`/devoluciones/historial?${params.toString()}`);
         renderHistorialDevoluciones(data || []);
         aplicarDescuentoDevolucion(data || []);
     } catch (err) {
@@ -826,6 +906,9 @@ document.addEventListener('DOMContentLoaded', () => {
     actualizarSyncPendientes();
     precargarTasaCache();
     cargarTasaPV();
+
+    const presId = new URLSearchParams(window.location.search).get('presupuesto');
+    if (presId) cargarPresupuestoEnPOS(presId);
     
     if (isOnline) {
         sincronizarVentasPendientes();
@@ -906,8 +989,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const telefono = c.telefono || c.telefono_cliente || '';
             li.innerHTML = `
                 <div>
-                    <div class="font-semibold text-slate-700">${nombre || '(sin nombre)'}${cedula ? ` • ${cedula}` : ''}</div>
-                    ${telefono ? `<div class="text-[11px] text-slate-500">${telefono}</div>` : ''}
+                    <div class="font-semibold text-slate-700">${escapeHtml(nombre || '(sin nombre)')}${cedula ? ` • ${escapeHtml(cedula)}` : ''}</div>
+                    ${telefono ? `<div class="text-[11px] text-slate-500">${escapeHtml(telefono)}</div>` : ''}
                 </div>
             `;
             li.addEventListener('click', () => {
@@ -1001,10 +1084,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnBackupNow) {
         btnBackupNow.addEventListener('click', async () => {
             try {
-                const r = await authFetch('/backup/create', { 
+                await apiFetchJson('/backup/create', { 
                     method: 'POST',
                 });
-                if (r.ok) showToast('Backup creado', 'success'); else showToast('No se pudo crear backup', 'error');
+                showToast('Backup creado', 'success');
             } catch (err) {
                 console.error(err);
                 showToast('Error de backup', 'error');
@@ -1015,12 +1098,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Prefill tasa desde backend/config o localStorage
     (async () => {
         try {
-            const r = await authFetch('/admin/ajustes/tasa-bcv');
-            if (r.ok) {
-                const j = await r.json();
-                const input = document.getElementById('v_tasa');
-                if (input && j && j.tasa_bcv) input.value = Number(j.tasa_bcv).toFixed(2);
-            }
+            const j = await apiFetchJson('/admin/ajustes/tasa-bcv');
+            const input = document.getElementById('v_tasa');
+            if (input && j && j.tasa_bcv) input.value = Number(j.tasa_bcv).toFixed(2);
         } catch {}
         try {
             const ls = localStorage.getItem('tasa_bcv');
@@ -1088,6 +1168,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setModoDevolucion(false);
     cargarVentasRecientes();
+
+    document.querySelectorAll('.hist-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            historialModo = btn.dataset.hist || 'ventas';
+            document.querySelectorAll('.hist-btn').forEach(b => {
+                b.classList.remove('active-tab');
+                b.classList.add('text-slate-500');
+            });
+            btn.classList.add('active-tab');
+            btn.classList.remove('text-slate-500');
+            actualizarHistorial();
+        });
+    });
+    const btnDefault = document.querySelector('.hist-btn[data-hist="ventas"]');
+    if (btnDefault) btnDefault.click();
 });
 
 function finalizarVentaUI() {
@@ -1121,15 +1216,13 @@ async function enviarVentaAlServidor(venta) {
         usuario_id: user ? user.id : null
     };
     
-    const res = await authFetch('/ventas', {
+    const data = await apiFetchJson('/ventas', {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(ventaConUsuario)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
     
     marcarVentaComoSincronizada(venta.id_global);
     return data; // Contiene el ID generado por el servidor
@@ -1172,14 +1265,13 @@ function crearProducto() {
         return alert('Complete todos los campos del producto.');
     }
 
-    authFetch('/admin/productos', {
+    apiFetchJson('/admin/productos', {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
     })
-    .then(r => r.json())
     .then(d => {
         if(d.error) throw new Error(d.error);
         alert('✅ Producto registrado');
@@ -1203,14 +1295,13 @@ function ajustarStock() {
         return alert('Ingrese el código y la cantidad a ajustar.');
     }
 
-    authFetch('/admin/ajustes', {
+    apiFetchJson('/admin/ajustes', {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
     })
-    .then(r => r.json())
     .then(d => {
         if(d.error) throw new Error(d.error);
         alert('✅ Stock actualizado');
@@ -1241,17 +1332,27 @@ async function actualizarHistorial() {
     if (!cont) return;
     cont.innerHTML = '<div class="text-slate-400 text-xs">Cargando movimientos...</div>';
     try {
-        const [ventasRes, devRes] = await Promise.all([
-            authFetch('/reportes/ventas'),
-            authFetch('/devoluciones/historial?limit=20')
+        const [ventasRes, devRes, presRes] = await Promise.allSettled([
+            apiFetchJson('/reportes/ventas'),
+            apiFetchJson('/devoluciones/historial?limit=20'),
+            apiFetchJson('/presupuestos?limit=20')
         ]);
-        const ventas = ventasRes.ok ? await ventasRes.json() : [];
-        const devoluciones = devRes.ok ? await devRes.json() : [];
+        const ventas = ventasRes.status === 'fulfilled' ? ventasRes.value : [];
+        const devoluciones = devRes.status === 'fulfilled' ? devRes.value : [];
+        const presupuestos = presRes.status === 'fulfilled' ? presRes.value : [];
 
-        const movimientos = [
-            ...(ventas || []).map(v => ({ tipo: 'VENTA', ...v })),
-            ...(devoluciones || []).map(d => ({ tipo: 'DEV', ...d }))
-        ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 3);
+        let movimientos = [];
+        if (historialModo === 'ventas') {
+            movimientos = [
+                ...(ventas || []).map(v => ({ tipo: 'VENTA', ...v })),
+                ...(devoluciones || []).map(d => ({ tipo: 'DEV', ...d }))
+            ];
+            movimientos = movimientos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 5);
+        }
+        if (historialModo === 'presupuestos') {
+            movimientos = (presupuestos || []).map(p => ({ tipo: 'PRES', ...p }));
+            movimientos = movimientos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 5);
+        }
 
         cont.innerHTML = '';
         if (!movimientos.length) {
@@ -1261,6 +1362,7 @@ async function actualizarHistorial() {
 
         movimientos.forEach(mov => {
             const isDev = mov.tipo === 'DEV';
+            const isPres = mov.tipo === 'PRES';
             const fechaTxt = new Date(mov.fecha).toLocaleString();
             const tasa = Number(mov.tasa_bcv || mov.tasa || 0) || null;
             const baseBs = Number(mov.total_bs || 0);
@@ -1269,17 +1371,20 @@ async function actualizarHistorial() {
                 : (tasa ? baseBs / tasa : 0);
             const totalBs = isDev ? -Math.abs(baseBs) : baseBs;
             const totalUsd = isDev ? -Math.abs(baseUsd) : baseUsd;
-            const cliente = mov.cliente || 'Sin nombre';
-            const cedula = mov.cedula || mov.cliente_doc || '';
-            const telefono = mov.telefono || '';
-            const referencia = mov.referencia || '';
-            const vendedor = mov.vendedor || '';
-            const metodo = mov.metodo_pago || (isDev ? 'DEVOLUCIÓN' : '');
-            const badge = `<span class="px-2 py-1 rounded-full text-[10px] font-bold ${isDev ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}">${isDev ? 'Devolución' : 'Venta'}</span>`;
+            const cliente = escapeHtml(mov.cliente || mov.cliente_nombre || 'Sin nombre');
+            const cedula = escapeHtml(mov.cedula || mov.cliente_doc || '');
+            const telefono = escapeHtml(mov.telefono || '');
+            const referencia = escapeHtml(mov.referencia || '');
+            const vendedor = escapeHtml(mov.vendedor || '');
+            const metodo = escapeHtml(mov.metodo_pago || (isDev ? 'DEVOLUCIÓN' : isPres ? 'PRESUPUESTO' : ''));
+            const badge = isPres
+                ? '<span class="px-2 py-1 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">Presupuesto</span>'
+                : `<span class="px-2 py-1 rounded-full text-[10px] font-bold ${isDev ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}">${isDev ? 'Devolución' : 'Venta'}</span>`;
             const div = document.createElement('div');
-            const clickable = !isDev && mov.id;
+            const clickable = (isPres || (!isDev && mov.id));
             div.className = `group p-3 border rounded-xl flex justify-between items-center text-xs ${clickable ? 'hover:border-blue-200 hover:bg-blue-50 cursor-pointer' : 'cursor-default bg-white'}`;
-            if (clickable) div.onclick = () => window.open(`/nota/${mov.id}`, '_blank');
+            if (clickable && isPres) div.onclick = () => window.location.href = `/pages/index.html?presupuesto=${mov.id}`;
+            if (clickable && !isPres && !isDev) div.onclick = () => window.open(`/nota/${mov.id}`, '_blank');
             div.innerHTML = `
                 <div class="flex flex-col">
                     <div class="flex items-center gap-2">
@@ -1289,12 +1394,12 @@ async function actualizarHistorial() {
                     ${(cedula || telefono) ? `<span class="text-[9px] text-slate-400 font-mono">${cedula ? `ID: ${cedula}` : ''}${cedula && telefono ? ' | ' : ''}${telefono ? `Tel: ${telefono}` : ''}</span>` : ''}
                     <span class="text-[9px] text-slate-400 font-mono">${fechaTxt}</span>
                     ${vendedor ? `<span class="text-[9px] text-slate-400 font-mono">Vend: ${vendedor}</span>` : ''}
-                    <span class="text-[9px] text-slate-400 font-mono mt-1">${isDev ? '' : `Tasa: ${Number(tasa || 0).toFixed(2)} | `}Método: ${metodo}${referencia ? ` | Ref: ${referencia}` : ''}</span>
+                    <span class="text-[9px] text-slate-400 font-mono mt-1">${isDev ? '' : isPres ? '' : `Tasa: ${Number(tasa || 0).toFixed(2)} | `}Método: ${metodo}${referencia ? ` | Ref: ${referencia}` : ''}</span>
                 </div>
                 <div class="text-right">
                     <span class="font-black ${isDev ? 'text-rose-600' : 'text-blue-600'} block">${totalUsd < 0 ? '-' : ''}$${Math.abs(totalUsd).toFixed(2)}</span>
                     <span class="text-[10px] text-slate-500 block">${totalBs < 0 ? '-' : ''}${Math.abs(totalBs).toFixed(2)} Bs</span>
-                    <span class="text-[8px] text-slate-400 font-bold uppercase">${isDev ? 'Devolución registrada' : 'Ver Nota'}${!isDev ? ' <i class="fas fa-external-link-alt ml-1"></i>' : ''}</span>
+                    <span class="text-[8px] text-slate-400 font-bold uppercase">${isPres ? 'Usar en POS' : isDev ? 'Devolución registrada' : 'Ver Nota'}${!isDev && !isPres ? ' <i class="fas fa-external-link-alt ml-1"></i>' : ''}</span>
                 </div>
             `;
             cont.appendChild(div);
@@ -1322,6 +1427,7 @@ function intentarSincronizar() {
 // (cuando se carga `app.js` como módulo, las funciones no quedan en `window` automáticamente).
 window.agregarAlCarrito = agregarAlCarrito;
 window.registrarVenta = registrarVenta;
+window.registrarPresupuesto = registrarPresupuesto;
 window.switchAdminTab = switchAdminTab;
 window.crearProducto = crearProducto;
 window.ajustarStock = ajustarStock;

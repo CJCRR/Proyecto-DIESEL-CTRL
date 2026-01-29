@@ -41,7 +41,11 @@
         const res = await fetch('/admin/ajustes/config', { credentials: 'same-origin' });
         if (res.ok) {
           const j = await res.json();
-          const nota = j && j.nota ? j.nota : {};
+          let nota = j && j.nota ? j.nota : {};
+          // Copiar nombre de empresa si existe
+          if (j && j.empresa && j.empresa.nombre) {
+            nota.empresa_nombre = j.empresa.nombre;
+          }
           try { localStorage.setItem('nota_config', JSON.stringify(nota)); } catch {}
           return nota;
         }
@@ -53,7 +57,7 @@
     };
   }
 
-  async function buildNotaHTML({ venta = {}, detalles = [] }) {
+  async function buildNotaHTML({ venta = {}, detalles = [] }, meta = {}) {
     const tasa = number(venta.tasa_bcv) || 1;
     const descuentoPct = clampPct(venta.descuento);
     const multiplicador = 1 - (descuentoPct / 100);
@@ -74,28 +78,49 @@
     const fechaTexto = (typeof window !== 'undefined' && window.toLocaleDateString)
       ? fecha.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
       : fecha.toISOString().slice(0, 10);
-    const idTexto = venta.id_global ? venta.id_global : (venta.id ? `VENTA-${venta.id}` : '');
+    const tipo = (meta && meta.tipo) ? String(meta.tipo) : (venta.tipo || '').toUpperCase() === 'PRESUPUESTO' ? 'PRESUPUESTO' : 'NOTA DE ENTREGA';
+    const idTexto = venta.id_global ? venta.id_global : (venta.id ? `${tipo === 'PRESUPUESTO' ? 'PRES' : 'VENTA'}-${venta.id}` : '');
 
     const notaCfg = await getNotaConfig();
-    const brandImgs = (notaCfg.brand_logos || []).map(u => `<img src="${u}" style="height:30px;object-fit:contain;margin-left:6px;">`).join('');
-    const headerLogoUrl = (notaCfg.header_logo_url || venta.empresa_logo_url || '').toString();
-    const headerLogo = headerLogoUrl ? `<img src="${headerLogoUrl}" style="height:48px;object-fit:contain;">` : '';
+    // ...la nueva declaración de brandImgs y headerLogo ya está más abajo...
     const ivaPct = clampPct(notaCfg.iva_pct || 0);
     const ivaUSD = totalUSDConDesc * (ivaPct / 100);
     const ivaBs = totalBsDesc * (ivaPct / 100);
     const totalUSDFinal = totalUSDConDesc + ivaUSD;
     const totalBsFinal = totalBsDesc + ivaBs;
 
+    // Determinar los datos de la empresa correctamente (más robusto)
+    const empresa = venta.empresa || {};
+    let empresaNombre = '';
+    if (empresa && typeof empresa.nombre === 'string' && empresa.nombre.trim()) {
+      empresaNombre = empresa.nombre.trim();
+    } else if (venta.empresa_nombre && typeof venta.empresa_nombre === 'string' && venta.empresa_nombre.trim()) {
+      empresaNombre = venta.empresa_nombre.trim();
+    } else if (notaCfg.empresa_nombre && typeof notaCfg.empresa_nombre === 'string' && notaCfg.empresa_nombre.trim()) {
+      empresaNombre = notaCfg.empresa_nombre.trim();
+    } else if (notaCfg.nombre && typeof notaCfg.nombre === 'string' && notaCfg.nombre.trim()) {
+      empresaNombre = notaCfg.nombre.trim();
+    } else if (typeof window !== 'undefined' && window.configGeneral && window.configGeneral.empresa && window.configGeneral.empresa.nombre) {
+      empresaNombre = window.configGeneral.empresa.nombre.trim();
+    }
+    let empresaRif = empresa.rif || venta.empresa_rif || notaCfg.rif || (typeof window !== 'undefined' && window.configGeneral && window.configGeneral.empresa && window.configGeneral.empresa.rif ? window.configGeneral.empresa.rif : '');
+    let empresaTelefonos = empresa.telefonos || venta.empresa_telefonos || notaCfg.telefonos || (typeof window !== 'undefined' && window.configGeneral && window.configGeneral.empresa && window.configGeneral.empresa.telefonos ? window.configGeneral.empresa.telefonos : '');
+    let empresaUbicacion = empresa.ubicacion || venta.empresa_ubicacion || notaCfg.ubicacion || (typeof window !== 'undefined' && window.configGeneral && window.configGeneral.empresa && window.configGeneral.empresa.ubicacion ? window.configGeneral.empresa.ubicacion : '');
+    let empresaMarcas = venta.empresa_marcas && venta.empresa_marcas.length ? venta.empresa_marcas : (notaCfg.brand_logos || []);
+    const brandImgs = empresaMarcas.map(u => `<img src="${u}" style="height:30px;object-fit:contain;margin-left:6px;">`).join('');
+    const headerLogoUrl = (empresa.logo_url || venta.empresa_logo_url || notaCfg.header_logo_url || (typeof window !== 'undefined' && window.configGeneral && window.configGeneral.empresa && window.configGeneral.empresa.logo_url ? window.configGeneral.empresa.logo_url : '')).toString();
+    const headerLogo = headerLogoUrl ? `<img src="${headerLogoUrl}" style="height:48px;object-fit:contain;">` : '';
     const html = `
       <html>
       <head>
-        <title>Nota de Entrega - ${idTexto}</title>
+        <title>${tipo} - ${idTexto}</title>
         <style>
           @page { size: letter; margin: 0.2in; }
           body { font-family: Arial, sans-serif; color: #111; font-size: 10px; }
           .sheet { width: 100%; max-width: 8.5in; height: 5.0in; margin: 0 auto; display:flex; flex-direction:column; }
           .top { display: grid; grid-template-columns: 1.4fr 1fr; align-items: center; }
           .brand-strip { text-align: right; }
+          .tipo-badge { font-size: 9px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; border: 1px solid #111; padding: 2px 6px; border-radius: 999px; display:inline-block; }
           .brand-text { text-align: right; font-size: 10px; line-height: 1.1; margin-top: 2px; }
           .center-text { display:none; }
           .main { display:flex; flex-direction:column; flex:1; gap:4px; }
@@ -122,13 +147,16 @@
             <div style="display:flex; align-items:center; gap:8px;">
               ${headerLogo}
               <div style="font-size:10px; line-height:1.1;">
-                <div style="font-weight:800; font-size:14px; letter-spacing:0.3px;">${venta.empresa_nombre || 'DIESEL CTRL'}</div>
-                <div>${notaCfg.ubicacion || ''}</div>
+                <div style="font-weight:800; font-size:14px; letter-spacing:0.3px;">${empresaNombre}</div>
+                <div>${empresaUbicacion}</div>
               </div>
             </div>
             <div class="brand-strip">
-              <div>${brandImgs}</div>
-              <div class="brand-text">${notaCfg.rif || ''} / ${notaCfg.telefonos || ''}<br>${notaCfg.encabezado_texto || ''}</div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+                <div style="display:flex; gap:6px; align-items:center; margin-bottom:2px;">${brandImgs}</div>
+                <div class="brand-text" style="font-size:11px; font-weight:700;">${empresaRif}${empresaRif && empresaTelefonos ? ' / ' : ''}${empresaTelefonos}</div>
+                <div class="brand-text" style="font-size:10px;">${notaCfg.encabezado_texto || ''}</div>
+              </div>
             </div>
           </div>
           <div class="main">
@@ -140,7 +168,7 @@
                 <div class="box-row"><div class="box-cell" style="font-weight:700;">DIRECCION</div><div class="box-cell">${notaCfg.ubicacion || ''}</div></div>
               </div>
               <div class="box">
-                <div style="text-align:center; font-weight:800;">NOTA DESPACHO</div>
+                <div style="text-align:center; font-weight:800;">${tipo === 'PRESUPUESTO' ? 'PRESUPUESTO' : 'NOTA DESPACHO'}</div>
                 <div class="box-row"><div class="box-cell" style="font-weight:700;">EMISION:</div><div class="box-cell">${fechaTexto}</div></div>
                 <div class="box-row"><div class="box-cell" style="font-weight:700;">TASA B.C.V</div><div class="box-cell">${tasa.toFixed(2)}</div></div>
                 <div class="box-row"><div class="box-cell" style="font-weight:700;">VENDEDOR:</div><div class="box-cell">${venta.vendedor || ''}</div></div>

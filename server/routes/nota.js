@@ -25,15 +25,58 @@ router.get('/:id', requireAuth, async (req, res) => {
   `).all(ventaId);
 
   try {
-    // Leer configuración para escoger plantilla (compact/standard)
-    const cfgRow = db.prepare(`SELECT valor FROM config WHERE clave='nota_config'`).get();
+    // Leer configuración para escoger plantilla (compact/standard) y datos de empresa
+    const cfgNotaRow = db.prepare(`SELECT valor FROM config WHERE clave='nota_config'`).get();
+    const cfgEmpresaRow = db.prepare(`SELECT valor FROM config WHERE clave='empresa_config'`).get();
     let layout = 'compact';
-    if (cfgRow && cfgRow.valor) {
-      try { layout = JSON.parse(cfgRow.valor).layout || 'compact'; } catch {}
+    let empresa = {};
+    let notaCfg = {};
+    if (cfgNotaRow && cfgNotaRow.valor) {
+      try { notaCfg = JSON.parse(cfgNotaRow.valor) || {}; layout = notaCfg.layout || 'compact'; } catch {}
     }
+    if (cfgEmpresaRow && cfgEmpresaRow.valor) {
+      try { empresa = JSON.parse(cfgEmpresaRow.valor); } catch {}
+    }
+    // Pasar datos de empresa y marcas igual que en demo, con lógica robusta para el nombre
+    // Lógica robusta: prioriza empresa_config.nombre, luego nota_config, nunca "EMPRESA" si hay uno válido
+    let empresaNombre = '';
+    if (empresa && typeof empresa.nombre === 'string' && empresa.nombre.trim()) {
+      empresaNombre = empresa.nombre.trim();
+    } else if (notaCfg && typeof notaCfg.empresa_nombre === 'string' && notaCfg.empresa_nombre.trim()) {
+      empresaNombre = notaCfg.empresa_nombre.trim();
+    } else if (notaCfg && typeof notaCfg.nombre === 'string' && notaCfg.nombre.trim()) {
+      empresaNombre = notaCfg.nombre.trim();
+    }
+    // Si sigue vacío, intenta leer de configGeneral (caso navegador, por compatibilidad futura)
+    if (!empresaNombre && typeof global !== 'undefined' && global.configGeneral && global.configGeneral.empresa && global.configGeneral.empresa.nombre) {
+      empresaNombre = global.configGeneral.empresa.nombre.trim();
+    }
+    // Si aún no hay nombre, último recurso: 'EMPRESA'
+    if (!empresaNombre) empresaNombre = 'EMPRESA';
+    // ADVERTENCIA: Si el nombre es 'EMPRESA', loguea advertencia para diagnóstico
+    if (empresaNombre === 'EMPRESA') {
+      console.warn('[ADVERTENCIA] El nombre de la empresa no está configurado correctamente en la base de datos. Verifica la clave empresa_config en la tabla config.');
+    }
+    const ventaConEmpresa = {
+      ...venta,
+      empresa_nombre: empresaNombre,
+      empresa_logo_url: empresa.logo_url || notaCfg.header_logo_url || '',
+      empresa_ubicacion: empresa.ubicacion || notaCfg.ubicacion || '',
+      empresa_rif: empresa.rif || notaCfg.rif || '',
+      empresa_telefonos: empresa.telefonos || notaCfg.telefonos || '',
+      empresa_marcas: Array.isArray(notaCfg.brand_logos) ? notaCfg.brand_logos : [],
+      empresa_encabezado: notaCfg.encabezado_texto || '',
+      empresa: {
+        nombre: empresaNombre,
+        logo_url: empresa.logo_url || notaCfg.header_logo_url || '',
+        ubicacion: empresa.ubicacion || notaCfg.ubicacion || '',
+        rif: empresa.rif || notaCfg.rif || '',
+        telefonos: empresa.telefonos || notaCfg.telefonos || ''
+      }
+    };
     const tpl = layout === 'standard' ? tplStandard : tplCompact;
     const html = tpl && tpl.buildNotaHTML
-      ? await tpl.buildNotaHTML({ venta, detalles })
+      ? await tpl.buildNotaHTML({ venta: ventaConEmpresa, detalles })
       : '<html><body><pre>Plantilla no disponible</pre></body></html>';
 
     res.set('Content-Type', 'text/html; charset=utf-8');

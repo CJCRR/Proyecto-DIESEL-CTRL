@@ -246,6 +246,7 @@ const DEFAULT_DEVOLUCION = {
   recargo_restock_pct: 0
 };
 
+
 // Configuración de la Nota de Entrega (plantilla)
 const DEFAULT_NOTA = {
   header_logo_url: '',
@@ -280,12 +281,26 @@ router.post('/config', requireAuth, (req, res) => {
   try {
     const { empresa = {}, descuentos_volumen = [], devolucion = {}, nota = {} } = req.body || {};
 
+    // Sincronizar nombre de empresa entre empresa_config y nota_config
+    let nombreEmpresa = (empresa.nombre || '').toString().slice(0, 120);
+    if ((!nombreEmpresa || nombreEmpresa === 'EMPRESA') && typeof nota === 'object' && nota && nota.empresa_nombre) {
+      nombreEmpresa = nota.empresa_nombre.toString().slice(0, 120);
+    }
+    // Si sigue vacío, intenta con nota.nombre
+    if ((!nombreEmpresa || nombreEmpresa === 'EMPRESA') && typeof nota === 'object' && nota && nota.nombre) {
+      nombreEmpresa = nota.nombre.toString().slice(0, 120);
+    }
+    // Si aún está vacío, último recurso: 'EMPRESA'
+    if (!nombreEmpresa) nombreEmpresa = 'EMPRESA';
     const safeEmpresa = {
-      nombre: (empresa.nombre || '').toString().slice(0, 120),
+      nombre: nombreEmpresa,
       logo_url: (empresa.logo_url || '').toString().slice(0, 500),
       color_primario: empresa.color_primario || DEFAULT_EMPRESA.color_primario,
       color_secundario: empresa.color_secundario || DEFAULT_EMPRESA.color_secundario,
       color_acento: empresa.color_acento || DEFAULT_EMPRESA.color_acento,
+      rif: (empresa.rif || '').toString().slice(0, 120),
+      telefonos: (empresa.telefonos || '').toString().slice(0, 200),
+      ubicacion: (empresa.ubicacion || '').toString().slice(0, 240)
     };
 
     const safeDescuentos = Array.isArray(descuentos_volumen)
@@ -321,12 +336,12 @@ router.post('/config', requireAuth, (req, res) => {
       layout: ['compact', 'standard'].includes(nota.layout) ? nota.layout : DEFAULT_NOTA.layout
     };
 
+
     const now = new Date().toISOString();
     setConfig('empresa_config', JSON.stringify(safeEmpresa), now);
     setConfig('descuentos_volumen', JSON.stringify(safeDescuentos), now);
     setConfig('devolucion_politica', JSON.stringify(safeDevolucion), now);
     setConfig('nota_config', JSON.stringify(safeNota), now);
-
     res.json({ ok: true, empresa: safeEmpresa, descuentos_volumen: safeDescuentos, devolucion: safeDevolucion, nota: safeNota });
   } catch (err) {
     console.error('Error guardando config general', err.message);

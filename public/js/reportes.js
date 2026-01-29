@@ -5,7 +5,14 @@ let cacheRows = [];
 const detallesCache = new Map();
 let abiertoId = null;
 let cacheDev = [];
+let cachePres = [];
 let clienteTimer = null;
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 function setPreset(rango) {
     const hoy = new Date();
@@ -140,6 +147,35 @@ function renderClienteSugerencias(items) {
     list.innerHTML = Array.from(uniques.entries()).map(([val, label]) => `<option value="${val}">${label}</option>`).join('');
 }
 
+function renderPresupuestos() {
+        const cont = document.getElementById('rpt-pres');
+        if (!cont) return;
+        if (!cachePres.length) {
+                cont.innerHTML = '<div class="text-slate-400">Sin presupuestos</div>';
+                return;
+        }
+        cont.innerHTML = cachePres.slice(0, 10).map(p => {
+                return `
+                <div class="p-2 border rounded flex items-center justify-between">
+                    <div>
+                        <div class="font-semibold">${escapeHtml(p.cliente || '')}</div>
+                        <div class="text-[10px] text-slate-500">#${escapeHtml(p.id)} • ${escapeHtml(new Date(p.fecha).toLocaleString())}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-black text-blue-600">$${Number(p.total_usd || 0).toFixed(2)}</div>
+                        <button class="mt-1 px-2 py-1 text-[10px] bg-blue-600 text-white rounded" data-pres="${p.id}">Usar en POS</button>
+                    </div>
+                </div>`;
+        }).join('');
+
+        cont.querySelectorAll('[data-pres]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                        const id = btn.dataset.pres;
+                        window.location.href = `/pages/index.html?presupuesto=${encodeURIComponent(id)}`;
+                });
+        });
+}
+
 async function sugerirClientes(q) {
     const list = document.getElementById('rpt-clientes-list');
     if (!list) return;
@@ -196,6 +232,16 @@ async function cargarReporte() {
         }
     } catch (err) {
         console.error('Error devoluciones', err);
+    }
+
+    try {
+        const presRes = await fetch('/presupuestos?limit=50', { credentials: 'same-origin' });
+        if (presRes.ok) {
+            cachePres = await presRes.json();
+            renderPresupuestos();
+        }
+    } catch (err) {
+        console.error('Error presupuestos', err);
     }
 }
 

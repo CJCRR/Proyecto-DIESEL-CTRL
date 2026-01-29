@@ -7,6 +7,7 @@ const urlsToCache = [
     '/pages/dashboard.html',
     '/pages/clientes.html',
     '/pages/reportes.html',
+    '/pages/presupuestos.html',
     '/pages/cobranzas.html',
     '/pages/inventario.html',
     '/js/app.js',
@@ -15,6 +16,7 @@ const urlsToCache = [
     '/js/db-local.js',
     '/js/auth-guard.js',
     '/js/firebase-sync.js',
+    '/js/presupuestos.js',
     '/config/firebase-config.js',
     '/shared/nota-template.js'
 ];

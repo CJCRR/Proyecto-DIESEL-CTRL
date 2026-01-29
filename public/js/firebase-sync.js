@@ -11,6 +11,25 @@ function emitSyncEvent(detail) {
 let retryTimer = null;
 let retryDelayMs = 5_000;
 const MAX_RETRY_DELAY = 5 * 60 * 1_000; // 5 minutos
+
+async function apiPostJson(url, body) {
+    if (!navigator.onLine) throw new Error('Sin conexión a internet');
+    const res = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    const contentType = res.headers.get('content-type') || '';
+    const data = contentType.includes('application/json')
+        ? await res.json().catch(() => null)
+        : await res.text().catch(() => null);
+    if (!res.ok) {
+        const msg = (data && data.error) ? data.error : (typeof data === 'string' && data) ? data : `HTTP ${res.status}`;
+        throw new Error(msg);
+    }
+    return data;
+}
 function scheduleRetry(reason) {
     if (retryTimer) return;
     emitSyncEvent({ type: 'warn', message: `Reintentando sync en ${Math.round(retryDelayMs / 1000)}s (${reason || 'error'})` });
@@ -151,23 +170,11 @@ async function sincronizarVentasPendientes({ isRetry = false } = {}) {
 
             // 1) Servidor local
             try {
-                const res = await fetch('/ventas', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(venta)
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    console.log(`✅ Venta enviada al servidor: ${venta.id_global} -> ${data.ventaId || data.id || 'OK'}`);
-                    synced = true;
-                } else {
-                    console.warn(`⚠️ Servidor respondió ${res.status} para ${venta.id_global}`);
-                }
+                const data = await apiPostJson('/ventas', venta);
+                console.log(`✅ Venta enviada al servidor: ${venta.id_global} -> ${data.ventaId || data.id || 'OK'}`);
+                synced = true;
             } catch (err) {
-                console.warn(`⚠️ Error enviando al servidor ${venta.id_global}:`, err);
+                console.warn(`⚠️ Error enviando al servidor ${venta.id_global}:`, err.message || err);
             }
 
             // 2) Firebase (respaldo)

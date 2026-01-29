@@ -63,6 +63,7 @@
                 <i class="fas fa-file-invoice text-rose-600"></i>
                 Reportes
             </a>
+                <!-- Presupuestos eliminado del navbar -->
             <a href="/pages/cobranzas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
                 <i class="fas fa-money-check-dollar text-emerald-600"></i>
                 Cobranzas
@@ -230,10 +231,19 @@
                     <button id="btnVender" onclick="registrarVenta()" class="w-full bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-blue-200 hover:bg-blue-600 transition-all transform active:scale-95">
                         Registrar venta
                     </button>
+                    <button id="btnPresupuesto" onclick="registrarPresupuesto()" class="w-full bg-slate-900 text-white py-3 rounded-2xl font-black text-sm shadow hover:bg-slate-800 transition-all transform active:scale-95">
+                        Guardar presupuesto
+                    </button>
                 </div>
 
                 <div class="pt-4 border-t">
-                    <h3 class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-tighter italic">Últimos movimientos</h3>
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-tighter italic">Últimos movimientos</h3>
+                                                <div class="grid grid-cols-2 rounded-xl border overflow-hidden">
+                                                    <button data-hist="ventas" class="hist-btn p-3 text-sm font-black uppercase tracking-widest active-tab">Ventas y Devoluciones</button>
+                                                    <button data-hist="presupuestos" class="hist-btn p-3 text-sm font-black uppercase tracking-widest text-slate-500">Presupuestos</button>
+                                                </div>
+                    </div>
                     <div id="historial" class="space-y-2"></div>
                 </div>
             </section>

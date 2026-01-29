@@ -18,6 +18,7 @@ const usuariosRoutes = require('./routes/usuarios');
 const cobranzasRoutes = require('./routes/cobranzas');
 const devolucionesRoutes = require('./routes/devoluciones');
 const { router: alertasRoutes } = require('./routes/alertas');
+const presupuestosRoutes = require('./routes/presupuestos');
 
 const app = express();
 app.use(helmet({
@@ -58,6 +59,7 @@ app.use('/buscar', busquedaRoutes);
 app.use('/backup', backupRoutes);
 app.use('/cobranzas', cobranzasRoutes);
 app.use('/alertas', alertasRoutes);
+app.use('/presupuestos', presupuestosRoutes);
 
 // Backup automático cada 6 horas (también ejecuta uno al iniciar)
 const runScheduledBackup = async () => {

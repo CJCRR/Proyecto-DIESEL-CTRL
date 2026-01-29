@@ -155,6 +155,36 @@ const schema = `
     leido INTEGER DEFAULT 0,
     creado_en TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS presupuestos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha TEXT,
+    cliente TEXT,
+    cliente_doc TEXT,
+    telefono TEXT,
+    tasa_bcv REAL,
+    descuento REAL DEFAULT 0,
+    total_bs REAL DEFAULT 0,
+    total_usd REAL DEFAULT 0,
+    valido_hasta TEXT,
+    estado TEXT DEFAULT 'activo',
+    notas TEXT,
+    usuario_id INTEGER,
+    FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS presupuesto_detalle (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    presupuesto_id INTEGER,
+    producto_id INTEGER,
+    codigo TEXT,
+    descripcion TEXT,
+    cantidad INTEGER,
+    precio_usd REAL,
+    subtotal_bs REAL,
+    FOREIGN KEY(presupuesto_id) REFERENCES presupuestos(id),
+    FOREIGN KEY(producto_id) REFERENCES productos(id)
+  );
 `;
 
 db.exec(schema);
@@ -252,6 +282,42 @@ const migrations = [
       if (!indexExists('idx_venta_detalle_venta_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_venta_detalle_venta_id ON venta_detalle (venta_id)').run();
       if (!indexExists('idx_venta_detalle_producto_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_venta_detalle_producto_id ON venta_detalle (producto_id)').run();
       if (!indexExists('idx_devolucion_detalle_devolucion_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_devolucion_detalle_devolucion_id ON devolucion_detalle (devolucion_id)').run();
+    }
+  },
+  {
+    id: '006_presupuestos_tablas_indices',
+    up: () => {
+      db.prepare(`CREATE TABLE IF NOT EXISTS presupuestos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT,
+        cliente TEXT,
+        cliente_doc TEXT,
+        telefono TEXT,
+        tasa_bcv REAL,
+        descuento REAL DEFAULT 0,
+        total_bs REAL DEFAULT 0,
+        total_usd REAL DEFAULT 0,
+        valido_hasta TEXT,
+        estado TEXT DEFAULT 'activo',
+        notas TEXT,
+        usuario_id INTEGER,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+      )`).run();
+      db.prepare(`CREATE TABLE IF NOT EXISTS presupuesto_detalle (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        presupuesto_id INTEGER,
+        producto_id INTEGER,
+        codigo TEXT,
+        descripcion TEXT,
+        cantidad INTEGER,
+        precio_usd REAL,
+        subtotal_bs REAL,
+        FOREIGN KEY(presupuesto_id) REFERENCES presupuestos(id),
+        FOREIGN KEY(producto_id) REFERENCES productos(id)
+      )`).run();
+      if (!indexExists('idx_presupuestos_fecha')) db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuestos_fecha ON presupuestos (fecha)').run();
+      if (!indexExists('idx_presupuesto_detalle_presupuesto_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuesto_detalle_presupuesto_id ON presupuesto_detalle (presupuesto_id)').run();
+      if (!indexExists('idx_presupuesto_detalle_producto_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuesto_detalle_producto_id ON presupuesto_detalle (producto_id)').run();
     }
   }
 ];
