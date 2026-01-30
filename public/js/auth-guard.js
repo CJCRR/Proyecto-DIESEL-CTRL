@@ -1,5 +1,6 @@
+import { apiFetchJson } from './app-api.js';
 // Protección de autenticación para todas las páginas
-(function() {
+ (function() {
   // Forzar uso de cookies httpOnly (no tokens en localStorage)
   try { localStorage.removeItem('auth_token'); } catch {}
 
@@ -33,16 +34,17 @@
     return true;
   }
 
-  function verificarSesion() {
-    return fetch('/auth/verificar', { credentials: 'same-origin' })
-      .then(res => res.ok ? res.json() : Promise.reject(res))
-      .then(data => {
-        if (data && data.valido && data.usuario) {
-          localStorage.setItem('auth_user', JSON.stringify(data.usuario));
-          return data.usuario;
-        }
-        return Promise.reject(new Error('Sesión inválida'));
-      });
+  async function verificarSesion() {
+    try {
+      const data = await apiFetchJson('/auth/verificar');
+      if (data && data.valido && data.usuario) {
+        localStorage.setItem('auth_user', JSON.stringify(data.usuario));
+        return data.usuario;
+      }
+      throw new Error('Sesión inválida');
+    } catch (err) {
+      return Promise.reject(err);
+    }
   }
 
   function redirectLogin() {
@@ -141,12 +143,7 @@
         // Evento de logout
         document.getElementById('btn-logout').addEventListener('click', async () => {
           try {
-            await fetch('/auth/logout', {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({})
-            });
+            await apiFetchJson('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
           } catch (err) {
             console.error('Error cerrando sesión:', err);
           }
@@ -169,7 +166,8 @@
     },
     logout: () => {
       try {
-        fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' })
+        apiFetchJson('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+          .catch(() => {})
           .finally(() => {
             localStorage.removeItem('auth_user');
             window.location.href = '/pages/login.html';

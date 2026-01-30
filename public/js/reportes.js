@@ -1,5 +1,17 @@
 // Reporte de ventas independiente
+
+// Intentar cargar utilidades centralizadas en páginas que no cargan módulos
+(async () => {
+    if (!window.escapeHtml || !window.showToast) {
+        try {
+            const m = await import('./app-utils.js');
+            window.escapeHtml = window.escapeHtml || m.escapeHtml;
+            window.showToast = window.showToast || m.showToast;
+        } catch (e) { /* ignore */ }
+    }
+})();
 console.log('reportes.js v2.0 cargado - con autenticación');
+import { apiFetchJson } from './app-api.js';
 let MONEDA = 'USD';
 let cacheRows = [];
 const detallesCache = new Map();
@@ -7,7 +19,7 @@ let abiertoId = null;
 let cacheDev = [];
 let cachePres = [];
 let clienteTimer = null;
-const escapeHtml = (value) => String(value ?? '')
+const escapeHtml = (window.escapeHtml) ? window.escapeHtml : (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -93,9 +105,7 @@ function renderReporte() {
                 if (!detallesCache.has(r.id)) {
                     cont.textContent = 'Cargando...';
                     try {
-                        const res = await fetch(`/reportes/ventas/${r.id}`, { credentials: 'same-origin' });
-                        if (!res.ok) { cont.textContent = 'Error cargando detalle'; return; }
-                        const j = await res.json();
+                        const j = await apiFetchJson(`/reportes/ventas/${r.id}`);
                         detallesCache.set(r.id, j);
                     } catch (err) {
                         console.error('Error detalle venta', err);
@@ -184,11 +194,7 @@ async function sugerirClientes(q) {
         return;
     }
     try {
-        const res = await fetch(`/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=8`, {
-            credentials: 'same-origin'
-        });
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await apiFetchJson(`/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=8`);
         renderClienteSugerencias(data || []);
     } catch (err) {
         console.error('Error sugiriendo clientes', err);
@@ -208,38 +214,27 @@ async function cargarReporte() {
     if (vendedor) params.set('vendedor', vendedor);
     if (metodo) params.set('metodo', metodo);
 
-    const res = await fetch(`/reportes/ventas-rango?${params.toString()}`, {
-        credentials: 'same-origin'
-    });
-
-    if (!res.ok) {
-        console.error('Error cargando reporte:', res.status, await res.text());
+    try {
+        cacheRows = await apiFetchJson(`/reportes/ventas-rango?${params.toString()}`);
+    } catch (err) {
+        console.error('Error cargando reporte:', err);
         alert('Error cargando el reporte. Por favor refresca la página.');
         return;
     }
-    cacheRows = await res.json();
     console.log('Ventas cargadas:', cacheRows.length);
     renderReporte();
 
     // Cargar devoluciones
     try {
-        const devRes = await fetch(`/devoluciones/historial?${params.toString()}`, {
-            credentials: 'same-origin'
-        });
-        if (devRes.ok) {
-            cacheDev = await devRes.json();
-            renderDevoluciones();
-        }
+        cacheDev = await apiFetchJson(`/devoluciones/historial?${params.toString()}`);
+        renderDevoluciones();
     } catch (err) {
         console.error('Error devoluciones', err);
     }
 
     try {
-        const presRes = await fetch('/presupuestos?limit=50', { credentials: 'same-origin' });
-        if (presRes.ok) {
-            cachePres = await presRes.json();
-            renderPresupuestos();
-        }
+        cachePres = await apiFetchJson('/presupuestos?limit=50');
+        renderPresupuestos();
     } catch (err) {
         console.error('Error presupuestos', err);
     }

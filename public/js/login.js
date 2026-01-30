@@ -1,4 +1,6 @@
 // Sistema de autenticación
+import { apiFetchJson } from './app-api.js';
+
 const loginForm = document.getElementById('loginForm');
 const usernameInput = document.getElementById('username');
 const passwordInput = document.getElementById('password');
@@ -23,17 +25,10 @@ function mostrarError(mensaje) {
 
 async function verificarSesion() {
   try {
-    const res = await fetch('/auth/verificar', {
-      credentials: 'same-origin'
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.valido) {
-        if (data.usuario) localStorage.setItem('auth_user', JSON.stringify(data.usuario));
-        // Sesión válida, redirigir
-        window.location.href = '/pages/index.html';
-      }
+    const data = await apiFetchJson('/auth/verificar');
+    if (data && data.valido) {
+      if (data.usuario) localStorage.setItem('auth_user', JSON.stringify(data.usuario));
+      window.location.href = '/pages/index.html';
     } else {
       localStorage.removeItem('auth_user');
     }
@@ -57,18 +52,9 @@ loginForm.addEventListener('submit', async (e) => {
   loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Ingresando...';
 
   try {
-    const res = await fetch('/auth/login', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ username, password })
-    });
+    const data = await apiFetchJson('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
 
-    const data = await res.json();
-
-    if (res.ok && data.success) {
+    if (data && data.success) {
       // Guardar solo datos de usuario (cookie httpOnly maneja la sesión)
       localStorage.setItem('auth_user', JSON.stringify(data.usuario));
       
@@ -82,13 +68,13 @@ loginForm.addEventListener('submit', async (e) => {
         window.location.href = '/pages/index.html';
       }, 500);
     } else {
-      mostrarError(data.error || 'Credenciales inválidas');
+      mostrarError((data && data.error) || 'Credenciales inválidas');
       loginBtn.disabled = false;
       loginBtn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>Ingresar';
     }
   } catch (err) {
     console.error('Error en login:', err);
-    mostrarError('Error de conexión. Intente nuevamente.');
+    mostrarError(err.message || 'Error de conexión. Intente nuevamente.');
     loginBtn.disabled = false;
     loginBtn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>Ingresar';
   }

@@ -1,4 +1,6 @@
 import { sincronizarVentasPendientes, upsertClienteFirebase, obtenerClientesFirebase } from './firebase-sync.js';
+import { authFetch, apiFetchJson } from './app-api.js';
+import { escapeHtml, showToast } from './app-utils.js';
 
 let carrito = [];
 let productoSeleccionado = null;
@@ -22,41 +24,7 @@ const tablaCuerpo = document.getElementById('venta-items-cuerpo');
 const btnVender = document.getElementById('btnVender');
 const statusIndicator = document.createElement('div');
 // Toast container
-const toastContainer = document.createElement('div');
-toastContainer.id = 'toast-container';
-toastContainer.style.position = 'fixed';
-toastContainer.style.right = '1rem';
-toastContainer.style.bottom = '1rem';
-toastContainer.style.display = 'flex';
-toastContainer.style.flexDirection = 'column';
-toastContainer.style.gap = '0.5rem';
-toastContainer.style.zIndex = '60';
-document.body.appendChild(toastContainer);
-
-const authFetch = (url, options = {}) => fetch(url, { ...options, credentials: 'same-origin' });
-const escapeHtml = (value) => String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-
-async function apiFetchJson(url, options = {}) {
-    if (!navigator.onLine) throw new Error('Sin conexión a internet');
-    const res = await authFetch(url, options);
-    const contentType = res.headers.get('content-type') || '';
-    let data = null;
-    if (contentType.includes('application/json')) {
-        data = await res.json().catch(() => null);
-    } else {
-        data = await res.text().catch(() => null);
-    }
-    if (!res.ok) {
-        const msg = (data && data.error) ? data.error : (typeof data === 'string' && data) ? data : `HTTP ${res.status}`;
-        throw new Error(msg);
-    }
-    return data;
-}
+// utilidades y API importadas desde app-utils.js y app-api.js
 
 function setTasaUI(tasa, actualizadoEn) {
     TASA_BCV_POS = Number(tasa || 1) || 1;
@@ -217,25 +185,7 @@ window.addEventListener('sync-status', (evt) => {
     actualizarSyncPendientes();
 });
 
-function showToast(text, type = 'info', ms = 3500) {
-    const t = document.createElement('div');
-    t.className = `toast ${type}`;
-    t.style.minWidth = '200px';
-    t.style.padding = '0.6rem 1rem';
-    t.style.borderRadius = '0.5rem';
-    t.style.color = 'white';
-    t.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
-    t.style.transform = 'translateY(10px)';
-    t.style.opacity = '0';
-    t.style.transition = 'transform .18s ease, opacity .18s ease';
-    t.style.background = type === 'success' ? '#16a34a' : type === 'error' ? '#dc2626' : '#0369a1';
-    t.innerText = text;
-    toastContainer.appendChild(t);
-    requestAnimationFrame(() => { t.style.transform = 'translateY(0)'; t.style.opacity = '1'; });
-    const remover = () => { t.style.transform = 'translateY(10px)'; t.style.opacity = '0'; setTimeout(() => t.remove(), 200); };
-    setTimeout(remover, ms);
-    t.addEventListener('click', remover);
-}
+// showToast moved to app-utils.js
 
 // --- INICIALIZACIÓN DE INTERFAZ OFFLINE ---
 function setupOfflineUI() {
@@ -614,6 +564,17 @@ async function registrarPresupuesto() {
 
     const items = carrito.map(item => ({ codigo: item.codigo, cantidad: item.cantidad }));
 
+    // Abrir ventana de nota inmediatamente para mantener el gesto del usuario
+    try {
+        const notaVentana = window.open('', '_blank');
+        if (notaVentana) {
+            imprimirNotaLocal._ventana = notaVentana;
+            try { notaVentana.document.write('<p style="font-family: sans-serif; padding: 1rem;">Generando nota...</p>'); notaVentana.document.close(); } catch(e){}
+        }
+    } catch (e) {
+        // ignore
+    }
+
     vendiendo = true;
     try {
         const res = await apiFetchJson('/presupuestos', {
@@ -624,7 +585,14 @@ async function registrarPresupuesto() {
         showToast('Presupuesto guardado', 'success');
         finalizarVentaUI();
         if (res && res.presupuestoId) {
-            window.open(`/presupuestos/nota/${encodeURIComponent(res.presupuestoId)}`, '_blank');
+            const notaUrl = `/presupuestos/nota/${encodeURIComponent(res.presupuestoId)}`;
+            // Si abrimos una ventana al inicio para evitar popup blockers, reutilizarla
+            const win = (imprimirNotaLocal._ventana && !imprimirNotaLocal._ventana.closed) ? imprimirNotaLocal._ventana : null;
+            if (win) {
+                try { win.location.href = notaUrl; } catch (e) { window.open(notaUrl, '_blank'); }
+            } else {
+                window.open(notaUrl, '_blank');
+            }
         }
     } catch (err) {
         showToast(err.message || 'Error guardando presupuesto', 'error');
@@ -680,9 +648,12 @@ async function ensureNotaTemplateLoaded() {
 }
 
 async function imprimirNotaLocal(venta) {
+    // Si se pasa una ventana ya abierta, escribir en ella; si no, abrir nueva.
     await ensureNotaTemplateLoaded();
     const html = await window.NotaTemplate.buildNotaHTML({ venta });
-    const ventana = window.open('', '_blank');
+    const ventana = (imprimirNotaLocal._ventana && !imprimirNotaLocal._ventana.closed) ? imprimirNotaLocal._ventana : window.open('', '_blank');
+    if (!ventana) throw new Error('No se pudo abrir ventana para la nota (popup bloqueado)');
+    ventana.document.open();
     ventana.document.write(html);
     ventana.document.close();
 }
@@ -802,7 +773,7 @@ async function registrarDevolucion() {
 
     const items = carrito
         .filter(item => Number(item.cantidad) > 0)
-        .map(item => ({ codigo: item.codigo, cantidad: item.cantidad }));
+        .map(item => ({ codigo: item.codigo, cantidad: Number(item.cantidad) }));
     if (!items.length) { showToast('Coloca cantidades a devolver', 'error'); return; }
 
     vendiendo = true;
@@ -812,22 +783,24 @@ async function registrarDevolucion() {
     try {
         const usuario = window.Auth ? window.Auth.getUser() : null;
         const refDev = ventaSeleccionada?.referencia || `DEV-${ventaOriginalId}`;
+        const payload = {
+            items,
+            cliente,
+            cedula,
+            telefono,
+            tasa_bcv: tasa,
+            referencia: refDev,
+            motivo,
+            venta_original_id: ventaOriginalId,
+            usuario_id: usuario ? usuario.id : null
+        };
+        console.debug('POST /devoluciones payload', payload);
         const data = await apiFetchJson('/devoluciones', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                items,
-                cliente,
-                cedula,
-                telefono,
-                tasa_bcv: tasa,
-                referencia: refDev,
-                motivo,
-                venta_original_id: ventaOriginalId,
-                usuario_id: usuario ? usuario.id : null
-            })
+            body: JSON.stringify(payload)
         });
         void data;
         finalizarVentaUI();

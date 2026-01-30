@@ -1,3 +1,5 @@
+import { apiFetchJson } from './app-api.js';
+
 console.log('usuarios.js v1.0 cargado');
 
 let usuarios = [];
@@ -22,99 +24,68 @@ const passwordHint = document.getElementById('password-hint');
 // Cargar usuarios
 async function cargarUsuarios() {
   try {
-    const res = await fetch('/admin/usuarios', {
-      credentials: 'same-origin'
-    });
-
-    if (!res.ok) {
-      if (res.status === 403) {
-        alert('No tienes permisos para acceder a esta página');
-        window.location.href = '/pages/dashboard.html';
-        return;
-      }
-      throw new Error('Error cargando usuarios');
-    }
-
-    usuarios = await res.json();
+    usuarios = await apiFetchJson('/admin/usuarios');
     renderUsuarios();
   } catch (err) {
     console.error(err);
+    if (String(err.message).includes('403') || String(err.message).toLowerCase().includes('forbidden')) {
+      alert('No tienes permisos para acceder a esta página');
+      window.location.href = '/pages/dashboard.html';
+      return;
+    }
     tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-red-500">Error cargando usuarios</td></tr>';
   }
 }
 
 // Renderizar tabla de usuarios
 function renderUsuarios() {
-  if (usuarios.length === 0) {
+  if (!Array.isArray(usuarios) || usuarios.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-400">No hay usuarios registrados</td></tr>';
     return;
   }
 
-  tbody.innerHTML = usuarios.map(u => {
+  let html = '';
+  const usuarioActual = JSON.parse(localStorage.getItem('auth_user') || 'null') || {};
+
+  usuarios.forEach(u => {
     const rolBadge = {
       'admin': '<span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-semibold">Admin</span>',
       'vendedor': '<span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">Vendedor</span>',
       'lectura': '<span class="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-semibold">Lectura</span>'
     };
 
-    const estadoBadge = u.activo 
+    const estadoBadge = u.activo
       ? '<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Activo</span>'
       : '<span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold">Inactivo</span>';
 
-    const ultimoLogin = u.ultimo_login 
+    const ultimoLogin = u.ultimo_login
       ? new Date(u.ultimo_login).toLocaleString()
       : '<span class="text-slate-400">Nunca</span>';
 
-    const usuarioActual = JSON.parse(localStorage.getItem('auth_user'));
     const esMismoUsuario = u.id === usuarioActual.id;
 
-    return `
-      <tr class="hover:bg-slate-50 transition">
-        <td class="p-4">
-          <div class="flex items-center gap-2">
-            <div class="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center">
-              <i class="fas fa-user text-slate-600"></i>
-            </div>
-            <div>
-              <div class="font-semibold text-slate-800">${u.username}</div>
-              ${esMismoUsuario ? '<span class="text-xs text-blue-600">(Tú)</span>' : ''}
-            </div>
-          </div>
-        </td>
-        <td class="p-4 text-slate-600">${u.nombre_completo || '-'}</td>
-        <td class="p-4">${rolBadge[u.rol] || u.rol}</td>
-        <td class="p-4">${estadoBadge}</td>
-        <td class="p-4 text-sm text-slate-500">${ultimoLogin}</td>
-        <td class="p-4">
-          <div class="flex gap-2 justify-end">
-            <button 
-              onclick="editarUsuario(${u.id})" 
-              class="h-8 w-8 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition flex items-center justify-center"
-              title="Editar usuario"
-            >
-              <i class="fas fa-edit"></i>
-            </button>
-            ${!esMismoUsuario ? `
-              <button 
-                onclick="eliminarUsuario(${u.id})" 
-                class="h-8 w-8 rounded-lg bg-rose-100 text-rose-600 hover:bg-rose-200 transition flex items-center justify-center"
-                title="Eliminar usuario"
-              >
-                <i class="fas fa-trash"></i>
-              </button>
-              <button 
-                onclick="${u.activo ? `desactivarUsuario(${u.id})` : `activarUsuario(${u.id})`}" 
-                class="h-8 w-8 rounded-lg ${u.activo ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200'} transition flex items-center justify-center"
-                title="${u.activo ? 'Desactivar' : 'Activar'} usuario"
-              >
-                <i class="fas fa-${u.activo ? 'ban' : 'check'}"></i>
-              </button>
-            ` : ''}
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
+    html += '<tr class="hover:bg-slate-50 transition">';
+    html += '<td class="p-4"><div class="flex items-center gap-2"><div class="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center"><i class="fas fa-user text-slate-600"></i></div><div><div class="font-semibold text-slate-800">' + (u.username || '') + '</div>' + (esMismoUsuario ? '<span class="text-xs text-blue-600">(Tú)</span>' : '') + '</div></div></td>';
+    html += '<td class="p-4 text-slate-600">' + (u.nombre_completo || '-') + '</td>';
+    html += '<td class="p-4">' + (rolBadge[u.rol] || (u.rol || '')) + '</td>';
+    html += '<td class="p-4">' + estadoBadge + '</td>';
+    html += '<td class="p-4 text-sm text-slate-500">' + ultimoLogin + '</td>';
+    html += '<td class="p-4"><div class="flex gap-2 justify-end">';
+    html += '<button onclick="editarUsuario(' + u.id + ')" class="h-8 w-8 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition flex items-center justify-center" title="Editar usuario"><i class="fas fa-edit"></i></button>';
+
+    if (!esMismoUsuario) {
+      html += '<button onclick="eliminarUsuario(' + u.id + ')" class="h-8 w-8 rounded-lg bg-rose-100 text-rose-600 hover:bg-rose-200 transition flex items-center justify-center" title="Eliminar usuario"><i class="fas fa-trash"></i></button>';
+      const accion = u.activo ? 'desactivarUsuario(' + u.id + ')' : 'activarUsuario(' + u.id + ')';
+      const btnClass = u.activo ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200';
+      const title = u.activo ? 'Desactivar usuario' : 'Activar usuario';
+      const icon = u.activo ? 'ban' : 'check';
+      html += '<button onclick="' + accion + '" class="h-8 w-8 rounded-lg ' + btnClass + ' transition flex items-center justify-center" title="' + title + '"><i class="fas fa-' + icon + '"></i></button>';
+    }
+
+    html += '</div></td></tr>';
+  });
+
+  tbody.innerHTML = html;
 }
 
 // Abrir modal para nuevo usuario
@@ -130,7 +101,7 @@ function nuevoUsuario() {
 }
 
 // Editar usuario
-async function editarUsuario(id) {
+function editarUsuario(id) {
   const usuario = usuarios.find(u => u.id === id);
   if (!usuario) return;
 
@@ -166,36 +137,11 @@ async function guardarUsuario(e) {
   }
 
   try {
-    let res;
-
     if (modoEdicion) {
-      // Actualizar
       const id = inputId.value;
-      res = await fetch(`/admin/usuarios/${id}`, {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(datos)
-      });
+      await apiFetchJson(`/admin/usuarios/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
     } else {
-      // Crear
-      res = await fetch('/admin/usuarios', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(datos)
-      });
-    }
-
-    const result = await res.json();
-
-    if (!res.ok) {
-      alert(result.error || 'Error al guardar usuario');
-      return;
+      await apiFetchJson('/admin/usuarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
     }
 
     alert(modoEdicion ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente');
@@ -203,7 +149,7 @@ async function guardarUsuario(e) {
     await cargarUsuarios();
   } catch (err) {
     console.error(err);
-    alert('Error al guardar usuario');
+    alert(err.message || 'Error al guardar usuario');
   }
 }
 
@@ -217,23 +163,12 @@ async function desactivarUsuario(id) {
   }
 
   try {
-    const res = await fetch(`/admin/usuarios/${id}`, {
-      method: 'DELETE',
-      credentials: 'same-origin'
-    });
-
-    const result = await res.json();
-
-    if (!res.ok) {
-      alert(result.error || 'Error al desactivar usuario');
-      return;
-    }
-
+    await apiFetchJson(`/admin/usuarios/${id}`, { method: 'DELETE' });
     alert('Usuario desactivado exitosamente');
     await cargarUsuarios();
   } catch (err) {
     console.error(err);
-    alert('Error al desactivar usuario');
+    alert(err.message || 'Error al desactivar usuario');
   }
 }
 
@@ -247,23 +182,12 @@ async function activarUsuario(id) {
   }
 
   try {
-    const res = await fetch(`/admin/usuarios/${id}/activar`, {
-      method: 'POST',
-      credentials: 'same-origin'
-    });
-
-    const result = await res.json();
-
-    if (!res.ok) {
-      alert(result.error || 'Error al activar usuario');
-      return;
-    }
-
+    await apiFetchJson(`/admin/usuarios/${id}/activar`, { method: 'POST' });
     alert('Usuario activado exitosamente');
     await cargarUsuarios();
   } catch (err) {
     console.error(err);
-    alert('Error al activar usuario');
+    alert(err.message || 'Error al activar usuario');
   }
 }
 
@@ -276,23 +200,12 @@ async function eliminarUsuario(id) {
   if (!confirmado) return;
 
   try {
-    const res = await fetch(`/admin/usuarios/${id}/eliminar`, {
-      method: 'DELETE',
-      credentials: 'same-origin'
-    });
-
-    const result = await res.json();
-
-    if (!res.ok) {
-      alert(result.error || 'No se pudo eliminar el usuario');
-      return;
-    }
-
+    await apiFetchJson(`/admin/usuarios/${id}/eliminar`, { method: 'DELETE' });
     alert('Usuario eliminado definitivamente');
     await cargarUsuarios();
   } catch (err) {
     console.error(err);
-    alert('Error al eliminar usuario');
+    alert(err.message || 'Error al eliminar usuario');
   }
 }
 

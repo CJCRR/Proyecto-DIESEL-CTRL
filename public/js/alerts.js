@@ -5,6 +5,8 @@ const ALERT_INTERVAL_MS = 60 * 1000; // 1 minuto
 let seenStock = new Set();
 let seenMorosos = new Set();
 
+import { apiFetchJson } from './app-api.js';
+
 // Icono inline (SVG) para evitar 404 si no existe /icons/icon-192.png
 const NOTIF_ICON = 'data:image/svg+xml,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" fill="#0f172a"/><text x="50%" y="55%" fill="white" font-family="Arial,Helvetica,sans-serif" font-size="56" text-anchor="middle" dominant-baseline="middle">DC</text></svg>`
@@ -46,11 +48,7 @@ async function showNotification(title, body) {
 }
 
 async function fetchJSON(url) {
-  const res = await fetch(url, {
-    credentials: 'same-origin'
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return await apiFetchJson(url);
 }
 
 async function pollStock() {

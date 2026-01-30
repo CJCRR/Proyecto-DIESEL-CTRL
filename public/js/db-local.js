@@ -170,4 +170,24 @@ if (typeof window !== 'undefined') {
     window.guardarClienteLocal = guardarClienteLocal;
     window.eliminarClienteLocal = eliminarClienteLocal;
     window.borrarDatosLocales = borrarDatosLocales;
+    // Exponer funciones de IndexedDB para sincronización global
+    window.abrirIndexedDB = abrirIndexedDB;
+    window.obtenerVentasPendientes = obtenerVentasPendientes;
+    window.marcarComoSincronizada = marcarComoSincronizada;
+    // Exponer guardado de ventas
+    window.guardarVentaLocal = guardarVentaLocal;
 }
+
+// Exportar funciones para uso como módulo
+export {
+    abrirIndexedDB,
+    guardarVentaLocal,
+    obtenerVentasPendientes,
+    marcarComoSincronizada,
+    obtenerProductosLocales,
+    guardarProductoLocal,
+    guardarClienteLocal,
+    obtenerClientesLocales,
+    eliminarClienteLocal,
+    borrarDatosLocales
+};

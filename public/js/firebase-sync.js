@@ -1,4 +1,6 @@
 import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc } from '../config/firebase-config.js';
+import { apiFetchJson } from './app-api.js';
+import { abrirIndexedDB, obtenerVentasPendientes, marcarComoSincronizada } from './db-local.js';
 
 // Eventos de sincronización para UI (app.js escucha y muestra toasts)
 function emitSyncEvent(detail) {
@@ -13,22 +15,7 @@ let retryDelayMs = 5_000;
 const MAX_RETRY_DELAY = 5 * 60 * 1_000; // 5 minutos
 
 async function apiPostJson(url, body) {
-    if (!navigator.onLine) throw new Error('Sin conexión a internet');
-    const res = await fetch(url, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    });
-    const contentType = res.headers.get('content-type') || '';
-    const data = contentType.includes('application/json')
-        ? await res.json().catch(() => null)
-        : await res.text().catch(() => null);
-    if (!res.ok) {
-        const msg = (data && data.error) ? data.error : (typeof data === 'string' && data) ? data : `HTTP ${res.status}`;
-        throw new Error(msg);
-    }
-    return data;
+    return await apiFetchJson(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 function scheduleRetry(reason) {
     if (retryTimer) return;

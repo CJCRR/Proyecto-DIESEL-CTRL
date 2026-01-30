@@ -1,17 +1,39 @@
 let cuentas = [];
 let cuentaSeleccionada = null;
 let tasaBCV = 1;
+import { apiFetchJson } from './app-api.js';
 
-const toastEl = document.getElementById('toast');
-
-function showToast(msg, type = 'info') {
-    if (!toastEl) return;
-    toastEl.textContent = msg;
-    toastEl.className = 'fixed bottom-4 right-4 px-4 py-3 rounded-xl shadow-lg text-white text-sm';
-    toastEl.style.background = type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : '#0369a1';
-    toastEl.classList.remove('hidden');
-    setTimeout(() => toastEl.classList.add('hidden'), 2500);
-}
+// Intentar cargar utilidades centralizadas para páginas que no usan módulos
+(async () => {
+    if (!window.showToast || !window.escapeHtml) {
+        try {
+            const m = await import('./app-utils.js');
+            window.showToast = window.showToast || m.showToast;
+            window.escapeHtml = window.escapeHtml || m.escapeHtml;
+        } catch (e) {
+            // fallback mínimo si no se pudo importar
+            const toastEl = document.getElementById('toast');
+            if (!window.showToast) {
+                window.showToast = function (msg, type = 'info') {
+                    if (!toastEl) return alert(msg);
+                    toastEl.textContent = msg;
+                    toastEl.className = 'fixed bottom-4 right-4 px-4 py-3 rounded-xl shadow-lg text-white text-sm';
+                    toastEl.style.background = type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : '#0369a1';
+                    toastEl.classList.remove('hidden');
+                    setTimeout(() => toastEl.classList.add('hidden'), 2500);
+                };
+            }
+            if (!window.escapeHtml) {
+                window.escapeHtml = (v) => String(v ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+        }
+    }
+})();
 
 function badgeEstado(estado) {
     const base = 'px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
@@ -105,9 +127,7 @@ function renderDetalle(data) {
 
 async function cargarResumen() {
     try {
-        const r = await fetch('/cobranzas/resumen', { credentials: 'same-origin' });
-        if (!r.ok) throw new Error('No se pudo cargar resumen');
-        const j = await r.json();
+        const j = await apiFetchJson('/cobranzas/resumen');
         renderResumen(j);
     } catch (err) {
         console.error(err);
@@ -121,9 +141,7 @@ async function cargarCuentas() {
         const params = new URLSearchParams();
         if (q) params.append('cliente', q);
         if (est) params.append('estado', est);
-        const r = await fetch(`/cobranzas?${params.toString()}`, { credentials: 'same-origin' });
-        if (!r.ok) throw new Error('No se pudo cargar cuentas');
-        const j = await r.json();
+        const j = await apiFetchJson(`/cobranzas?${params.toString()}`);
         cuentas = j;
         renderTabla(cuentas);
         if (cuentaSeleccionada) {
@@ -138,9 +156,7 @@ async function cargarCuentas() {
 
 async function cargarDetalle(id) {
     try {
-        const r = await fetch(`/cobranzas/${id}`, { credentials: 'same-origin' });
-        if (!r.ok) throw new Error('No se pudo obtener detalle');
-        const j = await r.json();
+        const j = await apiFetchJson(`/cobranzas/${id}`);
         renderDetalle(j);
     } catch (err) {
         console.error(err);
@@ -150,12 +166,14 @@ async function cargarDetalle(id) {
 
 async function prefijarTasa() {
     try {
-        const r = await fetch('/admin/ajustes/tasa-bcv', { credentials: 'same-origin' });
-        if (!r.ok) return;
-        const j = await r.json();
-        const input = document.getElementById('p_tasa');
-        tasaBCV = Number(j.tasa_bcv || 1) || 1;
-        if (input) input.value = tasaBCV;
+        try {
+            const j = await apiFetchJson('/admin/ajustes/tasa-bcv');
+            const input = document.getElementById('p_tasa');
+            tasaBCV = Number(j.tasa_bcv || 1) || 1;
+            if (input) input.value = tasaBCV;
+        } catch (err) {
+            // ignore
+        }
     } catch (err) {
         console.warn('No se pudo cargar tasa BCV', err);
     }
@@ -172,14 +190,11 @@ async function registrarPago(evt) {
     const notas = document.getElementById('p_notas').value || '';
     if (!monto || monto <= 0) { showToast('Monto inválido', 'error'); return; }
     try {
-        const r = await fetch(`/cobranzas/${cuentaSeleccionada.id}/pago`, {
+        const j = await apiFetchJson(`/cobranzas/${cuentaSeleccionada.id}/pago`, {
             method: 'POST',
-            credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ monto, moneda, tasa_bcv: tasa, metodo, referencia, notas })
         });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || 'Error');
         showToast('Pago registrado', 'success');
         document.getElementById('form-pago').reset();
         renderDetalle(j);

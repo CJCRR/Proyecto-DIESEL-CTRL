@@ -1,3 +1,5 @@
+import { apiFetchJson } from './app-api.js';
+
 (function () {
     const defaults = {
         color_primario: '#2563eb',
@@ -15,6 +17,7 @@
         root.style.setProperty('--brand-accent', a);
     }
 
+
     async function loadAndApply() {
         if (window.location.pathname.includes('/pages/login.html')) return;
         // Usa cache local si existe
@@ -27,17 +30,13 @@
         } catch {}
 
         try {
-            const res = await fetch('/admin/ajustes/config', {
-                credentials: 'same-origin'
-            });
-            if (!res.ok) return;
-            const data = await res.json();
+            const data = await apiFetchJson('/admin/ajustes/config');
             if (data?.empresa) {
                 applyVars(data.empresa);
                 try { localStorage.setItem('empresa_config', JSON.stringify(data.empresa)); } catch {}
             }
         } catch (err) {
-            console.warn('No se pudo aplicar tema de empresa', err.message);
+            console.warn('No se pudo aplicar tema de empresa', err?.message || err);
         }
     }
 

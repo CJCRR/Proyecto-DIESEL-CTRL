@@ -1,4 +1,6 @@
 import { obtenerClientesFirebase, upsertClienteFirebase, eliminarClienteFirebasePorCedula } from './firebase-sync.js';
+import { showToast } from './app-utils.js';
+import { apiFetchJson } from './app-api.js';
 
 console.log('clientes.js v2.0 cargado - con autenticación');
 
@@ -12,18 +14,10 @@ const btnEliminar = document.getElementById('btnEliminarCliente');
 const descuentoInput = document.getElementById('c_descuento');
 const notasInput = document.getElementById('c_notas');
 const tagsInput = document.getElementById('c_tags');
-const toast = document.getElementById('toast');
-
 let clientes = [];
 let seleccionado = null;
 
-function showToast(msg, type = 'info') {
-    const el = document.createElement('div');
-    el.className = `px-3 py-2 rounded-lg text-white shadow ${type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-slate-800'}`;
-    el.innerText = msg;
-    toast.appendChild(el);
-    setTimeout(() => el.remove(), 2500);
-}
+
 
 function renderTabla(filtro = '') {
     const f = filtro.toLowerCase();
@@ -62,11 +56,7 @@ async function cargarHistorial() {
         return;
     }
     try {
-        const res = await fetch(`/reportes/historial-cliente?q=${encodeURIComponent(q)}`, {
-            credentials: 'same-origin'
-        });
-        if (!res.ok) return;
-        const rows = await res.json();
+        const rows = await apiFetchJson(`/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=20`);
         body.innerHTML = rows
             .map(
                 (r) => `<tr><td class="p-2">${new Date(r.fecha).toLocaleString()}</td><td class="p-2">${r.vendedor || ''}</td><td class="p-2 text-right">${Number(r.total_usd || 0).toFixed(2)}</td></tr>`,

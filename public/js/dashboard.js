@@ -15,8 +15,7 @@ let TASA_BCV_UPDATED = null;
 let TOP_LIMIT = parseInt(localStorage.getItem('top_limit') || '10', 10);
 let STOCK_UMBRAL = parseInt(localStorage.getItem('stock_umbral') || '1', 10);
 let AL_UMBRAL_TIMER = null;
-
-const authFetch = (url, options = {}) => fetch(url, { ...options, credentials: 'same-origin' });
+import { apiFetchJson } from './app-api.js';
 
 // (Se removieron presets de reportes del dashboard)
 
@@ -38,9 +37,7 @@ function renderTopProductos() {
 
 async function loadTopProductos() {
     try {
-        const r = await authFetch(`/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}`);
-        if (!r.ok) return;
-        cacheTop = await r.json();
+        cacheTop = await apiFetchJson(`/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}`);
         renderTopProductos();
     } catch (err) {
         console.warn('No se pudo cargar top productos', err);
@@ -69,13 +66,12 @@ async function cargarDashboard() {
             }
         }
 
-        const tasaRes = await authFetch('/admin/ajustes/tasa-bcv');
-        if (tasaRes.ok) {
-            const { tasa_bcv, actualizado_en } = await tasaRes.json();
+        try {
+            const tasaJ = await apiFetchJson('/admin/ajustes/tasa-bcv');
+            const { tasa_bcv, actualizado_en } = tasaJ || {};
             TASA_BCV = Number(tasa_bcv || 1) || 1;
             TASA_BCV_UPDATED = actualizado_en || null;
-            document.getElementById('kpi-tasa').innerText = TASA_BCV.toFixed(2);
-
+            const el = document.getElementById('kpi-tasa'); if (el) el.innerText = TASA_BCV.toFixed(2);
             const alertEl = document.getElementById('tasa-alert');
             if (alertEl) {
                 const diffHrs = TASA_BCV_UPDATED ? (Date.now() - new Date(TASA_BCV_UPDATED).getTime()) / 36e5 : null;
@@ -83,29 +79,23 @@ async function cargarDashboard() {
                 alertEl.classList.toggle('hidden', !show);
                 if (show) alertEl.textContent = `Tasa sin actualizar hace ${diffHrs.toFixed(1)}h`;
             }
-        }
+        } catch (e) { /* ignore */ }
 
-        const kpisRes = await authFetch('/reportes/kpis');
-        if (kpisRes.ok) {
-            const kpis = await kpisRes.json();
+        try {
+            const kpis = await apiFetchJson('/reportes/kpis');
             document.getElementById('ventas-hoy').innerText = kpis.ventasHoy;
             document.getElementById('ventas-semana').innerText = kpis.ventasSemana;
             KPI_TOTAL_USD = Number(kpis.totalUsd || 0);
             const displayUsd = KPI_TOTAL_USD;
             const displayBs = KPI_TOTAL_USD * TASA_BCV;
-            const principal = MONEDA === 'USD'
-                ? `${displayUsd.toFixed(2)} USD`
-                : `${displayBs.toFixed(2)} Bs`;
-            const secundario = MONEDA === 'USD'
-                ? `${displayBs.toFixed(2)} Bs`
-                : `${displayUsd.toFixed(2)} USD`;
+            const principal = MONEDA === 'USD' ? `${displayUsd.toFixed(2)} USD` : `${displayBs.toFixed(2)} Bs`;
+            const secundario = MONEDA === 'USD' ? `${displayBs.toFixed(2)} Bs` : `${displayUsd.toFixed(2)} USD`;
             document.getElementById('total-bs').innerText = principal;
             document.getElementById('total-usd').innerText = secundario;
-        }
+        } catch (e) { /* ignore */ }
 
-        const ventasRes = await authFetch('/reportes/ventas');
-        if (ventasRes.ok) {
-            const ventas = await ventasRes.json();
+        try {
+            const ventas = await apiFetchJson('/reportes/ventas');
             const ultimas = ventas.slice(0, 3);
             const ultEl = document.getElementById('ultimas-ventas');
             ultEl.innerHTML = '';
@@ -119,18 +109,17 @@ async function cargarDashboard() {
                 d.innerHTML = left + right;
                 ultEl.appendChild(d);
             });
-        }
+        } catch (e) { /* ignore */ }
 
-        const invRes = await authFetch('/reportes/inventario');
-        if (invRes.ok) {
-            const inv = await invRes.json();
+        try {
+            const inv = await apiFetchJson('/reportes/inventario');
             const invUsdEl = document.getElementById('inv-total-usd');
             const invBsEl = document.getElementById('inv-total-bs');
             const invTasaEl = document.getElementById('inv-tasa');
             if (invUsdEl) invUsdEl.innerText = `${Number(inv.totals.totalUsd || 0).toFixed(2)} USD`;
             if (invBsEl) invBsEl.innerText = `${Number(inv.totals.totalBs || 0).toFixed(2)} Bs`;
             if (invTasaEl) invTasaEl.innerText = Number(inv.totals.tasa || 1).toFixed(2);
-        }
+        } catch (e) { /* ignore */ }
 
         await loadTopProductos();
         await renderVentasSeries('diarias');
@@ -154,10 +143,7 @@ document.getElementById('sincronizar-manual').addEventListener('click', () => {
 
 document.getElementById('btn-actualizar-tasa').addEventListener('click', async () => {
     try {
-        const r = await authFetch('/admin/ajustes/tasa-bcv/actualizar', { 
-            method: 'POST',
-        });
-        const j = await r.json();
+        const j = await apiFetchJson('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST' });
         const tasa = Number(j.tasa_bcv || 0);
         if (!Number.isNaN(tasa) && tasa > 0) {
             TASA_BCV = tasa;
@@ -179,14 +165,8 @@ document.getElementById('btn-actualizar-tasa').addEventListener('click', async (
 document.getElementById('btn-guardar-tasa').addEventListener('click', async () => {
     const val = parseFloat(document.getElementById('input-tasa').value);
     if (!val || Number.isNaN(val) || val <= 0) return;
-    const r = await authFetch('/admin/ajustes/tasa-bcv', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ tasa_bcv: val }),
-    });
-    if (r.ok) {
+    try {
+        await apiFetchJson('/admin/ajustes/tasa-bcv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tasa_bcv: val }) });
         TASA_BCV = val;
         TASA_BCV_UPDATED = new Date().toISOString();
         document.getElementById('kpi-tasa').innerText = val.toFixed(2);
@@ -197,6 +177,8 @@ document.getElementById('btn-guardar-tasa').addEventListener('click', async () =
             console.warn('No se pudo escribir en localStorage', err);
         }
         await cargarDashboard();
+    } catch (err) {
+        console.error('No se pudo guardar tasa BCV', err);
     }
 });
 
@@ -208,13 +190,9 @@ async function cargarVendedores() {
     const params = new URLSearchParams();
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
-    const [rBase, rRoi] = await Promise.all([
-        authFetch(`/reportes/vendedores?${params.toString()}`),
-        authFetch(`/reportes/vendedores/roi?${params.toString()}`)
-    ]);
-    if (!rBase.ok) return;
-    const baseRows = await rBase.json();
-    const roiRows = rRoi.ok ? await rRoi.json() : [];
+    try {
+        const baseRows = await apiFetchJson(`/reportes/vendedores?${params.toString()}`);
+        const roiRows = await apiFetchJson(`/reportes/vendedores/roi?${params.toString()}`);
     const roiMap = new Map(roiRows.map(r => [r.vendedor || '—', r]));
     cacheVend = baseRows.map(row => {
         const extra = roiMap.get(row.vendedor || '—') || {};
@@ -251,6 +229,9 @@ async function cargarVendedores() {
         charts.vendedores?.destroy();
         charts.vendedores = new Chart(ctx, cfg);
     }
+  } catch (err) {
+    console.warn('No se pudo cargar vendedores', err);
+  }
 }
 
 document.getElementById('vend-filtrar').addEventListener('click', cargarVendedores);
@@ -282,9 +263,7 @@ setInterval(() => { renderAlertasTareas().catch(()=>{}); }, 60000);
 async function renderVentasSeries(tipo) {
     try {
         const endpoint = tipo === 'mensuales' ? '/reportes/series/ventas-mensuales?meses=12' : '/reportes/series/ventas-diarias?dias=30';
-        const r = await authFetch(endpoint);
-        if (!r.ok) return;
-        const rows = await r.json();
+        const rows = await apiFetchJson(endpoint);
         const labels = rows.map(x => (tipo === 'mensuales' ? x.mes : x.dia));
         const total = rows.map(x => Number((MONEDA === 'USD' ? x.total_usd : x.total_bs) || 0));
         const margen = rows.map(x => Number((MONEDA === 'USD' ? x.margen_usd : x.margen_bs) || 0));
@@ -310,9 +289,7 @@ async function renderVentasSeries(tipo) {
 
 async function renderTopClientes() {
     try {
-        const r = await authFetch('/reportes/top-clientes?limit=5');
-        if (!r.ok) return;
-        const rows = await r.json();
+        const rows = await apiFetchJson('/reportes/top-clientes?limit=5');
         const labels = rows.map(x => x.cliente);
         const data = rows.map(x => Number((MONEDA === 'USD' ? x.total_usd : x.total_bs) || 0));
         const ctx = document.getElementById('chart-clientes');
@@ -331,18 +308,14 @@ async function renderTopClientes() {
 
 async function renderMargenActual() {
     try {
-        const r = await authFetch('/reportes/margen/actual');
-        if (!r.ok) return;
-        const j = await r.json();
+        const j = await apiFetchJson('/reportes/margen/actual');
         const hoy = MONEDA === 'USD' ? j.hoy.margen_usd : j.hoy.margen_bs;
         const mes = MONEDA === 'USD' ? j.mes.margen_usd : j.mes.margen_bs;
         document.getElementById('margen-hoy').innerText = `${Number(hoy || 0).toFixed(2)} ${MONEDA}`;
         document.getElementById('margen-mes').innerText = `${Number(mes || 0).toFixed(2)} ${MONEDA}`;
 
         // Sparkline con últimos 30 días de margen
-        const r2 = await authFetch('/reportes/series/ventas-diarias?dias=30');
-        if (!r2.ok) return;
-        const rows = await r2.json();
+        const rows = await apiFetchJson('/reportes/series/ventas-diarias?dias=30');
         const labels = rows.map(x => x.dia);
         const data = rows.map(x => Number((MONEDA === 'USD' ? x.margen_usd : x.margen_bs) || 0));
         const ctx = document.getElementById('chart-margen');
@@ -364,9 +337,7 @@ async function renderMargenActual() {
 async function renderMargenVendedoresHoy() {
     try {
         const hoy = new Date().toISOString().slice(0,10);
-        const r = await authFetch(`/reportes/vendedores?desde=${hoy}&hasta=${hoy}`);
-        if (!r.ok) return;
-        const rows = await r.json();
+        const rows = await apiFetchJson(`/reportes/vendedores?desde=${hoy}&hasta=${hoy}`);
         const cont = document.getElementById('margen-vendedores');
         if (!cont) return;
         if (!rows.length) {
@@ -390,9 +361,7 @@ function fmtPct(p) { return p == null ? '—' : `${(p * 100).toFixed(1)}%`; }
 
 async function loadTendencias() {
     try {
-        const r = await authFetch('/reportes/tendencias/mensuales?meses=12');
-        if (!r.ok) return;
-        const rows = await r.json();
+        const rows = await apiFetchJson('/reportes/tendencias/mensuales?meses=12');
         const el = document.getElementById('tendencias-list');
         if (!el) return;
         const recent = rows.slice(-6);
@@ -420,9 +389,7 @@ async function renderAlertasTareas() {
     try {
         // Usar umbral configurable para stock bajo
         const umbralActual = Number.isFinite(STOCK_UMBRAL) && STOCK_UMBRAL >= 0 ? STOCK_UMBRAL : 1;
-        const r = await authFetch(`/alertas/tareas?umbral=${encodeURIComponent(umbralActual)}`);
-        if (!r.ok) return;
-        const j = await r.json();
+        const j = await apiFetchJson(`/alertas/tareas?umbral=${encodeURIComponent(umbralActual)}`);
 
         const stock = Array.isArray(j.stock_bajo) ? j.stock_bajo : [];
         const morosos = Array.isArray(j.morosos) ? j.morosos : [];

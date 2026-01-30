@@ -1,16 +1,8 @@
 import { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas } from './firebase-sync.js';
+import { showToast } from './app-utils.js';
+import { apiFetchJson } from './app-api.js';
 
 let configCache = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
-
-const toastContainer = document.getElementById('toast-container');
-function showToast(msg, type = 'info') {
-    if (!toastContainer) return alert(msg);
-    const el = document.createElement('div');
-    el.className = `px-3 py-2 rounded-lg text-white shadow ${type === 'error' ? 'bg-rose-500' : type === 'success' ? 'bg-emerald-600' : 'bg-slate-800'}`;
-    el.textContent = msg;
-    toastContainer.appendChild(el);
-    setTimeout(() => el.remove(), 3000);
-}
 
 function bindDrawer() {
     const drawer = document.getElementById('drawer');
@@ -134,9 +126,7 @@ function setForms(cfg) {
 
 async function loadConfig() {
     try {
-        const res = await fetch('/admin/ajustes/config', { credentials: 'same-origin' });
-        if (!res.ok) throw new Error('No se pudo cargar configuración');
-        const data = await res.json();
+        const data = await apiFetchJson('/admin/ajustes/config');
         configCache = data;
         setForms(data);
     } catch (err) {
@@ -153,14 +143,11 @@ async function saveConfig(section) {
         payload.devolucion = { ...configCache.devolucion, ...payload.devolucion };
         payload.nota = { ...configCache.nota, ...payload.nota };
 
-        const res = await fetch('/admin/ajustes/config', {
+        const data = await apiFetchJson('/admin/ajustes/config', {
             method: 'POST',
-            credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        if (!res.ok) throw new Error('No se pudo guardar ajustes');
-        const data = await res.json();
         configCache = data;
         try { localStorage.setItem('nota_config', JSON.stringify(data.nota || {})); } catch {}
         showToast('Ajustes guardados', 'success');
@@ -261,16 +248,18 @@ function renderPreview() {
 
         async function uploadDataUrl(dataUrl, name){
             try {
-                const res = await fetch('/admin/ajustes/upload-image', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ dataUrl, filename: name })
-                });
-                if (!res.ok) throw new Error('Error subiendo imagen');
-                const j = await res.json();
-                showToast('Imagen subida', 'success');
-                return j.url;
+                try {
+                    const j = await apiFetchJson('/admin/ajustes/upload-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ dataUrl, filename: name })
+                    });
+                    showToast('Imagen subida', 'success');
+                    return j.url;
+                } catch (err) {
+                    showToast(err.message || 'Upload falló', 'error');
+                    return null;
+                }
             } catch (err) {
                 showToast(err.message || 'Upload falló', 'error');
                 return null;
@@ -331,16 +320,7 @@ async function purgeAllData() {
     }
 
     try {
-        const res = await fetch('/admin/ajustes/purge-data', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ confirm: 'BORRAR' })
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'No se pudo borrar la base de datos');
-        }
+        const j = await apiFetchJson('/admin/ajustes/purge-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: 'BORRAR' }) });
 
         let firebaseClientes = 0;
         let firebaseVentas = 0;
