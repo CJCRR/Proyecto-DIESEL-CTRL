@@ -1,10 +1,10 @@
 # TODO: Mejoras de Seguridad y Arquitectura
 
 ## Fase 1: Dependencias y Logging ✅
-- [] Instalar dependencias nuevas: winston, winston-daily-rotate-file, csurf, express-validator, jsonwebtoken, express-sslify
-- [] Crear server/services/logger.js con Winston configurado
-- [] Integrar logger en server.js y rutas principales
-- [] Crear directorio server/logs/
+- [x] Instalar dependencias nuevas: winston, winston-daily-rotate-file, csurf, express-validator, jsonwebtoken, express-sslify
+- [x] Crear server/services/logger.js con Winston configurado
+- [x] Integrar logger en server.js y rutas principales
+- [x] Crear directorio server/logs/
 
 ## Fase 2: Seguridad Básica ✅
 - [] Configurar HTTPS enforcement en producción

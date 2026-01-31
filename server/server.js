@@ -1,4 +1,5 @@
 const express = require('express');
+const logger = require('./services/logger');
 const path = require('path');
 const db = require('./db');
 const helmet = require('helmet');
@@ -66,21 +67,21 @@ const runScheduledBackup = async () => {
     if (!backupRoutes.createBackup) return;
     try {
         const { fileName } = await backupRoutes.createBackup();
-        console.log(`📦 Backup automático creado: ${fileName}`);
+        logger.info(`📦 Backup automático creado: ${fileName}`);
     } catch (err) {
-        console.error('❌ Falló backup automático:', err.message);
+        logger.error('❌ Falló backup automático:', { message: err.message, stack: err.stack });
     }
 };
 setInterval(runScheduledBackup, 6 * 60 * 60 * 1000);
 runScheduledBackup();
 
-// Manejo de errores básico
+// Manejo de errores básico con logger
 app.use((err, req, res, next) => {
-    console.error(err.stack);
+    logger.error('Error en middleware global', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Algo salió mal en el servidor' });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Servidor Diesel Ctrl ejecutándose en http://localhost:${PORT}`);
+    logger.info(`Servidor Diesel Ctrl ejecutándose en http://localhost:${PORT}`);
 });
