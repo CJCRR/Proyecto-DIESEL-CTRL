@@ -4,18 +4,6 @@ import { apiFetchJson } from './app-api.js';
 
 let configCache = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
 
-function bindDrawer() {
-    const drawer = document.getElementById('drawer');
-    const backdrop = document.getElementById('drawer-backdrop');
-    const btnMenu = document.getElementById('btn-menu');
-    const btnClose = document.getElementById('drawer-close');
-    const open = () => { drawer?.classList.remove('-translate-x-full'); backdrop?.classList.remove('hidden'); };
-    const close = () => { drawer?.classList.add('-translate-x-full'); backdrop?.classList.add('hidden'); };
-    btnMenu?.addEventListener('click', open);
-    btnClose?.addEventListener('click', close);
-    backdrop?.addEventListener('click', close);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-}
 
 function renderTiers(list = []) {
     const cont = document.getElementById('tiers');
