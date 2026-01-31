@@ -2,7 +2,7 @@ const express = require('express');
 const logger = require('./services/logger');
 const path = require('path');
 const db = require('./db');
-const helmet = require('helmet');
+const { enforceHTTPS, helmetConfig } = require('./middleware/security');
 const cookieParser = require('cookie-parser');
 
 // Importación de Rutas
@@ -22,9 +22,10 @@ const { router: alertasRoutes } = require('./routes/alertas');
 const presupuestosRoutes = require('./routes/presupuestos');
 
 const app = express();
-app.use(helmet({
-    contentSecurityPolicy: false
-}));
+// Enforce HTTPS en producción
+app.use(enforceHTTPS);
+// Helmet avanzado
+// app.use(helmetConfig);
 app.use(cookieParser());
 // Ampliar límite para subir imágenes base64 desde ajustes
 app.use(express.json({ limit: '10mb' }));
@@ -37,12 +38,24 @@ const PAGES_DIR = path.join(PUBLIC_DIR, 'pages');
 app.use(express.static(PUBLIC_DIR));
 
 // Redirecciones para la nueva ubicación de las vistas en /pages
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(PAGES_DIR, 'index.html'));
 });
 
 app.get('/index.html', (req, res) => {
-    res.redirect(301, '/');
+        res.redirect(301, '/');
+});
+
+// Servir todas las páginas HTML de /pages con CSP
+const htmlPages = [
+    'ajustes.html', 'clientes.html', 'cobranzas.html', 'dashboard.html',
+    'index.html', 'inventario.html', 'login.html', 'reportes.html', 'usuarios.html'
+];
+htmlPages.forEach(page => {
+    app.get(`/pages/${page}`, (req, res) => {
+        res.sendFile(path.join(PAGES_DIR, page));
+    });
 });
 
 // Registro de Rutas API

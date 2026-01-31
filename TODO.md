@@ -7,17 +7,17 @@
 - [x] Crear directorio server/logs/
 
 ## Fase 2: Seguridad Básica ✅
-- [] Configurar HTTPS enforcement en producción
-- [] Actualizar Helmet con headers completos (remover CSP false)
-- [] Crear server/middleware/security.js
-- [] Integrar middleware en server.js
+- [x] Configurar HTTPS enforcement en producción
+- [x] Actualizar Helmet con headers completos (remover CSP false)
+- [x] Crear server/middleware/security.js
+- [x] Integrar middleware en server.js
 
 ## Fase 3: Autenticación Avanzada
-- [ ] Implementar JWT tokens opcionales
-- [ ] Refinar bloqueo de cuentas por intentos fallidos
-- [ ] Crear sistema de permisos granulares (leer/escribir/admin por módulo)
-- [ ] Integrar CSRF protection
-- [ ] Separar middleware de auth en server/middleware/auth.js
+- [x] Implementar JWT tokens opcionales
+- [x] Refinar bloqueo de cuentas por intentos fallidos
+- [descartado] Crear sistema de permisos granulares (leer/escribir/admin por módulo)
+- [x] Integrar CSRF protection
+- [x] Separar middleware de auth en server/middleware/auth.js
 
 ## Fase 4: Manejo de Errores Robusto
 - [ ] Crear server/middleware/errorHandler.js centralizado

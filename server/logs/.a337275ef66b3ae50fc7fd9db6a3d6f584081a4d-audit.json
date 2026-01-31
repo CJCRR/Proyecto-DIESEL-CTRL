@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\.a337275ef66b3ae50fc7fd9db6a3d6f584081a4d-audit.json",
+    "files": [
+        {
+            "date": 1769874956064,
+            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-01-31.log",
+            "hash": "37b781b97991dbaa192ce9f324787b9d49cef8c4f8f48bdf1e6fcb9e9d9f399f"
+        }
+    ],
+    "hashType": "sha256"
+}

@@ -5,6 +5,13 @@
     color: #1e293b; 
 }
 
+.active-tab {
+            background-color: white;
+            border-bottom: 3px solid #3b82f6;
+            color: #1e293b;
+            font-weight: 800;
+        }
+
 :root {
     --brand-primary: #2563eb;
     --brand-secondary: #0f172a;
