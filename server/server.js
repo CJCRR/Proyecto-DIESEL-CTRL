@@ -88,13 +88,31 @@ const runScheduledBackup = async () => {
 setInterval(runScheduledBackup, 6 * 60 * 60 * 1000);
 runScheduledBackup();
 
-// Manejo de errores básico con logger
-app.use((err, req, res, next) => {
-    logger.error('Error en middleware global', { message: err.message, stack: err.stack, url: req.originalUrl });
-    res.status(500).json({ error: 'Algo salió mal en el servidor' });
-});
+// Manejo de errores centralizado
+const errorHandler = require('./middleware/errorHandler');
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    logger.info(`Servidor Diesel Ctrl ejecutándose en http://localhost:${PORT}`);
+const server = app.listen(PORT, () => {
+        logger.info(`Servidor Diesel Ctrl ejecutándose en http://localhost:${PORT}`);
 });
+
+// Graceful shutdown
+function shutdown(signal) {
+    logger.info(`Recibida señal ${signal}, cerrando servidor...`);
+    server.close(() => {
+        logger.info('Servidor cerrado correctamente.');
+        // Aquí puedes cerrar conexiones a la base de datos, limpiar recursos, etc.
+        if (db && db.close) {
+            try { db.close(); logger.info('Base de datos cerrada.'); } catch (e) {}
+        }
+        process.exit(0);
+    });
+    // Forzar salida si no cierra en 10s
+    setTimeout(() => {
+        logger.error('Forzando cierre del proceso tras 10s.');
+        process.exit(1);
+    }, 10000);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

@@ -10,7 +10,8 @@ function insertAlerta(tipo, mensaje, dataObj = {}) {
     db.prepare(`INSERT INTO alertas (tipo, mensaje, data, leido, creado_en) VALUES (?, ?, ?, 0, datetime('now'))`)
       .run(tipo, mensaje, JSON.stringify(dataObj || {}));
   } catch (err) {
-    console.warn('No se pudo insertar alerta', err.message);
+    const logger = require('../services/logger');
+    logger.warn('No se pudo insertar alerta', err.message);
   }
 }
 
@@ -52,7 +53,8 @@ router.get('/stock', requireAuth, (req, res) => {
     `).all();
     res.json(rows);
   } catch (err) {
-    console.error('Error alertas stock:', err);
+    const logger = require('../services/logger');
+    logger.error('Error alertas stock:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'No se pudo obtener alertas de stock' });
   }
 });
@@ -62,7 +64,8 @@ router.get('/morosos', requireAuth, (req, res) => {
     const rows = getMorosos();
     res.json(rows);
   } catch (err) {
-    console.error('Error alertas morosos:', err);
+    const logger = require('../services/logger');
+    logger.error('Error alertas morosos:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'No se pudo obtener clientes morosos' });
   }
 });
@@ -75,7 +78,8 @@ router.get('/resumen', requireAuth, (req, res) => {
     const tareas = stockCero + morosos.length;
     res.json({ stock_cero: stockCero, morosos: morosos.length, tareas });
   } catch (err) {
-    console.error('Error resumen alertas:', err);
+    const logger = require('../services/logger');
+    logger.error('Error resumen alertas:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'No se pudo obtener resumen de alertas' });
   }
 });
@@ -127,7 +131,8 @@ router.get('/tareas', requireAuth, (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Error alertas tareas:', err);
+    const logger = require('../services/logger');
+    logger.error('Error alertas tareas:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'No se pudo obtener tareas' });
   }
 });

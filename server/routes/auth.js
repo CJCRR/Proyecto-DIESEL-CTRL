@@ -23,7 +23,8 @@ function limpiarSesionesExpiradas() {
   try {
     db.prepare("DELETE FROM sesiones WHERE expira_en IS NOT NULL AND datetime(expira_en) <= datetime('now')").run();
   } catch (err) {
-    console.warn('No se pudo limpiar sesiones expiradas:', err.message);
+    const logger = require('../services/logger');
+    logger.warn('No se pudo limpiar sesiones expiradas:', err.message);
   }
 }
 
@@ -136,7 +137,8 @@ router.post('/login', loginLimiter, (req, res) => {
       usuario: jwtPayload
     });
   } catch (err) {
-    console.error('Error en login:', err);
+    const logger = require('../services/logger');
+    logger.error('Error en login:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al iniciar sesión' });
   }
 });
@@ -149,7 +151,8 @@ router.post('/logout', (req, res) => {
     try {
       db.prepare('DELETE FROM sesiones WHERE token = ?').run(token);
     } catch (err) {
-      console.error('Error al cerrar sesión:', err);
+      const logger = require('../services/logger');
+      logger.error('Error al cerrar sesión:', { message: err.message, stack: err.stack, url: req.originalUrl });
     }
   }
   
@@ -197,7 +200,8 @@ router.get('/verificar', (req, res) => {
       via: 'token'
     });
   } catch (err) {
-    console.error('Error verificando sesión:', err);
+    const logger = require('../services/logger');
+    logger.error('Error verificando sesión:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al verificar sesión' });
   }
 });
@@ -239,7 +243,8 @@ function requireAuth(req, res, next) {
     };
     next();
   } catch (err) {
-    console.error('Error en autenticación:', err);
+    const logger = require('../services/logger');
+    logger.error('Error en autenticación:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error de autenticación' });
   }
 }

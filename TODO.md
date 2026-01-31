@@ -20,10 +20,10 @@
 - [x] Separar middleware de auth en server/middleware/auth.js
 
 ## Fase 4: Manejo de Errores Robusto
-- [ ] Crear server/middleware/errorHandler.js centralizado
-- [ ] Implementar respuestas estructuradas (dev vs prod)
-- [ ] Agregar graceful shutdown (SIGTERM/SIGINT)
-- [ ] Logging de todos los errores con contexto
+- [x] Crear server/middleware/errorHandler.js centralizado
+- [x] Implementar respuestas estructuradas (dev vs prod)
+- [x] Agregar graceful shutdown (SIGTERM/SIGINT)
+- [x] Logging de todos los errores con contexto
 
 ## Fase 5: Arquitectura Modular ✅
 - [ ] Refactorizar backend: separar servicios y middleware
