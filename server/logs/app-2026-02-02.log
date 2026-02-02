@@ -1,0 +1,23 @@
+2026-02-02T18:02:19.126Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-02T18:02:19.137Z [INFO] 📦 Backup automático creado: backup_2026-02-02T18-02-19-110Z.sqlite 
+2026-02-02T18:06:10.689Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-02T18:06:13.948Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-02T18:06:13.955Z [INFO] 📦 Backup automático creado: backup_2026-02-02T18-06-13-938Z.sqlite 
+2026-02-02T18:16:07.739Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-02T18:16:11.318Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-02T18:16:11.325Z [INFO] 📦 Backup automático creado: backup_2026-02-02T18-16-11-309Z.sqlite 
+2026-02-02T18:34:22.234Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-02T18:34:25.482Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-02T18:34:25.489Z [INFO] 📦 Backup automático creado: backup_2026-02-02T18-34-25-474Z.sqlite 
+2026-02-02T18:43:15.713Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-02T18:43:18.356Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-02T18:43:18.363Z [INFO] 📦 Backup automático creado: backup_2026-02-02T18-43-18-348Z.sqlite 
+2026-02-02T19:03:02.281Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-02T19:03:06.267Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-02T19:03:06.273Z [INFO] 📦 Backup automático creado: backup_2026-02-02T19-03-06-258Z.sqlite 
+2026-02-02T19:08:16.921Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-02T19:08:19.815Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-02T19:08:19.820Z [INFO] 📦 Backup automático creado: backup_2026-02-02T19-08-19-806Z.sqlite 
+2026-02-02T19:54:53.728Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-02T19:54:56.582Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-02T19:54:56.594Z [INFO] 📦 Backup automático creado: backup_2026-02-02T19-54-56-569Z.sqlite 

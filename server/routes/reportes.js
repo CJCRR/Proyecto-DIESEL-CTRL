@@ -69,14 +69,19 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
 }
 
 router.get('/ventas', requireAuth, (req, res) => {
-    const ventas = db.prepare(`
+  // Solo listar ventas que aún no han sido devueltas
+  // (no existe ninguna devolución con venta_original_id = ventas.id)
+  const ventas = db.prepare(`
     SELECT id, fecha, cliente, vendedor, cedula, telefono, total_bs, tasa_bcv, descuento, metodo_pago, referencia
     FROM ventas
+    WHERE NOT EXISTS (
+      SELECT 1 FROM devoluciones d WHERE d.venta_original_id = ventas.id
+    )
     ORDER BY fecha DESC
     LIMIT 100
   `).all();
 
-    res.json(ventas);
+  res.json(ventas);
 });
 
 // GET /reportes/ventas-rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&vendedor=X&metodo=Y

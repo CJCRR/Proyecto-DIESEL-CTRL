@@ -2,14 +2,23 @@ import { sincronizarVentasPendientes, upsertClienteFirebase, obtenerClientesFire
 import { authFetch, apiFetchJson } from './app-api.js';
 import { escapeHtml, showToast } from './app-utils.js';
 
-let carrito = [];
-let productoSeleccionado = null;
+import {
+    carrito, productoSeleccionado, modoDevolucion, actualizarTabla, setModoDevolucion,
+    toggleDevolucion, prepararParaAgregar, agregarAlCarrito, eliminarDelCarrito,
+    limpiarSeleccion, getVentaSeleccionada, setVentaSeleccionada
+} from './modules/cart.js';
+
+import {
+    registrarVenta, registrarDevolucion, renderVentaSeleccionada,
+    cargarHistorialDevoluciones, actualizarSyncPendientes, intentarSincronizar
+} from './modules/sales.js';
+
+import { setupSearchModule } from './modules/search.js';
+
 let vendiendo = false;
 let clientesFrecuentesCache = [];
 let TASA_BCV_POS = 1;
 let TASA_BCV_UPDATED_POS = null;
-let modoDevolucion = false;
-let ventaSeleccionada = null;
 let ventasRecientesCache = [];
 let configGeneral = { empresa: {}, descuentos_volumen: [], devolucion: {} };
 let lastAutoDescuentoVolumen = null;
@@ -18,8 +27,6 @@ let historialModo = 'ventas';
 // Variables para PWA y Sincronización
 let isOnline = navigator.onLine;
 
-const buscarInput = document.getElementById('buscar');
-const resultadosUL = document.getElementById('resultados');
 const tablaCuerpo = document.getElementById('venta-items-cuerpo');
 const btnVender = document.getElementById('btnVender');
 const statusIndicator = document.createElement('div');
@@ -121,15 +128,18 @@ async function cargarPresupuestoEnPOS(presupuestoId) {
         if (descInput) descInput.value = String(presupuesto.descuento || 0);
         if (refInput) refInput.value = `PRES-${presupuesto.id}`;
 
-        carrito = (detalles || []).map(d => ({
-            codigo: d.codigo,
-            descripcion: d.descripcion,
-            precio_usd: Number(d.precio_usd || 0),
-            cantidad: Number(d.cantidad || 0)
-        }));
+        carrito.length = 0;
+        (detalles || []).forEach(d => {
+            carrito.push({
+                codigo: d.codigo,
+                descripcion: d.descripcion,
+                precio_usd: Number(d.precio_usd || 0),
+                cantidad: Number(d.cantidad || 0)
+            });
+        });
 
         setModoDevolucion(false);
-        ventaSeleccionada = null;
+        setVentaSeleccionada(null);
         actualizarTabla();
         try {
             const url = new URL(window.location.href);
@@ -198,7 +208,8 @@ function setupOfflineUI() {
         isOnline = true;
         statusIndicator.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-full text-xs font-bold bg-green-500 text-white shadow-lg';
         statusIndicator.innerHTML = '<i class="fas fa-wifi mr-2"></i> EN LÍNEA';
-            try { if (typeof window.sincronizarVentasPendientes === 'function') window.sincronizarVentasPendientes(); } catch (err) { console.warn('No se pudo disparar sync al reconectar', err); }
+        showToast('¡Conexión restablecida! Intentando sincronizar pendientes...', 'success', 4000);
+        try { if (typeof window.sincronizarVentasPendientes === 'function') window.sincronizarVentasPendientes(); } catch (err) { console.warn('No se pudo disparar sync al reconectar', err); }
         intentarSincronizar();
         actualizarSyncPendientes();
     });
@@ -207,232 +218,12 @@ function setupOfflineUI() {
         isOnline = false;
         statusIndicator.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg';
         statusIndicator.innerHTML = '<i class="fas fa-wifi-slash mr-2"></i> MODO OFFLINE';
+        showToast('Estás en modo offline. Las ventas se guardarán localmente y se sincronizarán al reconectar.', 'info', 6000);
         actualizarSyncPendientes();
     });
 }
 
-// --- GENERADOR DE ID GLOBAL (VEN-YYYY-MM-DD-UUID) ---
-function generarIDVenta() {
-    const fecha = new Date().toISOString().split('T')[0];
-    const randomPart = Math.random().toString(36).substring(2, 10).toUpperCase();
-    return `VEN-${fecha}-${randomPart}`;
-}
-
-// --- BÚSQUEDA Y SELECCIÓN ---
-buscarInput.addEventListener('input', async () => {
-    const q = buscarInput.value.trim();
-    if (q.length < 2) {
-        resultadosUL.innerHTML = '';
-        resultadosUL.classList.add('hidden');
-        return;
-    }
-
-    try {
-        const data = await apiFetchJson(`/buscar?q=${encodeURIComponent(q)}`);
-        resultadosUL.innerHTML = '';
-        if (data.length > 0) {
-            resultadosUL.classList.remove('hidden');
-            data.forEach(p => {
-                const li = document.createElement('li');
-                li.className = "p-3 border-b hover:bg-slate-50 cursor-pointer flex justify-between items-center transition-colors";
-                li.innerHTML = `
-                    <div class="flex flex-col">
-                        <span class="font-bold text-slate-700">${escapeHtml(p.codigo)}</span>
-                        <span class="text-xs text-slate-400">${escapeHtml(p.descripcion)}</span>
-                    </div>
-                    <div class="text-right">
-                        <span class="block text-blue-600 font-black">$${escapeHtml(p.precio_usd)}</span>
-                        <span class="block text-[9px] font-bold text-slate-400 uppercase">Stock: ${escapeHtml(p.stock)}</span>
-                    </div>
-                `;
-                li.onclick = () => prepararParaAgregar(p);
-                resultadosUL.appendChild(li);
-            });
-        } else {
-            resultadosUL.classList.add('hidden');
-        }
-    } catch (err) {
-        resultadosUL.classList.add('hidden');
-    }
-});
-
-function prepararParaAgregar(p) {
-    if (modoDevolucion) { showToast('En modo devolución no puedes agregar productos manualmente. Selecciona una venta.', 'error'); return; }
-    productoSeleccionado = p;
-    buscarInput.value = `${p.codigo} - ${p.descripcion}`;
-    resultadosUL.classList.add('hidden');
-    document.getElementById('v_cantidad').focus();
-}
-
-// --- GESTIÓN DEL CARRITO ---
-function agregarAlCarrito() {
-    if (modoDevolucion) { showToast('Usa la selección de venta para devolver.', 'error'); return; }
-    const cantidadInput = document.getElementById('v_cantidad');
-    const cantidad = parseInt(cantidadInput.value);
-    
-    
-
-    // Replace alerts with toasts
-    if (!productoSeleccionado) { showToast('Por favor, busque y seleccione un producto.', 'error'); return; }
-    if (isNaN(cantidad) || cantidad <= 0) { showToast('Ingrese una cantidad válida.', 'error'); return; }
-    if (cantidad > productoSeleccionado.stock) { showToast('No hay suficiente stock disponible.', 'error'); return; }
-
-    // Verificar si ya existe en el carrito para sumar o agregar nuevo
-    const index = carrito.findIndex(item => item.codigo === productoSeleccionado.codigo);
-    if (index !== -1) {
-        if ((carrito[index].cantidad + cantidad) > productoSeleccionado.stock) {
-            showToast('La cantidad total en el carrito supera el stock físico.', 'error'); return;
-        }
-        carrito[index].cantidad += cantidad;
-    } else {
-        carrito.push({
-            codigo: productoSeleccionado.codigo,
-            descripcion: productoSeleccionado.descripcion,
-            precio_usd: productoSeleccionado.precio_usd,
-            cantidad: cantidad
-        });
-    }
-
-    actualizarTabla();
-    limpiarSeleccion();
-}
-
-function actualizarTabla() {
-    if (!tablaCuerpo) return;
-    tablaCuerpo.innerHTML = '';
-    
-    const vacioMsg = document.getElementById('vacio-msg');
-    const countLabel = document.getElementById('items-count');
-    
-    if (carrito.length === 0) {
-        if (vacioMsg) vacioMsg.classList.remove('hidden');
-        if (countLabel) countLabel.innerText = "0 ITEMS";
-    } else {
-        if (vacioMsg) vacioMsg.classList.add('hidden');
-        if (countLabel) countLabel.innerText = `${carrito.length} ITEM${carrito.length > 1 ? 'S' : ''}`;
-    }
-
-    let totalUSD = 0;
-    const tasa = parseFloat(document.getElementById('v_tasa').value) || 1;
-    let descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
-
-    carrito.forEach((item, index) => {
-        const subtotalUSD = item.cantidad * item.precio_usd;
-        totalUSD += subtotalUSD;
-        
-        const tr = document.createElement('tr');
-        tr.className = "border-b text-sm hover:bg-slate-50 transition-colors";
-        const qtyCell = modoDevolucion
-            ? `<input type="number" min="0" max="${item.maxCantidad || item.cantidad}" value="${item.cantidad}" class="w-16 text-center border rounded" data-idx="${index}" data-role="dev-qty">`
-            : `${item.cantidad}`;
-        tr.innerHTML = `
-            <td class="p-4 font-bold text-slate-600">${escapeHtml(item.codigo)}</td>
-            <td class="p-4 text-slate-500">${escapeHtml(item.descripcion)}</td>
-            <td class="p-4 text-center font-bold">${qtyCell}</td>
-            <td class="p-4 text-right text-slate-400 font-mono">$${item.precio_usd.toFixed(2)}</td>
-            <td class="p-4 text-right font-black ${modoDevolucion ? 'text-rose-600' : 'text-blue-600'} font-mono">$${subtotalUSD.toFixed(2)}</td>
-            <td class="p-4 text-center">
-                <button onclick="eliminarDelCarrito(${index})" class="w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-all">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </td>
-        `;
-        tablaCuerpo.appendChild(tr);
-    });
-
-    if (modoDevolucion) {
-        tablaCuerpo.querySelectorAll('input[data-role="dev-qty"]').forEach(inp => {
-            inp.addEventListener('input', (e) => {
-                const idx = parseInt(e.target.dataset.idx, 10);
-                let val = parseInt(e.target.value, 10) || 0;
-                const max = carrito[idx]?.maxCantidad || carrito[idx]?.cantidad || 0;
-                if (val < 0) val = 0;
-                if (val > max) val = max;
-                carrito[idx].cantidad = val;
-                actualizarTabla();
-            });
-        });
-    }
-
-    // Descuento automático por volumen (solo en ventas)
-    if (!modoDevolucion && Array.isArray(configGeneral?.descuentos_volumen) && configGeneral.descuentos_volumen.length) {
-        const qtyTotal = carrito.reduce((s, it) => s + (Number(it.cantidad) || 0), 0);
-        const tier = [...configGeneral.descuentos_volumen]
-            .sort((a, b) => b.min_qty - a.min_qty)
-            .find(t => qtyTotal >= Number(t.min_qty || 0));
-        if (tier && Number(tier.descuento_pct) > 0) {
-            const autoDesc = Number(tier.descuento_pct);
-            if (autoDesc !== descuento) {
-                const inputDesc = document.getElementById('v_desc');
-                if (inputDesc) inputDesc.value = String(autoDesc);
-                descuento = autoDesc;
-                if (lastAutoDescuentoVolumen !== autoDesc) {
-                    showToast(`Descuento ${autoDesc}% aplicado por volumen (≥ ${tier.min_qty})`, 'info');
-                }
-                lastAutoDescuentoVolumen = autoDesc;
-            }
-        } else if (lastAutoDescuentoVolumen !== null && descuento === lastAutoDescuentoVolumen) {
-            const inputDesc = document.getElementById('v_desc');
-            if (inputDesc) inputDesc.value = '0';
-            descuento = 0;
-            lastAutoDescuentoVolumen = null;
-        }
-    }
-
-    const totalAfterDiscount = totalUSD * (1 - Math.max(0, Math.min(100, descuento)) / 100);
-    const sign = modoDevolucion ? -1 : 1;
-    document.getElementById('total-usd').innerText = (totalAfterDiscount * sign).toFixed(2);
-    document.getElementById('total-bs').innerText = (totalAfterDiscount * tasa * sign).toLocaleString('es-VE', {minimumFractionDigits: 2});
-}
-
-function setModoDevolucion(active) {
-    modoDevolucion = !!active;
-    const label = document.getElementById('pv-modo-label');
-    const btnVenta = document.getElementById('btn-tab-venta');
-    const btnDev = document.getElementById('btn-tab-devolucion');
-    const panelDev = document.getElementById('panel-devolucion');
-    const panelCredito = document.getElementById('panel-credito');
-    const panelVentaControls = document.querySelectorAll('[data-panel-venta]');
-    if (label) label.textContent = modoDevolucion ? 'Devolución' : 'Venta';
-    if (btnVenta && btnDev) {
-        btnVenta.classList.toggle('active-tab', !modoDevolucion);
-        btnVenta.classList.toggle('text-slate-500', modoDevolucion);
-        btnDev.classList.toggle('active-tab', modoDevolucion);
-        btnDev.classList.toggle('text-slate-500', !modoDevolucion);
-    }
-    if (panelDev) panelDev.classList.toggle('hidden', !modoDevolucion);
-    if (panelVentaControls && panelVentaControls.length) {
-        panelVentaControls.forEach(el => {
-            el.classList.toggle('hidden', modoDevolucion);
-            // No forzar mostrar el panel de crédito en modo venta; dejar que syncCreditoUI lo controle
-            if (!modoDevolucion && el === panelCredito) {
-                el.classList.add('hidden');
-            }
-        });
-    }
-    if (btnVender) {
-        btnVender.textContent = modoDevolucion ? 'Registrar devolución' : 'Registrar venta';
-        btnVender.classList.toggle('bg-blue-500', !modoDevolucion);
-        btnVender.classList.toggle('bg-rose-500', modoDevolucion);
-    }
-    // Deshabilitar búsqueda manual en modo devolución
-    if (buscarInput) buscarInput.disabled = modoDevolucion;
-    const qtyInput = document.getElementById('v_cantidad');
-    if (qtyInput) qtyInput.disabled = modoDevolucion;
-    const btnAgregar = document.querySelector('button[onclick="agregarAlCarrito()"]');
-    if (btnAgregar) btnAgregar.disabled = modoDevolucion;
-    if (modoDevolucion) {
-        carrito = [];
-        ventaSeleccionada = null;
-        renderVentaSeleccionada();
-    }
-    actualizarTabla();
-    if (window.syncCreditoUI) window.syncCreditoUI();
-}
-
-function toggleDevolucion() {
-    setModoDevolucion(!modoDevolucion);
-}
+// (La búsqueda de productos ahora se maneja desde modules/search.js)
 
 async function cargarVentasRecientes() {
     try {
@@ -484,15 +275,18 @@ function renderVentasRecientes(filter = '') {
 async function cargarVentaParaDevolucion(id) {
     try {
         const { venta, detalles } = await apiFetchJson(`/reportes/ventas/${id}`);
-        ventaSeleccionada = venta;
-        carrito = (detalles || []).map(d => ({
-            codigo: d.codigo,
-            descripcion: d.descripcion,
-            precio_usd: d.precio_usd || 0,
-            cantidad: d.cantidad,
-            maxCantidad: d.cantidad,
-            subtotal_bs: d.subtotal_bs || 0
-        }));
+        setVentaSeleccionada(venta);
+        carrito.length = 0;
+        (detalles || []).forEach(d => {
+            carrito.push({
+                codigo: d.codigo,
+                descripcion: d.descripcion,
+                precio_usd: d.precio_usd || 0,
+                cantidad: d.cantidad,
+                maxCantidad: d.cantidad,
+                subtotal_bs: d.subtotal_bs || 0
+            });
+        });
         // Prellenar datos de cabecera con la venta original
         const cli = document.getElementById('v_cliente');
         const ced = document.getElementById('v_cedula');
@@ -509,45 +303,6 @@ async function cargarVentaParaDevolucion(id) {
         console.error(err);
         showToast(err.message || 'Error cargando venta', 'error');
     }
-}
-
-function renderVentaSeleccionada() {
-    const info = document.getElementById('dev-venta-info');
-    const detalle = document.getElementById('dev-venta-detalle');
-    if (!info || !detalle) return;
-    if (!ventaSeleccionada) {
-        info.classList.add('hidden');
-        detalle.classList.add('hidden');
-        return;
-    }
-    info.classList.remove('hidden');
-    const totalUsd = ventaSeleccionada.tasa_bcv ? (ventaSeleccionada.total_bs / ventaSeleccionada.tasa_bcv) : 0;
-    info.innerHTML = `<div class="flex justify-between">
-        <div>
-            <div class="font-semibold text-slate-700">${escapeHtml(ventaSeleccionada.cliente || '')}</div>
-            <div class="text-[11px] text-slate-500">#${escapeHtml(ventaSeleccionada.id)} • ${escapeHtml(new Date(ventaSeleccionada.fecha).toLocaleString())}</div>
-            <div class="text-[11px] text-slate-500">Ref: ${escapeHtml(ventaSeleccionada.referencia || '—')}</div>
-        </div>
-        <div class="text-right text-sm font-black text-rose-600">$${Number(totalUsd || 0).toFixed(2)}</div>
-    </div>`;
-
-    detalle.classList.remove('hidden');
-    detalle.innerHTML = carrito.map((d, idx) => `<div class="flex items-center justify-between border-b pb-1">
-        <div class="text-slate-700">${escapeHtml(d.codigo)} — ${escapeHtml(d.descripcion)}</div>
-        <div class="text-xs text-slate-500">Vendidos: ${escapeHtml(d.maxCantidad)}</div>
-    </div>`).join('');
-}
-
-function eliminarDelCarrito(index) {
-    carrito.splice(index, 1);
-    actualizarTabla();
-}
-
-function limpiarSeleccion() {
-    productoSeleccionado = null;
-    buscarInput.value = '';
-    document.getElementById('v_cantidad').value = 1;
-    buscarInput.focus();
 }
 
 async function registrarPresupuesto() {
@@ -584,6 +339,7 @@ async function registrarPresupuesto() {
         });
         showToast('Presupuesto guardado', 'success');
         finalizarVentaUI();
+        if (window.limpiarBackup) window.limpiarBackup();
         if (res && res.presupuestoId) {
             const notaUrl = `/presupuestos/nota/${encodeURIComponent(res.presupuestoId)}`;
             // Si abrimos una ventana al inicio para evitar popup blockers, reutilizarla
@@ -598,26 +354,6 @@ async function registrarPresupuesto() {
         showToast(err.message || 'Error guardando presupuesto', 'error');
     } finally {
         vendiendo = false;
-    }
-}
-
-// --- PANEL DE SINCRONIZACIÓN ---
-async function actualizarSyncPendientes() {
-    try {
-        const cont = document.getElementById('sync-pendientes');
-        if (!cont) return;
-        let pendientes = 0;
-        if (typeof abrirIndexedDB === 'function' && typeof obtenerVentasPendientes === 'function') {
-            const db = await abrirIndexedDB();
-            const arr = await obtenerVentasPendientes(db);
-            pendientes = (arr || []).length;
-        } else {
-            const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
-            pendientes = historico.filter(v => !v.sync).length;
-        }
-        cont.textContent = String(pendientes);
-    } catch (err) {
-        console.warn('No se pudo calcular pendientes', err);
     }
 }
 
@@ -658,221 +394,49 @@ async function imprimirNotaLocal(venta) {
     ventana.document.close();
 }
 
-// --- PROCESAR VENTA FINAL ---
-async function registrarVenta() {
-    if (modoDevolucion) {
-        await registrarDevolucion();
-        return;
-    }
-    if (vendiendo || carrito.length === 0) return;
-    
-    const cliente = document.getElementById('v_cliente').value.trim();
-    const vendedor = document.getElementById('v_vendedor') ? document.getElementById('v_vendedor').value.trim() : '';
-    const cedula = document.getElementById('v_cedula') ? document.getElementById('v_cedula').value.trim() : '';
-    const telefono = document.getElementById('v_telefono') ? document.getElementById('v_telefono').value.trim() : '';
-    const tasa = parseFloat(document.getElementById('v_tasa').value);
+// Exponer impresión y validación de política para que sales.js las reutilice
+window.imprimirNotaLocal = imprimirNotaLocal;
+window.validarPoliticaDevolucionLocal = validarPoliticaDevolucionLocal;
 
-    const selMetodo = document.getElementById('v_metodo');
-    const isCredito = (selMetodo?.value === 'credito');
-    const diasVenc = parseInt(document.getElementById('v_dias')?.value, 10) || 21;
-    const fechaVenc = document.getElementById('v_fecha_venc')?.value || null;
-
-    
-
-    // validations
-    const metodo = selMetodo ? selMetodo.value : '';
-    if (!isCredito && !metodo) { showToast('Seleccione un método de pago', 'error'); return; }
-    if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
-    if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa de cambio válida (> 0)', 'error'); return; }
-
-    const descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
-    const referencia = (document.getElementById('v_ref') && document.getElementById('v_ref').value)
-        ? document.getElementById('v_ref').value.trim()
-        : '';
-
-    const metodoFinal = isCredito ? 'CREDITO' : metodo;
-
-    const ventaData = {
-        id_global: generarIDVenta(),
-        items: [...carrito],
-        cliente,
-        vendedor,
-        cedula,
-        telefono,
-        tasa_bcv: tasa,
-        descuento,
-        metodo_pago: metodoFinal,
-        referencia,
-        cliente_doc: cedula,
-        credito: isCredito,
-        dias_vencimiento: diasVenc,
-        fecha_vencimiento: fechaVenc,
-        fecha: new Date().toISOString(),
-        sync: false
-    };
-
-    vendiendo = true;
-    btnVender.disabled = true;
-    btnVender.innerText = 'Procesando...';
-
-    try {
-        // 1. GUARDAR EN IndexedDB (SIEMPRE) - usar función de db-local.js
-        await guardarVentaLocal(ventaData);
-        await actualizarSyncPendientes();
-
-        // 1b. Si estamos offline, registrar background sync para que corra al volver la conexión
-        if (!isOnline) {
-            try {
-                if ('serviceWorker' in navigator && 'SyncManager' in window) {
-                    const reg = await navigator.serviceWorker.ready;
-                    await reg.sync.register('sync-ventas');
-                }
-            } catch (err) {
-                console.warn('No se pudo registrar background sync', err);
-            }
-        }
-
-        // 2. SI ESTÁ ONLINE, INTENTAR SINCRONIZAR PENDIENTES
-        if (isOnline && typeof window.sincronizarVentasPendientes === 'function') {
-            await window.sincronizarVentasPendientes();
-        }
-
-        // Actualizar UI antes de abrir la nota para evitar que la impresión "corte"
-        finalizarVentaUI();
-        // Abrir nota primero, luego mostrar toast
-        await imprimirNotaLocal(ventaData);
-        setTimeout(() => showToast('✅ Venta registrada exitosamente', 'success'), 300);
-    } catch (err) {
-        console.error(err);
-        showToast('❌ Error: ' + err.message, 'error');
-    } finally {
-        vendiendo = false;
-        btnVender.disabled = false;
-        btnVender.textContent = 'Registrar venta';
-    }
-    actualizarHistorial()
-}
-
-async function registrarDevolucion() {
-    if (vendiendo || carrito.length === 0) return;
-
-    const cliente = document.getElementById('v_cliente').value.trim();
-    const cedula = document.getElementById('v_cedula') ? document.getElementById('v_cedula').value.trim() : '';
-    const telefono = document.getElementById('v_telefono') ? document.getElementById('v_telefono').value.trim() : '';
-    const tasa = parseFloat(document.getElementById('v_tasa').value);
-    const motivo = document.getElementById('dev-motivo') ? document.getElementById('dev-motivo').value.trim() : '';
-    const ventaOriginalId = ventaSeleccionada ? ventaSeleccionada.id : null;
-
-    if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
-    if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa de cambio válida (> 0)', 'error'); return; }
-
-    if (!ventaOriginalId) { showToast('Selecciona una venta a devolver', 'error'); return; }
-
-    const policyError = validarPoliticaDevolucionLocal(ventaSeleccionada);
-    if (policyError) { showToast(policyError, 'error'); return; }
-
-    const items = carrito
-        .filter(item => Number(item.cantidad) > 0)
-        .map(item => ({ codigo: item.codigo, cantidad: Number(item.cantidad) }));
-    if (!items.length) { showToast('Coloca cantidades a devolver', 'error'); return; }
-
-    vendiendo = true;
-    btnVender.disabled = true;
-    btnVender.textContent = 'Procesando...';
-
-    try {
-        const usuario = window.Auth ? window.Auth.getUser() : null;
-        const refDev = ventaSeleccionada?.referencia || `DEV-${ventaOriginalId}`;
-        const payload = {
-            items,
-            cliente,
-            cedula,
-            telefono,
-            tasa_bcv: tasa,
-            referencia: refDev,
-            motivo,
-            venta_original_id: ventaOriginalId,
-            usuario_id: usuario ? usuario.id : null
-        };
-        console.debug('POST /devoluciones payload', payload);
-        const data = await apiFetchJson('/devoluciones', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-        void data;
-        finalizarVentaUI();
-        setModoDevolucion(false);
-        showToast('Devolución registrada', 'success');
-        cargarHistorialDevoluciones(cliente, cedula);
-    } catch (err) {
-        console.error(err);
-        showToast('❌ Error: ' + err.message, 'error');
-    } finally {
-        vendiendo = false;
-        btnVender.disabled = false;
-        btnVender.textContent = 'Registrar venta';
-    }
-}
-
-function renderHistorialDevoluciones(list = []) {
-    const cont = document.getElementById('dev-historial');
-    if (!cont) return;
-    if (!list.length) {
-        cont.classList.remove('hidden');
-        cont.innerHTML = '<div class="text-slate-400 text-xs">Sin devoluciones previas para este cliente.</div>';
-        return;
-    }
-    cont.classList.remove('hidden');
-    cont.innerHTML = list.slice(0, 5).map(d => {
-        const fecha = new Date(d.fecha).toLocaleString();
-        return `<div class="p-3 border rounded-xl bg-slate-50 flex items-center justify-between">
-            <div>
-                <div class="font-semibold text-slate-700">${escapeHtml(d.cliente || '')}</div>
-                <div class="text-[11px] text-slate-500">${escapeHtml(fecha)}${d.motivo ? ' • ' + escapeHtml(d.motivo) : ''}</div>
-                ${d.referencia ? `<div class="text-[11px] text-slate-500">Ref: ${escapeHtml(d.referencia)}</div>` : ''}
-            </div>
-            <div class="text-right text-[11px]">
-                <div class="font-black text-rose-600">$${Number(d.total_usd || 0).toFixed(2)}</div>
-                <div class="text-slate-500">${Number(d.total_bs || 0).toFixed(2)} Bs</div>
-            </div>
-        </div>`;
-    }).join('');
-}
-
-function aplicarDescuentoDevolucion(list = []) {
-    if (!list.length) return;
-    const inputDesc = document.getElementById('v_desc');
-    if (!inputDesc) return;
-    const actual = parseFloat(inputDesc.value || '0') || 0;
-    if (actual > 0) return;
-    inputDesc.value = '5';
-    showToast('Descuento 5% aplicado por devolución previa del cliente', 'info');
-    actualizarTabla();
-}
-
-async function cargarHistorialDevoluciones(cliente, cedula) {
-    const cont = document.getElementById('dev-historial');
-    if (!cont) return;
-    if (!cliente && !cedula) { cont.innerHTML = '<div class="text-slate-400 text-xs">Sin cliente seleccionado.</div>'; return; }
-    cont.innerHTML = '<div class="text-slate-400 text-xs">Cargando devoluciones...</div>';
-    try {
-        const params = new URLSearchParams();
-        if (cliente) params.set('cliente', cliente);
-        if (cedula) params.set('cedula', cedula);
-        const data = await apiFetchJson(`/devoluciones/historial?${params.toString()}`);
-        renderHistorialDevoluciones(data || []);
-        aplicarDescuentoDevolucion(data || []);
-    } catch (err) {
-        console.error(err);
-        cont.innerHTML = '<div class="text-rose-600 text-xs">Error cargando historial de devoluciones.</div>';
-    }
-}
+// registrarVenta, registrarDevolucion, cargarHistorialDevoluciones e intentarSincronizar
+// ahora se implementan en modules/sales.js y se importan arriba.
 
 // --- INTENTAR SINCRONIZACIÓN CADA 30 SEGUNDOS ---
 document.addEventListener('DOMContentLoaded', () => {
+        // --- Restaurar estado de carrito y formulario si existe backup local ---
+        try {
+            const backup = JSON.parse(localStorage.getItem('carrito_backup_v2') || '{}');
+            if (backup && Array.isArray(backup.carrito) && backup.carrito.length > 0) {
+                carrito.length = 0;
+                backup.carrito.forEach(item => carrito.push(item));
+                actualizarTabla();
+            }
+            if (backup.form) {
+                if (backup.form.v_cliente) document.getElementById('v_cliente').value = backup.form.v_cliente;
+                if (backup.form.v_cedula && document.getElementById('v_cedula')) document.getElementById('v_cedula').value = backup.form.v_cedula;
+                if (backup.form.v_telefono && document.getElementById('v_telefono')) document.getElementById('v_telefono').value = backup.form.v_telefono;
+                if (backup.form.v_desc && document.getElementById('v_desc')) document.getElementById('v_desc').value = backup.form.v_desc;
+                if (backup.form.v_ref && document.getElementById('v_ref')) document.getElementById('v_ref').value = backup.form.v_ref;
+            }
+        } catch {}
+
+        // Guardar automáticamente el estado antes de recargar/cerrar
+        window.addEventListener('beforeunload', () => {
+            try {
+                const form = {
+                    v_cliente: document.getElementById('v_cliente')?.value || '',
+                    v_cedula: document.getElementById('v_cedula')?.value || '',
+                    v_telefono: document.getElementById('v_telefono')?.value || '',
+                    v_desc: document.getElementById('v_desc')?.value || '',
+                    v_ref: document.getElementById('v_ref')?.value || ''
+                };
+                localStorage.setItem('carrito_backup_v2', JSON.stringify({ carrito, form }));
+            } catch {}
+        });
+
+        // Limpiar backup al finalizar venta o presupuesto
+        const limpiarBackup = () => { try { localStorage.removeItem('carrito_backup_v2'); } catch {} };
+        window.limpiarBackup = limpiarBackup;
     setupOfflineUI();
     cargarConfigGeneral();
     actualizarHistorial();
@@ -911,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnDevRecientes) btnDevRecientes.addEventListener('click', () => cargarVentasRecientes());
 
     const btnToggleDev = document.getElementById('btn-toggle-devolucion');
-    if (btnToggleDev) btnToggleDev.addEventListener('click', toggleDevolucion);
+    if (btnToggleDev) btnToggleDev.addEventListener('click', () => toggleDevolucion());
 
     // Registrar service worker
     if ('serviceWorker' in navigator) {
@@ -1139,6 +703,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnGuardarCliente) btnGuardarCliente.addEventListener('click', upsertClienteDesdeFormulario);
     // fin autocompletar clientes
 
+    // Inicializar módulo de búsqueda de productos (modules/search.js)
+    const buscarInput = document.getElementById('buscar');
+    const resultadosUL = document.getElementById('resultados');
+    if (buscarInput && resultadosUL) {
+        setupSearchModule({
+            buscarInput,
+            resultadosUL,
+            prepararParaAgregar,
+            apiFetchJson,
+            showToast,
+            escapeHtml
+        });
+    }
+
     setModoDevolucion(false);
     cargarVentasRecientes();
 
@@ -1159,7 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function finalizarVentaUI() {
-    carrito = [];
+    carrito.length = 0;
     actualizarTabla();
     document.getElementById('v_cliente').value = '';
     if (document.getElementById('v_vendedor')) document.getElementById('v_vendedor').value = '';
@@ -1172,56 +750,14 @@ function finalizarVentaUI() {
     const devMot = document.getElementById('dev-motivo');
     if (devRef) devRef.value = '';
     if (devMot) devMot.value = '';
-    ventaSeleccionada = null;
+    setVentaSeleccionada(null);
     renderVentaSeleccionada();
     setModoDevolucion(false);
     if (window.syncCreditoUI) window.syncCreditoUI();
     vendiendo = false;
     btnVender.disabled = false;
     actualizarHistorial();
-}
-
-async function enviarVentaAlServidor(venta) {
-    // Obtener usuario actual para auditoría
-    const user = window.Auth ? window.Auth.getUser() : null;
-    const ventaConUsuario = {
-        ...venta,
-        usuario_id: user ? user.id : null
-    };
-    
-    const data = await apiFetchJson('/ventas', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(ventaConUsuario)
-    });
-    
-    marcarVentaComoSincronizada(venta.id_global);
-    return data; // Contiene el ID generado por el servidor
-}
-
-function guardarVentaLocal(venta) {
-    // DEPRECATED: localStorage fallback removed. Use IndexedDB implementation in db-local.js
-    // If db-local.js is loaded, call that implementation instead.
-    if (typeof window.guardarVentaLocal === 'function' && window.guardarVentaLocal !== guardarVentaLocal) {
-        // db-local.js provides guardarVentaLocal; call it
-        return window.guardarVentaLocal(venta);
-    }
-    // Fallback: keep localStorage for compatibility
-    const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
-    historico.push(venta);
-    localStorage.setItem('ventas_pendientes', JSON.stringify(historico));
-}
-
-function marcarVentaComoSincronizada(idGlobal) {
-    // Preferir IndexedDB implementation si existe
-    if (typeof window.abrirIndexedDB === 'function' && typeof window.marcarComoSincronizada === 'function') {
-        return abrirIndexedDB().then(db => marcarComoSincronizada(db, idGlobal));
-    }
-    const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
-    const nuevo = historico.map(v => v.id_global === idGlobal ? { ...v, sync: true } : v);
-    localStorage.setItem('ventas_pendientes', JSON.stringify(nuevo));
+    if (window.limpiarBackup) window.limpiarBackup();
 }
 
 // --- ADMINISTRACIÓN DE PRODUCTOS ---
@@ -1235,7 +771,8 @@ function crearProducto() {
     };
 
     if (!body.codigo || !body.descripcion || isNaN(body.precio_usd)) {
-        return alert('Complete todos los campos del producto.');
+            showToast('Complete todos los campos del producto.', 'error');
+            return;
     }
 
     apiFetchJson('/admin/productos', {
@@ -1247,14 +784,14 @@ function crearProducto() {
     })
     .then(d => {
         if(d.error) throw new Error(d.error);
-        alert('✅ Producto registrado');
+        showToast('✅ Producto registrado', 'success');
         document.getElementById('i_codigo').value = '';
         document.getElementById('i_desc').value = '';
         document.getElementById('i_precio').value = '';
         if (document.getElementById('i_costo')) document.getElementById('i_costo').value = '';
         document.getElementById('i_stock').value = '';
     })
-    .catch(err => alert('Error: ' + err.message));
+    .catch(err => showToast('Error: ' + err.message, 'error'));
 }
 
 function ajustarStock() {
@@ -1265,7 +802,8 @@ function ajustarStock() {
     };
 
     if (!body.codigo || isNaN(body.diferencia)) {
-        return alert('Ingrese el código y la cantidad a ajustar.');
+            showToast('Ingrese el código y la cantidad a ajustar.', 'error');
+            return;
     }
 
     apiFetchJson('/admin/ajustes', {
@@ -1277,11 +815,11 @@ function ajustarStock() {
     })
     .then(d => {
         if(d.error) throw new Error(d.error);
-        alert('✅ Stock actualizado');
+        showToast('✅ Stock actualizado', 'success');
         document.getElementById('a_codigo').value = '';
         document.getElementById('a_diff').value = '';
     })
-    .catch(err => alert('Error: ' + err.message));
+    .catch(err => showToast('Error: ' + err.message, 'error'));
 }
 
 function switchAdminTab(tab) {
@@ -1383,28 +921,18 @@ async function actualizarHistorial() {
     }
 }
 
-function intentarSincronizar() {
-    const historico = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
-    const pendientes = historico.filter(v => !v.sync);
-    if (pendientes.length === 0) return;
-
-    pendientes.reduce(async (promise, venta) => {
-        await promise;
-        return enviarVentaAlServidor(venta).catch(e => console.error(e));
-    }, Promise.resolve()).then(() => actualizarHistorial());
-}
+// intentarSincronizar se implementa ahora en modules/sales.js
 
 // (Inicialización manejada más arriba en el archivo.)
 
 // Exponer funciones al scope global para que los atributos inline onclick funcionen
 // (cuando se carga `app.js` como módulo, las funciones no quedan en `window` automáticamente).
-window.agregarAlCarrito = agregarAlCarrito;
 window.registrarVenta = registrarVenta;
 window.registrarPresupuesto = registrarPresupuesto;
 window.switchAdminTab = switchAdminTab;
 window.crearProducto = crearProducto;
 window.ajustarStock = ajustarStock;
-window.eliminarDelCarrito = eliminarDelCarrito;
-window.prepararParaAgregar = prepararParaAgregar;
-window.actualizarTabla = actualizarTabla;
-// undoLastLine removed
+window.finalizarVentaUI = finalizarVentaUI;
+window.actualizarHistorial = actualizarHistorial;
+window.cargarVentasRecientes = cargarVentasRecientes;
+// Funciones de carrito ya se exponen desde modules/cart.js

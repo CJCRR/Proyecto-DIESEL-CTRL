@@ -1,0 +1,222 @@
+// cart.js - Módulo de gestión del carrito y parte de la UI del POS
+
+// Estado compartido (se importa/exporta también desde otros módulos)
+export let carrito = [];
+export let productoSeleccionado = null;
+export let modoDevolucion = false;
+let ventaSeleccionada = null;
+
+export function getVentaSeleccionada() {
+	return ventaSeleccionada;
+}
+
+export function setVentaSeleccionada(value) {
+	ventaSeleccionada = value;
+}
+
+// Referencias a elementos de DOM que usa el carrito
+const buscarInput = document.getElementById('buscar');
+const resultadosUL = document.getElementById('resultados');
+const tablaCuerpo = document.getElementById('venta-items-cuerpo');
+const btnVender = document.getElementById('btnVender');
+
+// Estas variables vienen de la configuración general del POS
+// (se espera que configGeneral y lastAutoDescuentoVolumen estén en el scope global)
+
+export function prepararParaAgregar(p) {
+	if (modoDevolucion) { showToast('En modo devolución no puedes agregar productos manualmente. Selecciona una venta.', 'error'); return; }
+	productoSeleccionado = p;
+	if (buscarInput) {
+		buscarInput.value = `${p.codigo} - ${p.descripcion}`;
+	}
+	if (resultadosUL) resultadosUL.classList.add('hidden');
+	const qty = document.getElementById('v_cantidad');
+	if (qty) qty.focus();
+}
+
+export function agregarAlCarrito() {
+	if (modoDevolucion) { showToast('Usa la selección de venta para devolver.', 'error'); return; }
+	const cantidadInput = document.getElementById('v_cantidad');
+	const cantidad = parseInt(cantidadInput?.value);
+
+	if (!productoSeleccionado) { showToast('Por favor, busque y seleccione un producto.', 'error'); return; }
+	if (isNaN(cantidad) || cantidad <= 0) { showToast('Ingrese una cantidad válida.', 'error'); return; }
+	if (cantidad > productoSeleccionado.stock) { showToast('No hay suficiente stock disponible.', 'error'); return; }
+
+	const index = carrito.findIndex(item => item.codigo === productoSeleccionado.codigo);
+	if (index !== -1) {
+		if ((carrito[index].cantidad + cantidad) > productoSeleccionado.stock) {
+			showToast('La cantidad total en el carrito supera el stock físico.', 'error'); return;
+		}
+		carrito[index].cantidad += cantidad;
+	} else {
+		carrito.push({
+			codigo: productoSeleccionado.codigo,
+			descripcion: productoSeleccionado.descripcion,
+			precio_usd: productoSeleccionado.precio_usd,
+			cantidad: cantidad
+		});
+	}
+
+	actualizarTabla();
+	limpiarSeleccion();
+}
+
+export function actualizarTabla() {
+	if (!tablaCuerpo) return;
+	tablaCuerpo.innerHTML = '';
+
+	const vacioMsg = document.getElementById('vacio-msg');
+	const countLabel = document.getElementById('items-count');
+
+	if (carrito.length === 0) {
+		if (vacioMsg) vacioMsg.classList.remove('hidden');
+		if (countLabel) countLabel.innerText = "0 ITEMS";
+	} else {
+		if (vacioMsg) vacioMsg.classList.add('hidden');
+		if (countLabel) countLabel.innerText = `${carrito.length} ITEM${carrito.length > 1 ? 'S' : ''}`;
+	}
+
+	let totalUSD = 0;
+	const tasa = parseFloat(document.getElementById('v_tasa')?.value) || 1;
+	let descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
+
+	carrito.forEach((item, index) => {
+		const subtotalUSD = item.cantidad * item.precio_usd;
+		totalUSD += subtotalUSD;
+
+		const tr = document.createElement('tr');
+		tr.className = "border-b text-sm hover:bg-slate-50 transition-colors";
+		const qtyCell = modoDevolucion
+			? `<input type="number" min="0" max="${item.maxCantidad || item.cantidad}" value="${item.cantidad}" class="w-16 text-center border rounded" data-idx="${index}" data-role="dev-qty">`
+			: `${item.cantidad}`;
+		tr.innerHTML = `
+			<td class="p-4 font-bold text-slate-600">${escapeHtml(item.codigo)}</td>
+			<td class="p-4 text-slate-500">${escapeHtml(item.descripcion)}</td>
+			<td class="p-4 text-center font-bold">${qtyCell}</td>
+			<td class="p-4 text-right text-slate-400 font-mono">$${item.precio_usd.toFixed(2)}</td>
+			<td class="p-4 text-right font-black ${modoDevolucion ? 'text-rose-600' : 'text-blue-600'} font-mono">$${subtotalUSD.toFixed(2)}</td>
+			<td class="p-4 text-center">
+				<button onclick="eliminarDelCarrito(${index})" class="w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-all">
+					<i class="fas fa-trash-alt"></i>
+				</button>
+			</td>
+		`;
+		tablaCuerpo.appendChild(tr);
+	});
+
+	if (modoDevolucion) {
+		tablaCuerpo.querySelectorAll('input[data-role="dev-qty"]').forEach(inp => {
+			inp.addEventListener('input', (e) => {
+				const idx = parseInt(e.target.dataset.idx, 10);
+				let val = parseInt(e.target.value, 10) || 0;
+				const max = carrito[idx]?.maxCantidad || carrito[idx]?.cantidad || 0;
+				if (val < 0) val = 0;
+				if (val > max) val = max;
+				carrito[idx].cantidad = val;
+				actualizarTabla();
+			});
+		});
+	}
+
+	const cfg = window.configGeneral || {};
+	if (!modoDevolucion && Array.isArray(cfg.descuentos_volumen) && cfg.descuentos_volumen.length) {
+		const qtyTotal = carrito.reduce((s, it) => s + (Number(it.cantidad) || 0), 0);
+		const tier = [...cfg.descuentos_volumen]
+			.sort((a, b) => b.min_qty - a.min_qty)
+			.find(t => qtyTotal >= Number(t.min_qty || 0));
+		if (tier && Number(tier.descuento_pct) > 0) {
+			const autoDesc = Number(tier.descuento_pct);
+			if (autoDesc !== descuento) {
+				const inputDesc = document.getElementById('v_desc');
+				if (inputDesc) inputDesc.value = String(autoDesc);
+				descuento = autoDesc;
+				if (window.lastAutoDescuentoVolumen !== autoDesc) {
+					showToast(`Descuento ${autoDesc}% aplicado por volumen (≥ ${tier.min_qty})`, 'info');
+				}
+				window.lastAutoDescuentoVolumen = autoDesc;
+			}
+		} else if (window.lastAutoDescuentoVolumen !== null && descuento === window.lastAutoDescuentoVolumen) {
+			const inputDesc = document.getElementById('v_desc');
+			if (inputDesc) inputDesc.value = '0';
+			descuento = 0;
+			window.lastAutoDescuentoVolumen = null;
+		}
+	}
+
+	const totalAfterDiscount = totalUSD * (1 - Math.max(0, Math.min(100, descuento)) / 100);
+	const sign = modoDevolucion ? -1 : 1;
+	const totalUsdEl = document.getElementById('total-usd');
+	const totalBsEl = document.getElementById('total-bs');
+	if (totalUsdEl) totalUsdEl.innerText = (totalAfterDiscount * sign).toFixed(2);
+	if (totalBsEl) totalBsEl.innerText = (totalAfterDiscount * tasa * sign).toLocaleString('es-VE', {minimumFractionDigits: 2});
+}
+
+export function eliminarDelCarrito(index) {
+	carrito.splice(index, 1);
+	actualizarTabla();
+}
+
+export function limpiarSeleccion() {
+	productoSeleccionado = null;
+	if (buscarInput) buscarInput.value = '';
+	const qty = document.getElementById('v_cantidad');
+	if (qty) qty.value = 1;
+	if (buscarInput) buscarInput.focus();
+}
+
+export function setModoDevolucion(active) {
+	modoDevolucion = !!active;
+	const label = document.getElementById('pv-modo-label');
+	const btnVenta = document.getElementById('btn-tab-venta');
+	const btnDev = document.getElementById('btn-tab-devolucion');
+	const panelDev = document.getElementById('panel-devolucion');
+	const panelCredito = document.getElementById('panel-credito');
+	const panelVentaControls = document.querySelectorAll('[data-panel-venta]');
+	if (label) label.textContent = modoDevolucion ? 'Devolución' : 'Venta';
+	if (btnVenta && btnDev) {
+		btnVenta.classList.toggle('active-tab', !modoDevolucion);
+		btnVenta.classList.toggle('text-slate-500', modoDevolucion);
+		btnDev.classList.toggle('active-tab', modoDevolucion);
+		btnDev.classList.toggle('text-slate-500', !modoDevolucion);
+	}
+	if (panelDev) panelDev.classList.toggle('hidden', !modoDevolucion);
+	if (panelVentaControls && panelVentaControls.length) {
+		panelVentaControls.forEach(el => {
+			el.classList.toggle('hidden', modoDevolucion);
+			if (!modoDevolucion && el === panelCredito) {
+				el.classList.add('hidden');
+			}
+		});
+	}
+	if (btnVender) {
+		btnVender.textContent = modoDevolucion ? 'Registrar devolución' : 'Registrar venta';
+		btnVender.classList.toggle('bg-blue-500', !modoDevolucion);
+		btnVender.classList.toggle('bg-rose-500', modoDevolucion);
+	}
+	if (buscarInput) buscarInput.disabled = modoDevolucion;
+	const qtyInput = document.getElementById('v_cantidad');
+	if (qtyInput) qtyInput.disabled = modoDevolucion;
+	const btnAgregar = document.querySelector('button[onclick="agregarAlCarrito()"]');
+	if (btnAgregar) btnAgregar.disabled = modoDevolucion;
+	if (modoDevolucion) {
+		carrito = [];
+		ventaSeleccionada = null;
+		if (typeof renderVentaSeleccionada === 'function') {
+			renderVentaSeleccionada();
+		}
+	}
+	actualizarTabla();
+	if (window.syncCreditoUI) window.syncCreditoUI();
+}
+
+export function toggleDevolucion() {
+	setModoDevolucion(!modoDevolucion);
+}
+
+// Exponer algunas funciones al scope global por compatibilidad con onclick inline
+window.agregarAlCarrito = agregarAlCarrito;
+window.eliminarDelCarrito = eliminarDelCarrito;
+window.prepararParaAgregar = prepararParaAgregar;
+window.actualizarTabla = actualizarTabla;
+window.setModoDevolucion = setModoDevolucion;
