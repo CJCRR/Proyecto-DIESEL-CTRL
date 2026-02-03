@@ -332,7 +332,8 @@ export async function enviarVentaAlServidor(venta) {
 		body: JSON.stringify(ventaConUsuario)
 	});
 
-	await marcarVentaComoSincronizada(venta.id_global);
+	// Marcar como sincronizada en IndexedDB usando el helper de compatibilidad
+	await marcarVentaComoSincronizadaCompat(venta.id_global);
 	return data;
 }
 
