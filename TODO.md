@@ -26,14 +26,20 @@
 - [x] Logging de todos los errores con contexto
 
 ## Fase 5: Arquitectura Modular ✅
-- [ ] Refactorizar backend: separar servicios y middleware
-- [ ] Dividir app.js en módulos: cart.js, search.js, sales.js, ui.js
-- [ ] Convertir a ES6 modules consistentes
-- [ ] Mejorar separación de responsabilidades
+- [x] Refactorizar backend: separar servicios y middleware (ventas, reportes, cobranzas, devoluciones, ajustes)
+- [x] Dividir app.js en módulos: cart.js, search.js, sales.js, ui.js
+- [x] Convertir a ES6 modules consistentes en frontend principal
+- [x] Mejorar separación de responsabilidades entre rutas HTTP y servicios
 
 ## Fase 6: Testing y Validación ✅
-- [ ] Verificar todas las funcionalidades
-- [ ] Ajustes finales y optimizaciones
-- [ ] Documentar cambios
+- [x] Verificar flujos críticos end-to-end:
+	-  POS ventas online (con factura, nota y cuentas por cobrar)
+	- POS ventas offline + reconexión (sin duplicados ni stock erróneo)
+	- Devoluciones sobre ventas recientes y antiguas (respeta política de días)
+	- Cobranzas (creación de cuenta, registro de pagos, estados correcto)
+	- Ajustes de stock (no permite stock negativo, registra en historial)
+	- Reportes (ventas rango, KPIs, top productos/clientes, inventario)
+- [x] Ajustes finales y optimizaciones menores (queries, UI, tiempos de carga)
+- [ ] Documentar cambios de arquitectura (servicios backend y módulos frontend)
 
 ## Notas de Progreso

@@ -145,7 +145,6 @@ async function saveConfig(section) {
 }
 
 function setupUI() {
-    bindDrawer();
     document.getElementById('btnAddTier')?.addEventListener('click', () => {
         const current = getTiersFromDOM();
         current.push({ min_qty: 10, descuento_pct: 5 });
