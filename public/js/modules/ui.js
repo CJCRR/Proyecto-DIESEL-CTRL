@@ -3,6 +3,7 @@
 import { escapeHtml, showToast } from '../app-utils.js';
 import { apiFetchJson } from '../app-api.js';
 import { upsertClienteFirebase, obtenerClientesFirebase, sincronizarVentasPendientes } from '../firebase-sync.js';
+import { guardarClienteLocal, obtenerClientesLocales } from '../db-local.js';
 import { cargarHistorialDevoluciones, actualizarSyncPendientes } from './sales.js';
 
 let clientesFrecuentesCache = [];
@@ -134,12 +135,34 @@ async function loadClientes() {
 		list = await obtenerClientesFirebase();
 		if (list && list.length) {
 			localStorage.setItem('clientes_frecuentes_v2', JSON.stringify(list));
+			// Sincronizar también en IndexedDB para uso offline
+			for (const c of list) {
+				try {
+					await guardarClienteLocal({
+						cedula: c.cedula || '',
+						nombre: c.nombre || c.cliente || '',
+						telefono: c.telefono || c.telefono_cliente || '',
+						descuento: c.descuento || 0,
+						notas: c.notas || ''
+					});
+				} catch (e) {
+					console.warn('No se pudo cachear cliente en IndexedDB', e);
+				}
+			}
 		}
 	} catch (err) {
 		console.error('No se pudieron obtener clientes de Firebase, usando cache local', err);
 	}
 	if (!list || !list.length) {
-		list = JSON.parse(localStorage.getItem('clientes_frecuentes_v2') || '[]');
+		// Preferir IndexedDB como cache offline
+		try {
+			list = await obtenerClientesLocales();
+		} catch (e) {
+			console.warn('No se pudieron obtener clientes de IndexedDB, usando localStorage', e);
+		}
+		if (!list || !list.length) {
+			list = JSON.parse(localStorage.getItem('clientes_frecuentes_v2') || '[]');
+		}
 	}
 	clientesFrecuentesCache = list || [];
 }
@@ -165,6 +188,11 @@ async function upsertClienteDesdeFormulario() {
 			clientesFrecuentesCache = [actualizado, ...clientesFrecuentesCache].slice(0, 50);
 		}
 		localStorage.setItem('clientes_frecuentes_v2', JSON.stringify(clientesFrecuentesCache));
+		try {
+			await guardarClienteLocal(actualizado);
+		} catch (e) {
+			console.warn('No se pudo guardar cliente en IndexedDB', e);
+		}
 		showToast(existente ? 'Cliente actualizado' : 'Cliente guardado', 'success');
 	} catch (err) {
 		console.error('No se pudo guardar/actualizar en Firebase, se mantiene en cache local', err);
@@ -179,6 +207,11 @@ async function upsertClienteDesdeFormulario() {
 			clientesFrecuentesCache = [fallback, ...clientesFrecuentesCache].slice(0, 50);
 		}
 		localStorage.setItem('clientes_frecuentes_v2', JSON.stringify(clientesFrecuentesCache));
+		try {
+			await guardarClienteLocal(fallback);
+		} catch (e) {
+			console.warn('No se pudo guardar cliente en IndexedDB (modo offline)', e);
+		}
 		showToast('Guardado local (sin Firebase)', 'info');
 	}
 }

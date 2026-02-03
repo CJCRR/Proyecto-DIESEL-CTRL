@@ -1,6 +1,7 @@
 import { sincronizarVentasPendientes } from './firebase-sync.js';
 import { authFetch, apiFetchJson } from './app-api.js';
 import { escapeHtml, showToast } from './app-utils.js';
+import { guardarProductoLocal } from './db-local.js';
 
 import {
     carrito, productoSeleccionado, modoDevolucion, actualizarTabla, setModoDevolucion,
@@ -66,6 +67,32 @@ function precargarTasaCache() {
         const cachedUpdated = localStorage.getItem('tasa_bcv_updated');
         if (cached) setTasaUI(Number(cached), cachedUpdated || null);
     } catch {}
+}
+
+// Precarga de catálogo de productos en IndexedDB para búsqueda offline
+async function precargarCatalogoProductos() {
+    try {
+        // Traer hasta ~5000 productos; el backend aplica límite
+        const productos = await apiFetchJson('/productos?limit=5000');
+        if (Array.isArray(productos) && productos.length) {
+            for (const p of productos) {
+                if (!p || !p.codigo) continue;
+                try {
+                    await guardarProductoLocal({
+                        codigo: p.codigo,
+                        descripcion: p.descripcion,
+                        precio_usd: p.precio_usd,
+                        stock: p.stock
+                    });
+                } catch (e) {
+                    console.warn('No se pudo cachear producto al precargar', p.codigo, e);
+                }
+            }
+            console.log('✅ Catálogo de productos precargado en IndexedDB:', productos.length);
+        }
+    } catch (err) {
+        console.warn('No se pudo precargar catálogo de productos', err);
+    }
 }
 
 async function cargarConfigGeneral() {
@@ -409,6 +436,8 @@ document.addEventListener('DOMContentLoaded', () => {
     actualizarSyncPendientes();
     precargarTasaCache();
     cargarTasaPV();
+    // Precargar catálogo de productos para búsqueda offline
+    precargarCatalogoProductos();
 
     const presId = new URLSearchParams(window.location.search).get('presupuesto');
     if (presId) cargarPresupuestoEnPOS(presId);
