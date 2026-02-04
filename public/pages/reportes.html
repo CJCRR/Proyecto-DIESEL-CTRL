@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -8,18 +9,21 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
+
 <body class="bg-slate-50 text-slate-900 min-h-screen">
   <nav class="bg-slate-900 text-white p-4 shadow-xl">
     <div class="container mx-auto flex justify-between items-center">
       <div class="flex items-center gap-3">
-        <button id="btn-menu" class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+        <button id="btn-menu"
+          class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
           <i class="fas fa-bars text-lg"></i>
         </button>
         <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
       </div>
       <div class="flex items-center gap-3">
         <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Reportes</div>
-        <a href="/pages/ajustes.html" title="Ajustes" class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+        <a href="/pages/ajustes.html" title="Ajustes"
+          class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
           <i class="fas fa-gear text-base"></i>
         </a>
       </div>
@@ -28,25 +32,19 @@
 
   <!-- Drawer de navegación -->
   <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-40"></div>
-  <aside id="drawer" class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
+  <aside id="drawer"
+    class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
     <div class="p-5 flex items-center justify-between border-b border-slate-100">
       <div>
         <p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>
         <p class="text-lg font-black text-slate-800">Diesel Ctrl</p>
       </div>
-      <button id="drawer-close" class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
+      <button id="drawer-close"
+        class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
         <i class="fas fa-xmark text-slate-500"></i>
       </button>
     </div>
-    <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700">
-      <a href="/pages/index.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-cash-register text-blue-600"></i>Punto de Venta</a>
-      <a href="/pages/inventario.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-boxes-stacked text-amber-600"></i>Inventario</a>
-      <a href="/pages/dashboard.html" class="admin-only-nav flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-chart-line text-emerald-600"></i>Dashboard</a>
-      <a href="/pages/clientes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-users text-indigo-600"></i>Clientes</a>
-      <a href="/pages/reportes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-file-invoice text-rose-600"></i>Reportes</a>
-       <!-- Presupuestos eliminado del navbar en reportes -->
-       <a href="/pages/cobranzas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition"><i class="fas fa-money-check-dollar text-emerald-600"></i>Cobranzas</a>
-    </nav>
+    <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700"><!-- nav generado por layout-nav.js --></nav>
     <div class="p-4 border-t border-slate-100 text-xs text-slate-500">
       <p class="font-semibold">Atajos rápidos</p>
       <p class="mt-1">Presione ESC para cerrar.</p>
@@ -116,6 +114,8 @@
   <script type="module" src="/js/theme.js"></script>
   <script type="module" src="/js/alerts.js"></script>
   <script type="module" src="/js/reportes.js"></script>
+  <script src="/js/layout-nav.js"></script>
   <script src="/js/drawer.js"></script>
 </body>
+
 </html>

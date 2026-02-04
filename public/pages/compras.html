@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compras - Diesel Ctrl</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body class="bg-slate-50 min-h-screen text-slate-900">
+    <nav class="bg-slate-900 text-white p-4 shadow-xl">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <button id="btn-menu"
+                    class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+                    <i class="fas fa-bars text-lg"></i>
+                </button>
+                <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span>
+                </h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Compras / Ingresos</div>
+                <a href="/pages/ajustes.html" title="Ajustes"
+                    class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+                    <i class="fas fa-gear text-base"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Drawer de navegación -->
+    <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-40"></div>
+    <aside id="drawer"
+        class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
+        <div class="p-5 flex items-center justify-between border-b border-slate-100">
+            <div>
+                <p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>
+                <p class="text-lg font-black text-slate-800">Diesel Ctrl</p>
+            </div>
+            <button id="drawer-close"
+                class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
+                <i class="fas fa-xmark text-slate-500"></i>
+            </button>
+        </div>
+        <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700"><!-- nav generado por layout-nav.js --></nav>
+        <div class="p-4 border-t border-slate-100 text-xs text-slate-500">
+            <p class="font-semibold">Atajos rápidos</p>
+            <p class="mt-1">Presione ESC para cerrar.</p>
+        </div>
+    </aside>
+
+    <main class="container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
+            <div class="flex items-center justify-between gap-2 mb-2">
+                <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest">Nueva compra / ingreso</h2>
+                <button id="btnNuevaCompra"
+                    class="text-xs px-3 py-2 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-2">
+                    <i class="fas fa-eraser"></i><span>Limpiar</span>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Proveedor</label>
+                    <select id="c_proveedor"
+                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></select>
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Fecha</label>
+                    <input id="c_fecha" type="date"
+                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Número / Ref.</label>
+                    <input id="c_numero"
+                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="OC-0001" />
+                </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 mb-4">
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Código</label>
+                    <div class="relative">
+                        <input id="c_codigo" autocomplete="off"
+                            class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Código o nombre" />
+                        <ul id="c_sugerencias"
+                            class="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-auto text-xs hidden">
+                        </ul>
+                    </div>
+                    <div id="c_producto_info" class="mt-1 text-[11px] text-slate-500 min-h-[1.5rem]"></div>
+                </div>
+
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Tasa BCV</label>
+                    <input id="c_tasa" type="number" step="0.01"
+                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Cantidad</label>
+                    <input id="c_cantidad" type="number"
+                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Costo USD</label>
+                    <input id="c_costo" type="number" step="0.01"
+                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Lote (opcional)</label>
+                    <input id="c_lote"
+                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Lote / batch" />
+                </div>
+            </div>
+            <div class="flex justify-end mb-4">
+                <button id="btnAgregarItemCompra"
+                    class="px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 flex items-center gap-2">
+                    <i class="fas fa-plus"></i><span>Agregar item</span>
+                </button>
+            </div>
+            <div class="overflow-auto max-h-[50vh] border rounded-xl mb-4">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-100 text-[11px] uppercase text-slate-500">
+                        <tr>
+                            <th class="p-2 text-left">Código</th>
+                            <th class="p-2 text-left">Descripción</th>
+                            <th class="p-2 text-right">Cant.</th>
+                            <th class="p-2 text-right">Costo USD</th>
+                            <th class="p-2 text-right">Subtotal USD</th>
+                            <th class="p-2 text-right">Subtotal Bs</th>
+                            <th class="p-2 text-left">Lote</th>
+                            <th class="p-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="c_items" class="divide-y"></tbody>
+                </table>
+            </div>
+            <div class="flex items-center justify-between">
+                <div class="text-xs text-slate-500" id="c_resumen"></div>
+                <button id="btnGuardarCompra"
+                    class="px-5 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 flex items-center gap-2 text-sm">
+                    <i class="fas fa-save"></i><span>Registrar compra</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
+            <div class="flex items-center justify-between gap-2">
+                <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest">Historial de compras</h2>
+                <select id="c_filtro_proveedor" class="p-2 border rounded-lg text-sm min-w-[160px]"></select>
+            </div>
+            <div class="overflow-auto max-h-[70vh] border rounded-xl">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-100 text-[11px] uppercase text-slate-500">
+                        <tr>
+                            <th class="p-2 text-left">Fecha</th>
+                            <th class="p-2 text-left">Proveedor</th>
+                            <th class="p-2 text-right">Total USD</th>
+                            <th class="p-2 text-right">Total Bs</th>
+                        </tr>
+                    </thead>
+                    <tbody id="c_historial" class="divide-y"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast" class="fixed right-4 bottom-4 space-y-2 z-50"></div>
+    <script type="module" src="/js/auth-guard.js"></script>
+    <script type="module" src="/js/theme.js"></script>
+    <script type="module" src="/js/alerts.js"></script>
+    <script type="module" src="/js/compras.js"></script>
+    <script src="/js/layout-nav.js"></script>
+    <script src="/js/drawer.js"></script>
+</body>
+
+</html>

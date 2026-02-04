@@ -319,6 +319,69 @@ const migrations = [
       if (!indexExists('idx_presupuesto_detalle_presupuesto_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuesto_detalle_presupuesto_id ON presupuesto_detalle (presupuesto_id)').run();
       if (!indexExists('idx_presupuesto_detalle_producto_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuesto_detalle_producto_id ON presupuesto_detalle (producto_id)').run();
     }
+  },
+  {
+    id: '007_proveedores_compras',
+    up: () => {
+      // Tabla de proveedores
+      db.prepare(`CREATE TABLE IF NOT EXISTS proveedores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        rif TEXT,
+        telefono TEXT,
+        email TEXT,
+        direccion TEXT,
+        notas TEXT,
+        activo INTEGER DEFAULT 1,
+        creado_en TEXT DEFAULT (datetime('now')),
+        actualizado_en TEXT DEFAULT (datetime('now'))
+      )`).run();
+
+      // Vinculación opcional proveedor-producto
+      if (!columnExists('productos', 'proveedor_id')) {
+        db.prepare('ALTER TABLE productos ADD COLUMN proveedor_id INTEGER').run();
+      }
+
+      // Tablas de compras (ordenes de compra / ingresos de inventario)
+      db.prepare(`CREATE TABLE IF NOT EXISTS compras (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        proveedor_id INTEGER,
+        fecha TEXT,
+        numero TEXT,
+        tasa_bcv REAL DEFAULT 1,
+        total_bs REAL DEFAULT 0,
+        total_usd REAL DEFAULT 0,
+        estado TEXT DEFAULT 'recibida',
+        notas TEXT,
+        usuario_id INTEGER,
+        creado_en TEXT DEFAULT (datetime('now')),
+        actualizado_en TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY(proveedor_id) REFERENCES proveedores(id),
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+      )`).run();
+
+      db.prepare(`CREATE TABLE IF NOT EXISTS compra_detalle (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        compra_id INTEGER NOT NULL,
+        producto_id INTEGER NOT NULL,
+        codigo TEXT,
+        descripcion TEXT,
+        cantidad INTEGER NOT NULL,
+        costo_usd REAL DEFAULT 0,
+        subtotal_bs REAL DEFAULT 0,
+        lote TEXT,
+        observaciones TEXT,
+        FOREIGN KEY(compra_id) REFERENCES compras(id),
+        FOREIGN KEY(producto_id) REFERENCES productos(id)
+      )`).run();
+
+      // Índices básicos
+      if (!indexExists('idx_proveedores_nombre')) db.prepare('CREATE INDEX IF NOT EXISTS idx_proveedores_nombre ON proveedores (nombre)').run();
+      if (!indexExists('idx_compras_fecha')) db.prepare('CREATE INDEX IF NOT EXISTS idx_compras_fecha ON compras (fecha)').run();
+      if (!indexExists('idx_compras_proveedor')) db.prepare('CREATE INDEX IF NOT EXISTS idx_compras_proveedor ON compras (proveedor_id)').run();
+      if (!indexExists('idx_compra_detalle_compra')) db.prepare('CREATE INDEX IF NOT EXISTS idx_compra_detalle_compra ON compra_detalle (compra_id)').run();
+      if (!indexExists('idx_compra_detalle_producto')) db.prepare('CREATE INDEX IF NOT EXISTS idx_compra_detalle_producto ON compra_detalle (producto_id)').run();
+    }
   }
 ];
 

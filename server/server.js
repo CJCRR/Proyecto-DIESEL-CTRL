@@ -18,6 +18,8 @@ const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
 const cobranzasRoutes = require('./routes/cobranzas');
 const devolucionesRoutes = require('./routes/devoluciones');
+const proveedoresRoutes = require('./routes/proveedores');
+const comprasRoutes = require('./routes/compras');
 const { router: alertasRoutes } = require('./routes/alertas');
 const presupuestosRoutes = require('./routes/presupuestos');
 
@@ -64,6 +66,8 @@ app.use('/auth', authRoutes);
 app.use('/admin/productos', productosAdmin);
 app.use('/admin/ajustes', ajustesRoutes);
 app.use('/admin/usuarios', usuariosRoutes);
+app.use('/proveedores', proveedoresRoutes);
+app.use('/compras', comprasRoutes);
 app.use('/productos', productosRoutes);
 app.use('/ventas', ventasRoutes);
 app.use('/nota', notasRoutes);

@@ -19,6 +19,7 @@
             gap: 0.5rem;
             z-index: 60;
         }
+
         .toast {
             min-width: 200px;
             padding: 0.6rem 1rem;
@@ -29,15 +30,43 @@
             opacity: 0;
             transition: transform .18s ease, opacity .18s ease;
         }
-        .toast.show { transform: translateY(0); opacity: 1; }
-        .toast.success { background: #16a34a; }
-        .toast.error { background: #dc2626; }
-        .toast.info { background: #0369a1; }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: #16a34a;
+        }
+
+        .toast.error {
+            background: #dc2626;
+        }
+
+        .toast.info {
+            background: #0369a1;
+        }
+
         /* Modal animations */
-        .modal-backdrop { transition: opacity .2s ease; }
-        .modal-panel { transform: scale(.96); opacity: 0; transition: transform .18s ease, opacity .18s ease; }
-        .modal-open .modal-panel { transform: scale(1); opacity: 1; }
-        .modal-open .modal-backdrop { opacity: 1; }
+        .modal-backdrop {
+            transition: opacity .2s ease;
+        }
+
+        .modal-panel {
+            transform: scale(.96);
+            opacity: 0;
+            transition: transform .18s ease, opacity .18s ease;
+        }
+
+        .modal-open .modal-panel {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .modal-open .modal-backdrop {
+            opacity: 1;
+        }
     </style>
 </head>
 
@@ -45,14 +74,18 @@
     <nav class="bg-slate-900 text-white p-4 shadow-xl">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex items-center gap-3">
-                <button id="btn-menu" class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+                <button id="btn-menu"
+                    class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
                     <i class="fas fa-bars text-lg"></i>
                 </button>
-                <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
+                <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span>
+                </h1>
             </div>
             <div class="flex items-center gap-2">
-                <span class="text-[10px] font-black uppercase tracking-widest opacity-50 hidden sm:block">Inventario</span>
-                <a href="/pages/ajustes.html" title="Ajustes" class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+                <span
+                    class="text-[10px] font-black uppercase tracking-widest opacity-50 hidden sm:block">Inventario</span>
+                <a href="/pages/ajustes.html" title="Ajustes"
+                    class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
                     <i class="fas fa-gear text-base"></i>
                 </a>
             </div>
@@ -61,126 +94,102 @@
 
     <!-- Drawer de navegación -->
     <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-40"></div>
-    <aside id="drawer" class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
+    <aside id="drawer"
+        class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
         <div class="p-5 flex items-center justify-between border-b border-slate-100">
             <div>
                 <p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>
                 <p class="text-lg font-black text-slate-800">Diesel Ctrl</p>
             </div>
-            <button id="drawer-close" class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
+            <button id="drawer-close"
+                class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
                 <i class="fas fa-xmark text-slate-500"></i>
             </button>
         </div>
-        <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700">
-            <a href="/pages/index.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
-                <i class="fas fa-cash-register text-blue-600"></i>
-                Punto de Venta
-            </a>
-            <a href="/pages/inventario.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
-                <i class="fas fa-boxes-stacked text-amber-600"></i>
-                Inventario
-            </a>
-            <a href="/pages/dashboard.html" class="admin-only-nav flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
-                <i class="fas fa-chart-line text-emerald-600"></i>
-                Dashboard
-            </a>
-            <a href="/pages/clientes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
-                <i class="fas fa-users text-indigo-600"></i>
-                Clientes
-            </a>
-            <a href="/pages/reportes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
-                <i class="fas fa-file-invoice text-rose-600"></i>
-                Reportes
-            </a>
-            <!-- Presupuestos eliminado del navbar -->
-            <a href="/pages/cobranzas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
-                <i class="fas fa-money-check-dollar text-emerald-600"></i>
-                Cobranzas
-            </a>
-        </nav>
+        <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700"><!-- nav generado por layout-nav.js --></nav>
         <div class="p-4 border-t border-slate-100 text-xs text-slate-500">
             <p class="font-semibold">Atajos rápidos</p>
             <p class="mt-1">Presione ESC para cerrar.</p>
         </div>
     </aside>
 
-        <main class="container mx-auto p-6">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <section class="lg:col-span-2 bg-white p-4 rounded shadow">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="font-black">Productos</h2>
-                        <div class="flex gap-2 items-center">
-                            <input id="q" placeholder="Buscar..." class="p-2 border rounded w-60" />
-                            <select id="pageSize" class="p-2 border rounded">
-                                <option value="10">10</option>
-                                <option value="25">25</option>
-                                <option value="50" selected>50</option>
-                            </select>
-                            <input id="filterCategoria" placeholder="Categoría" class="p-2 border rounded w-40" />
-                            <select id="filterStock" class="p-2 border rounded">
-                                <option value="all">Todos</option>
-                                <option value="out">Sin stock</option>
-                                <option value="low">Bajo (&lt;5)</option>
-                                <option value="medium">Medio (&lt;20)</option>
-                            </select>
-                        </div>
+    <main class="container mx-auto p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <section class="lg:col-span-2 bg-white p-4 rounded shadow">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-black">Productos</h2>
+                    <div class="flex gap-2 items-center">
+                        <input id="q" placeholder="Buscar..." class="p-2 border rounded w-60" />
+                        <select id="pageSize" class="p-2 border rounded">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                        </select>
+                        <input id="filterCategoria" placeholder="Categoría" class="p-2 border rounded w-40" />
+                        <select id="filterStock" class="p-2 border rounded">
+                            <option value="all">Todos</option>
+                            <option value="out">Sin stock</option>
+                            <option value="low">Bajo (&lt;5)</option>
+                            <option value="medium">Medio (&lt;20)</option>
+                        </select>
                     </div>
-                    <div id="lista" class="space-y-2 text-sm"></div>
-                    <div class="flex justify-between items-center mt-4">
-                        <div id="paginacion-info" class="text-sm text-slate-500"></div>
-                        <div class="flex gap-2">
-                            <button id="prevPage" class="p-2 bg-slate-200 rounded">Anterior</button>
-                            <button id="nextPage" class="p-2 bg-slate-200 rounded">Siguiente</button>
-                        </div>
+                </div>
+                <div id="lista" class="space-y-2 text-sm"></div>
+                <div class="flex justify-between items-center mt-4">
+                    <div id="paginacion-info" class="text-sm text-slate-500"></div>
+                    <div class="flex gap-2">
+                        <button id="prevPage" class="p-2 bg-slate-200 rounded">Anterior</button>
+                        <button id="nextPage" class="p-2 bg-slate-200 rounded">Siguiente</button>
                     </div>
-                </section>
+                </div>
+            </section>
 
-                <aside class="bg-white p-4 rounded shadow">
-                    <h3 class="font-black mb-2">Crear / Editar</h3>
-                    <form id="form">
-                        <label class="text-xs">Código</label>
-                        <input id="f_codigo" class="w-full p-2 border rounded mb-2" required />
-                        <label class="text-xs">Descripción</label>
-                        <input id="f_desc" class="w-full p-2 border rounded mb-2" required />
-                        <label class="text-xs">Precio USD</label>
-                        <input id="f_precio" type="number" step="0.01" class="w-full p-2 border rounded mb-2"
-                            required />
-                        <label class="text-xs">Costo USD</label>
-                        <input id="f_costo" type="number" step="0.01" class="w-full p-2 border rounded mb-2" />
-                        <label class="text-xs">Stock</label>
-                        <input id="f_stock" type="number" class="w-full p-2 border rounded mb-2" required />
-                        <label class="text-xs">Categoría</label>
-                        <input id="f_categoria" class="w-full p-2 border rounded mb-4" />
+            <aside class="bg-white p-4 rounded shadow">
+                <h3 class="font-black mb-2">Crear / Editar</h3>
+                <form id="form">
+                    <label class="text-xs">Código</label>
+                    <input id="f_codigo" class="w-full p-2 border rounded mb-2" required />
+                    <label class="text-xs">Descripción</label>
+                    <input id="f_desc" class="w-full p-2 border rounded mb-2" required />
+                    <label class="text-xs">Precio USD</label>
+                    <input id="f_precio" type="number" step="0.01" class="w-full p-2 border rounded mb-2" required />
+                    <label class="text-xs">Costo USD</label>
+                    <input id="f_costo" type="number" step="0.01" class="w-full p-2 border rounded mb-2" />
+                    <label class="text-xs">Stock</label>
+                    <input id="f_stock" type="number" class="w-full p-2 border rounded mb-2" required />
+                    <label class="text-xs">Categoría</label>
+                    <input id="f_categoria" class="w-full p-2 border rounded mb-4" />
 
-                        <div class="flex gap-2">
-                            <button type="submit" id="btnGuardar"
-                                class="flex-1 bg-blue-600 text-white p-2 rounded">Guardar</button>
-                            <button type="button" id="btnBorrar"
-                                class="flex-1 bg-red-500 text-white p-2 rounded">Eliminar</button>
-                        </div>
-                        <div class="mt-3 text-sm" id="msg"></div>
-                    </form>
-                    <hr class="my-4">
-                    <h4 class="text-sm font-black mb-2">Import / Export CSV</h4>
-                    <input id="csvFile" type="file" accept="text/csv" class="mb-2" />
-                    <div class="flex gap-2 mb-4">
-                        <button id="btnImportCsv" class="flex-1 p-2 bg-indigo-600 text-white rounded">Importar CSV</button>
-                        <button id="btnExportCsv" class="p-2 bg-slate-200 rounded">Exportar CSV</button>
+                    <div class="flex gap-2">
+                        <button type="submit" id="btnGuardar"
+                            class="flex-1 bg-blue-600 text-white p-2 rounded">Guardar</button>
+                        <button type="button" id="btnBorrar"
+                            class="flex-1 bg-red-500 text-white p-2 rounded">Eliminar</button>
                     </div>
-                    <!-- filtros movidos arriba -->
-                    <hr class="my-4">
-                    <h4 class="text-sm font-black mb-2">Historial de ajustes</h4>
-                    <div id="ajustes-list" class="text-sm text-slate-600 max-h-40 overflow-auto">Cargando...</div>
-                </aside>
-            </div>
-        </main>
+                    <div class="mt-3 text-sm" id="msg"></div>
+                </form>
+                <hr class="my-4">
+                <h4 class="text-sm font-black mb-2">Import / Export CSV</h4>
+                <input id="csvFile" type="file" accept="text/csv" class="mb-2" />
+                <div class="flex gap-2 mb-4">
+                    <button id="btnImportCsv" class="flex-1 p-2 bg-indigo-600 text-white rounded">Importar CSV</button>
+                    <button id="btnExportCsv" class="p-2 bg-slate-200 rounded">Exportar CSV</button>
+                </div>
+                <!-- filtros movidos arriba -->
+                <hr class="my-4">
+                <h4 class="text-sm font-black mb-2">Historial de ajustes</h4>
+                <div id="ajustes-list" class="text-sm text-slate-600 max-h-40 overflow-auto">Cargando...</div>
+            </aside>
+        </div>
+    </main>
 
-        <script type="module" src="/js/inventario.js"></script>
-        <script type="module" src="/js/auth-guard.js"></script>
-        <script type="module" src="/js/theme.js"></script>
-        <script type="module" src="/js/alerts.js"></script>
-        <script src="/js/drawer.js"></script>
+    <script type="module" src="/js/inventario.js"></script>
+    <script type="module" src="/js/auth-guard.js"></script>
+    <script type="module" src="/js/theme.js"></script>
+    <script type="module" src="/js/alerts.js"></script>
+    <script src="/js/layout-nav.js"></script>
+    <script src="/js/drawer.js"></script>
 
-    </body>
+</body>
 
 </html>

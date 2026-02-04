@@ -40,6 +40,25 @@
 	- Ajustes de stock (no permite stock negativo, registra en historial)
 	- Reportes (ventas rango, KPIs, top productos/clientes, inventario)
 - [x] Ajustes finales y optimizaciones menores (queries, UI, tiempos de carga)
-- [ ] Documentar cambios de arquitectura (servicios backend y módulos frontend)
+- [x] Documentar cambios de arquitectura (servicios backend y módulos frontend)
+
+## Fase 7: Inventario y Proveedores
+- [ ] Soporte básico de lotes/batches en productos (campos de lote y observaciones por movimiento de inventario).
+- [ ] Trazabilidad simple de inventario por lote en ventas, devoluciones y ajustes.
+- [ ] Catálogo de proveedores y vinculación opcional con productos.
+- [ ] Caargar productos, provenientes de un proveedor (como orden de compra).
+- [ ] Pantalla sencilla de proveedores (alta/baja/edición, contacto básico).
+
+## Fase 8: Finanzas y Facturación
+- [ ] Mejoras en cobranzas: filtros por estado y por días de mora, alertas para cuentas vencidas.
+- [ ] Cálculo opcional de impuestos (IVA) en ventas/notas según configuración.
+- [ ] Personalización avanzada de nota de entrega (campos fiscales adicionales y plantillas).
+- [ ] Preparar puntos de integración para pasarelas de pago (estructura de datos y endpoints base).
+
+## Fase 9: Reportes de Rentabilidad
+- [ ] Reporte de pérdidas y ganancias por categoría de producto.
+- [ ] Análisis de margen por categoría y por proveedor.
+- [ ] Resumen financiero por período (ingresos, costo estimado, margen bruto).
+- [ ] Exportación de estos reportes a CSV/Excel para contabilidad.
 
 ## Notas de Progreso
