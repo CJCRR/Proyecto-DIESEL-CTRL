@@ -1,4 +1,5 @@
 const db = require('../db');
+// @ts-check
 
 // Helpers internos
 
@@ -82,6 +83,11 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
   });
 }
 
+/**
+ * Devuelve las últimas ventas que no tienen devoluciones asociadas, con
+ * totales normalizados (incluyendo IVA cuando está disponible).
+ * @returns {Array<import('../types').Venta>}
+ */
 function getVentasSinDevolucion() {
   const rows = db.prepare(`
     SELECT id, fecha, cliente, vendedor, cedula, telefono,
@@ -112,10 +118,24 @@ function getVentasSinDevolucion() {
   });
 }
 
+/**
+ * Obtiene ventas agregadas por cabecera en un rango de fechas, con filtros
+ * opcionales por cliente, vendedor y método de pago.
+ *
+ * @param {{desde?:string,hasta?:string,cliente?:string,vendedor?:string,metodo?:string,limit?:number}} params
+ * @returns {Array<import('../types').Venta>}
+ */
 function getVentasRango(params) {
   return queryVentasRango(params);
 }
 
+/**
+ * Construye un CSV (separado por `;`) a partir del resultado de ventas rango.
+ * La primera línea incluye encabezados y el archivo agrega BOM UTF-8.
+ *
+ * @param {{desde?:string,hasta?:string,cliente?:string,vendedor?:string,metodo?:string,limit?:number}} params
+ * @returns {string}
+ */
 function buildVentasRangoCsv(params) {
   const rows = queryVentasRango(params);
   const header = ['fecha','cliente','vendedor','metodo_pago','referencia','tasa_bcv','descuento','total_bs','total_bs_iva','total_usd','total_usd_iva','bruto_bs','bruto_usd','costo_bs','costo_usd','margen_bs','margen_usd'];
@@ -130,6 +150,11 @@ function buildVentasRangoCsv(params) {
   return csv;
 }
 
+/**
+ * KPIs simples de ventas para el dashboard: cantidad de ventas de hoy,
+ * de la última semana y montos totales aproximados en Bs y USD.
+ * @returns {{ventasHoy:number,ventasSemana:number,totalBs:number,totalUsd:number}}
+ */
 function getKpis() {
   const ventasHoyRow = db.prepare(`
       SELECT COUNT(*) as count FROM ventas
@@ -157,6 +182,11 @@ function getKpis() {
   };
 }
 
+/**
+ * Top de productos por cantidad vendida.
+ * @param {number} limit
+ * @returns {Array<{codigo:string,descripcion:string,total_qty:number,total_bs:number,total_usd:number,costo_bs:number,costo_usd:number,margen_bs:number,margen_usd:number}>}
+ */
 function getTopProductos(limit) {
   return db.prepare(`
       SELECT p.codigo, p.descripcion,
@@ -180,6 +210,11 @@ function getTopProductos(limit) {
     `).all(limit);
 }
 
+/**
+ * Ranking de productos ordenados por margen bruto en USD en un rango opcional.
+ * @param {{desde?:string,hasta?:string,limit:number}} params
+ * @returns {Array<{codigo:string,descripcion:string,total_qty:number,total_bs:number,total_usd:number,costo_bs:number,costo_usd:number,margen_bs:number,margen_usd:number}>}
+ */
 function getMargenProductos({ desde, hasta, limit }) {
   const where = [];
   const params = [];
@@ -206,6 +241,11 @@ function getMargenProductos({ desde, hasta, limit }) {
     `).all(...params, limit);
 }
 
+/**
+ * Clasificación ABC de productos según su facturación en USD.
+ * @param {{desde?:string,hasta?:string,a_pct?:number|string,b_pct?:number|string}} params
+ * @returns {Array<{codigo:string,descripcion:string,total_qty:number,total_bs:number,total_usd:number,share:number,cumulative:number,clase:"A"|"B"|"C">>}
+ */
 function getAbcProductos({ desde, hasta, a_pct, b_pct }) {
   const { a, b } = parseAB({ a_pct, b_pct });
   const where = [];
@@ -230,6 +270,12 @@ function getAbcProductos({ desde, hasta, a_pct, b_pct }) {
   return classifyABC(rows, 'total_usd', a, b);
 }
 
+/**
+ * Reporte resumido de inventario con totales en USD y Bs usando una tasa
+ * de cambio derivada de la configuración o de la última venta.
+ *
+ * @returns {{items:Array<{codigo:string,descripcion:string,precio_usd:number,stock:number,total_usd:number}>,totals:{totalUsd:number,totalBs:number,tasa:number}}}
+ */
 function getInventario() {
   const cfgTasaRow = db.prepare(`SELECT valor FROM config WHERE clave='tasa_bcv'`).get();
   const cfgTasa = cfgTasaRow && cfgTasaRow.valor ? parseFloat(cfgTasaRow.valor) : null;
@@ -251,6 +297,11 @@ function getInventario() {
   return { items: productos, totals: { totalUsd, totalBs, tasa } };
 }
 
+/**
+ * Devuelve una venta específica junto con su lista de detalles.
+ * @param {number|string} id
+ * @returns {{venta: import('../types').Venta, detalles: import('../types').VentaDetalle[]}|null}
+ */
 function getVentaConDetalles(id) {
   const venta = db.prepare(`
     SELECT * FROM ventas WHERE id = ?

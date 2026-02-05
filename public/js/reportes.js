@@ -285,7 +285,11 @@ async function cargarRentabilidad() {
         renderRentabilidad();
     } catch (err) {
         console.error('Error cargando rentabilidad:', err);
-        alert('Error cargando los reportes de rentabilidad.');
+		if (window.showToast) {
+			window.showToast('Error cargando los reportes de rentabilidad.', 'error');
+		} else {
+			alert('Error cargando los reportes de rentabilidad.');
+		}
     }
 }
 
@@ -306,7 +310,11 @@ async function cargarReporte() {
         cacheRows = await apiFetchJson(`/reportes/ventas-rango?${params.toString()}`);
     } catch (err) {
         console.error('Error cargando reporte:', err);
-        alert('Error cargando el reporte. Por favor refresca la página.');
+		if (window.showToast) {
+			window.showToast('Error cargando el reporte. Por favor refresca la página.', 'error');
+		} else {
+			alert('Error cargando el reporte. Por favor refresca la página.');
+		}
         return;
     }
     console.log('Ventas cargadas:', cacheRows.length);

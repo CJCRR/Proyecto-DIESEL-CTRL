@@ -1,5 +1,7 @@
 const db = require('../db');
 const { insertAlerta } = require('../routes/alertas');
+// Referencias de tipos compartidos (VentaPayload, Venta)
+// @ts-check
 
 const MAX_ITEMS = 200;
 const MAX_TEXT = 120;
@@ -18,6 +20,13 @@ function safeStr(v, max) {
     return String(v).trim().slice(0, max);
 }
 
+/**
+ * Registra una venta en la base de datos, actualiza inventario
+ * y opcionalmente crea una cuenta por cobrar cuando es a crédito.
+ *
+ * @param {import('../types').VentaPayload} payload
+ * @returns {{ ventaId: number, cuentaCobrarId: (number|null) }}
+ */
 function registrarVenta(payload) {
     const {
         items,

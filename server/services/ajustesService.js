@@ -1,5 +1,6 @@
 const db = require('../db');
 const { insertAlerta } = require('../routes/alertas');
+// @ts-check
 
 // ===== AJUSTES DE STOCK =====
 
@@ -10,6 +11,14 @@ function safeStr(v, max) {
   return String(v).trim().slice(0, max);
 }
 
+/**
+ * Aplica un ajuste de stock puntual sobre un producto identificado por código.
+ * Registra el movimiento en `ajustes_stock` y genera una alerta cuando el
+ * stock resultante queda en cero o negativo.
+ *
+ * @param {{codigo:string,diferencia:number|string,motivo:string}} payload
+ * @throws {Error} Cuando faltan datos o el resultado dejaría el stock en negativo.
+ */
 function ajustarStock(payload = {}) {
   const { codigo, diferencia, motivo } = payload;
   const diff = parseInt(diferencia);
@@ -41,6 +50,11 @@ function ajustarStock(payload = {}) {
   })();
 }
 
+/**
+ * Lista los últimos ajustes de stock aplicados.
+ * @param {number} [limit]
+ * @returns {Array<{id:number,producto_id:number|null,codigo:string|null,descripcion:string|null,diferencia:number,motivo:string,fecha:string}>}
+ */
 function listarAjustes(limit = 100) {
   return db.prepare(`
       SELECT a.id, a.producto_id, p.codigo, p.descripcion, a.diferencia, a.motivo, a.fecha
@@ -78,18 +92,34 @@ function getConfigJSON(clave, defObj = {}) {
 
 // ===== TASA BCV =====
 
+/**
+ * Obtiene la última tasa BCV guardada en la configuración.
+ * @returns {import('../types').TasaBcvInfo}
+ */
 function obtenerTasaBcv() {
   const row = db.prepare(`SELECT valor, actualizado_en FROM config WHERE clave='tasa_bcv'`).get();
   const valor = parseFloat(row?.valor ?? '1') || 1;
   return { tasa_bcv: valor, actualizado_en: row?.actualizado_en || null };
 }
 
+/**
+ * Guarda una nueva tasa BCV manualmente.
+ * @param {number} tasa
+ * @returns {import('../types').TasaBcvInfo}
+ */
 function guardarTasaBcv(tasa) {
   const now = new Date().toISOString();
   setConfig('tasa_bcv', tasa, now);
   return { ok: true, tasa_bcv: tasa, actualizado_en: now };
 }
 
+/**
+ * Intenta actualizar la tasa BCV consultando varias fuentes externas.
+ * Nunca lanza error: devuelve un objeto con `ok=false` y la tasa previa
+ * si no se pudo actualizar.
+ *
+ * @returns {Promise<import('../types').TasaBcvInfo>}
+ */
 async function actualizarTasaBcvAutomatica() {
   const https = require('https');
 
@@ -178,11 +208,20 @@ async function actualizarTasaBcvAutomatica() {
 
 // ===== STOCK MÍNIMO =====
 
+/**
+ * Lee la configuración de stock mínimo global para alertas de inventario.
+ * @returns {{stock_minimo:number}}
+ */
 function obtenerStockMinimo() {
   const v = parseInt(getConfig('stock_minimo', '3')) || 3;
   return { stock_minimo: v };
 }
 
+/**
+ * Actualiza el valor de stock mínimo global.
+ * @param {number} n
+ * @returns {{ok:true,stock_minimo:number}}
+ */
 function guardarStockMinimo(n) {
   setConfig('stock_minimo', n);
   return { ok: true, stock_minimo: n };
@@ -190,6 +229,7 @@ function guardarStockMinimo(n) {
 
 // ===== CONFIG GENERAL =====
 
+/** @type {import('../types').EmpresaConfig} */
 const DEFAULT_EMPRESA = {
   nombre: 'Diesel CTRL',
   logo_url: '',
@@ -198,8 +238,10 @@ const DEFAULT_EMPRESA = {
   color_acento: '#f97316',
 };
 
+/** @type {import('../types').DescuentoVolumen[]} */
 const DEFAULT_DESCUENTOS_VOLUMEN = [];
 
+/** @type {import('../types').DevolucionConfig} */
 const DEFAULT_DEVOLUCION = {
   habilitado: true,
   dias_max: 30,
@@ -207,6 +249,7 @@ const DEFAULT_DEVOLUCION = {
   recargo_restock_pct: 0,
 };
 
+/** @type {import('../types').NotaConfig} */
 const DEFAULT_NOTA = {
   header_logo_url: '',
   brand_logos: [],
@@ -225,6 +268,11 @@ const DEFAULT_NOTA = {
   layout: 'compact',
 };
 
+/**
+ * Devuelve la configuración general combinada para empresa, descuentos,
+ * política de devolución y nota de entrega.
+ * @returns {import('../types').ConfigGeneral}
+ */
 function obtenerConfigGeneral() {
   const empresa = getConfigJSON('empresa_config', DEFAULT_EMPRESA);
   const descuentos = getConfigJSON('descuentos_volumen', DEFAULT_DESCUENTOS_VOLUMEN);
@@ -233,6 +281,13 @@ function obtenerConfigGeneral() {
   return { empresa, descuentos_volumen: descuentos, devolucion, nota };
 }
 
+/**
+ * Normaliza y guarda la configuración general (empresa, descuentos por volumen,
+ * política de devoluciones y diseño de nota) en la tabla `config`.
+ *
+ * @param {Partial<import('../types').ConfigGeneral>} payload
+ * @returns {{ok:true} & import('../types').ConfigGeneral}
+ */
 function guardarConfigGeneral(payload = {}) {
   const { empresa = {}, descuentos_volumen = [], devolucion = {}, nota = {} } = payload;
 
@@ -309,6 +364,11 @@ function guardarConfigGeneral(payload = {}) {
 
 // ===== BORRADO DE DATOS TRANSACCIONALES =====
 
+/**
+ * Borra datos transaccionales (ventas, devoluciones, cuentas por cobrar,
+ * pagos, productos, alertas, etc.) para permitir un reinicio controlado
+ * del entorno de pruebas o demo.
+ */
 function purgeTransactionalData() {
   db.transaction(() => {
     db.prepare('DELETE FROM devolucion_detalle').run();

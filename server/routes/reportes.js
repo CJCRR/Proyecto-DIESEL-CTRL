@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('./auth');
+const logger = require('../services/logger');
 const {
   getVentasSinDevolucion,
   getVentasRango,
@@ -34,8 +35,14 @@ router.get('/ventas', requireAuth, (req, res) => {
     const ventas = getVentasSinDevolucion();
     res.json(ventas);
   } catch (err) {
-    console.error('Error en /reportes/ventas:', err);
-    res.status(500).json({ error: 'Error al obtener ventas' });
+  logger.error('Error en /reportes/ventas', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener ventas', code: 'REPORTE_VENTAS_ERROR' });
   }
 });
 
@@ -47,8 +54,14 @@ router.get('/ventas-rango', requireAuth, (req, res) => {
     console.log('Ventas encontradas:', rows.length);
     res.json(rows);
   } catch (err) {
-    console.error('Error en ventas-rango:', err);
-    res.status(500).json({ error: 'Error al obtener ventas por rango' });
+  logger.error('Error en ventas-rango', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener ventas por rango', code: 'REPORTE_VENTAS_RANGO_ERROR' });
   }
 });
 
@@ -61,8 +74,14 @@ router.get('/ventas/export/csv', requireAuth, (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="ventas_rango.csv"');
     res.send(csv);
   } catch (err) {
-    console.error('Error exportando CSV:', err);
-    res.status(500).json({ error: 'Error al exportar CSV' });
+  logger.error('Error exportando CSV ventas-rango', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al exportar CSV', code: 'REPORTE_VENTAS_CSV_ERROR' });
   }
 });
 
@@ -72,8 +91,14 @@ router.get('/kpis', requireAuth, (req, res) => {
     const kpis = getKpis();
     res.json(kpis);
   } catch (err) {
-    console.error('Error obteniendo KPIs:', err);
-    res.status(500).json({ error: 'Error al obtener KPIs' });
+  logger.error('Error obteniendo KPIs', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener KPIs', code: 'REPORTE_KPIS_ERROR' });
   }
 });
 
@@ -85,8 +110,14 @@ router.get('/top-productos', requireAuth, (req, res) => {
     const rows = getTopProductos(limit);
     res.json(rows);
   } catch (err) {
-    console.error('Error obteniendo top productos:', err);
-    res.status(500).json({ error: 'Error al obtener top productos' });
+  logger.error('Error obteniendo top productos', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener top productos', code: 'REPORTE_TOP_PRODUCTOS_ERROR' });
   }
 });
 
@@ -98,8 +129,14 @@ router.get('/margen-productos', requireAuth, (req, res) => {
     const rows = getMargenProductos({ desde, hasta, limit });
     res.json(rows);
   } catch (err) {
-    console.error('Error obteniendo margen-productos:', err);
-    res.status(500).json({ error: 'Error al obtener margen por producto' });
+  logger.error('Error obteniendo margen-productos', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener margen por producto', code: 'REPORTE_MARGEN_PRODUCTOS_ERROR' });
   }
 });
 
@@ -110,8 +147,14 @@ router.get('/abc/productos', requireAuth, (req, res) => {
     const rows = getAbcProductos({ desde, hasta, a_pct, b_pct });
     res.json(rows);
   } catch (err) {
-    console.error('Error ABC productos:', err);
-    res.status(500).json({ error: 'Error al obtener ABC de productos' });
+  logger.error('Error ABC productos', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener ABC de productos', code: 'REPORTE_ABC_PRODUCTOS_ERROR' });
   }
 });
 
@@ -121,8 +164,14 @@ router.get('/inventario', requireAuth, (req, res) => {
     const inventario = getInventario();
     res.json(inventario);
   } catch (err) {
-    console.error('Error obteniendo inventario:', err);
-    res.status(500).json({ error: 'Error al obtener inventario' });
+  logger.error('Error obteniendo inventario', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener inventario', code: 'REPORTE_INVENTARIO_ERROR' });
   }
 });
 
@@ -134,8 +183,15 @@ router.get('/ventas/:id', requireAuth, (req, res) => {
     }
     res.json(result);
   } catch (err) {
-    console.error('Error obteniendo venta por id:', err);
-    res.status(500).json({ error: 'Error al obtener venta' });
+  logger.error('Error obteniendo venta por id', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null,
+    ventaId: req.params.id
+  });
+  res.status(500).json({ error: 'Error al obtener venta', code: 'REPORTE_VENTA_DETALLE_ERROR' });
   }
 });
 
@@ -146,8 +202,14 @@ router.get('/rentabilidad/categorias', requireAuth, (req, res) => {
     const rows = getRentabilidadCategorias({ desde, hasta });
     res.json(rows);
   } catch (err) {
-    console.error('Error rentabilidad categorias:', err);
-    res.status(500).json({ error: 'Error al obtener rentabilidad por categoría' });
+  logger.error('Error rentabilidad categorias', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener rentabilidad por categoría', code: 'REPORTE_RENTABILIDAD_CATEGORIAS_ERROR' });
   }
 });
 
@@ -157,8 +219,14 @@ router.get('/rentabilidad/proveedores', requireAuth, (req, res) => {
     const rows = getRentabilidadProveedores({ desde, hasta });
     res.json(rows);
   } catch (err) {
-    console.error('Error rentabilidad proveedores:', err);
-    res.status(500).json({ error: 'Error al obtener rentabilidad por proveedor' });
+  logger.error('Error rentabilidad proveedores', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener rentabilidad por proveedor', code: 'REPORTE_RENTABILIDAD_PROVEEDORES_ERROR' });
   }
 });
 
@@ -168,8 +236,14 @@ router.get('/resumen-financiero', requireAuth, (req, res) => {
     const data = getResumenFinanciero({ desde, hasta });
     res.json(data);
   } catch (err) {
-    console.error('Error resumen financiero:', err);
-    res.status(500).json({ error: 'Error al obtener resumen financiero' });
+  logger.error('Error resumen financiero', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener resumen financiero', code: 'REPORTE_RESUMEN_FINANCIERO_ERROR' });
   }
 });
 
@@ -181,8 +255,14 @@ router.get('/rentabilidad/categorias/export/csv', requireAuth, (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="rentabilidad_categorias.csv"');
     res.send(csv);
   } catch (err) {
-    console.error('Error exportando CSV categorias:', err);
-    res.status(500).json({ error: 'Error al exportar CSV de categorías' });
+  logger.error('Error exportando CSV categorias', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al exportar CSV de categorías', code: 'REPORTE_RENTABILIDAD_CATEGORIAS_CSV_ERROR' });
   }
 });
 
@@ -194,8 +274,14 @@ router.get('/rentabilidad/proveedores/export/csv', requireAuth, (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="rentabilidad_proveedores.csv"');
     res.send(csv);
   } catch (err) {
-    console.error('Error exportando CSV proveedores:', err);
-    res.status(500).json({ error: 'Error al exportar CSV de proveedores' });
+  logger.error('Error exportando CSV proveedores', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al exportar CSV de proveedores', code: 'REPORTE_RENTABILIDAD_PROVEEDORES_CSV_ERROR' });
   }
 });
 
@@ -207,8 +293,14 @@ router.get('/bajo-stock', requireAuth, (req, res) => {
     const { min, items } = getBajoStock(req.query.umbral);
     res.json({ min, items });
   } catch (err) {
-    console.error('Error bajo-stock:', err);
-    res.status(500).json({ error: 'Error al obtener bajo stock' });
+  logger.error('Error bajo-stock', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener bajo stock', code: 'REPORTE_BAJO_STOCK_ERROR' });
   }
 });
 
@@ -221,8 +313,14 @@ router.get('/series/ventas-diarias', requireAuth, (req, res) => {
     const rows = getSeriesVentasDiarias(dias);
     res.json(rows);
   } catch (err) {
-    console.error('Error series ventas-diarias:', err);
-    res.status(500).json({ error: 'Error al obtener ventas diarias' });
+  logger.error('Error series ventas-diarias', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener ventas diarias', code: 'REPORTE_SERIES_DIARIAS_ERROR' });
   }
 });
 
@@ -233,8 +331,14 @@ router.get('/series/ventas-mensuales', requireAuth, (req, res) => {
     const rows = getSeriesVentasMensuales(meses);
     res.json(rows);
   } catch (err) {
-    console.error('Error series ventas-mensuales:', err);
-    res.status(500).json({ error: 'Error al obtener ventas mensuales' });
+  logger.error('Error series ventas-mensuales', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener ventas mensuales', code: 'REPORTE_SERIES_MENSUALES_ERROR' });
   }
 });
 
@@ -245,8 +349,14 @@ router.get('/tendencias/mensuales', requireAuth, (req, res) => {
     const enhanced = getTendenciasMensuales(meses);
     res.json(enhanced);
   } catch (err) {
-    console.error('Error tendencias mensuales:', err);
-    res.status(500).json({ error: 'Error al obtener tendencias mensuales' });
+  logger.error('Error tendencias mensuales', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener tendencias mensuales', code: 'REPORTE_TENDENCIAS_MENSUALES_ERROR' });
   }
 });
 
@@ -258,8 +368,14 @@ router.get('/top-clientes', requireAuth, (req, res) => {
     const rows = getTopClientes({ desde, hasta, limit });
     res.json(rows);
   } catch (err) {
-    console.error('Error top-clientes:', err);
-    res.status(500).json({ error: 'Error al obtener top clientes' });
+  logger.error('Error top-clientes', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener top clientes', code: 'REPORTE_TOP_CLIENTES_ERROR' });
   }
 });
 
@@ -270,8 +386,14 @@ router.get('/abc/clientes', requireAuth, (req, res) => {
     const rows = getAbcClientes({ desde, hasta, a_pct, b_pct });
     res.json(rows);
   } catch (err) {
-    console.error('Error ABC clientes:', err);
-    res.status(500).json({ error: 'Error al obtener ABC de clientes' });
+  logger.error('Error ABC clientes', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener ABC de clientes', code: 'REPORTE_ABC_CLIENTES_ERROR' });
   }
 });
 
@@ -282,8 +404,14 @@ router.get('/vendedores', requireAuth, (req, res) => {
     const rows = getVendedoresComparativa({ desde, hasta });
     res.json(rows);
   } catch (err) {
-    console.error('Error vendedores:', err);
-    res.status(500).json({ error: 'Error al obtener comparativa de vendedores' });
+  logger.error('Error vendedores comparativa', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener comparativa de vendedores', code: 'REPORTE_VENDEDORES_COMPARATIVA_ERROR' });
   }
 });
 
@@ -294,8 +422,14 @@ router.get('/vendedores/roi', requireAuth, (req, res) => {
     const enriched = getVendedoresRoi({ desde, hasta });
     res.json(enriched);
   } catch (err) {
-    console.error('Error ROI vendedores:', err);
-    res.status(500).json({ error: 'Error al obtener ROI por vendedor' });
+  logger.error('Error ROI vendedores', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener ROI por vendedor', code: 'REPORTE_VENDEDORES_ROI_ERROR' });
   }
 });
 
@@ -305,8 +439,14 @@ router.get('/margen/actual', requireAuth, (req, res) => {
     const data = getMargenActual();
     res.json(data);
   } catch (err) {
-    console.error('Error margen actual:', err);
-    res.status(500).json({ error: 'Error al obtener margen' });
+  logger.error('Error margen actual', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener margen', code: 'REPORTE_MARGEN_ACTUAL_ERROR' });
   }
 });
 
@@ -317,8 +457,14 @@ router.get('/vendedores', requireAuth, (req, res) => {
     const enriched = getVendedoresRanking({ desde, hasta });
     res.json(enriched);
   } catch (err) {
-    console.error('Error ranking vendedores:', err);
-    res.status(500).json({ error: 'Error al obtener ranking de vendedores' });
+  logger.error('Error ranking vendedores', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener ranking de vendedores', code: 'REPORTE_VENDEDORES_RANKING_ERROR' });
   }
 });
 
@@ -328,7 +474,13 @@ router.get('/historial-cliente', requireAuth, (req, res) => {
     const rows = getHistorialCliente(req.query);
     res.json(rows);
   } catch (err) {
-    console.error('Error historial-cliente:', err);
-    res.status(500).json({ error: 'Error al obtener historial' });
+  logger.error('Error historial-cliente', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    user: req.usuario ? req.usuario.id : null
+  });
+  res.status(500).json({ error: 'Error al obtener historial', code: 'REPORTE_HISTORIAL_CLIENTE_ERROR' });
   }
 });

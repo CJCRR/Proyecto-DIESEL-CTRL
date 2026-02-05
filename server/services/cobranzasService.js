@@ -1,4 +1,5 @@
 const db = require('../db');
+// @ts-check
 
 const MAX_TEXT = 120;
 const MAX_DOC = 40;
@@ -45,6 +46,10 @@ function mapCuenta(row) {
   return { ...row, estado_calc, dias_mora };
 }
 
+/**
+ * Devuelve un resumen agregado de cuentas por cobrar agrupadas por estado.
+ * @returns {Array<{estado:string,cantidad:number,saldo_usd:number}>}
+ */
 function getResumenCuentas() {
   const rows = db.prepare(`
       SELECT estado, COUNT(*) as cantidad, SUM(saldo_usd) as saldo_usd
@@ -54,6 +59,13 @@ function getResumenCuentas() {
   return rows;
 }
 
+/**
+ * Lista cuentas por cobrar aplicando filtros opcionales por cliente,
+ * estado y rango de días de mora.
+ *
+ * @param {{cliente?:string,estado?:string,mora_min?:number|string,mora_max?:number|string}} [filtros]
+ * @returns {import('../types').CuentaPorCobrar[]}
+ */
 function listCuentas({ cliente, estado, mora_min, mora_max } = {}) {
   let rows = db.prepare(`
       SELECT * FROM cuentas_cobrar
@@ -80,6 +92,11 @@ function listCuentas({ cliente, estado, mora_min, mora_max } = {}) {
   return rows;
 }
 
+/**
+ * Obtiene una cuenta por cobrar y su historial de pagos.
+ * @param {number|string} id
+ * @returns {{cuenta: import('../types').CuentaPorCobrar, pagos: import('../types').PagoCuentaCobrar[]}|null}
+ */
 function getCuentaConPagos(id) {
   const cuenta = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(id);
   if (!cuenta) return null;
@@ -87,6 +104,13 @@ function getCuentaConPagos(id) {
   return { cuenta: mapCuenta(cuenta), pagos };
 }
 
+/**
+ * Crea una nueva cuenta por cobrar a partir de los datos de una venta
+ * o de un saldo pendiente manual.
+ *
+ * @param {{cliente_nombre?:string,cliente_doc?:string,venta_id?:number,total_usd:number,tasa_bcv?:number,fecha_vencimiento?:string,notas?:string}} payload
+ * @returns {import('../types').CuentaPorCobrar}
+ */
 function crearCuenta(payload = {}) {
   const {
     cliente_nombre,
@@ -127,6 +151,13 @@ function crearCuenta(payload = {}) {
   return mapCuenta(creada);
 }
 
+/**
+ * Registra un pago contra una cuenta por cobrar existente.
+ *
+ * @param {number|string} id
+ * @param {{monto:number,moneda?:"USD"|"BS",tasa_bcv?:number,metodo?:string,referencia?:string,notas?:string,usuario?:string}} payload
+ * @returns {{cuenta: import('../types').CuentaPorCobrar, pagos: import('../types').PagoCuentaCobrar[]}|null}
+ */
 function registrarPago(id, payload = {}) {
   const cuenta = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(id);
   if (!cuenta) return null;
@@ -166,6 +197,14 @@ function registrarPago(id, payload = {}) {
   return { cuenta: mapCuenta(updated), pagos };
 }
 
+/**
+ * Actualiza campos básicos de una cuenta por cobrar (fecha de vencimiento,
+ * notas y estado) con validaciones mínimas.
+ *
+ * @param {number|string} id
+ * @param {{fecha_vencimiento?:string,notas?:string,estado?:string}} payload
+ * @returns {import('../types').CuentaPorCobrar|null}
+ */
 function actualizarCuenta(id, payload = {}) {
   const { fecha_vencimiento, notas, estado } = payload;
   const cuenta = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(id);

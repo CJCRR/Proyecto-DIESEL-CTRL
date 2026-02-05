@@ -11,8 +11,12 @@ export async function apiFetchJson(url, options = {}) {
         data = await res.text().catch(() => null);
     }
     if (!res.ok) {
-        const msg = (data && data.error) ? data.error : (typeof data === 'string' && data) ? data : `HTTP ${res.status}`;
-        throw new Error(msg);
+        const baseMsg = (data && data.error) ? data.error : (typeof data === 'string' && data) ? data : `HTTP ${res.status}`;
+        const err = new Error(baseMsg);
+        if (data && typeof data === 'object' && data.code) {
+            err.code = data.code;
+        }
+        throw err;
     }
     return data;
 }

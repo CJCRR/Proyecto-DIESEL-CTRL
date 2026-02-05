@@ -7,7 +7,8 @@ const bcrypt = require('bcryptjs');
 // de desde dónde ejecutes el comando 'node'.
 // SOLUCIÓN: Usar path.join(__dirname) ancla la ruta al archivo actual, sin importar desde dónde se llame.
 
-const dbPath = path.join(__dirname, '..', 'database.sqlite');
+const isTest = process.env.NODE_ENV === 'test';
+const dbPath = isTest ? ':memory:' : path.join(__dirname, '..', 'database.sqlite');
 const db = new Database(dbPath, { verbose: console.log }); // Verbose ayuda a depurar
 
 // Inicialización de tablas (Idempotente: solo crea si no existen)

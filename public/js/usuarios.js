@@ -1,5 +1,17 @@
 import { apiFetchJson } from './app-api.js';
 
+// Intentar cargar utilidades centralizadas para toasts si no están disponibles
+(async () => {
+  if (!window.showToast) {
+    try {
+      const m = await import('./app-utils.js');
+      window.showToast = window.showToast || m.showToast;
+    } catch (e) {
+      // si falla, nos quedamos con alert() como último recurso
+    }
+  }
+})();
+
 console.log('usuarios.js v1.0 cargado');
 
 let usuarios = [];
@@ -29,7 +41,11 @@ async function cargarUsuarios() {
   } catch (err) {
     console.error(err);
     if (String(err.message).includes('403') || String(err.message).toLowerCase().includes('forbidden')) {
-      alert('No tienes permisos para acceder a esta página');
+		  if (window.showToast) {
+			  window.showToast('No tienes permisos para acceder a esta página', 'error');
+		  } else {
+			  alert('No tienes permisos para acceder a esta página');
+		  }
       window.location.href = '/pages/dashboard.html';
       return;
     }
@@ -144,12 +160,20 @@ async function guardarUsuario(e) {
       await apiFetchJson('/admin/usuarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
     }
 
-    alert(modoEdicion ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente');
+	if (window.showToast) {
+		window.showToast(modoEdicion ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente', 'success');
+	} else {
+		alert(modoEdicion ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente');
+	}
     cerrarModal();
     await cargarUsuarios();
   } catch (err) {
     console.error(err);
-    alert(err.message || 'Error al guardar usuario');
+	if (window.showToast) {
+		window.showToast(err.message || 'Error al guardar usuario', 'error');
+	} else {
+		alert(err.message || 'Error al guardar usuario');
+	}
   }
 }
 
@@ -164,11 +188,19 @@ async function desactivarUsuario(id) {
 
   try {
     await apiFetchJson(`/admin/usuarios/${id}`, { method: 'DELETE' });
+  if (window.showToast) {
+    window.showToast('Usuario desactivado exitosamente', 'success');
+  } else {
     alert('Usuario desactivado exitosamente');
+  }
     await cargarUsuarios();
   } catch (err) {
     console.error(err);
+  if (window.showToast) {
+    window.showToast(err.message || 'Error al desactivar usuario', 'error');
+  } else {
     alert(err.message || 'Error al desactivar usuario');
+  }
   }
 }
 
@@ -183,11 +215,19 @@ async function activarUsuario(id) {
 
   try {
     await apiFetchJson(`/admin/usuarios/${id}/activar`, { method: 'POST' });
+  if (window.showToast) {
+    window.showToast('Usuario activado exitosamente', 'success');
+  } else {
     alert('Usuario activado exitosamente');
+  }
     await cargarUsuarios();
   } catch (err) {
     console.error(err);
+  if (window.showToast) {
+    window.showToast(err.message || 'Error al activar usuario', 'error');
+  } else {
     alert(err.message || 'Error al activar usuario');
+  }
   }
 }
 
@@ -201,11 +241,19 @@ async function eliminarUsuario(id) {
 
   try {
     await apiFetchJson(`/admin/usuarios/${id}/eliminar`, { method: 'DELETE' });
+  if (window.showToast) {
+    window.showToast('Usuario eliminado definitivamente', 'success');
+  } else {
     alert('Usuario eliminado definitivamente');
+  }
     await cargarUsuarios();
   } catch (err) {
     console.error(err);
+  if (window.showToast) {
+    window.showToast(err.message || 'Error al eliminar usuario', 'error');
+  } else {
     alert(err.message || 'Error al eliminar usuario');
+  }
   }
 }
 

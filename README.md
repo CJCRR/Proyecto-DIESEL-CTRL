@@ -19,6 +19,17 @@ Aplicación POS para repuestos diésel con soporte online/offline, sincronizaci�
 - Middleware de seguridad y errores en `server/middleware/*` (seguridad, auth, manejo de errores).
 - Logging centralizado con Winston en `server/services/logger.js`.
 
+## Pruebas automáticas
+
+- Backend probado con Jest (entorno Node) y supertest para rutas HTTP.
+- Las pruebas viven en `server/tests` y se ejecutan con:
+
+	- `npm test`
+
+- En modo test se usa una base de datos SQLite en memoria (configurada en `server/db.js` cuando `NODE_ENV=test`), aplicando las mismas migraciones que producción pero sin tocar el archivo real.
+- Cobertura actual de servicios backend: ventas, reportes, cobranzas, devoluciones, ajustes, compras y proveedores.
+- Cobertura actual de rutas HTTP protegidas: `/ventas`, `/reportes`, `/cobranzas` y `/devoluciones`, incluyendo casos de éxito y errores de validación básicos.
+
 ## Arquitectura Frontend
 
 - Código público en `public/` servido por Express.

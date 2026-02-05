@@ -61,4 +61,30 @@
 - [x] Resumen financiero por período (ingresos, costo estimado, margen bruto).
 - [x] Exportación de estos reportes a CSV/Excel para contabilidad.
 
+## Fase 10: Pruebas Automáticas y Regresión ✅
+- [x] Definir stack de testing para backend (Jest + supertest).
+- [x] Crear pruebas automatizadas para servicios críticos backend: ventas, devoluciones, cobranzas, reportes, ajustes, compras y proveedores.
+- [x] Agregar script `npm test` y preparación para correr tests antes de publicar cambios.
+- [x] Añadir pruebas HTTP para rutas protegidas clave: /ventas, /reportes, /cobranzas y /devoluciones.
+
+## Fase 11: Manejo de Errores y Feedback al Usuario
+- [x] Normalizar el formato de errores en el backend (JSON estructurado con `error`, `detail`, `code`).
+- [x] Reemplazar `alert()` en el frontend por `showToast` u otra UI consistente para errores importantes (manteniendo `alert` solo como fallback de emergencia).
+- [ ] Revisar y reforzar logs en rutas sensibles (ventas, cobranzas, reportes) para facilitar diagnóstico.
+
+## Fase 12: Documentación y Tipado
+- [x] Añadir JSDoc a servicios clave (ventasService, reportesService, cobranzasService, ajustesService).
+- [x] Documentar la forma de los objetos principales: `venta`, `detalle`, `configGeneral` y configuraciones de nota (via server/types.js y JSDoc en servicios).
+- [x] Preparar base para posible migración parcial a TypeScript en backend/frontend (tipos compartidos en server/types.js y @ts-check en servicios críticos).
+
+## Fase 13: Refactors y Utilidades Compartidas
+- [ ] Extraer helpers reutilizables para construcción de filtros por fecha y otros patrones repetidos en reportesService.
+- [ ] Centralizar utilidades de formato de moneda e IVA en un módulo de frontend compartido.
+- [ ] Revisar y reducir duplicaciones entre plantillas de nota y componentes de reportes donde tenga sentido.
+
+## Fase 14: Infraestructura y Despliegue
+- [ ] Centralizar configuración sensible en variables de entorno (puerto, ruta de base de datos, credenciales admin, flags de debug).
+- [ ] Crear un `docker-compose` opcional para levantar la app y la base de datos con volúmenes persistentes.
+- [ ] Añadir pequeños detalles de UX avanzada (atajos de teclado, indicadores de carga globales) una vez estabilizado todo lo anterior.
+
 ## Notas de Progreso
