@@ -6,7 +6,9 @@ const { requireAuth } = require('./auth');
 const router = express.Router();
 
 // __dirname = server/routes -> subir dos niveles para llegar a la raíz del proyecto
-const DB_PATH = path.join(__dirname, '..', '..', 'database.sqlite');
+// Permitir configurar el archivo de base de datos vía variables de entorno
+const DB_FILE = process.env.DB_PATH || process.env.DATABASE_FILE || 'database.sqlite';
+const DB_PATH = path.join(__dirname, '..', '..', DB_FILE);
 const BACKUP_DIR = path.join(__dirname, '..', 'backups');
 
 function ensureDir() {

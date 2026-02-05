@@ -1,6 +1,7 @@
 // sales.js - Módulo de ventas, devoluciones e historial
 
 import { apiFetchJson } from '../app-api.js';
+import { formatNumber } from '../format-utils.js';
 import { escapeHtml, showToast } from '../app-utils.js';
 import { sincronizarVentasPendientes } from '../firebase-sync.js';
 import {
@@ -41,7 +42,7 @@ export function renderVentaSeleccionada() {
 			<div class="text-[11px] text-slate-500">#${escapeHtml(ventaSeleccionada.id)} • ${escapeHtml(new Date(ventaSeleccionada.fecha).toLocaleString())}</div>
 			<div class="text-[11px] text-slate-500">Ref: ${escapeHtml(ventaSeleccionada.referencia || '—')}</div>
 		</div>
-		<div class="text-right text-sm font-black text-rose-600">$${Number(totalUsd || 0).toFixed(2)}</div>
+		<div class="text-right text-sm font-black text-rose-600">$${formatNumber(totalUsd)}</div>
 	</div>`;
 
 	detalle.classList.remove('hidden');
@@ -69,8 +70,8 @@ export function renderHistorialDevoluciones(list = []) {
 				${d.referencia ? `<div class="text-[11px] text-slate-500">Ref: ${escapeHtml(d.referencia)}</div>` : ''}
 			</div>
 			<div class="text-right text-[11px]">
-				<div class="font-black text-rose-600">$${Number(d.total_usd || 0).toFixed(2)}</div>
-				<div class="text-slate-500">${Number(d.total_bs || 0).toFixed(2)} Bs</div>
+				<div class="font-black text-rose-600">$${formatNumber(d.total_usd)}</div>
+				<div class="text-slate-500">${formatNumber(d.total_bs)} Bs</div>
 			</div>
 		</div>`;
 	}).join('');

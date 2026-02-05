@@ -86,10 +86,28 @@
     const idTexto = venta.id_global ? venta.id_global : (venta.id ? `${tipo === 'PRESUPUESTO' ? 'PRES' : 'VENTA'}-${venta.id}` : '');
 
     const ivaPct = clampPct(venta.iva_pct != null ? venta.iva_pct : (notaCfg.iva_pct || 0));
-    const ivaUSD = totalUSDConDesc * (ivaPct / 100);
-    const ivaBs = totalBsDesc * (ivaPct / 100);
-    const totalUSDFinal = totalUSDConDesc + ivaUSD;
-    const totalBsFinal = totalBsDesc + ivaBs;
+    let ivaUSD = totalUSDConDesc * (ivaPct / 100);
+    let ivaBs = totalBsDesc * (ivaPct / 100);
+    let totalUSDFinal = totalUSDConDesc + ivaUSD;
+    let totalBsFinal = totalBsDesc + ivaBs;
+
+    // Si la venta ya trae totales con IVA desde el backend, usarlos como
+    // fuente de verdad para que nota y reportes coincidan exactamente.
+    const hasTotalesBackendUsd = venta.total_usd_iva != null && Number(venta.total_usd_iva) > 0;
+    const hasTotalesBackendBs = venta.total_bs_iva != null && Number(venta.total_bs_iva) > 0;
+    if (hasTotalesBackendUsd || hasTotalesBackendBs) {
+      const canonicalUsd = hasTotalesBackendUsd
+        ? Number(venta.total_usd_iva)
+        : (tasa ? Number(venta.total_bs_iva) / tasa : totalUSDConDesc + ivaUSD);
+      const canonicalBs = hasTotalesBackendBs
+        ? Number(venta.total_bs_iva)
+        : canonicalUsd * tasa;
+      totalUSDFinal = canonicalUsd;
+      totalBsFinal = canonicalBs;
+      // Recalcular IVA como diferencia entre total y base con descuento
+      ivaUSD = Math.max(0, totalUSDFinal - totalUSDConDesc);
+      ivaBs = Math.max(0, totalBsFinal - totalBsDesc);
+    }
 
     // Datos de la empresa iguales a la compacta
     const empresa = venta.empresa || {};

@@ -16,6 +16,7 @@ let TOP_LIMIT = parseInt(localStorage.getItem('top_limit') || '10', 10);
 let STOCK_UMBRAL = parseInt(localStorage.getItem('stock_umbral') || '1', 10);
 let AL_UMBRAL_TIMER = null;
 import { apiFetchJson } from './app-api.js';
+import { formatNumber } from './format-utils.js';
 
 // (Se removieron presets de reportes del dashboard)
 
@@ -345,18 +346,18 @@ async function renderMargenVendedoresHoy() {
             return;
         }
         cont.innerHTML = rows
-          .map(v => {
-            const margen = MONEDA === 'USD' ? v.margen_usd : v.margen_bs;
-            const total = MONEDA === 'USD' ? v.total_usd : v.total_bs;
-            return `<div class="flex justify-between border-b pb-1"><span>${v.vendedor || '—'}</span><span class="font-semibold">${Number(margen || 0).toFixed(2)} ${MONEDA} <span class="text-xs text-slate-400">(ventas ${Number(total||0).toFixed(2)})</span></span></div>`;
-          })
+                    .map(v => {
+                        const margen = MONEDA === 'USD' ? v.margen_usd : v.margen_bs;
+                        const total = MONEDA === 'USD' ? v.total_usd : v.total_bs;
+                        return `<div class="flex justify-between border-b pb-1"><span>${v.vendedor || '—'}</span><span class="font-semibold">${formatNumber(margen)} ${MONEDA} <span class="text-xs text-slate-400">(ventas ${formatNumber(total)})</span></span></div>`;
+                    })
           .join('');
     } catch (err) {
         console.error('No se pudo renderizar margen por vendedor', err);
     }
 }
 
-function fmtMoney(v) { return Number(v || 0).toFixed(2); }
+function fmtMoney(v) { return formatNumber(v); }
 function fmtPct(p) { return p == null ? '—' : `${(p * 100).toFixed(1)}%`; }
 
 async function loadTendencias() {

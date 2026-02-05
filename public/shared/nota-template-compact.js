@@ -87,10 +87,27 @@
 
     // ...la nueva declaración de brandImgs y headerLogo ya está más abajo...
     const ivaPct = clampPct(venta.iva_pct != null ? venta.iva_pct : (notaCfg.iva_pct || 0));
-    const ivaUSD = totalUSDConDesc * (ivaPct / 100);
-    const ivaBs = totalBsDesc * (ivaPct / 100);
-    const totalUSDFinal = totalUSDConDesc + ivaUSD;
-    const totalBsFinal = totalBsDesc + ivaBs;
+    let ivaUSD = totalUSDConDesc * (ivaPct / 100);
+    let ivaBs = totalBsDesc * (ivaPct / 100);
+    let totalUSDFinal = totalUSDConDesc + ivaUSD;
+    let totalBsFinal = totalBsDesc + ivaBs;
+
+    // Si la venta trae totales con IVA desde backend, preferirlos para que
+    // esta nota compacta coincida exactamente con reportes y otros resúmenes.
+    const hasTotalesBackendUsd = venta.total_usd_iva != null && Number(venta.total_usd_iva) > 0;
+    const hasTotalesBackendBs = venta.total_bs_iva != null && Number(venta.total_bs_iva) > 0;
+    if (hasTotalesBackendUsd || hasTotalesBackendBs) {
+      const canonicalUsd = hasTotalesBackendUsd
+        ? Number(venta.total_usd_iva)
+        : (tasa ? Number(venta.total_bs_iva) / tasa : totalUSDConDesc + ivaUSD);
+      const canonicalBs = hasTotalesBackendBs
+        ? Number(venta.total_bs_iva)
+        : canonicalUsd * tasa;
+      totalUSDFinal = canonicalUsd;
+      totalBsFinal = canonicalBs;
+      ivaUSD = Math.max(0, totalUSDFinal - totalUSDConDesc);
+      ivaBs = Math.max(0, totalBsFinal - totalBsDesc);
+    }
 
     // Determinar los datos de la empresa correctamente (más robusto)
     const empresa = venta.empresa || {};

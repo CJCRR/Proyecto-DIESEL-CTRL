@@ -29,11 +29,23 @@ function parseAB({ a_pct, b_pct }) {
   return { a, b };
 }
 
+/**
+ * Añade filtros de fecha comunes sobre un alias de tabla de ventas.
+ * Modifica in-place los arrays `where` y `params`.
+ *
+ * @param {string[]} where
+ * @param {Array<string|number>} params
+ * @param {{desde?:string,hasta?:string,alias?:string,campo?:string}} opts
+ */
+function appendFechaFilters(where, params, { desde, hasta, alias = 'v', campo = 'fecha' } = {}) {
+  if (desde) { where.push(`date(${alias}.${campo}) >= date(?)`); params.push(desde); }
+  if (hasta) { where.push(`date(${alias}.${campo}) <= date(?)`); params.push(hasta); }
+}
+
 function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500 }) {
   const where = [];
   const params = [];
-  if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
-  if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendFechaFilters(where, params, { desde, hasta, alias: 'v', campo: 'fecha' });
   if (cliente) { where.push("(v.cliente LIKE ? OR v.cedula LIKE ? OR v.telefono LIKE ?)"); params.push('%' + cliente + '%', '%' + cliente + '%', '%' + cliente + '%'); }
   if (vendedor) { where.push("v.vendedor LIKE ?"); params.push('%' + vendedor + '%'); }
   if (metodo) { where.push("v.metodo_pago = ?"); params.push(metodo); }
@@ -218,8 +230,7 @@ function getTopProductos(limit) {
 function getMargenProductos({ desde, hasta, limit }) {
   const where = [];
   const params = [];
-  if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
-  if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendFechaFilters(where, params, { desde, hasta, alias: 'v', campo: 'fecha' });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   return db.prepare(`
@@ -250,8 +261,7 @@ function getAbcProductos({ desde, hasta, a_pct, b_pct }) {
   const { a, b } = parseAB({ a_pct, b_pct });
   const where = [];
   const params = [];
-  if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
-  if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendFechaFilters(where, params, { desde, hasta, alias: 'v', campo: 'fecha' });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`

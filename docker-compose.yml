@@ -1,0 +1,27 @@
+version: '3.9'
+
+services:
+  diesel-ctrl-app:
+    build: .
+    container_name: diesel-ctrl-app
+    ports:
+      - "3000:3000"
+    environment:
+      # Puerto interno de la app (debe coincidir con EXPOSE/PORT)
+      - PORT=3000
+      # Ruta/nombre del archivo de base de datos dentro del contenedor
+      - DB_PATH=database.sqlite
+      # Usuario admin inicial (solo se usa si no existen usuarios)
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin123
+      # Control de backups automáticos y logs SQL
+      - ENABLE_AUTOBACKUP=true
+      - BACKUP_INTERVAL_HOURS=6
+      - SQL_VERBOSE=false
+      - NODE_ENV=production
+    volumes:
+      # Persistencia de base de datos y backups en el host
+      - ./data:/app/data
+      - ./server/backups:/app/server/backups
+    working_dir: /app
+    restart: unless-stopped

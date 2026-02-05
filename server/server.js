@@ -79,7 +79,15 @@ app.use('/cobranzas', cobranzasRoutes);
 app.use('/alertas', alertasRoutes);
 app.use('/presupuestos', presupuestosRoutes);
 
-// Backup automático cada 6 horas (también ejecuta uno al iniciar)
+// Backup automático (configurable por variables de entorno)
+const isTestEnv = process.env.NODE_ENV === 'test';
+const enableAutoBackupEnv = process.env.ENABLE_AUTOBACKUP;
+const enableAutoBackup = enableAutoBackupEnv
+    ? !['0', 'false', 'no'].includes(String(enableAutoBackupEnv).toLowerCase())
+    : true; // por defecto habilitado fuera de test
+
+const backupIntervalHours = Number(process.env.BACKUP_INTERVAL_HOURS || 6);
+
 const runScheduledBackup = async () => {
     if (!backupRoutes.createBackup) return;
     try {
@@ -89,8 +97,11 @@ const runScheduledBackup = async () => {
         logger.error('❌ Falló backup automático:', { message: err.message, stack: err.stack });
     }
 };
-setInterval(runScheduledBackup, 6 * 60 * 60 * 1000);
-runScheduledBackup();
+
+if (!isTestEnv && enableAutoBackup) {
+    setInterval(runScheduledBackup, backupIntervalHours * 60 * 60 * 1000);
+    runScheduledBackup();
+}
 
 // Manejo de errores centralizado
 const errorHandler = require('./middleware/errorHandler');

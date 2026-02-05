@@ -8,8 +8,16 @@ const bcrypt = require('bcryptjs');
 // SOLUCIÓN: Usar path.join(__dirname) ancla la ruta al archivo actual, sin importar desde dónde se llame.
 
 const isTest = process.env.NODE_ENV === 'test';
-const dbPath = isTest ? ':memory:' : path.join(__dirname, '..', 'database.sqlite');
-const db = new Database(dbPath, { verbose: console.log }); // Verbose ayuda a depurar
+// Permitir configurar el nombre/ruta del archivo de base de datos vía variables de entorno.
+// Para producción se recomienda establecer DB_PATH o DATABASE_FILE.
+const dbFile = process.env.DB_PATH || process.env.DATABASE_FILE || 'database.sqlite';
+const dbPath = isTest ? ':memory:' : path.join(__dirname, '..', dbFile);
+
+// Verbose SQL solo si se habilita explícitamente (evita ruido en producción)
+const sqlVerboseEnv = process.env.SQL_VERBOSE || process.env.SQL_DEBUG;
+const sqlVerbose = sqlVerboseEnv && ['1', 'true', 'yes'].includes(String(sqlVerboseEnv).toLowerCase());
+
+const db = new Database(dbPath, { verbose: sqlVerbose ? console.log : null });
 
 // Inicialización de tablas (Idempotente: solo crea si no existen)
 const schema = `

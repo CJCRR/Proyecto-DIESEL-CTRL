@@ -70,7 +70,7 @@
 ## Fase 11: Manejo de Errores y Feedback al Usuario
 - [x] Normalizar el formato de errores en el backend (JSON estructurado con `error`, `detail`, `code`).
 - [x] Reemplazar `alert()` en el frontend por `showToast` u otra UI consistente para errores importantes (manteniendo `alert` solo como fallback de emergencia).
-- [ ] Revisar y reforzar logs en rutas sensibles (ventas, cobranzas, reportes) para facilitar diagnóstico.
+- [x] Revisar y reforzar logs en rutas sensibles (ventas, cobranzas, reportes) para facilitar diagnóstico.
 
 ## Fase 12: Documentación y Tipado
 - [x] Añadir JSDoc a servicios clave (ventasService, reportesService, cobranzasService, ajustesService).
@@ -78,13 +78,13 @@
 - [x] Preparar base para posible migración parcial a TypeScript en backend/frontend (tipos compartidos en server/types.js y @ts-check en servicios críticos).
 
 ## Fase 13: Refactors y Utilidades Compartidas
-- [ ] Extraer helpers reutilizables para construcción de filtros por fecha y otros patrones repetidos en reportesService.
-- [ ] Centralizar utilidades de formato de moneda e IVA en un módulo de frontend compartido.
-- [ ] Revisar y reducir duplicaciones entre plantillas de nota y componentes de reportes donde tenga sentido.
+- [x] Extraer helpers reutilizables para construcción de filtros por fecha y otros patrones repetidos en reportesService (helper appendFechaFilters).
+- [x] Centralizar utilidades de formato de moneda e IVA en un módulo de frontend compartido (public/js/format-utils.js) y usarlas en módulos clave (reportes, dashboard, ventas).
+- [x] Revisar y reducir duplicaciones entre plantillas de nota y componentes de reportes donde tenga sentido (plantillas de nota ahora usan totales con IVA del backend cuando están disponibles, alineando sus cálculos con los de reportes).
 
 ## Fase 14: Infraestructura y Despliegue
-- [ ] Centralizar configuración sensible en variables de entorno (puerto, ruta de base de datos, credenciales admin, flags de debug).
-- [ ] Crear un `docker-compose` opcional para levantar la app y la base de datos con volúmenes persistentes.
+- [x] Centralizar configuración sensible en variables de entorno (puerto, ruta de base de datos, credenciales admin, flags de debug).
+- [x] Crear un `docker-compose` opcional para levantar la app y la base de datos con volúmenes persistentes.
 - [ ] Añadir pequeños detalles de UX avanzada (atajos de teclado, indicadores de carga globales) una vez estabilizado todo lo anterior.
 
 ## Notas de Progreso

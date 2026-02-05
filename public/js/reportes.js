@@ -12,6 +12,7 @@
 })();
 console.log('reportes.js v2.0 cargado - con autenticación');
 import { apiFetchJson } from './app-api.js';
+import { formatNumber } from './format-utils.js';
 let MONEDA = 'USD';
 let cacheRows = [];
 const detallesCache = new Map();
@@ -68,8 +69,8 @@ function renderReporte() {
       <td class="p-2">${r.vendedor || ''}</td>
       <td class="p-2">${r.metodo_pago || ''}</td>
       <td class="p-2 text-slate-600 text-xs">${r.referencia || '—'}</td>
-      <td class="p-2 text-right font-semibold">${Number(t).toFixed(2)}</td>
-      <td class="p-2 text-right text-blue-700 font-semibold">${Number(m).toFixed(2)}</td>
+    <td class="p-2 text-right font-semibold">${formatNumber(t)}</td>
+    <td class="p-2 text-right text-blue-700 font-semibold">${formatNumber(m)}</td>
     `;
         tbody.appendChild(tr);
 

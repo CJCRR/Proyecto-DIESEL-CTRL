@@ -30,6 +30,25 @@ Aplicación POS para repuestos diésel con soporte online/offline, sincronizaci�
 - Cobertura actual de servicios backend: ventas, reportes, cobranzas, devoluciones, ajustes, compras y proveedores.
 - Cobertura actual de rutas HTTP protegidas: `/ventas`, `/reportes`, `/cobranzas` y `/devoluciones`, incluyendo casos de éxito y errores de validación básicos.
 
+## Configuración por entorno
+
+La aplicación se configura principalmente mediante variables de entorno. Valores por defecto pensados para desarrollo local:
+
+- `PORT`: puerto HTTP del servidor Express. Por defecto `3000`.
+- `NODE_ENV`: entorno de ejecución (`development`, `production`, `test`). En `test` la base de datos usa `:memory:`.
+- `DB_PATH` / `DATABASE_FILE`: nombre o ruta del archivo SQLite. Por defecto `database.sqlite` en la raíz del proyecto.
+- `SQL_VERBOSE` / `SQL_DEBUG`: si se establece a `true`/`1`/`yes`, activa el modo verbose de `better-sqlite3` (log de todas las consultas SQL).
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD`: si no existen usuarios, se creará automáticamente un usuario admin con estas credenciales (debe cambiar la contraseña en el primer login).
+- `ENABLE_AUTOBACKUP`: controla el backup automático de la base de datos. Valores falsy: `0`, `false`, `no`. Por defecto está habilitado excepto en `NODE_ENV=test`.
+- `BACKUP_INTERVAL_HOURS`: intervalo en horas entre backups automáticos. Por defecto `6`.
+
+### Ejemplo rápido (Windows PowerShell)
+
+- `setx PORT 4000`
+- `setx DB_PATH diesel-pos.sqlite`
+
+Tras definir las variables, reinicia la terminal y ejecuta `npm start`.
+
 ## Arquitectura Frontend
 
 - Código público en `public/` servido por Express.
