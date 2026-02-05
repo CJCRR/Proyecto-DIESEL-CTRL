@@ -52,8 +52,8 @@
 ## Fase 8: Finanzas y Facturación
 - [x] Mejoras en cobranzas: filtros por estado y por días de mora, alertas para cuentas vencidas.
 - [x] Cálculo opcional de impuestos (IVA) en ventas/notas según configuración.
-- [ ] Personalización avanzada de nota de entrega (campos fiscales adicionales y plantillas).
-- [ ] Preparar puntos de integración para pasarelas de pago (estructura de datos y endpoints base).
+- [x] Personalización avanzada de nota de entrega (campos fiscales adicionales y plantillas).
+- [descartado] Preparar puntos de integración para pasarelas de pago (no es prioridad para este software de ventas e inventario).
 
 ## Fase 9: Reportes de Rentabilidad
 - [ ] Reporte de pérdidas y ganancias por categoría de producto.

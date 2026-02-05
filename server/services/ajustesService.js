@@ -213,6 +213,7 @@ const DEFAULT_NOTA = {
   rif: '',
   telefonos: '',
   ubicacion: '',
+  direccion_general: '',
   encabezado_texto: '¡Tu Proveedor de Confianza!',
   terminos:
     'LOS BIENES AQUÍ FACTURADOS ESTÁN EXENTOS DEL PAGO DEL I.V.A. SEGÚN ART. 18#10 DE LA LEY DEL IMPUESTO AL VALOR AGREGADO Y ART. 19 DEL REGLAMENTO DE LEY.',
@@ -280,6 +281,7 @@ function guardarConfigGeneral(payload = {}) {
     rif: (nota.rif || '').toString().slice(0, 120),
     telefonos: (nota.telefonos || '').toString().slice(0, 200),
     ubicacion: (nota.ubicacion || '').toString().slice(0, 240),
+    direccion_general: (nota.direccion_general || '').toString().slice(0, 240),
     encabezado_texto: (nota.encabezado_texto || DEFAULT_NOTA.encabezado_texto).toString().slice(0, 200),
     terminos: (nota.terminos || DEFAULT_NOTA.terminos).toString().slice(0, 800),
     pie: (nota.pie || DEFAULT_NOTA.pie).toString().slice(0, 120),

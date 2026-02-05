@@ -72,6 +72,7 @@ function readForms() {
         rif: document.getElementById('n_rif')?.value.trim() || '',
         telefonos: document.getElementById('n_telefonos')?.value.trim() || '',
         ubicacion: document.getElementById('n_ubicacion')?.value.trim() || '',
+        direccion_general: document.getElementById('n_dir_general')?.value.trim() || '',
         encabezado_texto: document.getElementById('n_encabezado')?.value.trim() || '¡Tu Proveedor de Confianza!',
         resaltar_color: document.getElementById('n_resaltar')?.value || '#fff59d',
         brand_logos: marcasRaw,
@@ -102,6 +103,7 @@ function setForms(cfg) {
     if (document.getElementById('n_rif')) document.getElementById('n_rif').value = nota.rif || '';
     if (document.getElementById('n_telefonos')) document.getElementById('n_telefonos').value = nota.telefonos || '';
     if (document.getElementById('n_ubicacion')) document.getElementById('n_ubicacion').value = nota.ubicacion || '';
+    if (document.getElementById('n_dir_general')) document.getElementById('n_dir_general').value = nota.direccion_general || '';
     if (document.getElementById('n_encabezado')) document.getElementById('n_encabezado').value = nota.encabezado_texto || '';
     if (document.getElementById('n_resaltar')) document.getElementById('n_resaltar').value = nota.resaltar_color || '#fff59d';
     if (document.getElementById('n_marcas')) document.getElementById('n_marcas').value = Array.isArray(nota.brand_logos) ? nota.brand_logos.join('\n') : '';

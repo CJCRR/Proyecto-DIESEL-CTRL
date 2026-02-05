@@ -62,6 +62,7 @@
       ? meta.notaCfg
       : await getNotaConfig();
     const tasa = number(venta.tasa_bcv) || 1;
+      const direccionGeneralCliente = notaCfg.direccion_general || notaCfg.ubicacion || '';
     const descuentoPct = clampPct(venta.descuento);
     const multiplicador = 1 - (descuentoPct / 100);
 
@@ -167,7 +168,7 @@
                 <div class="box-row"><div class="box-cell" style="font-weight:700;">CLIENTE</div><div class="box-cell">${venta.cliente || ''}</div></div>
                 <div class="box-row"><div class="box-cell" style="font-weight:700;">R.I.F / C.I</div><div class="box-cell">${venta.cedula || ''}</div></div>
                 <div class="box-row"><div class="box-cell" style="font-weight:700;">TELEFONOS</div><div class="box-cell">${venta.telefono || ''}</div></div>
-                <div class="box-row"><div class="box-cell" style="font-weight:700;">DIRECCION</div><div class="box-cell">${notaCfg.ubicacion || ''}</div></div>
+                  <div class="box-row"><div class="box-cell" style="font-weight:700;">DIRECCION</div><div class="box-cell">${direccionGeneralCliente}</div></div>
               </div>
               <div class="box">
                 <div style="text-align:center; font-weight:800;">${tipo === 'PRESUPUESTO' ? 'PRESUPUESTO' : 'NOTA DESPACHO'}</div>
