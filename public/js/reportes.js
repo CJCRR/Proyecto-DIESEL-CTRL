@@ -50,7 +50,9 @@ function renderReporte() {
     let total = 0;
     let margen = 0;
     cacheRows.forEach((r) => {
-        const t = MONEDA === 'USD' ? r.total_usd || 0 : r.total_bs || 0;
+        const t = MONEDA === 'USD'
+            ? (r.total_usd_iva != null ? r.total_usd_iva : (r.total_usd || 0))
+            : (r.total_bs_iva != null ? r.total_bs_iva : (r.total_bs || 0));
         const m = MONEDA === 'USD' ? r.margen_usd || 0 : r.margen_bs || 0;
         total += Number(t);
         margen += Number(m);

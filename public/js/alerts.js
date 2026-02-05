@@ -74,7 +74,20 @@ async function pollMorosos() {
       const key = `${r.id}`;
       if (!seenMorosos.has(key)) {
         seenMorosos.add(key);
-        showNotification('Cliente moroso', `${r.cliente_nombre || 'Cliente'} - vence ${r.fecha_vencimiento}`);
+        let body = `${r.cliente_nombre || 'Cliente'} - vence ${r.fecha_vencimiento}`;
+        if (r.fecha_vencimiento) {
+          const fv = new Date(r.fecha_vencimiento);
+          if (!Number.isNaN(fv.getTime())) {
+            const diffMs = Date.now() - fv.getTime();
+            if (diffMs > 0) {
+              const dias = Math.floor(diffMs / 86400000);
+              if (dias > 0) {
+                body = `${r.cliente_nombre || 'Cliente'} - ${dias} días de mora (venc. ${r.fecha_vencimiento})`;
+              }
+            }
+          }
+        }
+        showNotification('Cliente moroso', body);
       }
     });
   } catch (err) {

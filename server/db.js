@@ -35,6 +35,9 @@ const schema = `
     metodo_pago TEXT,
     referencia TEXT,
     total_bs REAL,
+    iva_pct REAL DEFAULT 0,
+    total_bs_iva REAL DEFAULT 0,
+    total_usd_iva REAL DEFAULT 0,
     usuario_id INTEGER,
     FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
   );
@@ -400,6 +403,30 @@ const migrations = [
       if (!columnExists('compra_detalle', 'marca')) {
         db.prepare('ALTER TABLE compra_detalle ADD COLUMN marca TEXT').run();
       }
+    }
+  },
+  {
+    id: '010_ventas_iva',
+    up: () => {
+      if (!columnExists('ventas', 'iva_pct')) {
+        db.prepare("ALTER TABLE ventas ADD COLUMN iva_pct REAL DEFAULT 0").run();
+      }
+      if (!columnExists('ventas', 'total_bs_iva')) {
+        db.prepare("ALTER TABLE ventas ADD COLUMN total_bs_iva REAL DEFAULT 0").run();
+      }
+      if (!columnExists('ventas', 'total_usd_iva')) {
+        db.prepare("ALTER TABLE ventas ADD COLUMN total_usd_iva REAL DEFAULT 0").run();
+      }
+
+      db.prepare(`
+        UPDATE ventas
+        SET total_bs_iva = CASE WHEN total_bs_iva IS NULL OR total_bs_iva = 0 THEN COALESCE(total_bs,0) ELSE total_bs_iva END,
+            total_usd_iva = CASE
+              WHEN total_usd_iva IS NULL OR total_usd_iva = 0 THEN
+                CASE WHEN COALESCE(tasa_bcv,0) != 0 THEN COALESCE(total_bs,0) / tasa_bcv ELSE COALESCE(total_bs,0) END
+              ELSE total_usd_iva
+            END
+      `).run();
     }
   }
 ];

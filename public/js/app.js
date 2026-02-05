@@ -21,7 +21,7 @@ let vendiendo = false;
 let TASA_BCV_POS = 1;
 let TASA_BCV_UPDATED_POS = null;
 let ventasRecientesCache = [];
-let configGeneral = { empresa: {}, descuentos_volumen: [], devolucion: {} };
+let configGeneral = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
 let lastAutoDescuentoVolumen = null;
 let historialModo = 'ventas';
 
@@ -101,8 +101,10 @@ async function cargarConfigGeneral() {
         configGeneral = {
             empresa: data.empresa || {},
             descuentos_volumen: data.descuentos_volumen || [],
-            devolucion: data.devolucion || {}
+            devolucion: data.devolucion || {},
+            nota: data.nota || {}
         };
+        try { window.configGeneral = configGeneral; } catch {}
         aplicarTemaEmpresa();
     } catch (err) {
         console.warn('Config general no cargada', err.message);
@@ -242,7 +244,8 @@ function renderVentasRecientes(filter = '') {
         return;
     }
     cont.innerHTML = list.map(v => {
-        const totalUsd = v.tasa_bcv ? (v.total_bs / v.tasa_bcv) : 0;
+        const baseUsd = v.tasa_bcv ? (v.total_bs / v.tasa_bcv) : 0;
+        const totalUsd = (v.total_usd_iva != null) ? v.total_usd_iva : baseUsd;
         return `<div class="p-3 border rounded-xl bg-white flex items-center justify-between">
             <div>
                 <div class="font-semibold text-slate-700">${escapeHtml(v.cliente || 'Sin nombre')}</div>
@@ -706,8 +709,14 @@ async function actualizarHistorial() {
             const baseUsd = mov.total_usd != null
                 ? Number(mov.total_usd)
                 : (tasa ? baseBs / tasa : 0);
-            const totalBs = isDev ? -Math.abs(baseBs) : baseBs;
-            const totalUsd = isDev ? -Math.abs(baseUsd) : baseUsd;
+            const rawBs = (!isDev && !isPres && mov.total_bs_iva != null)
+                ? Number(mov.total_bs_iva)
+                : baseBs;
+            const rawUsd = (!isDev && !isPres && mov.total_usd_iva != null)
+                ? Number(mov.total_usd_iva)
+                : baseUsd && tasa ? (baseBs / tasa) : baseUsd;
+            const totalBs = isDev ? -Math.abs(rawBs) : rawBs;
+            const totalUsd = isDev ? -Math.abs(rawUsd) : rawUsd;
             const cliente = escapeHtml(mov.cliente || mov.cliente_nombre || 'Sin nombre');
             const cedula = escapeHtml(mov.cedula || mov.cliente_doc || '');
             const telefono = escapeHtml(mov.telefono || '');

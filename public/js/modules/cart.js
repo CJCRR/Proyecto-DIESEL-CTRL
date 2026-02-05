@@ -146,10 +146,48 @@ export function actualizarTabla() {
 
 	const totalAfterDiscount = totalUSD * (1 - Math.max(0, Math.min(100, descuento)) / 100);
 	const sign = modoDevolucion ? -1 : 1;
+
+	// IVA desde configuración de nota (solo para ventas, no devoluciones)
+	let ivaPct = 0;
+	if (!modoDevolucion && cfg.nota && cfg.nota.iva_pct !== undefined && cfg.nota.iva_pct !== null) {
+		const rawIva = Number(cfg.nota.iva_pct) || 0;
+		ivaPct = Math.max(0, Math.min(100, rawIva));
+	}
+
+	const baseUsd = totalAfterDiscount;
+	const baseBs = baseUsd * tasa;
+	let ivaBs = 0;
+	let totalUsdFinal = baseUsd;
+	let totalBsFinal = baseBs;
+	if (ivaPct > 0 && baseUsd > 0 && !modoDevolucion) {
+		ivaBs = baseBs * (ivaPct / 100);
+		totalUsdFinal = baseUsd * (1 + ivaPct / 100);
+		totalBsFinal = baseBs * (1 + ivaPct / 100);
+	}
+
+	const subtotalUsdEl = document.getElementById('subtotal-usd');
+	const subtotalBsEl = document.getElementById('subtotal-bs');
 	const totalUsdEl = document.getElementById('total-usd');
 	const totalBsEl = document.getElementById('total-bs');
-	if (totalUsdEl) totalUsdEl.innerText = (totalAfterDiscount * sign).toFixed(2);
-	if (totalBsEl) totalBsEl.innerText = (totalAfterDiscount * tasa * sign).toLocaleString('es-VE', {minimumFractionDigits: 2});
+	const ivaRow = document.getElementById('iva-row');
+	const ivaPctLabel = document.getElementById('iva-pct-label');
+	const ivaBsEl = document.getElementById('total-iva-bs');
+
+	if (subtotalUsdEl) subtotalUsdEl.innerText = (baseUsd * sign).toFixed(2);
+	if (subtotalBsEl) subtotalBsEl.innerText = (baseBs * sign).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+	if (totalUsdEl) totalUsdEl.innerText = (totalUsdFinal * sign).toFixed(2);
+	if (totalBsEl) totalBsEl.innerText = (totalBsFinal * sign).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+	if (ivaRow && ivaPctLabel && ivaBsEl) {
+		if (ivaPct > 0 && baseUsd > 0 && !modoDevolucion) {
+			ivaRow.classList.remove('hidden');
+			ivaPctLabel.textContent = `${ivaPct.toFixed(0)}%`;
+			ivaBsEl.textContent = (ivaBs * sign).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+		} else {
+			ivaRow.classList.add('hidden');
+			ivaPctLabel.textContent = '';
+			ivaBsEl.textContent = '0.00';
+		}
+	}
 }
 
 export function eliminarDelCarrito(index) {

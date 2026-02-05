@@ -50,8 +50,8 @@
 - [x] Pantalla sencilla de proveedores (alta/baja/edición, contacto básico).
 
 ## Fase 8: Finanzas y Facturación
-- [ ] Mejoras en cobranzas: filtros por estado y por días de mora, alertas para cuentas vencidas.
-- [ ] Cálculo opcional de impuestos (IVA) en ventas/notas según configuración.
+- [x] Mejoras en cobranzas: filtros por estado y por días de mora, alertas para cuentas vencidas.
+- [x] Cálculo opcional de impuestos (IVA) en ventas/notas según configuración.
 - [ ] Personalización avanzada de nota de entrega (campos fiscales adicionales y plantillas).
 - [ ] Preparar puntos de integración para pasarelas de pago (estructura de datos y endpoints base).
 

@@ -58,7 +58,9 @@
   }
 
   async function buildNotaHTML({ venta = {}, detalles = [] }, meta = {}) {
-      const notaCfg = await getNotaConfig();
+      const notaCfg = (meta && meta.notaCfg && typeof meta.notaCfg === 'object')
+        ? meta.notaCfg
+        : await getNotaConfig();
       const tasa = number(venta.tasa_bcv) || 1;
       const descuentoPct = clampPct(venta.descuento);
       const metodo = (venta.metodo_pago || '').toString();
@@ -104,7 +106,7 @@
       const headerLogoUrl = (empresa.logo_url || venta.empresa_logo_url || notaCfg.header_logo_url || '').toString();
       const headerLogo = headerLogoUrl ? `<img src="${headerLogoUrl}" style="height:42px;object-fit:contain;">` : '';
 
-      const ivaPct = clampPct(notaCfg.iva_pct || 0);
+      const ivaPct = clampPct(venta.iva_pct != null ? venta.iva_pct : (notaCfg.iva_pct || 0));
       const ivaUSD = totalUSDConDesc * (ivaPct / 100);
       const ivaBs = totalBsDesc * (ivaPct / 100);
       const totalUSDFinal = totalUSDConDesc + ivaUSD;

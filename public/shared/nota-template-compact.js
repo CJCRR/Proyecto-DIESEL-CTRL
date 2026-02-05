@@ -58,6 +58,9 @@
   }
 
   async function buildNotaHTML({ venta = {}, detalles = [] }, meta = {}) {
+    const notaCfg = (meta && meta.notaCfg && typeof meta.notaCfg === 'object')
+      ? meta.notaCfg
+      : await getNotaConfig();
     const tasa = number(venta.tasa_bcv) || 1;
     const descuentoPct = clampPct(venta.descuento);
     const multiplicador = 1 - (descuentoPct / 100);
@@ -81,9 +84,8 @@
     const tipo = (meta && meta.tipo) ? String(meta.tipo) : (venta.tipo || '').toUpperCase() === 'PRESUPUESTO' ? 'PRESUPUESTO' : 'NOTA DE ENTREGA';
     const idTexto = venta.id_global ? venta.id_global : (venta.id ? `${tipo === 'PRESUPUESTO' ? 'PRES' : 'VENTA'}-${venta.id}` : '');
 
-    const notaCfg = await getNotaConfig();
     // ...la nueva declaración de brandImgs y headerLogo ya está más abajo...
-    const ivaPct = clampPct(notaCfg.iva_pct || 0);
+    const ivaPct = clampPct(venta.iva_pct != null ? venta.iva_pct : (notaCfg.iva_pct || 0));
     const ivaUSD = totalUSDConDesc * (ivaPct / 100);
     const ivaBs = totalBsDesc * (ivaPct / 100);
     const totalUSDFinal = totalUSDConDesc + ivaUSD;

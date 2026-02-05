@@ -76,7 +76,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     };
     const tpl = layout === 'standard' ? tplStandard : tplCompact;
     const html = tpl && tpl.buildNotaHTML
-      ? await tpl.buildNotaHTML({ venta: ventaConEmpresa, detalles })
+      ? await tpl.buildNotaHTML({ venta: ventaConEmpresa, detalles }, { notaCfg })
       : '<html><body><pre>Plantilla no disponible</pre></body></html>';
 
     res.set('Content-Type', 'text/html; charset=utf-8');

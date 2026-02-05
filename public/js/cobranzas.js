@@ -75,13 +75,18 @@ function renderTabla(list = []) {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 cursor-pointer';
         tr.onclick = () => cargarDetalle(c.id);
+                const estado = c.estado_calc || c.estado;
+                const diasMora = typeof c.dias_mora === 'number' ? c.dias_mora : 0;
         tr.innerHTML = `
             <td class="p-3 font-semibold text-slate-800">${c.cliente_nombre || 'Cliente'}</td>
             <td class="p-3 text-slate-500">${c.cliente_doc || ''}</td>
-            <td class="p-3 text-center text-sm">${c.fecha_vencimiento || ''}</td>
+                        <td class="p-3 text-center text-sm">
+                            ${c.fecha_vencimiento || ''}
+                            ${estado === 'vencido' && diasMora > 0 ? `<div class="text-[10px] text-rose-600">${diasMora} días de mora</div>` : ''}
+                        </td>
             <td class="p-3 text-right font-mono text-slate-500">$${Number(c.total_usd || 0).toFixed(2)}</td>
             <td class="p-3 text-right font-mono font-bold text-blue-600">$${Number(c.saldo_usd || 0).toFixed(2)}</td>
-            <td class="p-3 text-center">${badgeEstado(c.estado_calc || c.estado)}</td>
+                        <td class="p-3 text-center">${badgeEstado(estado)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -138,9 +143,11 @@ async function cargarCuentas() {
     try {
         const q = document.getElementById('f_buscar').value || '';
         const est = document.getElementById('f_estado').value || '';
+        const mora = document.getElementById('f_mora') ? document.getElementById('f_mora').value || '' : '';
         const params = new URLSearchParams();
         if (q) params.append('cliente', q);
         if (est) params.append('estado', est);
+        if (mora) params.append('mora_min', mora);
         const j = await apiFetchJson(`/cobranzas?${params.toString()}`);
         cuentas = j;
         renderTabla(cuentas);
@@ -208,6 +215,8 @@ async function registrarPago(evt) {
 function setupEventos() {
     document.getElementById('f_buscar').addEventListener('input', () => cargarCuentas());
     document.getElementById('f_estado').addEventListener('change', () => cargarCuentas());
+    const fMora = document.getElementById('f_mora');
+    if (fMora) fMora.addEventListener('change', () => cargarCuentas());
     document.getElementById('f_refrescar').addEventListener('click', () => cargarCuentas());
     document.getElementById('form-pago').addEventListener('submit', registrarPago);
 }

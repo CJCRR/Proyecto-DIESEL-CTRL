@@ -30,7 +30,19 @@ function computeEstado(row) {
 
 function mapCuenta(row) {
   const estado_calc = computeEstado(row);
-  return { ...row, estado_calc };
+  let dias_mora = 0;
+  if (row.fecha_vencimiento) {
+    const fv = new Date(row.fecha_vencimiento);
+    const hoy = new Date();
+    if (!Number.isNaN(fv.getTime())) {
+      const diffMs = hoy.getTime() - fv.getTime();
+      if (diffMs > 0) {
+        dias_mora = Math.floor(diffMs / 86400000);
+        if (dias_mora < 0) dias_mora = 0;
+      }
+    }
+  }
+  return { ...row, estado_calc, dias_mora };
 }
 
 function getResumenCuentas() {
@@ -42,7 +54,7 @@ function getResumenCuentas() {
   return rows;
 }
 
-function listCuentas({ cliente, estado } = {}) {
+function listCuentas({ cliente, estado, mora_min, mora_max } = {}) {
   let rows = db.prepare(`
       SELECT * FROM cuentas_cobrar
       ORDER BY date(fecha_vencimiento) ASC
@@ -56,6 +68,14 @@ function listCuentas({ cliente, estado } = {}) {
   }
   if (estado) {
     rows = rows.filter(r => r.estado_calc === estado);
+  }
+  const min = mora_min !== undefined && mora_min !== '' ? Number(mora_min) : null;
+  const max = mora_max !== undefined && mora_max !== '' ? Number(mora_max) : null;
+  if (min !== null && Number.isFinite(min)) {
+    rows = rows.filter(r => Number(r.dias_mora || 0) >= min);
+  }
+  if (max !== null && Number.isFinite(max)) {
+    rows = rows.filter(r => Number(r.dias_mora || 0) <= max);
   }
   return rows;
 }

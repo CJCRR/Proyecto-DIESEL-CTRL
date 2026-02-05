@@ -1,6 +1,7 @@
 const db = require('../db');
 
 // Helpers internos
+
 function classifyABC(rows, valueKey, aThresh = 0.8, bThresh = 0.95) {
   const total = rows.reduce((s, r) => s + Number(r[valueKey] || 0), 0);
   let acc = 0;
@@ -39,7 +40,7 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
 
   const rows = db.prepare(`
     SELECT v.id, v.fecha, v.cliente, v.vendedor, v.metodo_pago, v.referencia,
-           v.tasa_bcv, v.descuento,
+           v.tasa_bcv, v.descuento, v.iva_pct, v.total_bs_iva, v.total_usd_iva,
            COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0) AS total_bs,
            COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) / NULLIF(v.tasa_bcv,0),
                     SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),
@@ -62,12 +63,30 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
     LIMIT ?
   `).all(...params, limit);
 
-  return rows;
+  return rows.map((r) => {
+    const tasa = Number(r.tasa_bcv || 0) || 0;
+    const baseBs = Number(r.total_bs || 0);
+    const baseUsd = r.total_usd != null
+      ? Number(r.total_usd)
+      : (tasa ? baseBs / tasa : baseBs);
+    const ivaPct = Number(r.iva_pct || 0) || 0;
+    const hasStoredIva = r.total_bs_iva != null && r.total_usd_iva != null && (Number(r.total_bs_iva) !== 0 || Number(r.total_usd_iva) !== 0);
+    const totalBsIva = hasStoredIva ? Number(r.total_bs_iva) : baseBs;
+    const totalUsdIva = hasStoredIva ? Number(r.total_usd_iva) : baseUsd;
+    return {
+      ...r,
+      iva_pct: ivaPct,
+      total_bs_iva: totalBsIva,
+      total_usd_iva: totalUsdIva,
+    };
+  });
 }
 
 function getVentasSinDevolucion() {
-  return db.prepare(`
-    SELECT id, fecha, cliente, vendedor, cedula, telefono, total_bs, tasa_bcv, descuento, metodo_pago, referencia
+  const rows = db.prepare(`
+    SELECT id, fecha, cliente, vendedor, cedula, telefono,
+           total_bs, tasa_bcv, descuento, metodo_pago, referencia,
+           iva_pct, total_bs_iva, total_usd_iva
     FROM ventas
     WHERE NOT EXISTS (
       SELECT 1 FROM devoluciones d WHERE d.venta_original_id = ventas.id
@@ -75,6 +94,22 @@ function getVentasSinDevolucion() {
     ORDER BY fecha DESC
     LIMIT 100
   `).all();
+
+  return rows.map((v) => {
+    const tasa = Number(v.tasa_bcv || 0) || 0;
+    const baseBs = Number(v.total_bs || 0);
+    const baseUsd = tasa ? baseBs / tasa : baseBs;
+    const ivaPct = Number(v.iva_pct || 0) || 0;
+    const hasStoredIva = v.total_bs_iva != null && v.total_usd_iva != null && (Number(v.total_bs_iva) !== 0 || Number(v.total_usd_iva) !== 0);
+    const totalBsIva = hasStoredIva ? Number(v.total_bs_iva) : baseBs;
+    const totalUsdIva = hasStoredIva ? Number(v.total_usd_iva) : baseUsd;
+    return {
+      ...v,
+      iva_pct: ivaPct,
+      total_bs_iva: totalBsIva,
+      total_usd_iva: totalUsdIva,
+    };
+  });
 }
 
 function getVentasRango(params) {
@@ -83,7 +118,7 @@ function getVentasRango(params) {
 
 function buildVentasRangoCsv(params) {
   const rows = queryVentasRango(params);
-  const header = ['fecha','cliente','vendedor','metodo_pago','referencia','tasa_bcv','descuento','total_bs','total_usd','bruto_bs','bruto_usd','costo_bs','costo_usd','margen_bs','margen_usd'];
+  const header = ['fecha','cliente','vendedor','metodo_pago','referencia','tasa_bcv','descuento','total_bs','total_bs_iva','total_usd','total_usd_iva','bruto_bs','bruto_usd','costo_bs','costo_usd','margen_bs','margen_usd'];
   const toCsv = (val) => {
     if (val === null || val === undefined) return '';
     const s = String(val);

@@ -174,6 +174,13 @@ export async function registrarVenta() {
 
 	const metodoFinal = isCredito ? 'CREDITO' : metodo;
 
+	let ivaPct = 0;
+	try {
+		if (window.configGeneral && window.configGeneral.nota && window.configGeneral.nota.iva_pct != null) {
+			ivaPct = Math.max(0, Math.min(100, parseFloat(window.configGeneral.nota.iva_pct) || 0));
+		}
+	} catch {}
+
 	const ventaData = {
 		id_global: generarIDVenta(),
 		items: [...carrito],
@@ -189,6 +196,7 @@ export async function registrarVenta() {
 		credito: isCredito,
 		dias_vencimiento: diasVenc,
 		fecha_vencimiento: fechaVenc,
+		iva_pct: ivaPct,
 		fecha: new Date().toISOString(),
 		sync: false
 	};

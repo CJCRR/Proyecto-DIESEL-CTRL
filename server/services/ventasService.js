@@ -34,6 +34,7 @@ function registrarVenta(payload) {
         credito = false,
         dias_vencimiento = 21,
         fecha_vencimiento = null,
+        iva_pct = 0,
     } = payload || {};
 
     // 1. Validaciones de entrada (antes se hacían en la ruta)
@@ -73,6 +74,8 @@ function registrarVenta(payload) {
     const metodoSafe = safeStr(metodoPagoFinal, MAX_METODO);
     const clienteDocSafe = safeStr(cliente_doc, MAX_DOC);
 
+    const ivaPctNum = Math.max(0, Math.min(100, parseFloat(iva_pct) || 0));
+
     if (dias_vencimiento !== null && dias_vencimiento !== undefined) {
         const dias = parseInt(dias_vencimiento, 10);
         if (Number.isNaN(dias) || dias < 1 || dias > 365) {
@@ -100,8 +103,8 @@ function registrarVenta(payload) {
     const transaction = db.transaction(() => {
         // Crear la cabecera de la venta con total 0 inicialmente, guardando descuento y metodo_pago
         const ventaResult = db.prepare(`
-                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, usuario_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, iva_pct, total_bs_iva, total_usd_iva, usuario_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?)
             `).run(fecha, clienteSafe, vendedorSafe, cedulaSafe, telefonoSafe, tasa_bcv, descuentoNum, metodoSafe, referenciaSafe, usuario_id);
 
         const ventaId = ventaResult.lastInsertRowid;
@@ -141,11 +144,16 @@ function registrarVenta(payload) {
 
         // Aplicar descuento (porcentaje) al total acumulado
         const multiplicador = 1 - Math.max(0, Math.min(100, descuentoNum)) / 100;
-        const totalConDescuentoBs = totalGeneralBs * multiplicador;
-        const totalConDescuentoUsd = totalGeneralUsd * multiplicador;
+                const totalConDescuentoBs = totalGeneralBs * multiplicador;
+                const totalConDescuentoUsd = totalGeneralUsd * multiplicador;
 
-        // Actualizar el total final sumado en la cabecera
-        db.prepare('UPDATE ventas SET total_bs = ? WHERE id = ?').run(totalConDescuentoBs, ventaId);
+                const factorIva = 1 + ivaPctNum / 100;
+                const totalBsIva = totalConDescuentoBs * factorIva;
+                const totalUsdIva = totalConDescuentoUsd * factorIva;
+
+                // Actualizar el total final sumado en la cabecera, incluyendo IVA
+                db.prepare('UPDATE ventas SET total_bs = ?, iva_pct = ?, total_bs_iva = ?, total_usd_iva = ? WHERE id = ?')
+                    .run(totalConDescuentoBs, ivaPctNum, totalBsIva, totalUsdIva, ventaId);
 
         // Si la venta es a crédito, registrar cuenta por cobrar enlazada
         let cuentaCobrarId = null;
@@ -157,7 +165,7 @@ function registrarVenta(payload) {
                     INSERT INTO cuentas_cobrar (cliente_nombre, cliente_doc, venta_id, total_usd, tasa_bcv, saldo_usd, fecha_emision, fecha_vencimiento, estado, notas, creado_en, actualizado_en)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, datetime('now'), datetime('now'))
                 `);
-            const info = stmt.run(clienteSafe, clienteDocSafe || cedulaSafe || '', ventaId, totalConDescuentoUsd, tasa_bcv, totalConDescuentoUsd, fecha, fvISO, 'Venta a crédito');
+            const info = stmt.run(clienteSafe, clienteDocSafe || cedulaSafe || '', ventaId, totalUsdIva, tasa_bcv, totalUsdIva, fecha, fvISO, 'Venta a crédito');
             cuentaCobrarId = info.lastInsertRowid;
         }
 
