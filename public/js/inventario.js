@@ -8,6 +8,7 @@ const f_desc = document.getElementById('f_desc');
 const f_precio = document.getElementById('f_precio');
 const f_costo = document.getElementById('f_costo');
 const f_stock = document.getElementById('f_stock');
+const f_marca = document.getElementById('f_marca');
 const msg = document.getElementById('msg');
 const btnBorrar = document.getElementById('btnBorrar');
 const pageSize = document.getElementById('pageSize');
@@ -137,7 +138,7 @@ function renderList(items) {
         const margenCls = margenVal >= 0 ? 'text-emerald-700' : 'text-rose-700';
         const el = document.createElement('div');
         el.className = 'p-3 border rounded flex justify-between items-start gap-3 hover:bg-slate-50 cursor-pointer';
-        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria||''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div></div>
+        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria||''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div>${p.marca ? `<div class="text-xs text-slate-500">Marca: ${p.marca}</div>` : ''}</div>
             <div class="text-right space-y-1 min-w-[160px]">
                 <div class="text-sm font-black">Stock: ${p.stock}</div>
                 <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)} • Costo $${costo.toFixed(2)}</div>
@@ -150,6 +151,7 @@ function renderList(items) {
             f_costo.value = p.costo_usd || 0;
             f_stock.value = p.stock || 0;
             const f_cat = document.getElementById('f_categoria'); if (f_cat) f_cat.value = p.categoria || '';
+            if (f_marca) f_marca.value = p.marca || '';
             msg.innerText = '';
         };
         lista.appendChild(el);
@@ -310,7 +312,8 @@ form.addEventListener('submit', async (e) => {
         precio_usd: parseFloat(f_precio.value),
         costo_usd: parseFloat(f_costo.value) || 0,
         stock: parseInt(f_stock.value) || 0,
-        categoria: (document.getElementById('f_categoria') && document.getElementById('f_categoria').value.trim()) || ''
+        categoria: (document.getElementById('f_categoria') && document.getElementById('f_categoria').value.trim()) || '',
+        marca: (f_marca && f_marca.value.trim()) || ''
     };
 
     // Decide POST (create) or PUT (update) based on existence
@@ -340,7 +343,8 @@ form.addEventListener('submit', async (e) => {
                     precio_usd: body.precio_usd, 
                     costo_usd: body.costo_usd, 
                     stock: body.stock, 
-                    categoria: body.categoria 
+                    categoria: body.categoria,
+                    marca: body.marca
                 }) 
             });
             const d = await res.json();
@@ -352,6 +356,7 @@ form.addEventListener('submit', async (e) => {
         await cargarProductos();
         // Limpiar inputs excepto categoria (permite ingresar varios del mismo grupo)
         f_codigo.value = f_desc.value = f_precio.value = f_costo.value = f_stock.value = '';
+        if (f_marca) f_marca.value = '';
         msg.innerText = '';
         showToast(!exists ? 'Producto creado.' : 'Producto actualizado.', 'success');
     } catch (err) {

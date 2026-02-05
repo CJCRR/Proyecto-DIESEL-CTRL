@@ -10,13 +10,13 @@ router.get('/', requireAuth, (req, res) => {
         return res.json([]);
     }
 
-    const resultados = db.prepare(`
-    SELECT codigo, descripcion, stock, precio_usd
-    FROM productos
-    WHERE codigo LIKE ?
+     const resultados = db.prepare(`
+     SELECT codigo, descripcion, stock, precio_usd, marca
+     FROM productos
+     WHERE codigo LIKE ?
        OR descripcion LIKE ?
-    LIMIT 10
-  `).all(`%${q}%`, `%${q}%`);
+     LIMIT 10
+    `).all(`%${q}%`, `%${q}%`);
 
     res.json(resultados);
 });

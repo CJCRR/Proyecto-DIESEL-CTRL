@@ -53,7 +53,7 @@ function getCompra(id) {
   `).get(id);
   if (!cab) return null;
   const detalles = db.prepare(`
-    SELECT d.*, pr.codigo AS producto_codigo_db, pr.descripcion AS producto_descripcion_db
+    SELECT d.*, pr.codigo AS producto_codigo_db, pr.descripcion AS producto_descripcion_db, pr.marca AS producto_marca_db
     FROM compra_detalle d
     LEFT JOIN productos pr ON pr.id = d.producto_id
     WHERE d.compra_id = ?
@@ -92,8 +92,8 @@ function crearCompra(payload = {}, usuario) {
     const compraId = info.lastInsertRowid;
 
     const insertDet = db.prepare(`
-      INSERT INTO compra_detalle (compra_id, producto_id, codigo, descripcion, cantidad, costo_usd, subtotal_bs, lote, observaciones)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO compra_detalle (compra_id, producto_id, codigo, descripcion, marca, cantidad, costo_usd, subtotal_bs, lote, observaciones)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const updateProdStock = db.prepare('UPDATE productos SET stock = stock + ?, costo_usd = ? WHERE id = ?');
 
@@ -110,13 +110,14 @@ function crearCompra(payload = {}, usuario) {
         throw err;
       }
 
-      const prod = db.prepare('SELECT id, descripcion FROM productos WHERE codigo = ?').get(codigo);
+      const prod = db.prepare('SELECT id, descripcion, marca FROM productos WHERE codigo = ?').get(codigo);
       if (!prod) {
         const err = new Error(`Producto no encontrado para código ${codigo}`);
         err.tipo = 'VALIDACION';
         throw err;
       }
 
+      const marca = safeStr(raw.marca || prod.marca, 80);
       const subtotalUsd = costo * cantidad;
       const subtotalBs = subtotalUsd * tasa;
       totalUsd += subtotalUsd;
@@ -127,6 +128,7 @@ function crearCompra(payload = {}, usuario) {
         prod.id,
         codigo,
         prod.descripcion,
+        marca,
         cantidad,
         costo,
         subtotalBs,

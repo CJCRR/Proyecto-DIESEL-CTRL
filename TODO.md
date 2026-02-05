@@ -42,12 +42,12 @@
 - [x] Ajustes finales y optimizaciones menores (queries, UI, tiempos de carga)
 - [x] Documentar cambios de arquitectura (servicios backend y módulos frontend)
 
-## Fase 7: Inventario y Proveedores
-- [ ] Soporte básico de lotes/batches en productos (campos de lote y observaciones por movimiento de inventario).
-- [ ] Trazabilidad simple de inventario por lote en ventas, devoluciones y ajustes.
-- [ ] Catálogo de proveedores y vinculación opcional con productos.
-- [ ] Caargar productos, provenientes de un proveedor (como orden de compra).
-- [ ] Pantalla sencilla de proveedores (alta/baja/edición, contacto básico).
+## Fase 7: Inventario y Proveedores ✅
+- [x] Soporte básico de lotes/batches en productos (campos de lote y observaciones por movimiento de inventario).
+- [x] Trazabilidad simple de inventario por lote en ventas, devoluciones y ajustes.
+- [x] Catálogo de proveedores y vinculación opcional con productos.
+- [x] Caargar productos, provenientes de un proveedor (como orden de compra).
+- [x] Pantalla sencilla de proveedores (alta/baja/edición, contacto básico).
 
 ## Fase 8: Finanzas y Facturación
 - [ ] Mejoras en cobranzas: filtros por estado y por días de mora, alertas para cuentas vencidas.

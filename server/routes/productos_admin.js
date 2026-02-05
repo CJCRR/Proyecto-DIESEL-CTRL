@@ -9,7 +9,7 @@ const MAX_FIELD_LEN = 200;
 // POST /admin/productos - Crear nuevo producto
 router.post('/', requireAuth, (req, res) => {
     // 1. Saneamiento de entrada
-    let { codigo, descripcion, precio_usd, costo_usd, stock, categoria } = req.body;
+    let { codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca } = req.body;
 
     // Normalización (Mayúsculas para códigos)
     codigo = codigo ? codigo.trim().toUpperCase() : '';
@@ -18,6 +18,7 @@ router.post('/', requireAuth, (req, res) => {
     costo_usd = costo_usd !== undefined ? parseFloat(costo_usd) : 0;
     stock = parseInt(stock) || 0;
     categoria = categoria ? String(categoria).trim() : null;
+    marca = marca ? String(marca).trim().slice(0, MAX_FIELD_LEN) : null;
 
     // 2. Validaciones
     if (!codigo || codigo.length < 3) {
@@ -43,9 +44,9 @@ router.post('/', requireAuth, (req, res) => {
 
         // 4. Inserción
         const info = db.prepare(`
-            INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria);
+            INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca);
 
         res.status(201).json({
             message: 'Producto creado exitosamente',
@@ -79,7 +80,7 @@ router.get('/', requireAuth, (req, res) => {
         const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
         const productos = db.prepare(`
-            SELECT id, codigo, descripcion, precio_usd, costo_usd, stock, categoria
+            SELECT id, codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca
             FROM productos
             ${whereSQL}
             ORDER BY codigo ASC
@@ -99,7 +100,7 @@ router.get('/', requireAuth, (req, res) => {
 // GET /admin/productos/export - Exportar todos los productos a CSV
 router.get('/export', requireAuth, (req, res) => {
     try {
-        const rows = db.prepare('SELECT codigo, descripcion, precio_usd, costo_usd, stock, categoria FROM productos ORDER BY codigo').all();
+        const rows = db.prepare('SELECT codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca FROM productos ORDER BY codigo').all();
         // Allow delimiter selection: comma (default), semicolon or tab
         // Default delimiter: semicolon (works better with Excel in many locales)
         const delimParam = (req.query.delim || 'semicolon').toString().toLowerCase();
@@ -119,7 +120,7 @@ router.get('/export', requireAuth, (req, res) => {
             return s;
         }
 
-        const header = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria'].join(delimiter) + '\r\n';
+        const header = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria','marca'].join(delimiter) + '\r\n';
         const lines = rows.map(r => {
             return [
                 quoteField(r.codigo),
@@ -127,7 +128,8 @@ router.get('/export', requireAuth, (req, res) => {
                 quoteField(r.precio_usd || ''),
                 quoteField(r.costo_usd || ''),
                 quoteField(r.stock || ''),
-                quoteField(r.categoria || '')
+                quoteField(r.categoria || ''),
+                quoteField(r.marca || '')
             ].join(delimiter);
         }).join('\r\n');
         const csv = '\uFEFF' + header + lines + '\r\n';
@@ -204,8 +206,8 @@ router.post('/import', requireAuth, (req, res) => {
         const first = nonEmpty[0].map(c => (c||'').toString().toLowerCase());
         if (first.some(h => h.includes('codigo')) && first.some(h => h.includes('descripcion'))) start = 1;
 
-        const insert = db.prepare('INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria) VALUES (?, ?, ?, ?, ?, ?)');
-        const update = db.prepare('UPDATE productos SET descripcion = ?, precio_usd = ?, costo_usd = ?, stock = ?, categoria = ? WHERE codigo = ?');
+        const insert = db.prepare('INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        const update = db.prepare('UPDATE productos SET descripcion = ?, precio_usd = ?, costo_usd = ?, stock = ?, categoria = ?, marca = ? WHERE codigo = ?');
         const findStmt = db.prepare('SELECT id FROM productos WHERE codigo = ?');
 
         const toImport = nonEmpty.slice(start);
@@ -232,12 +234,13 @@ router.post('/import', requireAuth, (req, res) => {
                     const costoVal = isNaN(costo) ? 0 : costo;
                     const stock = parseInt((cols[4] || '').toString().trim()) || 0;
                     const categoria = (cols[5] || '').toString().trim().slice(0, MAX_FIELD_LEN) || null;
+                    const marca = (cols[6] || '').toString().trim().slice(0, MAX_FIELD_LEN) || null;
                     const ex = findStmt.get(codigo);
                     if (ex) {
-                        update.run(descripcion, precio, costoVal, stock, categoria, codigo);
+                        update.run(descripcion, precio, costoVal, stock, categoria, marca, codigo);
                         updated.push(codigo);
                     } else {
-                        insert.run(codigo, descripcion, precio, costoVal, stock, categoria);
+                        insert.run(codigo, descripcion, precio, costoVal, stock, categoria, marca);
                         inserted.push(codigo);
                     }
                 } catch (rowErr) {
@@ -271,7 +274,7 @@ router.post('/import', requireAuth, (req, res) => {
 // PUT /admin/productos/:codigo - Actualizar producto por código
 router.put('/:codigo', requireAuth, (req, res) => {
     let codigo = req.params.codigo ? req.params.codigo.trim().toUpperCase() : '';
-    let { descripcion, precio_usd, costo_usd, stock, categoria } = req.body;
+    let { descripcion, precio_usd, costo_usd, stock, categoria, marca } = req.body;
 
     descripcion = descripcion ? descripcion.trim() : '';
     precio_usd = precio_usd !== undefined ? parseFloat(precio_usd) : null;
@@ -290,6 +293,7 @@ router.put('/:codigo', requireAuth, (req, res) => {
         if (costo_usd !== undefined && costo_usd !== null && !isNaN(parseFloat(costo_usd))) { updates.push('costo_usd = ?'); params.push(parseFloat(costo_usd)); }
         if (stock !== null && !isNaN(stock)) { updates.push('stock = ?'); params.push(stock); }
         if (categoria !== undefined) { updates.push('categoria = ?'); params.push(categoria); }
+        if (marca !== undefined) { updates.push('marca = ?'); params.push(marca); }
 
         if (updates.length === 0) return res.status(400).json({ error: 'Nada que actualizar' });
 

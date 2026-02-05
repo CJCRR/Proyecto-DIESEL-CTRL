@@ -18,7 +18,9 @@ const schema = `
     descripcion TEXT,
     precio_usd REAL,
     costo_usd REAL DEFAULT 0,
-    stock INTEGER DEFAULT 0
+    stock INTEGER DEFAULT 0,
+    categoria TEXT,
+    marca TEXT
   );
 
   CREATE TABLE IF NOT EXISTS ventas (
@@ -366,6 +368,7 @@ const migrations = [
         producto_id INTEGER NOT NULL,
         codigo TEXT,
         descripcion TEXT,
+        marca TEXT,
         cantidad INTEGER NOT NULL,
         costo_usd REAL DEFAULT 0,
         subtotal_bs REAL DEFAULT 0,
@@ -381,6 +384,22 @@ const migrations = [
       if (!indexExists('idx_compras_proveedor')) db.prepare('CREATE INDEX IF NOT EXISTS idx_compras_proveedor ON compras (proveedor_id)').run();
       if (!indexExists('idx_compra_detalle_compra')) db.prepare('CREATE INDEX IF NOT EXISTS idx_compra_detalle_compra ON compra_detalle (compra_id)').run();
       if (!indexExists('idx_compra_detalle_producto')) db.prepare('CREATE INDEX IF NOT EXISTS idx_compra_detalle_producto ON compra_detalle (producto_id)').run();
+    }
+  },
+  {
+    id: '008_productos_marca',
+    up: () => {
+      if (!columnExists('productos', 'marca')) {
+        db.prepare("ALTER TABLE productos ADD COLUMN marca TEXT").run();
+      }
+    }
+  },
+  {
+    id: '009_compra_detalle_marca',
+    up: () => {
+      if (!columnExists('compra_detalle', 'marca')) {
+        db.prepare('ALTER TABLE compra_detalle ADD COLUMN marca TEXT').run();
+      }
     }
   }
 ];

@@ -44,13 +44,14 @@ function renderProductoInfo() {
   const desc = p.descripcion ? ` - ${p.descripcion}` : '';
   const stock = typeof p.stock === 'number' ? ` | Stock: ${p.stock}` : '';
   const precio = typeof p.precio_usd === 'number' ? ` | Precio ref: $${p.precio_usd.toFixed(2)}` : '';
-  info.textContent = `Producto: ${p.codigo || ''}${desc}${stock}${precio}`;
+  const marca = p.marca ? ` | Marca: ${p.marca}` : '';
+  info.textContent = `Producto: ${p.codigo || ''}${desc}${stock}${precio}${marca}`;
 }
 
 function renderItems() {
   const tbody = document.getElementById('c_items');
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="p-2 text-center text-slate-400 text-sm">Sin items</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="p-2 text-center text-slate-400 text-sm">Sin items</td></tr>';
     return;
   }
   const tasa = formNumber('c_tasa', 1) || 1;
@@ -62,6 +63,7 @@ function renderItems() {
         <tr>
           <td class="p-2 text-xs font-semibold text-slate-800">${escapeHtml(it.codigo)}</td>
           <td class="p-2 text-xs text-slate-600">${escapeHtml(it.descripcion || '')}</td>
+          <td class="p-2 text-xs text-slate-600">${escapeHtml(it.marca || '')}</td>
           <td class="p-2 text-xs text-right">${it.cantidad}</td>
           <td class="p-2 text-xs text-right">$${it.costo.toFixed(2)}</td>
           <td class="p-2 text-xs text-right">$${subUsd.toFixed(2)}</td>
@@ -126,7 +128,11 @@ function agregarItemDesdeFormulario() {
     ? (productoSeleccionado.descripcion || '')
     : '';
 
-  items.push({ codigo, descripcion: desc, cantidad, costo, lote });
+  const marca = productoSeleccionado && productoSeleccionado.codigo === codigo
+    ? (productoSeleccionado.marca || '')
+    : '';
+
+  items.push({ codigo, descripcion: desc, marca, cantidad, costo, lote });
   document.getElementById('c_codigo').value = '';
   document.getElementById('c_cantidad').value = '';
   document.getElementById('c_costo').value = '';
@@ -154,6 +160,7 @@ async function guardarCompra() {
     items: items.map(it => ({
       codigo: it.codigo,
       descripcion: it.descripcion,
+      marca: it.marca,
       cantidad: it.cantidad,
       costo_usd: it.costo,
       lote: it.lote,
@@ -192,18 +199,23 @@ async function buscarProductos(q) {
       lista.classList.remove('hidden');
       return;
     }
-    lista.innerHTML = results.map(p => `
-      <li data-cod="${escapeHtml(p.codigo)}" class="px-3 py-2 border-b last:border-b-0 hover:bg-slate-50 cursor-pointer flex justify-between items-center">
-        <div class="flex flex-col">
-          <span class="font-semibold text-slate-700 text-xs">${escapeHtml(p.codigo)}</span>
-          <span class="text-[11px] text-slate-400">${escapeHtml(p.descripcion || '')}</span>
-        </div>
-        <div class="text-right text-[11px] text-slate-500">
-          <div class="text-blue-600 font-bold">$${(p.precio_usd ?? 0).toFixed ? p.precio_usd.toFixed(2) : Number(p.precio_usd || 0).toFixed(2)}</div>
-          <div class="uppercase">Stock: ${escapeHtml(String(p.stock ?? ''))}</div>
-        </div>
-      </li>
-    `).join('');
+    lista.innerHTML = results.map(p => {
+      const desc = p.descripcion || '';
+      const marca = p.marca ? `Marca: ${escapeHtml(p.marca)} · ` : '';
+      const stock = typeof p.stock === 'number' ? `Stock: ${p.stock}` : '';
+      const precio = typeof p.precio_usd === 'number' ? ` · $${p.precio_usd.toFixed(2)}` : '';
+      return `
+        <li data-cod="${escapeHtml(p.codigo)}" class="px-3 py-2 border-b last:border-b-0 hover:bg-slate-50 cursor-pointer flex justify-between items-center">
+          <div class="flex flex-col">
+            <span class="font-semibold text-slate-700 text-xs">${escapeHtml(p.codigo)}</span>
+            <span class="text-[11px] text-slate-400">${escapeHtml(desc)}</span>
+          </div>
+          <div class="flex flex-col items-end text-[11px] text-slate-400">
+            <span>${marca}${stock}${precio}</span>
+          </div>
+        </li>
+      `;
+    }).join('');
     lista.classList.remove('hidden');
     lista.querySelectorAll('li[data-cod]').forEach(li => {
       li.addEventListener('click', () => {
@@ -341,6 +353,7 @@ async function toggleDetalleCompra(id) {
             <tr>
               <th class="p-2 text-left">Código</th>
               <th class="p-2 text-left">Descripción</th>
+              <th class="p-2 text-left">Marca</th>
               <th class="p-2 text-right">Cant.</th>
               <th class="p-2 text-right">Costo USD</th>
               <th class="p-2 text-right">Subtotal USD</th>
@@ -356,6 +369,7 @@ async function toggleDetalleCompra(id) {
                 <tr>
                   <td class="p-2">${escapeHtml(d.codigo || '')}</td>
                   <td class="p-2">${escapeHtml(d.descripcion || d.producto_descripcion_db || '')}</td>
+                  <td class="p-2">${escapeHtml(d.marca || d.producto_marca_db || '')}</td>
                   <td class="p-2 text-right">${d.cantidad || 0}</td>
                   <td class="p-2 text-right">$${(d.costo_usd || 0).toFixed(2)}</td>
                   <td class="p-2 text-right">$${subUsd.toFixed(2)}</td>
