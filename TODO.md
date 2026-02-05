@@ -56,9 +56,9 @@
 - [descartado] Preparar puntos de integración para pasarelas de pago (no es prioridad para este software de ventas e inventario).
 
 ## Fase 9: Reportes de Rentabilidad
-- [ ] Reporte de pérdidas y ganancias por categoría de producto.
-- [ ] Análisis de margen por categoría y por proveedor.
-- [ ] Resumen financiero por período (ingresos, costo estimado, margen bruto).
-- [ ] Exportación de estos reportes a CSV/Excel para contabilidad.
+- [x] Reporte de pérdidas y ganancias por categoría de producto.
+- [x] Análisis de margen por categoría y por proveedor.
+- [x] Resumen financiero por período (ingresos, costo estimado, margen bruto).
+- [x] Exportación de estos reportes a CSV/Excel para contabilidad.
 
 ## Notas de Progreso

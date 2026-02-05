@@ -527,6 +527,157 @@ function getHistorialCliente({ q, limit }) {
     `).all(like, like, like, lim);
 }
 
+function getRentabilidadCategorias({ desde, hasta }) {
+  const where = [];
+  const params = [];
+  if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+  if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+  const rows = db.prepare(`
+      SELECT COALESCE(NULLIF(TRIM(p.categoria), ''), 'Sin categoría') AS categoria,
+        SUM(vd.cantidad) AS total_qty,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS ingresos_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS ingresos_usd,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS costos_bs,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad) AS costos_usd
+      FROM venta_detalle vd
+      JOIN ventas v ON v.id = vd.venta_id
+      JOIN productos p ON p.id = vd.producto_id
+      ${whereSQL}
+      GROUP BY categoria
+      ORDER BY ingresos_usd DESC
+    `).all(...params);
+
+  return rows.map((r) => {
+    const ingresosUsd = Number(r.ingresos_usd || 0);
+    const costosUsd = Number(r.costos_usd || 0);
+    const margenUsd = ingresosUsd - costosUsd;
+    const ingresosBs = Number(r.ingresos_bs || 0);
+    const costosBs = Number(r.costos_bs || 0);
+    const margenBs = ingresosBs - costosBs;
+    return {
+      ...r,
+      ingresos_bs: ingresosBs,
+      ingresos_usd: ingresosUsd,
+      costos_bs: costosBs,
+      costos_usd: costosUsd,
+      margen_bs: margenBs,
+      margen_usd: margenUsd,
+      margen_pct: ingresosUsd !== 0 ? margenUsd / ingresosUsd : null,
+    };
+  });
+}
+
+function getRentabilidadProveedores({ desde, hasta }) {
+  const where = [];
+  const params = [];
+  if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+  if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+  const rows = db.prepare(`
+      SELECT COALESCE(pr.nombre, 'Sin proveedor') AS proveedor,
+        pr.id AS proveedor_id,
+        SUM(vd.cantidad) AS total_qty,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS ingresos_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS ingresos_usd,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS costos_bs,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad) AS costos_usd
+      FROM venta_detalle vd
+      JOIN ventas v ON v.id = vd.venta_id
+      JOIN productos p ON p.id = vd.producto_id
+      LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
+      ${whereSQL}
+      GROUP BY proveedor_id, proveedor
+      ORDER BY ingresos_usd DESC
+    `).all(...params);
+
+  return rows.map((r) => {
+    const ingresosUsd = Number(r.ingresos_usd || 0);
+    const costosUsd = Number(r.costos_usd || 0);
+    const margenUsd = ingresosUsd - costosUsd;
+    const ingresosBs = Number(r.ingresos_bs || 0);
+    const costosBs = Number(r.costos_bs || 0);
+    const margenBs = ingresosBs - costosBs;
+    return {
+      ...r,
+      ingresos_bs: ingresosBs,
+      ingresos_usd: ingresosUsd,
+      costos_bs: costosBs,
+      costos_usd: costosUsd,
+      margen_bs: margenBs,
+      margen_usd: margenUsd,
+      margen_pct: ingresosUsd !== 0 ? margenUsd / ingresosUsd : null,
+    };
+  });
+}
+
+function getResumenFinanciero({ desde, hasta }) {
+  const where = [];
+  const params = [];
+  if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+  if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+  const row = db.prepare(`
+      SELECT 
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS ingresos_bs,
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS ingresos_usd,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad * COALESCE(v.tasa_bcv,1)) AS costos_bs,
+        SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad) AS costos_usd
+      FROM ventas v
+      JOIN venta_detalle vd ON vd.venta_id = v.id
+      JOIN productos p ON p.id = vd.producto_id
+      ${whereSQL}
+    `).get(...params) || {};
+
+  const ingresosBs = Number(row.ingresos_bs || 0);
+  const ingresosUsd = Number(row.ingresos_usd || 0);
+  const costosBs = Number(row.costos_bs || 0);
+  const costosUsd = Number(row.costos_usd || 0);
+  const margenBs = ingresosBs - costosBs;
+  const margenUsd = ingresosUsd - costosUsd;
+
+  return {
+    ingresos_bs: ingresosBs,
+    ingresos_usd: ingresosUsd,
+    costos_bs: costosBs,
+    costos_usd: costosUsd,
+    margen_bs: margenBs,
+    margen_usd: margenUsd,
+    margen_pct: ingresosUsd !== 0 ? margenUsd / ingresosUsd : null,
+  };
+}
+
+function buildRentabilidadCategoriasCsv(params) {
+  const rows = getRentabilidadCategorias(params);
+  const header = ['categoria','total_qty','ingresos_bs','ingresos_usd','costos_bs','costos_usd','margen_bs','margen_usd','margen_pct'];
+  const toCsv = (val) => {
+    if (val === null || val === undefined) return '';
+    const s = String(val);
+    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  };
+  const lines = rows.map(r => header.map(h => toCsv(r[h])).join(';'));
+  const csv = '\uFEFF' + header.join(';') + '\r\n' + lines.join('\r\n');
+  return csv;
+}
+
+function buildRentabilidadProveedoresCsv(params) {
+  const rows = getRentabilidadProveedores(params);
+  const header = ['proveedor_id','proveedor','total_qty','ingresos_bs','ingresos_usd','costos_bs','costos_usd','margen_bs','margen_usd','margen_pct'];
+  const toCsv = (val) => {
+    if (val === null || val === undefined) return '';
+    const s = String(val);
+    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  };
+  const lines = rows.map(r => header.map(h => toCsv(r[h])).join(';'));
+  const csv = '\uFEFF' + header.join(';') + '\r\n' + lines.join('\r\n');
+  return csv;
+}
+
 module.exports = {
   getVentasSinDevolucion,
   getVentasRango,
@@ -548,4 +699,9 @@ module.exports = {
   getMargenActual,
   getVendedoresRanking,
   getHistorialCliente,
+  getRentabilidadCategorias,
+  getRentabilidadProveedores,
+  getResumenFinanciero,
+  buildRentabilidadCategoriasCsv,
+  buildRentabilidadProveedoresCsv,
 };

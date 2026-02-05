@@ -54,7 +54,13 @@
   <main class="container mx-auto p-6">
     <section class="bg-white rounded-2xl p-4 border shadow-sm space-y-3">
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-black text-slate-600">Reporte de ventas</h3>
+        <div class="flex items-center gap-2">
+          <h3 class="text-sm font-black text-slate-600">Reporte de ventas</h3>
+          <button id="ventas-toggle" class="text-[11px] px-2 py-1 border rounded text-slate-600 flex items-center gap-1">
+            <i class="fas fa-chevron-up text-[10px]"></i>
+            <span>Ocultar</span>
+          </button>
+        </div>
         <select id="moneda-toggle" class="p-2 border rounded">
           <option value="USD">USD</option>
           <option value="BS">Bs</option>
@@ -81,30 +87,73 @@
           <button id="rpt-export" class="p-2 border rounded">Export CSV</button>
         </div>
       </div>
-      <div id="rpt-resumen" class="text-xs text-slate-500">Seleccione rango para ver resultados.</div>
-      <div class="overflow-auto max-h-[70vh] border rounded">
-        <table class="w-full text-xs">
-          <thead class="bg-slate-100 text-slate-500 uppercase">
-            <tr>
-              <th class="p-2 text-left">Fecha</th>
-              <th class="p-2 text-left">Cliente</th>
-              <th class="p-2 text-left">Vendedor</th>
-              <th class="p-2 text-left">Método</th>
-              <th class="p-2 text-left">Referencia</th>
-              <th id="th-total-moneda" class="p-2 text-right">Total USD</th>
-              <th id="th-margen-moneda" class="p-2 text-right">Margen USD</th>
-            </tr>
-          </thead>
-          <tbody id="rpt-tabla" class="divide-y"></tbody>
-        </table>
+      <div id="ventas-panel" class="space-y-2">
+        <div id="rpt-resumen" class="text-xs text-slate-500">Seleccione rango para ver resultados.</div>
+        <div class="overflow-auto max-h-[70vh] border rounded">
+          <table class="w-full text-xs">
+            <thead class="bg-slate-100 text-slate-500 uppercase">
+              <tr>
+                <th class="p-2 text-left">Fecha</th>
+                <th class="p-2 text-left">Cliente</th>
+                <th class="p-2 text-left">Vendedor</th>
+                <th class="p-2 text-left">Método</th>
+                <th class="p-2 text-left">Referencia</th>
+                <th id="th-total-moneda" class="p-2 text-right">Total USD</th>
+                <th id="th-margen-moneda" class="p-2 text-right">Margen USD</th>
+              </tr>
+            </thead>
+            <tbody id="rpt-tabla" class="divide-y"></tbody>
+          </table>
+        </div>
       </div>
       <div class="mt-4 bg-white border rounded p-3">
-        <div class="text-[10px] font-black text-slate-500 uppercase mb-2">Devoluciones</div>
-        <div id="rpt-dev" class="text-xs text-slate-700 space-y-2"></div>
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-[10px] font-black text-slate-500 uppercase">Devoluciones</div>
+          <button id="dev-toggle" class="text-[11px] px-2 py-1 border rounded text-slate-600 flex items-center gap-1">
+            <i class="fas fa-chevron-up text-[10px]"></i>
+            <span>Ocultar</span>
+          </button>
+        </div>
+        <div id="dev-panel">
+          <div id="rpt-dev" class="text-xs text-slate-700 space-y-2"></div>
+        </div>
       </div>
       <div class="mt-4 bg-white border rounded p-3">
-        <div class="text-[10px] font-black text-slate-500 uppercase mb-2">Presupuestos</div>
-        <div id="rpt-pres" class="text-xs text-slate-700 space-y-2"></div>
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-[10px] font-black text-slate-500 uppercase">Presupuestos</div>
+          <button id="pres-toggle" class="text-[11px] px-2 py-1 border rounded text-slate-600 flex items-center gap-1">
+            <i class="fas fa-chevron-up text-[10px]"></i>
+            <span>Ocultar</span>
+          </button>
+        </div>
+        <div id="pres-panel">
+          <div id="rpt-pres" class="text-xs text-slate-700 space-y-2"></div>
+        </div>
+      </div>
+
+      <div class="mt-4 bg-white border rounded p-3">
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <div class="text-[10px] font-black text-slate-500 uppercase">Rentabilidad por categoría y proveedor</div>
+            <div class="text-[11px] text-slate-500">Usa el mismo rango de fechas del reporte de ventas.</div>
+          </div>
+          <div class="flex gap-2 text-xs">
+            <button id="renta-cargar" class="px-3 py-1 bg-emerald-600 text-white rounded">Ver rentabilidad</button>
+            <button id="renta-export-cat" class="px-2 py-1 border rounded">CSV categorías</button>
+            <button id="renta-export-prov" class="px-2 py-1 border rounded">CSV proveedores</button>
+          </div>
+        </div>
+        <div id="renta-resumen" class="text-[11px] text-slate-600 mb-2"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div>
+            <div class="text-[10px] font-black text-slate-500 uppercase mb-1">Por categoría</div>
+            <div id="renta-cat" class="border rounded max-h-64 overflow-auto"></div>
+          </div>
+          <div>
+            <div class="text-[10px] font-black text-slate-500 uppercase mb-1">Por proveedor</div>
+            <div id="renta-prov" class="border rounded max-h-64 overflow-auto"></div>
+          </div>
+        </div>
       </div>
     </section>
   </main>

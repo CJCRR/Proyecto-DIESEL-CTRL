@@ -19,6 +19,9 @@ let abiertoId = null;
 let cacheDev = [];
 let cachePres = [];
 let clienteTimer = null;
+let cacheRentCat = [];
+let cacheRentProv = [];
+let resumenRent = null;
 const escapeHtml = (window.escapeHtml) ? window.escapeHtml : (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -203,6 +206,89 @@ async function sugerirClientes(q) {
     }
 }
 
+function renderRentabilidad() {
+    const catCont = document.getElementById('renta-cat');
+    const provCont = document.getElementById('renta-prov');
+    const resumenEl = document.getElementById('renta-resumen');
+    if (!catCont || !provCont || !resumenEl) return;
+
+    const fmt = (v) => Number(v || 0).toFixed(2);
+
+    if (resumenRent) {
+        const mPct = resumenRent.margen_pct != null ? (resumenRent.margen_pct * 100).toFixed(1) + '%' : '—';
+        resumenEl.textContent = `Ingresos: $${fmt(resumenRent.ingresos_usd)} / Bs ${fmt(resumenRent.ingresos_bs)} · Costos: $${fmt(resumenRent.costos_usd)} / Bs ${fmt(resumenRent.costos_bs)} · Margen: $${fmt(resumenRent.margen_usd)} / Bs ${fmt(resumenRent.margen_bs)} (${mPct})`;
+    } else {
+        resumenEl.textContent = 'Sin datos de rentabilidad para el rango seleccionado.';
+    }
+
+    if (!cacheRentCat.length) {
+        catCont.innerHTML = '<div class="p-2 text-[11px] text-slate-400">Sin ventas en el rango.</div>';
+    } else {
+        catCont.innerHTML = `<table class="w-full text-[11px]"><thead class="bg-slate-100 text-slate-500"><tr>
+            <th class="p-1 text-left">Categoría</th>
+            <th class="p-1 text-right">Unid.</th>
+            <th class="p-1 text-right">Ingresos $</th>
+            <th class="p-1 text-right">Costos $</th>
+            <th class="p-1 text-right">Margen $</th>
+            <th class="p-1 text-right">Margen %</th>
+        </tr></thead><tbody class="divide-y">
+        ${cacheRentCat.map(r => {
+            const mPct = r.margen_pct != null ? (r.margen_pct * 100).toFixed(1) + '%' : '—';
+            return `<tr>
+                <td class="p-1">${escapeHtml(r.categoria || 'Sin categoría')}</td>
+                <td class="p-1 text-right">${Number(r.total_qty || 0)}</td>
+                <td class="p-1 text-right">${fmt(r.ingresos_usd)}</td>
+                <td class="p-1 text-right">${fmt(r.costos_usd)}</td>
+                <td class="p-1 text-right">${fmt(r.margen_usd)}</td>
+                <td class="p-1 text-right">${mPct}</td>
+            </tr>`;
+        }).join('')}
+        </tbody></table>`;
+    }
+
+    if (!cacheRentProv.length) {
+        provCont.innerHTML = '<div class="p-2 text-[11px] text-slate-400">Sin ventas en el rango.</div>';
+    } else {
+        provCont.innerHTML = `<table class="w-full text-[11px]"><thead class="bg-slate-100 text-slate-500"><tr>
+            <th class="p-1 text-left">Proveedor</th>
+            <th class="p-1 text-right">Unid.</th>
+            <th class="p-1 text-right">Ingresos $</th>
+            <th class="p-1 text-right">Costos $</th>
+            <th class="p-1 text-right">Margen $</th>
+            <th class="p-1 text-right">Margen %</th>
+        </tr></thead><tbody class="divide-y">
+        ${cacheRentProv.map(r => {
+            const mPct = r.margen_pct != null ? (r.margen_pct * 100).toFixed(1) + '%' : '—';
+            return `<tr>
+                <td class="p-1">${escapeHtml(r.proveedor || 'Sin proveedor')}</td>
+                <td class="p-1 text-right">${Number(r.total_qty || 0)}</td>
+                <td class="p-1 text-right">${fmt(r.ingresos_usd)}</td>
+                <td class="p-1 text-right">${fmt(r.costos_usd)}</td>
+                <td class="p-1 text-right">${fmt(r.margen_usd)}</td>
+                <td class="p-1 text-right">${mPct}</td>
+            </tr>`;
+        }).join('')}
+        </tbody></table>`;
+    }
+}
+
+async function cargarRentabilidad() {
+    const desde = document.getElementById('rpt-desde').value;
+    const hasta = document.getElementById('rpt-hasta').value;
+    const params = new URLSearchParams();
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    try {
+        cacheRentCat = await apiFetchJson(`/reportes/rentabilidad/categorias?${params.toString()}`);
+        cacheRentProv = await apiFetchJson(`/reportes/rentabilidad/proveedores?${params.toString()}`);
+        resumenRent = await apiFetchJson(`/reportes/resumen-financiero?${params.toString()}`);
+        renderRentabilidad();
+    } catch (err) {
+        console.error('Error cargando rentabilidad:', err);
+        alert('Error cargando los reportes de rentabilidad.');
+    }
+}
+
 async function cargarReporte() {
     const desde = document.getElementById('rpt-desde').value;
     const hasta = document.getElementById('rpt-hasta').value;
@@ -274,6 +360,90 @@ document.getElementById('rpt-export').addEventListener('click', () => {
     if (metodo) params.set('metodo', metodo);
     window.open(`/reportes/ventas/export/csv?${params.toString()}`, '_blank');
 });
+
+// Acordeones: ventas y presupuestos
+const ventasToggle = document.getElementById('ventas-toggle');
+if (ventasToggle) {
+    ventasToggle.addEventListener('click', () => {
+        const panel = document.getElementById('ventas-panel');
+        if (!panel) return;
+        const isHidden = panel.classList.toggle('hidden');
+        const icon = ventasToggle.querySelector('i');
+        const label = ventasToggle.querySelector('span');
+        if (isHidden) {
+            if (icon) { icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down'); }
+            if (label) label.textContent = 'Mostrar';
+        } else {
+            if (icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
+            if (label) label.textContent = 'Ocultar';
+        }
+    });
+}
+
+const btnRenta = document.getElementById('renta-cargar');
+if (btnRenta) {
+    btnRenta.addEventListener('click', cargarRentabilidad);
+}
+
+const btnRentaCat = document.getElementById('renta-export-cat');
+if (btnRentaCat) {
+    btnRentaCat.addEventListener('click', () => {
+        const desde = document.getElementById('rpt-desde').value;
+        const hasta = document.getElementById('rpt-hasta').value;
+        const params = new URLSearchParams();
+        if (desde) params.set('desde', desde);
+        if (hasta) params.set('hasta', hasta);
+        window.open(`/reportes/rentabilidad/categorias/export/csv?${params.toString()}`, '_blank');
+    });
+}
+
+const btnRentaProv = document.getElementById('renta-export-prov');
+if (btnRentaProv) {
+    btnRentaProv.addEventListener('click', () => {
+        const desde = document.getElementById('rpt-desde').value;
+        const hasta = document.getElementById('rpt-hasta').value;
+        const params = new URLSearchParams();
+        if (desde) params.set('desde', desde);
+        if (hasta) params.set('hasta', hasta);
+        window.open(`/reportes/rentabilidad/proveedores/export/csv?${params.toString()}`, '_blank');
+    });
+}
+
+const presToggle = document.getElementById('pres-toggle');
+if (presToggle) {
+    presToggle.addEventListener('click', () => {
+        const panel = document.getElementById('pres-panel');
+        if (!panel) return;
+        const isHidden = panel.classList.toggle('hidden');
+        const icon = presToggle.querySelector('i');
+        const label = presToggle.querySelector('span');
+        if (isHidden) {
+            if (icon) { icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down'); }
+            if (label) label.textContent = 'Mostrar';
+        } else {
+            if (icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
+            if (label) label.textContent = 'Ocultar';
+        }
+    });
+}
+
+const devToggle = document.getElementById('dev-toggle');
+if (devToggle) {
+    devToggle.addEventListener('click', () => {
+        const panel = document.getElementById('dev-panel');
+        if (!panel) return;
+        const isHidden = panel.classList.toggle('hidden');
+        const icon = devToggle.querySelector('i');
+        const label = devToggle.querySelector('span');
+        if (isHidden) {
+            if (icon) { icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down'); }
+            if (label) label.textContent = 'Mostrar';
+        } else {
+            if (icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
+            if (label) label.textContent = 'Ocultar';
+        }
+    });
+}
 
 function renderDevoluciones() {
     const cont = document.getElementById('rpt-dev');

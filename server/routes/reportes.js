@@ -22,6 +22,11 @@ const {
   getMargenActual,
   getVendedoresRanking,
   getHistorialCliente,
+  getRentabilidadCategorias,
+  getRentabilidadProveedores,
+  getResumenFinanciero,
+  buildRentabilidadCategoriasCsv,
+  buildRentabilidadProveedoresCsv,
 } = require('../services/reportesService');
 
 router.get('/ventas', requireAuth, (req, res) => {
@@ -131,6 +136,66 @@ router.get('/ventas/:id', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error obteniendo venta por id:', err);
     res.status(500).json({ error: 'Error al obtener venta' });
+  }
+});
+
+// ===== Rentabilidad por categoría y proveedor =====
+router.get('/rentabilidad/categorias', requireAuth, (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const rows = getRentabilidadCategorias({ desde, hasta });
+    res.json(rows);
+  } catch (err) {
+    console.error('Error rentabilidad categorias:', err);
+    res.status(500).json({ error: 'Error al obtener rentabilidad por categoría' });
+  }
+});
+
+router.get('/rentabilidad/proveedores', requireAuth, (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const rows = getRentabilidadProveedores({ desde, hasta });
+    res.json(rows);
+  } catch (err) {
+    console.error('Error rentabilidad proveedores:', err);
+    res.status(500).json({ error: 'Error al obtener rentabilidad por proveedor' });
+  }
+});
+
+router.get('/resumen-financiero', requireAuth, (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const data = getResumenFinanciero({ desde, hasta });
+    res.json(data);
+  } catch (err) {
+    console.error('Error resumen financiero:', err);
+    res.status(500).json({ error: 'Error al obtener resumen financiero' });
+  }
+});
+
+router.get('/rentabilidad/categorias/export/csv', requireAuth, (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const csv = buildRentabilidadCategoriasCsv({ desde, hasta });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="rentabilidad_categorias.csv"');
+    res.send(csv);
+  } catch (err) {
+    console.error('Error exportando CSV categorias:', err);
+    res.status(500).json({ error: 'Error al exportar CSV de categorías' });
+  }
+});
+
+router.get('/rentabilidad/proveedores/export/csv', requireAuth, (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const csv = buildRentabilidadProveedoresCsv({ desde, hasta });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="rentabilidad_proveedores.csv"');
+    res.send(csv);
+  } catch (err) {
+    console.error('Error exportando CSV proveedores:', err);
+    res.status(500).json({ error: 'Error al exportar CSV de proveedores' });
   }
 });
 
