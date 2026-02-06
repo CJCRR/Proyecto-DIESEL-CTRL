@@ -28,24 +28,91 @@ function limpiarSesionesExpiradas() {
   }
 }
 
-// POST /auth/login - Iniciar sesión
+// Cálculo de suspensión automática según proximo_cobro y dias_gracia
+function debeSuspenderEmpresa(estadoActual, proximoCobroStr, diasGracia) {
+  // Si ya está suspendida manualmente, se respeta
+  if (estadoActual === 'suspendida') return true;
+
+  if (!proximoCobroStr) return false;
+
+  const proximoCobro = new Date(proximoCobroStr);
+  if (Number.isNaN(proximoCobro.getTime())) return false;
+
+  const dias = Number.isFinite(Number(diasGracia)) ? Number(diasGracia) : 0;
+  const hoy = new Date();
+  const limiteGracia = new Date(proximoCobro.getTime());
+  limiteGracia.setDate(limiteGracia.getDate() + dias);
+
+  // Suspender si hoy está después del límite de gracia
+  return hoy > limiteGracia;
+}
+
+// POST /auth/login - Iniciar sesión (multiempresa-ready)
 router.post('/login', loginLimiter, (req, res) => {
   limpiarSesionesExpiradas();
-  const { username, password } = req.body;
-  
+  const { username, password, empresaCodigo, empresa_codigo } = req.body;
+  const empresaCode = empresaCodigo || empresa_codigo || null;
+
   if (!username || !password) {
     return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
   }
 
   try {
-    const usuario = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, password, failed_attempts, locked_until, must_change_password
-      FROM usuarios
-      WHERE username = ? AND activo = 1
-    `).get(username);
+    let empresa = null;
+    if (empresaCode) {
+      empresa = db.prepare('SELECT id, codigo, estado, proximo_cobro, dias_gracia FROM empresas WHERE codigo = ?').get(empresaCode);
+      if (!empresa) {
+        return res.status(401).json({ error: 'Empresa no encontrada' });
+      }
+    }
+
+    const usuario = empresa
+      ? db.prepare(`
+             SELECT u.id, u.username, u.nombre_completo, u.rol, u.activo, u.password,
+               u.failed_attempts, u.locked_until, u.must_change_password,
+               u.empresa_id,
+               e.codigo AS empresa_codigo, e.estado AS empresa_estado,
+               e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia
+          FROM usuarios u
+          LEFT JOIN empresas e ON e.id = u.empresa_id
+          WHERE u.username = ? AND u.activo = 1 AND u.empresa_id = ?
+        `).get(username, empresa.id)
+      : db.prepare(`
+             SELECT u.id, u.username, u.nombre_completo, u.rol, u.activo, u.password,
+               u.failed_attempts, u.locked_until, u.must_change_password,
+               u.empresa_id,
+               e.codigo AS empresa_codigo, e.estado AS empresa_estado,
+               e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia
+          FROM usuarios u
+          LEFT JOIN empresas e ON e.id = u.empresa_id
+          WHERE u.username = ? AND u.activo = 1
+        `).get(username);
 
     if (!usuario) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    // Verificación de licencia/estado de empresa (solo usuarios de empresa, no superadmin global)
+    if (usuario.rol !== 'superadmin' && usuario.empresa_id) {
+      const estadoEmpresa = usuario.empresa_estado || (empresa && empresa.estado) || 'activa';
+      const diasGracia = usuario.empresa_dias_gracia ?? (empresa && empresa.dias_gracia);
+      const proximoCobro = usuario.empresa_proximo_cobro || (empresa && empresa.proximo_cobro) || null;
+
+      const debeSuspender = debeSuspenderEmpresa(estadoEmpresa, proximoCobro, diasGracia);
+
+      if (debeSuspender) {
+        // Persistir suspensión en BD si aún no está marcada
+        if (estadoEmpresa !== 'suspendida') {
+          try {
+            db.prepare("UPDATE empresas SET estado = 'suspendida', actualizado_en = datetime('now') WHERE id = ?")
+              .run(usuario.empresa_id || (empresa && empresa.id));
+          } catch (e) {
+            const logger = require('../services/logger');
+            logger.warn('No se pudo actualizar estado de empresa a suspendida:', e.message);
+          }
+        }
+        return res.status(403).json({ error: 'La cuenta de la empresa está suspendida. Contacte al administrador del sistema.' });
+      }
     }
 
     if (usuario.locked_until && new Date(usuario.locked_until) > new Date()) {
@@ -81,7 +148,7 @@ router.post('/login', loginLimiter, (req, res) => {
       try {
         const logger = require('../services/logger');
         logger.warn(`Intento fallido de login para usuario ${usuario.username} (${usuario.id}), intentos: ${newFailed}${lockUntil ? ', bloqueado hasta: ' + lockUntil : ''}`);
-      } catch (e) {}
+      } catch (e) { }
       if (lockUntil) {
         return res.status(429).json({ error: `Cuenta bloqueada temporalmente. Intente después de: ${new Date(lockUntil).toLocaleString()}` });
       }
@@ -106,12 +173,15 @@ router.post('/login', loginLimiter, (req, res) => {
       UPDATE usuarios SET ultimo_login = datetime('now') WHERE id = ?
     `).run(usuario.id);
 
-    // JWT: datos mínimos necesarios
+    // JWT: datos mínimos necesarios (incluyendo empresa)
     const jwtPayload = {
       id: usuario.id,
       username: usuario.username,
       nombre: usuario.nombre_completo,
       rol: usuario.rol,
+      empresa_id: usuario.empresa_id || null,
+      empresa_codigo: usuario.empresa_codigo || null,
+      empresa_estado: usuario.empresa_estado || null,
       must_change_password: !!usuario.must_change_password
     };
     const jwtToken = signJwt(jwtPayload);
@@ -146,7 +216,7 @@ router.post('/login', loginLimiter, (req, res) => {
 // POST /auth/logout - Cerrar sesión
 router.post('/logout', (req, res) => {
   const token = req.body?.token || req.headers.authorization?.replace('Bearer ', '') || req.cookies?.auth_token;
-  
+
   if (token) {
     try {
       db.prepare('DELETE FROM sesiones WHERE token = ?').run(token);
@@ -155,7 +225,7 @@ router.post('/logout', (req, res) => {
       logger.error('Error al cerrar sesión:', { message: err.message, stack: err.stack, url: req.originalUrl });
     }
   }
-  
+
   res.clearCookie('auth_token');
   res.json({ success: true });
 });
@@ -180,9 +250,11 @@ router.get('/verificar', (req, res) => {
   }
   try {
     const sesion = db.prepare(`
-      SELECT s.*, u.username, u.nombre_completo, u.rol, u.must_change_password
+        SELECT s.*, u.username, u.nombre_completo, u.rol, u.must_change_password,
+          u.empresa_id, e.codigo AS empresa_codigo, e.estado AS empresa_estado
       FROM sesiones s
       JOIN usuarios u ON u.id = s.usuario_id
+      LEFT JOIN empresas e ON e.id = u.empresa_id
       WHERE s.token = ? AND datetime(s.expira_en) > datetime('now')
     `).get(token);
     if (!sesion) {
@@ -195,6 +267,9 @@ router.get('/verificar', (req, res) => {
         username: sesion.username,
         nombre: sesion.nombre_completo,
         rol: sesion.rol,
+        empresa_id: sesion.empresa_id || null,
+        empresa_codigo: sesion.empresa_codigo || null,
+        empresa_estado: sesion.empresa_estado || null,
         must_change_password: !!sesion.must_change_password
       },
       via: 'token'
@@ -228,9 +303,10 @@ function requireAuth(req, res, next) {
   }
   try {
     const sesion = db.prepare(`
-      SELECT s.*, u.username, u.rol
+      SELECT s.*, u.username, u.rol, u.empresa_id, e.codigo AS empresa_codigo, e.estado AS empresa_estado
       FROM sesiones s
       JOIN usuarios u ON u.id = s.usuario_id
+      LEFT JOIN empresas e ON e.id = u.empresa_id
       WHERE s.token = ? AND datetime(s.expira_en) > datetime('now')
     `).get(token);
     if (!sesion) {
@@ -239,7 +315,10 @@ function requireAuth(req, res, next) {
     req.usuario = {
       id: sesion.usuario_id,
       username: sesion.username,
-      rol: sesion.rol
+      rol: sesion.rol,
+      empresa_id: sesion.empresa_id || null,
+      empresa_codigo: sesion.empresa_codigo || null,
+      empresa_estado: sesion.empresa_estado || null
     };
     next();
   } catch (err) {
@@ -255,11 +334,11 @@ function requireRole(...rolesPermitidos) {
     if (!req.usuario) {
       return res.status(401).json({ error: 'No autenticado' });
     }
-    
+
     if (!rolesPermitidos.includes(req.usuario.rol)) {
       return res.status(403).json({ error: 'Permisos insuficientes' });
     }
-    
+
     next();
   };
 }

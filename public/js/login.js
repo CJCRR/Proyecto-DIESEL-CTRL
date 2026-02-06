@@ -28,7 +28,11 @@ async function verificarSesion() {
     const data = await apiFetchJson('/auth/verificar');
     if (data && data.valido) {
       if (data.usuario) localStorage.setItem('auth_user', JSON.stringify(data.usuario));
-      window.location.href = '/pages/index.html';
+      if (data.usuario && data.usuario.rol === 'superadmin') {
+        window.location.href = '/pages/admin-empresas.html';
+      } else {
+        window.location.href = '/pages/index.html';
+      }
     } else {
       localStorage.removeItem('auth_user');
     }
@@ -62,11 +66,20 @@ loginForm.addEventListener('submit', async (e) => {
       loginBtn.innerHTML = '<i class="fas fa-check mr-2"></i>¡Bienvenido!';
       loginBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
       loginBtn.classList.add('bg-green-600');
-      
-      // Redirigir al POS
+
+      // Si la empresa está morosa, mostrar advertencia antes de redirigir
+      if (data.usuario && data.usuario.empresa_estado === 'morosa') {
+        mostrarError('Aviso: la cuenta de su empresa está en mora. Algunas funciones podrían limitarse si no se regulariza el pago.');
+      }
+
+      // Redirigir según rol
       setTimeout(() => {
-        window.location.href = '/pages/index.html';
-      }, 500);
+        if (data.usuario && data.usuario.rol === 'superadmin') {
+          window.location.href = '/pages/admin-empresas.html';
+        } else {
+          window.location.href = '/pages/index.html';
+        }
+      }, 800);
     } else {
       mostrarError((data && data.error) || 'Credenciales inválidas');
       loginBtn.disabled = false;

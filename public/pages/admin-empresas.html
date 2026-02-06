@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Empresas (Master) — Diesel CTRL</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <nav class="bg-slate-900 text-white p-4 shadow-xl">
+    <div class="container mx-auto flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <button id="btn-menu"
+          class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+          <i class="fas fa-bars text-lg"></i>
+        </button>
+        <h1 class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Empresas (Master)</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Drawer de navegación -->
+  <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-40"></div>
+  <aside id="drawer"
+    class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
+    <div class="p-5 flex items-center justify-between border-b border-slate-100">
+      <div>
+        <p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>
+        <p class="text-lg font-black text-slate-800">Diesel Ctrl</p>
+      </div>
+      <button id="drawer-close"
+        class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
+        <i class="fas fa-xmark text-slate-500"></i>
+      </button>
+    </div>
+    <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700"><!-- nav generado por layout-nav.js --></nav>
+    <div class="p-4 border-t border-slate-100 text-xs text-slate-500">
+      <p class="font-semibold">Atajos rápidos</p>
+      <p class="mt-1">Presione ESC para cerrar.</p>
+    </div>
+  </aside>
+
+  <main class="container mx-auto p-6 max-w-6xl">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+      <div>
+        <h2 class="text-2xl font-bold text-slate-800">Empresas / Licencias</h2>
+        <p class="text-sm text-slate-500 mt-1">Panel solo para superadmin. Administre estados de licencia y ciclo de facturación.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <select id="filtro-estado" class="border rounded-lg px-3 py-2 text-sm">
+          <option value="">Todos los estados</option>
+          <option value="activa">Activa</option>
+          <option value="morosa">Morosa</option>
+          <option value="suspendida">Suspendida</option>
+        </select>
+        <input id="busqueda" type="text" placeholder="Buscar por nombre o código"
+          class="border rounded-lg px-3 py-2 text-sm w-48">
+        <button id="btn-buscar"
+          class="bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition text-sm flex items-center gap-2">
+          <i class="fas fa-search"></i>
+          Buscar
+        </button>
+      </div>
+    </div>
+
+    <!-- Lista de empresas -->
+    <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-slate-600 uppercase">
+          <tr>
+            <th class="p-3 text-left">Empresa</th>
+            <th class="p-3 text-left">Código</th>
+            <th class="p-3 text-left">Estado</th>
+            <th class="p-3 text-left">Plan / Monto</th>
+            <th class="p-3 text-left">Corte / Gracia</th>
+            <th class="p-3 text-left">Próximo cobro</th>
+            <th class="p-3 text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="empresas-tbody" class="divide-y divide-slate-100">
+          <tr>
+            <td colspan="7" class="p-8 text-center text-slate-400">Cargando empresas...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Scripts -->
+  <script src="/js/layout-nav.js"></script>
+  <script src="/js/drawer.js"></script>
+  <script type="module" src="/js/auth-guard.js"></script>
+  <script type="module" src="/js/theme.js"></script>
+  <script type="module" src="/js/alerts.js"></script>
+  <script type="module" src="/js/admin-empresas.js"></script>
+</body>
+
+</html>

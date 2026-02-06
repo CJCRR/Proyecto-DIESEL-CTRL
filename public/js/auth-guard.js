@@ -27,6 +27,15 @@ import { apiFetchJson } from './app-api.js';
   const user = JSON.parse(localStorage.getItem('auth_user') || 'null');
 
   function applyRoleGuards(u) {
+    // Superadmin: sólo debe usar el panel master de empresas
+    if (u && u.rol === 'superadmin') {
+      if (!window.location.pathname.includes('/pages/admin-empresas.html')) {
+        window.location.href = '/pages/admin-empresas.html';
+        return false;
+      }
+      return true;
+    }
+
     if (window.location.pathname.includes('/pages/dashboard.html') && u.rol !== 'admin') {
       window.location.href = '/pages/index.html';
       return false;
@@ -66,6 +75,20 @@ import { apiFetchJson } from './app-api.js';
     const drawer = document.getElementById('drawer');
     const currentUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
     if (drawer && currentUser) {
+      // Superadmin: menú especial solo para panel master
+      if (currentUser.rol === 'superadmin') {
+        const nav = drawer.querySelector('nav');
+        if (nav) {
+          nav.innerHTML = `
+            <a href="/pages/admin-empresas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+              <i class="fas fa-building text-blue-600"></i>
+              Empresas (Master)
+            </a>
+          `;
+        }
+        // No añadimos enlaces admin-only ni dashboard para superadmin
+        // El bloque de logout se seguirá mostrando abajo
+      }
       // Mostrar/ocultar accesos solo admin
       const gearButtons = document.querySelectorAll('.admin-only-gear');
       gearButtons.forEach(btn => {

@@ -87,4 +87,32 @@
 - [x] Crear un `docker-compose` opcional para levantar la app y la base de datos con volúmenes persistentes.
 - [ ] Añadir pequeños detalles de UX avanzada (atajos de teclado, indicadores de carga globales) una vez estabilizado todo lo anterior.
 
+## Fase 15: Modelo Multiempresa (Backend)
+- [x] Definir tabla de empresas (empresas) con campos básicos: id, nombre, codigo, estado, fecha_alta, fecha_corte, dias_gracia, nota_interna.
+- [x] Asociar usuarios a empresas añadiendo empresa_id a la tabla usuarios y ajustando consultas para filtrar por empresa (por ahora todos apuntan a la empresa 1 por defecto).
+- [x] Definir rol superadmin separado de los usuarios normales de empresa (sin empresa_id o con marca especial) y documentar que es global para el panel en la nube.
+- [x] Documentar el modelo multiempresa y los nuevos campos en README.
+
+## Fase 16: Login Multiempresa y Roles
+- [x] Diseñar el flujo de login empresa + usuario + contraseña para la parte nube (incluyendo codigo_empresa) y soportarlo opcionalmente en /auth/login.
+- [x] Actualizar el modelo de auth para incluir empresa_id y rol (superadmin, admin_empresa, vendedor, lectura) en el token/sesión (JWT y token clásico ahora llevan empresa_id/empresa_codigo).
+- [x] Ajustar middlewares de autorización para que propaguen empresa_id y empresa_codigo en req.usuario, de forma que las rutas puedan validar empresa además de rol.
+
+## Fase 17: Sincronización Local ↔ Nube
+- [ ] Diseñar el formato de la cola de operaciones offline (ventas, presupuestos y mínimos necesarios) en el POS local.
+- [ ] Crear endpoints en el backend nube para recibir lotes de operaciones por empresa y evitar duplicados.
+- [ ] Implementar un cliente de sincronización en la instalación local que envíe la cola cuando haya internet, con reintentos.
+- [ ] Añadir indicadores de estado de sincronización en la UI (último sync correcto, pendientes, errores).
+
+## Fase 18: Panel Master y Licencias
+- [x] Crear panel web para superadmin con listado de empresas, filtros y búsqueda (public/pages/admin-empresas.html + /admin/empresas).
+- [x] Gestionar estados de licencia por empresa (activa, morosa, suspendida) con fechas de corte y días de gracia (acciones en admin-empresas.js + PATCH /admin/empresas/:id).
+- [x] Mostrar alertas de empresas morosas o suspendidas tanto en el panel master como en el login de la empresa (resaltado visual en panel y aviso en login cuando empresa_estado = 'morosa'; bloqueo total si 'suspendida').
+- [x] Integrar el chequeo de licencia en el flujo de login y en operaciones críticas (el login bloquea empresas con estado 'suspendida').
+
+## Fase 19: Portal Web del Dueño (Empresa)
+- [ ] Crear vistas ligeras en la nube para admin_empresa: resumen de ventas, reportes clave y gestión básica (por ejemplo, presupuestos).
+- [ ] Hacer estas vistas responsive para uso cómodo desde móvil.
+- [ ] Respetar roles dentro de la empresa (admin_empresa vs lectura) en el portal nube.
+
 ## Notas de Progreso

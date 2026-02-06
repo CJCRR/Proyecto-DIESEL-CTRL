@@ -437,6 +437,64 @@ const migrations = [
             END
       `).run();
     }
+  },
+  {
+    id: '011_empresas_y_usuario_empresa_id',
+    up: () => {
+      // Tabla de empresas (multiempresa básica)
+      db.prepare(`CREATE TABLE IF NOT EXISTS empresas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        codigo TEXT UNIQUE NOT NULL,
+        estado TEXT DEFAULT 'activa',
+        fecha_alta TEXT DEFAULT (datetime('now')),
+        fecha_corte INTEGER DEFAULT 1,
+        dias_gracia INTEGER DEFAULT 7,
+        nota_interna TEXT,
+        creado_en TEXT DEFAULT (datetime('now')),
+        actualizado_en TEXT DEFAULT (datetime('now'))
+      )`).run();
+
+      // Empresa por defecto para instalaciones existentes / local
+      const existeEmpresa = db.prepare('SELECT id FROM empresas WHERE id = 1').get();
+      if (!existeEmpresa) {
+        db.prepare(`
+          INSERT INTO empresas (id, nombre, codigo, estado)
+          VALUES (1, 'Empresa Local', 'LOCAL', 'activa')
+        `).run();
+      }
+
+      // Asociar usuarios a empresas
+      if (!columnExists('usuarios', 'empresa_id')) {
+        db.prepare('ALTER TABLE usuarios ADD COLUMN empresa_id INTEGER DEFAULT 1').run();
+      }
+
+      // Normalizar empresa_id en usuarios existentes (solo usuarios normales, no superadmin futuros)
+      db.prepare("UPDATE usuarios SET empresa_id = 1 WHERE empresa_id IS NULL AND (rol IS NULL OR rol != 'superadmin')").run();
+
+      // Índice básico por empresa en usuarios
+      if (!indexExists('idx_usuarios_empresa')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_usuarios_empresa ON usuarios (empresa_id)').run();
+      }
+    }
+  },
+  {
+    id: '012_empresas_licencias_basicas',
+    up: () => {
+      // Campos adicionales para gestionar licencias/planes por empresa
+      if (!columnExists('empresas', 'plan')) {
+        db.prepare("ALTER TABLE empresas ADD COLUMN plan TEXT").run();
+      }
+      if (!columnExists('empresas', 'monto_mensual')) {
+        db.prepare("ALTER TABLE empresas ADD COLUMN monto_mensual REAL DEFAULT 0").run();
+      }
+      if (!columnExists('empresas', 'ultimo_pago_en')) {
+        db.prepare("ALTER TABLE empresas ADD COLUMN ultimo_pago_en TEXT").run();
+      }
+      if (!columnExists('empresas', 'proximo_cobro')) {
+        db.prepare("ALTER TABLE empresas ADD COLUMN proximo_cobro TEXT").run();
+      }
+    }
   }
 ];
 
@@ -469,12 +527,30 @@ try {
     if (adminUser && adminPass) {
       const hash = bcrypt.hashSync(adminPass, 10);
       db.prepare(`
-        INSERT INTO usuarios (username, password, nombre_completo, rol, must_change_password)
-        VALUES (?, ?, ?, 'admin', 1)
+        INSERT INTO usuarios (username, password, nombre_completo, rol, must_change_password, empresa_id)
+        VALUES (?, ?, ?, 'admin', 1, 1)
       `).run(adminUser, hash, 'Administrador');
       console.log('✅ Usuario admin inicial creado (debe cambiar contraseña)');
     } else {
       console.warn('⚠️ No se creó usuario admin: configure ADMIN_USERNAME y ADMIN_PASSWORD');
+    }
+  }
+
+  // Crear usuario superadmin global por defecto si no existe ninguno
+  const superAdmins = db.prepare("SELECT count(*) as c FROM usuarios WHERE rol = 'superadmin'").get();
+  if (superAdmins.c === 0) {
+    const superUser = process.env.SUPERADMIN_USERNAME;
+    const superPass = process.env.SUPERADMIN_PASSWORD;
+    if (superUser && superPass) {
+      const hash = bcrypt.hashSync(superPass, 10);
+      // empresa_id NULL para marcarlo como global (no ligado a una empresa concreta)
+      db.prepare(`
+        INSERT INTO usuarios (username, password, nombre_completo, rol, must_change_password, empresa_id)
+        VALUES (?, ?, ?, 'superadmin', 1, NULL)
+      `).run(superUser, hash, 'Super Administrador');
+      console.log('✅ Usuario superadmin inicial creado (panel master)');
+    } else {
+      console.warn('⚠️ No se creó usuario superadmin: configure SUPERADMIN_USERNAME y SUPERADMIN_PASSWORD');
     }
   }
 } catch (err) {
@@ -484,9 +560,9 @@ try {
 // Seed inicial (solo si está vacío para evitar duplicados en reinicios)
 const count = db.prepare('SELECT count(*) as c FROM productos').get();
 if (count.c === 0) {
-    const insert = db.prepare('INSERT INTO productos (codigo, descripcion, precio_usd, stock) VALUES (?, ?, ?, ?)');
-    insert.run('INJ-001', 'Inyector Cummins', 45.00, 10);
-    insert.run('FLT-020', 'Filtro de Aceite', 12.50, 50);
+  const insert = db.prepare('INSERT INTO productos (codigo, descripcion, precio_usd, stock) VALUES (?, ?, ?, ?)');
+  insert.run('INJ-001', 'Inyector Cummins', 45.00, 10);
+  insert.run('FLT-020', 'Filtro de Aceite', 12.50, 50);
 }
 
 // Valores por defecto en config

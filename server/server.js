@@ -16,6 +16,7 @@ const busquedaRoutes = require('./routes/busqueda');
 const backupRoutes = require('./routes/backup');
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
+const empresasAdminRoutes = require('./routes/empresas_admin');
 const cobranzasRoutes = require('./routes/cobranzas');
 const devolucionesRoutes = require('./routes/devoluciones');
 const proveedoresRoutes = require('./routes/proveedores');
@@ -52,7 +53,8 @@ app.get('/index.html', (req, res) => {
 // Servir todas las páginas HTML de /pages con CSP
 const htmlPages = [
     'ajustes.html', 'clientes.html', 'cobranzas.html', 'dashboard.html',
-    'index.html', 'inventario.html', 'login.html', 'reportes.html', 'usuarios.html'
+    'index.html', 'inventario.html', 'login.html', 'reportes.html', 'usuarios.html',
+    'admin-empresas.html'
 ];
 htmlPages.forEach(page => {
     app.get(`/pages/${page}`, (req, res) => {
@@ -66,6 +68,7 @@ app.use('/auth', authRoutes);
 app.use('/admin/productos', productosAdmin);
 app.use('/admin/ajustes', ajustesRoutes);
 app.use('/admin/usuarios', usuariosRoutes);
+app.use('/admin/empresas', empresasAdminRoutes);
 app.use('/proveedores', proveedoresRoutes);
 app.use('/compras', comprasRoutes);
 app.use('/productos', productosRoutes);

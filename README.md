@@ -19,6 +19,18 @@ Aplicación POS para repuestos diésel con soporte online/offline, sincronizaci�
 - Middleware de seguridad y errores en `server/middleware/*` (seguridad, auth, manejo de errores).
 - Logging centralizado con Winston en `server/services/logger.js`.
 
+### Modelo multiempresa (base)
+
+- Tabla `empresas` (id, nombre, codigo, estado, fechas de alta/corte, días de gracia, notas) para representar cada negocio/cliente.
+- Tabla `usuarios` incluye ahora `empresa_id` para asociar cada usuario a una empresa concreta.
+- Rol reservado `superadmin`: pensado solo para el backend en la nube y panel maestro; estos usuarios pueden existir sin `empresa_id` (globales) y no forman parte de una empresa concreta.
+- Todas las instalaciones actuales usan por defecto la empresa con id=1 y código `LOCAL`; esto prepara el terreno para separar datos por empresa sin romper el comportamiento actual.
+
+### Licencias por empresa (base)
+
+- La tabla `empresas` incluye campos de licenciamiento: `plan`, `monto_mensual`, `ultimo_pago_en`, `proximo_cobro` y `estado` (`activa`, `morosa`, `suspendida`).
+- El flujo de login lee `estado` de la empresa y, si está marcada como `suspendida`, bloquea el acceso para usuarios de esa empresa (excepto `superadmin`), permitiendo implementar suspensión por falta de pago.
+
 ## Pruebas automáticas
 
 - Backend probado con Jest (entorno Node) y supertest para rutas HTTP.
@@ -39,6 +51,7 @@ La aplicación se configura principalmente mediante variables de entorno. Valore
 - `DB_PATH` / `DATABASE_FILE`: nombre o ruta del archivo SQLite. Por defecto `database.sqlite` en la raíz del proyecto.
 - `SQL_VERBOSE` / `SQL_DEBUG`: si se establece a `true`/`1`/`yes`, activa el modo verbose de `better-sqlite3` (log de todas las consultas SQL).
 - `ADMIN_USERNAME`, `ADMIN_PASSWORD`: si no existen usuarios, se creará automáticamente un usuario admin con estas credenciales (debe cambiar la contraseña en el primer login).
+- `SUPERADMIN_USERNAME`, `SUPERADMIN_PASSWORD`: si no existe ningún usuario con rol `superadmin`, se creará uno global (sin empresa_id) con estas credenciales, pensado solo para el panel master de empresas/licencias.
 - `ENABLE_AUTOBACKUP`: controla el backup automático de la base de datos. Valores falsy: `0`, `false`, `no`. Por defecto está habilitado excepto en `NODE_ENV=test`.
 - `BACKUP_INTERVAL_HOURS`: intervalo en horas entre backups automáticos. Por defecto `6`.
 
