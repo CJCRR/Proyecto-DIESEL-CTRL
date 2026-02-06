@@ -4,14 +4,22 @@ const db = require('../db');
 const { requireAuth, requireRole } = require('./auth');
 const bcrypt = require('bcryptjs');
 
-// GET /admin/usuarios - Listar todos los usuarios (solo admin)
+// GET /admin/usuarios - Listar usuarios de la empresa (solo admin de empresa)
 router.get('/', requireAuth, requireRole('admin'), (req, res) => {
   try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const params = [];
+    let where = "WHERE rol != 'superadmin'";
+    if (empresaId) {
+      where += ' AND empresa_id = ?';
+      params.push(empresaId);
+    }
     const usuarios = db.prepare(`
       SELECT id, username, nombre_completo, rol, activo, creado_en, ultimo_login
       FROM usuarios
+      ${where}
       ORDER BY creado_en DESC
-    `).all();
+    `).all(...params);
     res.json(usuarios);
   } catch (err) {
     console.error('Error listando usuarios:', err);
@@ -50,10 +58,14 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
 
     // Crear usuario
     const hash = bcrypt.hashSync(password, 10);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    if (!empresaId) {
+      return res.status(400).json({ error: 'Usuario sin empresa asociada' });
+    }
     const result = db.prepare(`
-      INSERT INTO usuarios (username, password, nombre_completo, rol)
-      VALUES (?, ?, ?, ?)
-    `).run(username, hash, nombre_completo || username, rol || 'vendedor');
+      INSERT INTO usuarios (username, password, nombre_completo, rol, empresa_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(username, hash, nombre_completo || username, rol || 'vendedor', empresaId);
 
     const nuevoUsuario = db.prepare(`
       SELECT id, username, nombre_completo, rol, activo, creado_en

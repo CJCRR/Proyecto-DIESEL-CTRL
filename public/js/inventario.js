@@ -1,3 +1,5 @@
+import { upsertProductoFirebase } from './firebase-sync.js';
+
 // Código principal de inventario (movido desde inventario.html)
 console.log('inventario.html v2.0 - con autenticación');
 const lista = document.getElementById('lista');
@@ -351,6 +353,13 @@ form.addEventListener('submit', async (e) => {
             if (!res.ok) throw new Error(d.error || 'Error actualizar');
             msg.innerText = 'Producto actualizado.';
         }
+
+            // Sincronizar producto a Firebase (por empresa)
+            try {
+                await upsertProductoFirebase(body);
+            } catch (syncErr) {
+                console.error('No se pudo sincronizar producto a Firebase:', syncErr);
+            }
         // reload list at first page (do not overwrite user's top filter)
         currentPage = 0;
         await cargarProductos();

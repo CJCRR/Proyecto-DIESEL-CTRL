@@ -47,15 +47,30 @@ function mapCuenta(row) {
 }
 
 /**
- * Devuelve un resumen agregado de cuentas por cobrar agrupadas por estado.
+ * Devuelve un resumen agregado de cuentas por cobrar agrupadas por estado,
+ * filtrado por empresa vía la venta asociada cuando aplica.
+ * @param {number|null} empresaId
  * @returns {Array<{estado:string,cantidad:number,saldo_usd:number}>}
  */
-function getResumenCuentas() {
+function getResumenCuentas(empresaId) {
+  if (empresaId == null) {
+    // Instalación mononegocio o sin multiempresa activo
+    const rows = db.prepare(`
+        SELECT estado, COUNT(*) as cantidad, SUM(saldo_usd) as saldo_usd
+        FROM cuentas_cobrar
+        GROUP BY estado
+      `).all();
+    return rows;
+  }
+
   const rows = db.prepare(`
-      SELECT estado, COUNT(*) as cantidad, SUM(saldo_usd) as saldo_usd
-      FROM cuentas_cobrar
-      GROUP BY estado
-    `).all();
+      SELECT cc.estado, COUNT(*) as cantidad, SUM(cc.saldo_usd) as saldo_usd
+      FROM cuentas_cobrar cc
+      LEFT JOIN ventas v ON v.id = cc.venta_id
+      LEFT JOIN usuarios u ON u.id = v.usuario_id
+      WHERE (cc.venta_id IS NULL OR u.empresa_id = ?)
+      GROUP BY cc.estado
+    `).all(empresaId);
   return rows;
 }
 
@@ -63,14 +78,26 @@ function getResumenCuentas() {
  * Lista cuentas por cobrar aplicando filtros opcionales por cliente,
  * estado y rango de días de mora.
  *
- * @param {{cliente?:string,estado?:string,mora_min?:number|string,mora_max?:number|string}} [filtros]
+ * @param {{cliente?:string,estado?:string,mora_min?:number|string,mora_max?:number|string,empresaId?:number|null}} [filtros]
  * @returns {import('../types').CuentaPorCobrar[]}
  */
-function listCuentas({ cliente, estado, mora_min, mora_max } = {}) {
-  let rows = db.prepare(`
-      SELECT * FROM cuentas_cobrar
-      ORDER BY date(fecha_vencimiento) ASC
-    `).all();
+function listCuentas({ cliente, estado, mora_min, mora_max, empresaId } = {}) {
+  let rows;
+  if (empresaId == null) {
+    rows = db.prepare(`
+        SELECT * FROM cuentas_cobrar
+        ORDER BY date(fecha_vencimiento) ASC
+      `).all();
+  } else {
+    rows = db.prepare(`
+        SELECT cc.*
+        FROM cuentas_cobrar cc
+        LEFT JOIN ventas v ON v.id = cc.venta_id
+        LEFT JOIN usuarios u ON u.id = v.usuario_id
+        WHERE (cc.venta_id IS NULL OR u.empresa_id = ?)
+        ORDER BY date(cc.fecha_vencimiento) ASC
+      `).all(empresaId);
+  }
 
   rows = rows.map(mapCuenta);
 
@@ -95,11 +122,19 @@ function listCuentas({ cliente, estado, mora_min, mora_max } = {}) {
 /**
  * Obtiene una cuenta por cobrar y su historial de pagos.
  * @param {number|string} id
+ * @param {number|null} empresaId
  * @returns {{cuenta: import('../types').CuentaPorCobrar, pagos: import('../types').PagoCuentaCobrar[]}|null}
  */
-function getCuentaConPagos(id) {
+function getCuentaConPagos(id, empresaId) {
   const cuenta = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(id);
   if (!cuenta) return null;
+
+  if (empresaId != null && cuenta.venta_id) {
+    const venta = db.prepare('SELECT v.usuario_id, u.empresa_id FROM ventas v JOIN usuarios u ON u.id = v.usuario_id WHERE v.id = ?').get(cuenta.venta_id);
+    if (!venta || venta.empresa_id !== empresaId) {
+      return null;
+    }
+  }
   const pagos = db.prepare('SELECT * FROM pagos_cc WHERE cuenta_id = ? ORDER BY date(fecha) DESC, id DESC').all(id);
   return { cuenta: mapCuenta(cuenta), pagos };
 }
@@ -108,7 +143,7 @@ function getCuentaConPagos(id) {
  * Crea una nueva cuenta por cobrar a partir de los datos de una venta
  * o de un saldo pendiente manual.
  *
- * @param {{cliente_nombre?:string,cliente_doc?:string,venta_id?:number,total_usd:number,tasa_bcv?:number,fecha_vencimiento?:string,notas?:string}} payload
+ * @param {{cliente_nombre?:string,cliente_doc?:string,venta_id?:number,total_usd:number,tasa_bcv?:number,fecha_vencimiento?:string,notas?:string,empresaId?:number|null}} payload
  * @returns {import('../types').CuentaPorCobrar}
  */
 function crearCuenta(payload = {}) {
@@ -120,6 +155,7 @@ function crearCuenta(payload = {}) {
     tasa_bcv,
     fecha_vencimiento,
     notas,
+    empresaId,
   } = payload;
 
   const total = Number(total_usd || 0);
@@ -155,12 +191,20 @@ function crearCuenta(payload = {}) {
  * Registra un pago contra una cuenta por cobrar existente.
  *
  * @param {number|string} id
+ * @param {number|null} empresaId
  * @param {{monto:number,moneda?:"USD"|"BS",tasa_bcv?:number,metodo?:string,referencia?:string,notas?:string,usuario?:string}} payload
  * @returns {{cuenta: import('../types').CuentaPorCobrar, pagos: import('../types').PagoCuentaCobrar[]}|null}
  */
-function registrarPago(id, payload = {}) {
+function registrarPago(id, empresaId, payload = {}) {
   const cuenta = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(id);
   if (!cuenta) return null;
+
+  if (empresaId != null && cuenta.venta_id) {
+    const venta = db.prepare('SELECT v.usuario_id, u.empresa_id FROM ventas v JOIN usuarios u ON u.id = v.usuario_id WHERE v.id = ?').get(cuenta.venta_id);
+    if (!venta || venta.empresa_id !== empresaId) {
+      return null;
+    }
+  }
 
   const { monto, moneda = 'USD', tasa_bcv, metodo, referencia, notas, usuario } = payload;
   const m = Number(monto || 0);
@@ -202,13 +246,21 @@ function registrarPago(id, payload = {}) {
  * notas y estado) con validaciones mínimas.
  *
  * @param {number|string} id
+ * @param {number|null} empresaId
  * @param {{fecha_vencimiento?:string,notas?:string,estado?:string}} payload
  * @returns {import('../types').CuentaPorCobrar|null}
  */
-function actualizarCuenta(id, payload = {}) {
+function actualizarCuenta(id, empresaId, payload = {}) {
   const { fecha_vencimiento, notas, estado } = payload;
   const cuenta = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(id);
   if (!cuenta) return null;
+
+  if (empresaId != null && cuenta.venta_id) {
+    const venta = db.prepare('SELECT v.usuario_id, u.empresa_id FROM ventas v JOIN usuarios u ON u.id = v.usuario_id WHERE v.id = ?').get(cuenta.venta_id);
+    if (!venta || venta.empresa_id !== empresaId) {
+      return null;
+    }
+  }
 
   if (fecha_vencimiento && !isValidDateString(fecha_vencimiento)) {
     throw new Error('Fecha inválida');

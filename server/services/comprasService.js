@@ -26,31 +26,36 @@ function mapCompra(row) {
   };
 }
 
-function listCompras({ limit = 100, proveedor_id } = {}) {
+function listCompras({ limit = 100, proveedor_id, empresaId } = {}) {
   const params = [];
-  let where = '';
+  const where = [];
+  if (empresaId) {
+    where.push('c.empresa_id = ?');
+    params.push(empresaId);
+  }
   if (proveedor_id) {
-    where = 'WHERE c.proveedor_id = ?';
+    where.push('c.proveedor_id = ?');
     params.push(proveedor_id);
   }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = db.prepare(`
     SELECT c.*, p.nombre AS proveedor_nombre
     FROM compras c
     LEFT JOIN proveedores p ON p.id = c.proveedor_id
-    ${where}
+    ${whereSql}
     ORDER BY c.fecha DESC, c.id DESC
     LIMIT ?
   `).all(...params, limit);
   return rows.map(mapCompra);
 }
 
-function getCompra(id) {
+function getCompra(id, empresaId) {
   const cab = db.prepare(`
     SELECT c.*, p.nombre AS proveedor_nombre
     FROM compras c
     LEFT JOIN proveedores p ON p.id = c.proveedor_id
-    WHERE c.id = ?
-  `).get(id);
+    WHERE c.id = ? ${empresaId ? 'AND c.empresa_id = ?' : ''}
+  `).get.apply(db, empresaId ? [id, empresaId] : [id]);
   if (!cab) return null;
   const detalles = db.prepare(`
     SELECT d.*, pr.codigo AS producto_codigo_db, pr.descripcion AS producto_descripcion_db, pr.marca AS producto_marca_db
@@ -79,15 +84,22 @@ function crearCompra(payload = {}, usuario) {
   const numeroStr = safeStr(numero, 60);
   const notasStr = safeStr(notas, MAX_TEXT);
   const usuarioId = usuario?.id || null;
+  const empresaId = usuario?.empresa_id || null;
+
+  if (!empresaId) {
+    const err = new Error('Usuario sin empresa asociada');
+    err.tipo = 'VALIDACION';
+    throw err;
+  }
 
   const tx = db.transaction(() => {
     let totalUsd = 0;
     let totalBs = 0;
 
     const info = db.prepare(`
-      INSERT INTO compras (proveedor_id, fecha, numero, tasa_bcv, total_bs, total_usd, estado, notas, usuario_id)
-      VALUES (?, ?, ?, ?, 0, 0, 'recibida', ?, ?)
-    `).run(proveedor_id || null, fechaStr, numeroStr, tasa, notasStr, usuarioId);
+      INSERT INTO compras (proveedor_id, fecha, numero, tasa_bcv, total_bs, total_usd, estado, notas, usuario_id, empresa_id)
+      VALUES (?, ?, ?, ?, 0, 0, 'recibida', ?, ?, ?)
+    `).run(proveedor_id || null, fechaStr, numeroStr, tasa, notasStr, usuarioId, empresaId);
 
     const compraId = info.lastInsertRowid;
 
@@ -146,7 +158,7 @@ function crearCompra(payload = {}, usuario) {
   });
 
   const compraId = tx();
-  return getCompra(compraId);
+  return getCompra(compraId, empresaId);
 }
 
 module.exports = {

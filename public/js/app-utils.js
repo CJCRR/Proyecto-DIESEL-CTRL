@@ -10,6 +10,50 @@ toastContainer.style.gap = '0.5rem';
 toastContainer.style.zIndex = '60';
 document.body.appendChild(toastContainer);
 
+// Indicador de carga global (barra superior discreta)
+const loaderBar = document.createElement('div');
+loaderBar.id = 'global-loader-bar';
+loaderBar.style.position = 'fixed';
+loaderBar.style.top = '0';
+loaderBar.style.left = '0';
+loaderBar.style.right = '0';
+loaderBar.style.height = '3px';
+loaderBar.style.background = 'linear-gradient(90deg,#0ea5e9,#6366f1,#22c55e)';
+loaderBar.style.backgroundSize = '200% 100%';
+loaderBar.style.transform = 'translateY(-4px)';
+loaderBar.style.opacity = '0';
+loaderBar.style.transition = 'opacity .2s ease, transform .2s ease';
+loaderBar.style.zIndex = '70';
+loaderBar.style.pointerEvents = 'none';
+document.body.appendChild(loaderBar);
+
+let loaderRefCount = 0;
+let loaderShowTimer = null;
+
+export function showGlobalLoader() {
+    loaderRefCount += 1;
+    if (loaderRefCount === 1) {
+        // Mostrar sólo si la operación tarda un poco (evita parpadeos en requests muy rápidos)
+        if (loaderShowTimer) clearTimeout(loaderShowTimer);
+        loaderShowTimer = setTimeout(() => {
+            loaderBar.style.opacity = '1';
+            loaderBar.style.transform = 'translateY(0)';
+        }, 150);
+    }
+}
+
+export function hideGlobalLoader() {
+    if (loaderRefCount > 0) loaderRefCount -= 1;
+    if (loaderRefCount === 0) {
+        if (loaderShowTimer) {
+            clearTimeout(loaderShowTimer);
+            loaderShowTimer = null;
+        }
+        loaderBar.style.opacity = '0';
+        loaderBar.style.transform = 'translateY(-4px)';
+    }
+}
+
 export const escapeHtml = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -42,5 +86,7 @@ try {
     if (typeof window !== 'undefined') {
         window.showToast = window.showToast || showToast;
         window.escapeHtml = window.escapeHtml || escapeHtml;
+        window.showGlobalLoader = window.showGlobalLoader || showGlobalLoader;
+        window.hideGlobalLoader = window.hideGlobalLoader || hideGlobalLoader;
     }
 } catch (e) {}

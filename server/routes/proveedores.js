@@ -13,7 +13,8 @@ const {
 router.get('/', requireAuth, (req, res) => {
   try {
     const { q, soloActivos } = req.query || {};
-    const proveedores = listProveedores({ q, soloActivos: soloActivos === '1' || soloActivos === 'true' });
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const proveedores = listProveedores({ q, soloActivos: soloActivos === '1' || soloActivos === 'true', empresaId });
     res.json(proveedores);
   } catch (err) {
     console.error('Error listando proveedores:', err.message);
@@ -25,7 +26,8 @@ router.get('/', requireAuth, (req, res) => {
 router.get('/:id', requireAuth, (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const prov = getProveedor(id);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const prov = getProveedor(id, empresaId);
     if (!prov) return res.status(404).json({ error: 'Proveedor no encontrado' });
     res.json(prov);
   } catch (err) {
@@ -37,7 +39,8 @@ router.get('/:id', requireAuth, (req, res) => {
 // POST /proveedores - crear (solo admin)
 router.post('/', requireAuth, requireRole('admin'), (req, res) => {
   try {
-    const prov = createProveedor(req.body || {});
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const prov = createProveedor(req.body || {}, empresaId);
     res.status(201).json(prov);
   } catch (err) {
     console.error('Error creando proveedor:', err.message);
@@ -50,7 +53,8 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
 router.patch('/:id', requireAuth, requireRole('admin'), (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const prov = updateProveedor(id, req.body || {});
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const prov = updateProveedor(id, req.body || {}, empresaId);
     if (!prov) return res.status(404).json({ error: 'Proveedor no encontrado' });
     res.json(prov);
   } catch (err) {
@@ -65,7 +69,8 @@ router.post('/:id/activar', requireAuth, requireRole('admin'), (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { activo } = req.body || {};
-    const prov = toggleProveedorActivo(id, activo !== false && activo !== 0);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const prov = toggleProveedorActivo(id, activo !== false && activo !== 0, empresaId);
     if (!prov) return res.status(404).json({ error: 'Proveedor no encontrado' });
     res.json(prov);
   } catch (err) {

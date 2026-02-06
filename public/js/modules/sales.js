@@ -13,6 +13,7 @@ import {
 	setVentaSeleccionada
 } from './cart.js';
 import { guardarVentaLocal as guardarVentaLocalIDB, abrirIndexedDB, obtenerVentasPendientes, marcarComoSincronizada } from '../db-local.js';
+import { enviarVentaASync } from '../sync-client.js';
 
 let vendiendo = false;
 
@@ -230,6 +231,13 @@ export async function registrarVenta() {
 				await sincronizarVentasPendientes();
 			} catch (err) {
 				console.warn('Error al sincronizar ventas pendientes', err);
+			}
+
+			// Enviar evento de venta al backend nube vía /sync/push (multiempresa)
+			try {
+				await enviarVentaASync(ventaData);
+			} catch (err) {
+				console.warn('Error enviando venta a sync nube', err);
 			}
 		}
 

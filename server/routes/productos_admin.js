@@ -35,18 +35,19 @@ router.post('/', requireAuth, (req, res) => {
     }
 
     try {
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
         // 3. Verificación de duplicados (Optimización: SQLite lanza error en UNIQUE constraint, 
         // pero consultar antes permite dar un mensaje más amigable).
-        const existe = db.prepare('SELECT id FROM productos WHERE codigo = ?').get(codigo);
+        const existe = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
         if (existe) {
             return res.status(409).json({ error: `El código ${codigo} ya existe en el inventario.` });
         }
 
         // 4. Inserción
         const info = db.prepare(`
-            INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca);
+            INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresaId);
 
         res.status(201).json({
             message: 'Producto creado exitosamente',
@@ -72,6 +73,9 @@ router.get('/', requireAuth, (req, res) => {
     try {
         const where = [];
         const params = [];
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+        where.push('empresa_id = ?');
+        params.push(empresaId);
         if (q) { where.push("(lower(codigo) LIKE ? OR lower(descripcion) LIKE ?)"); params.push('%'+q+'%', '%'+q+'%'); }
         if (categoria) { where.push('lower(categoria) LIKE ?'); params.push('%' + String(categoria).toLowerCase() + '%'); }
         if (stock_lt !== null) { where.push('stock < ?'); params.push(stock_lt); }
@@ -100,7 +104,8 @@ router.get('/', requireAuth, (req, res) => {
 // GET /admin/productos/export - Exportar todos los productos a CSV
 router.get('/export', requireAuth, (req, res) => {
     try {
-        const rows = db.prepare('SELECT codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca FROM productos ORDER BY codigo').all();
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+        const rows = db.prepare('SELECT codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca FROM productos WHERE empresa_id = ? ORDER BY codigo').all(empresaId);
         // Allow delimiter selection: comma (default), semicolon or tab
         // Default delimiter: semicolon (works better with Excel in many locales)
         const delimParam = (req.query.delim || 'semicolon').toString().toLowerCase();
@@ -206,9 +211,10 @@ router.post('/import', requireAuth, (req, res) => {
         const first = nonEmpty[0].map(c => (c||'').toString().toLowerCase());
         if (first.some(h => h.includes('codigo')) && first.some(h => h.includes('descripcion'))) start = 1;
 
-        const insert = db.prepare('INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        const update = db.prepare('UPDATE productos SET descripcion = ?, precio_usd = ?, costo_usd = ?, stock = ?, categoria = ?, marca = ? WHERE codigo = ?');
-        const findStmt = db.prepare('SELECT id FROM productos WHERE codigo = ?');
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+        const insert = db.prepare('INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        const update = db.prepare('UPDATE productos SET descripcion = ?, precio_usd = ?, costo_usd = ?, stock = ?, categoria = ?, marca = ? WHERE codigo = ? AND empresa_id = ?');
+        const findStmt = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?');
 
         const toImport = nonEmpty.slice(start);
         if (toImport.length > MAX_IMPORT_ROWS) {
@@ -235,12 +241,12 @@ router.post('/import', requireAuth, (req, res) => {
                     const stock = parseInt((cols[4] || '').toString().trim()) || 0;
                     const categoria = (cols[5] || '').toString().trim().slice(0, MAX_FIELD_LEN) || null;
                     const marca = (cols[6] || '').toString().trim().slice(0, MAX_FIELD_LEN) || null;
-                    const ex = findStmt.get(codigo);
+                    const ex = findStmt.get(codigo, empresaId);
                     if (ex) {
-                        update.run(descripcion, precio, costoVal, stock, categoria, marca, codigo);
+                        update.run(descripcion, precio, costoVal, stock, categoria, marca, codigo, empresaId);
                         updated.push(codigo);
                     } else {
-                        insert.run(codigo, descripcion, precio, costoVal, stock, categoria, marca);
+                        insert.run(codigo, descripcion, precio, costoVal, stock, categoria, marca, empresaId);
                         inserted.push(codigo);
                     }
                 } catch (rowErr) {

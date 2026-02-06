@@ -4,7 +4,15 @@ const { requireAuth } = require('./auth');
 const logger = require('../services/logger');
 const { registrarVenta } = require('../services/ventasService');
 
-router.post('/', requireAuth, (req, res) => {
+// El superadmin no debe registrar ventas de ninguna empresa
+function forbidSuperadmin(req, res, next) {
+    if (req.usuario && req.usuario.rol === 'superadmin') {
+        return res.status(403).json({ error: 'Superadmin no puede registrar ventas' });
+    }
+    next();
+}
+
+router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
     try {
         const { ventaId, cuentaCobrarId } = registrarVenta(req.body);
         res.json({ message: 'Venta registrada con éxito', ventaId, cuentaCobrarId });

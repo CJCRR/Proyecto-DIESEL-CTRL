@@ -1,4 +1,5 @@
 import { apiFetchJson } from './app-api.js';
+import { upsertEmpresaFirebase } from './firebase-sync.js';
 
 // Intentar cargar utilidades centralizadas para toasts si no están disponibles
 (async () => {
@@ -16,6 +17,26 @@ const tbody = document.getElementById('empresas-tbody');
 const filtroEstado = document.getElementById('filtro-estado');
 const inputBusqueda = document.getElementById('busqueda');
 const btnBuscar = document.getElementById('btn-buscar');
+const btnNuevaEmpresa = document.getElementById('btn-nueva-empresa');
+const modalNueva = document.getElementById('modal-nueva-empresa');
+const formNueva = document.getElementById('form-nueva-empresa');
+const neNombre = document.getElementById('ne-nombre');
+const neRif = document.getElementById('ne-rif');
+const neTelefono = document.getElementById('ne-telefono');
+const neDireccion = document.getElementById('ne-direccion');
+const nePlan = document.getElementById('ne-plan');
+const neMonto = document.getElementById('ne-monto');
+const neCancelar = document.getElementById('ne-cancelar');
+
+// Modal usuario admin de empresa
+const modalAdminEmp = document.getElementById('modal-admin-empresa');
+const formAdminEmp = document.getElementById('form-admin-empresa');
+const uaEmpresaInfo = document.getElementById('ua-empresa-info');
+const uaUsername = document.getElementById('ua-username');
+const uaPassword = document.getElementById('ua-password');
+const uaNombre = document.getElementById('ua-nombre');
+const uaCancelar = document.getElementById('ua-cancelar');
+let uaEmpresaId = null;
 
 let empresas = [];
 
@@ -122,8 +143,17 @@ function renderEmpresas() {
 
     html += `<button class="px-2 py-1 rounded-lg bg-sky-100 text-sky-700 hover:bg-sky-200" onclick="window.__editarPlan(${e.id})">Plan / Monto</button>`;
     html += `<button class="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200" onclick="window.__registrarPago(${e.id})">Registrar pago</button>`;
-
     html += `<button class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="window.__editarCiclo(${e.id})">Corte / Gracia</button>`;
+
+    // Botón para crear usuario admin de empresa
+    if (e.id !== 1 && e.codigo !== 'LOCAL') {
+      html += `<button class="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200" onclick="window.__abrirCrearAdmin(${e.id})">Usuario admin</button>`;
+    }
+
+    // Botón para eliminar empresa (solo no LOCAL)
+    if (e.id !== 1 && e.codigo !== 'LOCAL') {
+      html += `<button class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200" onclick="window.__eliminarEmpresa(${e.id})">Eliminar</button>`;
+    }
 
     html += '</div></td>';
     html += '</tr>';
@@ -281,6 +311,187 @@ filtroEstado.addEventListener('change', () => {
 inputBusqueda.addEventListener('keyup', (e) => {
   if (e.key === 'Enter') cargarEmpresas();
 });
+
+function abrirModalNuevaEmpresa() {
+  if (!modalNueva) return;
+  neNombre.value = '';
+  neRif.value = '';
+  neTelefono.value = '';
+  neDireccion.value = '';
+  nePlan.value = 'Mensual';
+  neMonto.value = '0';
+  modalNueva.classList.remove('hidden');
+  modalNueva.classList.add('flex');
+  neNombre.focus();
+}
+
+function cerrarModalNuevaEmpresa() {
+  if (!modalNueva) return;
+  modalNueva.classList.add('hidden');
+  modalNueva.classList.remove('flex');
+}
+
+btnNuevaEmpresa.addEventListener('click', () => {
+  abrirModalNuevaEmpresa();
+});
+
+neCancelar.addEventListener('click', () => {
+  cerrarModalNuevaEmpresa();
+});
+
+formNueva.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const nombreTrim = (neNombre.value || '').trim();
+    if (!nombreTrim || nombreTrim.length < 3) {
+      if (window.showToast) window.showToast('El nombre debe tener al menos 3 caracteres.', 'error');
+      else alert('El nombre debe tener al menos 3 caracteres.');
+      neNombre.focus();
+      return;
+    }
+
+    const rifTrim = (neRif.value || '').trim();
+    const codigoBase = rifTrim || nombreTrim.toUpperCase().replace(/\s+/g, '-');
+    const codigoTrim = codigoBase.slice(0, 20).toUpperCase();
+    if (!codigoTrim || codigoTrim.length < 2) {
+      if (window.showToast) window.showToast('No se pudo generar un código válido para la empresa.', 'error');
+      else alert('No se pudo generar un código válido para la empresa.');
+      return;
+    }
+
+    const montoStr = (neMonto.value || '').trim();
+    let monto = null;
+    if (montoStr !== '') {
+      monto = Number(montoStr);
+      if (Number.isNaN(monto) || monto < 0) {
+        if (window.showToast) window.showToast('Monto inválido (debe ser un número positivo).', 'error');
+        else alert('Monto inválido (debe ser un número positivo).');
+        return;
+      }
+    }
+
+    const resp = await apiFetchJson('/admin/empresas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: nombreTrim,
+        codigo: codigoTrim,
+        plan: (nePlan.value || '').trim() || null,
+        monto_mensual: monto,
+        rif: rifTrim || null,
+        telefono: (neTelefono.value || '').trim() || null,
+        direccion: (neDireccion.value || '').trim() || null
+      })
+    });
+
+    // Registrar también la empresa en Firebase (colección "empresas/{codigo}")
+    try {
+      const empresa = resp && (resp.empresa || resp);
+      if (empresa && empresa.codigo) {
+        await upsertEmpresaFirebase(empresa);
+      }
+    } catch (syncErr) {
+      console.error('No se pudo registrar la empresa en Firebase:', syncErr);
+    }
+
+    if (window.showToast) window.showToast('Empresa creada correctamente.', 'success');
+    else alert('Empresa creada correctamente.');
+
+    cerrarModalNuevaEmpresa();
+    await cargarEmpresas();
+  } catch (err) {
+    console.error(err);
+    const msg = err && err.message ? err.message : 'Error al crear empresa';
+    if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
+  }
+});
+
+// --- Modal usuario admin empresa ---
+function abrirModalAdminEmpresa(empresa) {
+  if (!modalAdminEmp) return;
+  uaEmpresaId = empresa.id;
+  uaEmpresaInfo.textContent = `Empresa: ${empresa.nombre} (código ${empresa.codigo})`;
+  uaUsername.value = '';
+  uaPassword.value = '';
+  uaNombre.value = empresa.nombre ? `${empresa.nombre} (admin)` : '';
+  modalAdminEmp.classList.remove('hidden');
+  modalAdminEmp.classList.add('flex');
+  setTimeout(() => uaUsername.focus(), 50);
+}
+
+function cerrarModalAdminEmpresa() {
+  if (!modalAdminEmp) return;
+  modalAdminEmp.classList.add('hidden');
+  modalAdminEmp.classList.remove('flex');
+  uaEmpresaId = null;
+}
+
+uaCancelar.addEventListener('click', () => {
+  cerrarModalAdminEmpresa();
+});
+
+formAdminEmp.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!uaEmpresaId) return;
+  try {
+    const username = (uaUsername.value || '').trim();
+    const password = uaPassword.value || '';
+    const nombre = (uaNombre.value || '').trim();
+
+    if (!username || username.length < 3) {
+      if (window.showToast) window.showToast('El username debe tener al menos 3 caracteres.', 'error');
+      else alert('El username debe tener al menos 3 caracteres.');
+      uaUsername.focus();
+      return;
+    }
+    if (!password || password.length < 6) {
+      if (window.showToast) window.showToast('La contraseña debe tener al menos 6 caracteres.', 'error');
+      else alert('La contraseña debe tener al menos 6 caracteres.');
+      uaPassword.focus();
+      return;
+    }
+
+    await apiFetchJson(`/admin/empresas/${uaEmpresaId}/crear-admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, nombre_completo: nombre || username })
+    });
+
+    if (window.showToast) window.showToast('Usuario admin creado correctamente.', 'success');
+    else alert('Usuario admin creado correctamente.');
+
+    cerrarModalAdminEmpresa();
+  } catch (err) {
+    console.error(err);
+    const msg = err && err.message ? err.message : 'Error al crear usuario admin';
+    if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
+  }
+});
+
+// Funciones globales para botones de acciones
+window.__abrirCrearAdmin = function (id) {
+  const empresa = empresas.find(e => e.id === id);
+  if (!empresa) return;
+  abrirModalAdminEmpresa(empresa);
+};
+
+window.__eliminarEmpresa = async function (id) {
+  const empresa = empresas.find(e => e.id === id);
+  if (!empresa) return;
+  const confirmado = confirm(`¿Eliminar la empresa "${empresa.nombre}"?\n\nSolo se permitirá si no tiene usuarios ni productos asociados.`);
+  if (!confirmado) return;
+
+  try {
+    await apiFetchJson(`/admin/empresas/${id}`, { method: 'DELETE' });
+    if (window.showToast) window.showToast('Empresa eliminada correctamente.', 'success');
+    else alert('Empresa eliminada correctamente.');
+    await cargarEmpresas();
+  } catch (err) {
+    console.error(err);
+    const msg = err && err.message ? err.message : 'Error al eliminar empresa';
+    if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
+  }
+};
 
 // Carga inicial
 cargarEmpresas();

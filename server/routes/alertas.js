@@ -27,30 +27,39 @@ function todayLocalISO() {
   return tzAdj.toISOString().slice(0, 10);
 }
 
-function getMorosos() {
+function getMorosos(empresaId) {
   const hoyISO = todayLocalISO();
-  return db.prepare(`
-    SELECT *,
+  const params = [hoyISO, hoyISO];
+  let sql = `
+    SELECT cc.*,
       CASE
-        WHEN saldo_usd <= 0.00001 THEN 'cancelado'
-        WHEN saldo_usd < total_usd THEN 'parcial'
-        WHEN substr(fecha_vencimiento,1,10) <= ? THEN 'vencido'
+        WHEN cc.saldo_usd <= 0.00001 THEN 'cancelado'
+        WHEN cc.saldo_usd < cc.total_usd THEN 'parcial'
+        WHEN substr(cc.fecha_vencimiento,1,10) <= ? THEN 'vencido'
         ELSE 'pendiente'
       END as estado_calc
-    FROM cuentas_cobrar
-    WHERE saldo_usd > 0 AND substr(fecha_vencimiento,1,10) <= ?
-    ORDER BY substr(fecha_vencimiento,1,10) ASC
-  `).all(hoyISO, hoyISO);
+    FROM cuentas_cobrar cc
+    LEFT JOIN ventas v ON v.id = cc.venta_id
+    LEFT JOIN usuarios u ON u.id = v.usuario_id
+    WHERE cc.saldo_usd > 0 AND substr(cc.fecha_vencimiento,1,10) <= ?
+  `;
+  if (empresaId) {
+    sql += ' AND u.empresa_id = ?';
+    params.push(empresaId);
+  }
+  sql += ' ORDER BY substr(cc.fecha_vencimiento,1,10) ASC';
+  return db.prepare(sql).all(...params);
 }
 
 router.get('/stock', requireAuth, (req, res) => {
   try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
     const rows = db.prepare(`
       SELECT codigo, descripcion, stock
       FROM productos
-      WHERE stock <= 0
+      WHERE stock <= 0${empresaId ? ' AND empresa_id = ?' : ''}
       ORDER BY stock ASC, codigo ASC
-    `).all();
+    `).all(...(empresaId ? [empresaId] : []));
     res.json(rows);
   } catch (err) {
     const logger = require('../services/logger');
@@ -61,7 +70,8 @@ router.get('/stock', requireAuth, (req, res) => {
 
 router.get('/morosos', requireAuth, (req, res) => {
   try {
-    const rows = getMorosos();
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const rows = empresaId ? getMorosos(empresaId) : [];
     res.json(rows);
   } catch (err) {
     const logger = require('../services/logger');
@@ -72,8 +82,12 @@ router.get('/morosos', requireAuth, (req, res) => {
 
 router.get('/resumen', requireAuth, (req, res) => {
   try {
-    const stockCero = db.prepare(`SELECT COUNT(*) as c FROM productos WHERE stock <= 0`).get().c;
-    const morosos = getMorosos();
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const stockCero = db.prepare(`
+      SELECT COUNT(*) as c FROM productos
+      WHERE stock <= 0${empresaId ? ' AND empresa_id = ?' : ''}
+    `).get(...(empresaId ? [empresaId] : [])).c;
+    const morosos = empresaId ? getMorosos(empresaId) : [];
     // Tareas pendientes: por ahora usamos cantidad de morosos + stock en cero
     const tareas = stockCero + morosos.length;
     res.json({ stock_cero: stockCero, morosos: morosos.length, tareas });
@@ -87,16 +101,17 @@ router.get('/resumen', requireAuth, (req, res) => {
 // Tareas: stock bajo (umbral configurable), morosos vencidos, backup desactualizado
 router.get('/tareas', requireAuth, (req, res) => {
   try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
     const override = parseInt(req.query.umbral);
     const stockMin = Number.isFinite(override) ? Math.max(0, override) : (parseInt(getConfig('stock_minimo', '3')) || 3);
     const stockBajo = db.prepare(`
       SELECT codigo, descripcion, stock
       FROM productos
-      WHERE CAST(stock AS INTEGER) <= ?
+      WHERE CAST(stock AS INTEGER) <= ?${empresaId ? ' AND empresa_id = ?' : ''}
       ORDER BY CAST(stock AS INTEGER) ASC, codigo ASC
-    `).all(stockMin);
+    `).all(...(empresaId ? [stockMin, empresaId] : [stockMin]));
 
-    const morosos = getMorosos();
+    const morosos = empresaId ? getMorosos(empresaId) : [];
 
     const backupDir = path.join(__dirname, '..', 'backups');
     let ultimaBackup = null;

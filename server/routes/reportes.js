@@ -30,9 +30,17 @@ const {
   buildRentabilidadProveedoresCsv,
 } = require('../services/reportesService');
 
-router.get('/ventas', requireAuth, (req, res) => {
+// Middleware para evitar que el superadmin vea datos de ventas de empresas
+function forbidSuperadmin(req, res, next) {
+  if (req.usuario && req.usuario.rol === 'superadmin') {
+    return res.status(403).json({ error: 'Superadmin no puede acceder a reportes de ventas de empresas' });
+  }
+  next();
+}
+
+router.get('/ventas', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const ventas = getVentasSinDevolucion();
+    const ventas = getVentasSinDevolucion(req.usuario.empresa_id || null);
     res.json(ventas);
   } catch (err) {
   logger.error('Error en /reportes/ventas', {
@@ -47,10 +55,10 @@ router.get('/ventas', requireAuth, (req, res) => {
 });
 
 // GET /reportes/ventas-rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&vendedor=X&metodo=Y
-router.get('/ventas-rango', requireAuth, (req, res) => {
+router.get('/ventas-rango', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta, cliente, vendedor, metodo } = req.query;
-    const rows = getVentasRango({ desde, hasta, cliente, vendedor, metodo, limit: 1000 });
+    const rows = getVentasRango({ desde, hasta, cliente, vendedor, metodo, limit: 1000 }, req.usuario.empresa_id || null);
     console.log('Ventas encontradas:', rows.length);
     res.json(rows);
   } catch (err) {
@@ -66,10 +74,10 @@ router.get('/ventas-rango', requireAuth, (req, res) => {
 });
 
 // GET /reportes/ventas/export/csv
-router.get('/ventas/export/csv', requireAuth, (req, res) => {
+router.get('/ventas/export/csv', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta, cliente, vendedor, metodo } = req.query;
-    const csv = buildVentasRangoCsv({ desde, hasta, cliente, vendedor, metodo, limit: 5000 });
+    const csv = buildVentasRangoCsv({ desde, hasta, cliente, vendedor, metodo, limit: 5000 }, req.usuario.empresa_id || null);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="ventas_rango.csv"');
     res.send(csv);
@@ -86,9 +94,9 @@ router.get('/ventas/export/csv', requireAuth, (req, res) => {
 });
 
 // GET /reportes/kpis - indicadores clave para el dashboard
-router.get('/kpis', requireAuth, (req, res) => {
+router.get('/kpis', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const kpis = getKpis();
+    const kpis = getKpis(req.usuario.empresa_id || null);
     res.json(kpis);
   } catch (err) {
   logger.error('Error obteniendo KPIs', {
@@ -104,10 +112,10 @@ router.get('/kpis', requireAuth, (req, res) => {
 
 
 // GET /reportes/top-productos?limit= - Top productos por ventas (cantidad, montos, costo y margen)
-router.get('/top-productos', requireAuth, (req, res) => {
+router.get('/top-productos', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
-    const rows = getTopProductos(limit);
+    const rows = getTopProductos(limit, req.usuario.empresa_id || null);
     res.json(rows);
   } catch (err) {
   logger.error('Error obteniendo top productos', {
@@ -122,11 +130,11 @@ router.get('/top-productos', requireAuth, (req, res) => {
 });
 
 // GET /reportes/margen-productos?limit=&desde=&hasta= - ordenar por margen USD
-router.get('/margen-productos', requireAuth, (req, res) => {
+router.get('/margen-productos', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 200);
     const { desde, hasta } = req.query;
-    const rows = getMargenProductos({ desde, hasta, limit });
+    const rows = getMargenProductos({ desde, hasta, limit, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error obteniendo margen-productos', {
@@ -141,10 +149,10 @@ router.get('/margen-productos', requireAuth, (req, res) => {
 });
 
 // ABC de productos por facturación (volumen)
-router.get('/abc/productos', requireAuth, (req, res) => {
+router.get('/abc/productos', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta, a_pct, b_pct } = req.query;
-    const rows = getAbcProductos({ desde, hasta, a_pct, b_pct });
+    const rows = getAbcProductos({ desde, hasta, a_pct, b_pct, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error ABC productos', {
@@ -159,9 +167,9 @@ router.get('/abc/productos', requireAuth, (req, res) => {
 });
 
 // GET /reportes/inventario - reporte de inventario / kardex simple
-router.get('/inventario', requireAuth, (req, res) => {
+router.get('/inventario', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const inventario = getInventario();
+    const inventario = getInventario(req.usuario.empresa_id || null);
     res.json(inventario);
   } catch (err) {
   logger.error('Error obteniendo inventario', {
@@ -175,9 +183,9 @@ router.get('/inventario', requireAuth, (req, res) => {
   }
 });
 
-router.get('/ventas/:id', requireAuth, (req, res) => {
+router.get('/ventas/:id', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const result = getVentaConDetalles(req.params.id);
+    const result = getVentaConDetalles(req.params.id, req.usuario.empresa_id || null);
     if (!result) {
       return res.status(404).json({ error: 'Venta no encontrada' });
     }
@@ -196,10 +204,10 @@ router.get('/ventas/:id', requireAuth, (req, res) => {
 });
 
 // ===== Rentabilidad por categoría y proveedor =====
-router.get('/rentabilidad/categorias', requireAuth, (req, res) => {
+router.get('/rentabilidad/categorias', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    const rows = getRentabilidadCategorias({ desde, hasta });
+    const rows = getRentabilidadCategorias({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error rentabilidad categorias', {
@@ -213,10 +221,10 @@ router.get('/rentabilidad/categorias', requireAuth, (req, res) => {
   }
 });
 
-router.get('/rentabilidad/proveedores', requireAuth, (req, res) => {
+router.get('/rentabilidad/proveedores', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    const rows = getRentabilidadProveedores({ desde, hasta });
+    const rows = getRentabilidadProveedores({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error rentabilidad proveedores', {
@@ -230,10 +238,10 @@ router.get('/rentabilidad/proveedores', requireAuth, (req, res) => {
   }
 });
 
-router.get('/resumen-financiero', requireAuth, (req, res) => {
+router.get('/resumen-financiero', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    const data = getResumenFinanciero({ desde, hasta });
+    const data = getResumenFinanciero({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(data);
   } catch (err) {
   logger.error('Error resumen financiero', {
@@ -247,10 +255,10 @@ router.get('/resumen-financiero', requireAuth, (req, res) => {
   }
 });
 
-router.get('/rentabilidad/categorias/export/csv', requireAuth, (req, res) => {
+router.get('/rentabilidad/categorias/export/csv', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    const csv = buildRentabilidadCategoriasCsv({ desde, hasta });
+    const csv = buildRentabilidadCategoriasCsv({ desde, hasta }, req.usuario.empresa_id || null);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="rentabilidad_categorias.csv"');
     res.send(csv);
@@ -266,10 +274,10 @@ router.get('/rentabilidad/categorias/export/csv', requireAuth, (req, res) => {
   }
 });
 
-router.get('/rentabilidad/proveedores/export/csv', requireAuth, (req, res) => {
+router.get('/rentabilidad/proveedores/export/csv', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    const csv = buildRentabilidadProveedoresCsv({ desde, hasta });
+    const csv = buildRentabilidadProveedoresCsv({ desde, hasta }, req.usuario.empresa_id || null);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="rentabilidad_proveedores.csv"');
     res.send(csv);
@@ -288,7 +296,7 @@ router.get('/rentabilidad/proveedores/export/csv', requireAuth, (req, res) => {
 module.exports = router;
 
 // ===== Bajo stock =====
-router.get('/bajo-stock', requireAuth, (req, res) => {
+router.get('/bajo-stock', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { min, items } = getBajoStock(req.query.umbral);
     res.json({ min, items });
@@ -307,10 +315,10 @@ router.get('/bajo-stock', requireAuth, (req, res) => {
 // ===== Series y comparativas avanzadas para Dashboard =====
 
 // Ventas diarias: últimos N días
-router.get('/series/ventas-diarias', requireAuth, (req, res) => {
+router.get('/series/ventas-diarias', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const dias = Math.min(Math.max(parseInt(req.query.dias) || 30, 1), 180);
-    const rows = getSeriesVentasDiarias(dias);
+    const rows = getSeriesVentasDiarias(dias, req.usuario.empresa_id || null);
     res.json(rows);
   } catch (err) {
   logger.error('Error series ventas-diarias', {
@@ -325,10 +333,10 @@ router.get('/series/ventas-diarias', requireAuth, (req, res) => {
 });
 
 // Ventas mensuales: últimos N meses (YYYY-MM)
-router.get('/series/ventas-mensuales', requireAuth, (req, res) => {
+router.get('/series/ventas-mensuales', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const meses = Math.min(Math.max(parseInt(req.query.meses) || 12, 1), 36);
-    const rows = getSeriesVentasMensuales(meses);
+    const rows = getSeriesVentasMensuales(meses, req.usuario.empresa_id || null);
     res.json(rows);
   } catch (err) {
   logger.error('Error series ventas-mensuales', {
@@ -343,10 +351,10 @@ router.get('/series/ventas-mensuales', requireAuth, (req, res) => {
 });
 
 // Tendencias mensuales con comparación mes a mes (delta)
-router.get('/tendencias/mensuales', requireAuth, (req, res) => {
+router.get('/tendencias/mensuales', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const meses = Math.min(Math.max(parseInt(req.query.meses) || 12, 1), 36);
-    const enhanced = getTendenciasMensuales(meses);
+    const enhanced = getTendenciasMensuales(meses, req.usuario.empresa_id || null);
     res.json(enhanced);
   } catch (err) {
   logger.error('Error tendencias mensuales', {
@@ -361,11 +369,11 @@ router.get('/tendencias/mensuales', requireAuth, (req, res) => {
 });
 
 // Top clientes por monto (rango opcional)
-router.get('/top-clientes', requireAuth, (req, res) => {
+router.get('/top-clientes', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 5, 1), 50);
     const { desde, hasta } = req.query;
-    const rows = getTopClientes({ desde, hasta, limit });
+    const rows = getTopClientes({ desde, hasta, limit, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error top-clientes', {
@@ -380,10 +388,10 @@ router.get('/top-clientes', requireAuth, (req, res) => {
 });
 
 // ABC de clientes por facturación (volumen)
-router.get('/abc/clientes', requireAuth, (req, res) => {
+router.get('/abc/clientes', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta, a_pct, b_pct } = req.query;
-    const rows = getAbcClientes({ desde, hasta, a_pct, b_pct });
+    const rows = getAbcClientes({ desde, hasta, a_pct, b_pct, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error ABC clientes', {
@@ -398,10 +406,10 @@ router.get('/abc/clientes', requireAuth, (req, res) => {
 });
 
 // Comparativa de vendedores
-router.get('/vendedores', requireAuth, (req, res) => {
+router.get('/vendedores', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    const rows = getVendedoresComparativa({ desde, hasta });
+    const rows = getVendedoresComparativa({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error vendedores comparativa', {
@@ -416,10 +424,10 @@ router.get('/vendedores', requireAuth, (req, res) => {
 });
 
 // ROI por vendedor (margen / costo e ingresos)
-router.get('/vendedores/roi', requireAuth, (req, res) => {
+router.get('/vendedores/roi', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    const enriched = getVendedoresRoi({ desde, hasta });
+    const enriched = getVendedoresRoi({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(enriched);
   } catch (err) {
   logger.error('Error ROI vendedores', {
@@ -434,9 +442,9 @@ router.get('/vendedores/roi', requireAuth, (req, res) => {
 });
 
 // Margen en tiempo real (hoy y mes a la fecha)
-router.get('/margen/actual', requireAuth, (req, res) => {
+router.get('/margen/actual', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const data = getMargenActual();
+    const data = getMargenActual(req.usuario.empresa_id || null);
     res.json(data);
   } catch (err) {
   logger.error('Error margen actual', {
@@ -451,10 +459,10 @@ router.get('/margen/actual', requireAuth, (req, res) => {
 });
 
 // ===== Ranking de vendedores =====
-router.get('/vendedores', requireAuth, (req, res) => {
+router.get('/vendedores', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    const enriched = getVendedoresRanking({ desde, hasta });
+    const enriched = getVendedoresRanking({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(enriched);
   } catch (err) {
   logger.error('Error ranking vendedores', {
@@ -469,9 +477,9 @@ router.get('/vendedores', requireAuth, (req, res) => {
 });
 
 // ===== Historial por cliente =====
-router.get('/historial-cliente', requireAuth, (req, res) => {
+router.get('/historial-cliente', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const rows = getHistorialCliente(req.query);
+    const rows = getHistorialCliente({ ...req.query, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error historial-cliente', {

@@ -1,5 +1,6 @@
 // Sistema de autenticación
 import { apiFetchJson } from './app-api.js';
+import { borrarDatosLocales } from './db-local.js';
 
 const loginForm = document.getElementById('loginForm');
 const usernameInput = document.getElementById('username');
@@ -59,6 +60,16 @@ loginForm.addEventListener('submit', async (e) => {
     const data = await apiFetchJson('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
 
     if (data && data.success) {
+      // Limpiar caches locales (clientes, ventas, etc.) al cambiar de usuario/empresa
+      try {
+        await borrarDatosLocales();
+      } catch (e) {
+        console.warn('No se pudieron limpiar datos locales al iniciar sesión', e);
+      }
+      try {
+        localStorage.removeItem('clientes_frecuentes_v2');
+      } catch {}
+
       // Guardar solo datos de usuario (cookie httpOnly maneja la sesión)
       localStorage.setItem('auth_user', JSON.stringify(data.usuario));
       

@@ -31,6 +31,17 @@ Aplicación POS para repuestos diésel con soporte online/offline, sincronizaci�
 - La tabla `empresas` incluye campos de licenciamiento: `plan`, `monto_mensual`, `ultimo_pago_en`, `proximo_cobro` y `estado` (`activa`, `morosa`, `suspendida`).
 - El flujo de login lee `estado` de la empresa y, si está marcada como `suspendida`, bloquea el acceso para usuarios de esa empresa (excepto `superadmin`), permitiendo implementar suspensión por falta de pago.
 
+### Sincronización local ↔ nube (base)
+
+- Se preparó un modelo inicial de sincronización orientado a un esquema híbrido local + nube.
+- Tablas principales en SQLite:
+	- `sync_outbox`: cola de eventos generados en el POS local que deben enviarse a la nube (`empresa_id`, `tipo`, `entidad`, `entidad_id_local`, `evento_uid`, `payload`, `estado`, `intentos`, timestamps).
+	- `sync_inbox`: registro de eventos ya procesados en la nube para garantizar idempotencia (`empresa_id`, `origen`, `evento_uid` único, `tipo`, `entidad`, `payload_original`).
+- Endpoints de backend relacionados:
+	- `POST /sync/push`: recibe un lote de eventos desde una instalación local autenticada (usuario ligado a `empresa_id`) y los registra en `sync_inbox`.
+	- `GET /sync/pull`: endpoint preparado para, en versiones futuras, enviar cambios desde la nube al POS local.
+- En fases siguientes se conectará esta base con el cliente de sincronización del POS (generación de eventos por venta/presupuesto, reintentos, y UI de estado de sync).
+
 ## Pruebas automáticas
 
 - Backend probado con Jest (entorno Node) y supertest para rutas HTTP.

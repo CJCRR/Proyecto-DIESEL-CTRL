@@ -11,9 +11,17 @@ const {
   actualizarCuenta,
 } = require('../services/cobranzasService');
 
-router.get('/resumen', requireAuth, (req, res) => {
+// El superadmin no debe ver ni gestionar cuentas por cobrar de las empresas
+function forbidSuperadmin(req, res, next) {
+  if (req.usuario && req.usuario.rol === 'superadmin') {
+    return res.status(403).json({ error: 'Superadmin no puede acceder a cobranzas de empresas' });
+  }
+  next();
+}
+
+router.get('/resumen', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const rows = getResumenCuentas();
+    const rows = getResumenCuentas(req.usuario.empresa_id || null);
     res.json(rows);
   } catch (err) {
   logger.error('Error resumen cc', {
@@ -27,9 +35,9 @@ router.get('/resumen', requireAuth, (req, res) => {
   }
 });
 
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const rows = listCuentas(req.query || {});
+    const rows = listCuentas({ ...(req.query || {}), empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error listando cc', {
@@ -43,9 +51,9 @@ router.get('/', requireAuth, (req, res) => {
   }
 });
 
-router.get('/:id', requireAuth, (req, res) => {
+router.get('/:id', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const data = getCuentaConPagos(req.params.id);
+    const data = getCuentaConPagos(req.params.id, req.usuario.empresa_id || null);
     if (!data) return res.status(404).json({ error: 'Cuenta no encontrada' });
     res.json(data);
   } catch (err) {
@@ -61,9 +69,9 @@ router.get('/:id', requireAuth, (req, res) => {
   }
 });
 
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const cuenta = crearCuenta(req.body || {});
+    const cuenta = crearCuenta({ ...(req.body || {}), empresaId: req.usuario.empresa_id || null });
     res.json(cuenta);
   } catch (err) {
   logger.error('Error creando cuenta por cobrar', {
@@ -85,9 +93,9 @@ router.post('/', requireAuth, (req, res) => {
   }
 });
 
-router.post('/:id/pago', requireAuth, (req, res) => {
+router.post('/:id/pago', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const data = registrarPago(req.params.id, req.body || {});
+    const data = registrarPago(req.params.id, req.usuario.empresa_id || null, req.body || {});
     if (!data) return res.status(404).json({ error: 'Cuenta no encontrada' });
     res.json(data);
   } catch (err) {
@@ -111,9 +119,9 @@ router.post('/:id/pago', requireAuth, (req, res) => {
   }
 });
 
-router.patch('/:id', requireAuth, (req, res) => {
+router.patch('/:id', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const data = actualizarCuenta(req.params.id, req.body || {});
+    const data = actualizarCuenta(req.params.id, req.usuario.empresa_id || null, req.body || {});
     if (!data) return res.status(404).json({ error: 'Cuenta no encontrada' });
     res.json(data);
   } catch (err) {

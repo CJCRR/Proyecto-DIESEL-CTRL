@@ -1,4 +1,4 @@
-import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc } from '../config/firebase-config.js';
+import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc } from '../config/firebase-config.js';
 import { apiFetchJson } from './app-api.js';
 import { abrirIndexedDB, obtenerVentasPendientes, marcarComoSincronizada } from './db-local.js';
 
@@ -31,25 +31,90 @@ function resetRetry() {
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
 }
 
+// Helper para añadir empresa a los documentos de Firebase
+function getEmpresaScope() {
+    try {
+        const raw = localStorage.getItem('auth_user');
+        if (!raw) return {};
+        const u = JSON.parse(raw);
+        if (!u || !u.empresa_codigo) return {};
+        return { empresa_codigo: u.empresa_codigo };
+    } catch {
+        return {};
+    }
+}
+
+// Helper: obtener referencia a una subcolección bajo empresas/{empresa_codigo}
+function getEmpresaSubcollection(nombreSubcoleccion) {
+    const scope = getEmpresaScope();
+    if (!scope.empresa_codigo) {
+        throw new Error('No hay empresa_codigo en auth_user para Firebase');
+    }
+    const ref = collection(db, 'empresas', scope.empresa_codigo, nombreSubcoleccion);
+    return { ref, scope };
+}
+
+// --- EMPRESAS (METADATOS) ---
+// Crear o actualizar el documento empresas/{codigo} con datos básicos
+async function upsertEmpresaFirebase(empresa) {
+    try {
+        const codigo = (empresa && empresa.codigo ? String(empresa.codigo) : '').trim().toUpperCase();
+        if (!codigo) {
+            throw new Error('Código de empresa vacío');
+        }
+
+        const ref = doc(db, 'empresas', codigo);
+        const nowIso = new Date().toISOString();
+
+        const payload = {
+            nombre: empresa.nombre || null,
+            codigo,
+            estado: empresa.estado || 'activa',
+            plan: empresa.plan || null,
+            monto_mensual: empresa.monto_mensual ?? null,
+            fecha_alta: empresa.fecha_alta || null,
+            fecha_corte: empresa.fecha_corte ?? null,
+            dias_gracia: empresa.dias_gracia ?? null,
+            rif: empresa.rif || null,
+            telefono: empresa.telefono || null,
+            direccion: empresa.direccion || null,
+            actualizado_en: nowIso
+        };
+
+        // Si viene fecha_alta vacío, asumimos alta ahora
+        if (!payload.fecha_alta) {
+            payload.fecha_alta = nowIso;
+        }
+
+        await setDoc(ref, payload, { merge: true });
+        console.log('✅ Empresa registrada/actualizada en Firebase:', codigo);
+        return codigo;
+    } catch (err) {
+        console.error('❌ Error guardando empresa en Firebase:', err);
+        throw err;
+    }
+}
+
 // --- CLIENTES ---
 async function upsertClienteFirebase(cliente) {
     try {
-        const ref = collection(db, 'clientes');
+        const { ref, scope } = getEmpresaSubcollection('clientes');
         const cedula = (cliente.cedula || '').trim();
         const { id, ...clienteData } = cliente || {};
         let targetId = null;
 
         if (cedula) {
-            const q = query(ref, where('cedula', '==', cedula));
-            const snap = await getDocs(q);
+            const qRef = query(ref, where('cedula', '==', cedula));
+            const snap = await getDocs(qRef);
             if (!snap.empty) {
                 targetId = snap.docs[0].id;
             }
         }
 
         if (targetId) {
-            await updateDoc(doc(db, 'clientes', targetId), {
+            await updateDoc(doc(db, 'empresas', scope.empresa_codigo, 'clientes', targetId), {
                 ...clienteData,
+                ...scope,
                 actualizado_en: new Date().toISOString()
             });
             console.log('✅ Cliente actualizado en Firebase:', targetId);
@@ -58,6 +123,7 @@ async function upsertClienteFirebase(cliente) {
 
         const docRef = await addDoc(ref, {
             ...clienteData,
+            ...scope,
             creado_en: new Date().toISOString()
         });
         console.log('✅ Cliente creado en Firebase:', docRef.id);
@@ -70,7 +136,7 @@ async function upsertClienteFirebase(cliente) {
 
 async function obtenerClientesFirebase() {
     try {
-        const ref = collection(db, 'clientes');
+        const { ref } = getEmpresaSubcollection('clientes');
         const snapshot = await getDocs(ref);
         return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch (err) {
@@ -81,10 +147,10 @@ async function obtenerClientesFirebase() {
 
 async function eliminarClienteFirebasePorCedula(cedula) {
     try {
-        const ref = collection(db, 'clientes');
-        const q = query(ref, where('cedula', '==', cedula));
-        const snap = await getDocs(q);
-        const promises = snap.docs.map(d => deleteDoc(doc(db, 'clientes', d.id)));
+        const { ref, scope } = getEmpresaSubcollection('clientes');
+        const qRef = query(ref, where('cedula', '==', cedula));
+        const snap = await getDocs(qRef);
+        const promises = snap.docs.map(d => deleteDoc(doc(db, 'empresas', scope.empresa_codigo, 'clientes', d.id)));
         await Promise.all(promises);
         console.log(`✅ Cliente(s) eliminados para cédula ${cedula}`);
         return snap.docs.map(d => d.id);
@@ -94,28 +160,84 @@ async function eliminarClienteFirebasePorCedula(cedula) {
     }
 }
 
-    async function borrarColeccionFirebase(nombre) {
-        const ref = collection(db, nombre);
+async function borrarColeccionFirebase(nombre) {
+    const { ref, scope } = getEmpresaSubcollection(nombre);
+    const snapshot = await getDocs(ref);
+    const promises = snapshot.docs.map(d => deleteDoc(doc(db, 'empresas', scope.empresa_codigo, nombre, d.id)));
+    await Promise.all(promises);
+    return snapshot.size || snapshot.docs.length || 0;
+}
+
+async function borrarClientesFirebaseTodos() {
+    return borrarColeccionFirebase('clientes');
+}
+
+async function borrarVentasFirebaseTodas() {
+    return borrarColeccionFirebase('ventas');
+}
+
+async function borrarProductosFirebaseTodos() {
+    return borrarColeccionFirebase('productos');
+}
+
+// --- PRODUCTOS ---
+async function upsertProductoFirebase(producto) {
+    try {
+        const { ref, scope } = getEmpresaSubcollection('productos');
+        const { id, ...productoData } = producto || {};
+        const codigo = (producto.codigo || '').trim().toUpperCase();
+
+        if (!codigo) {
+            throw new Error('Código de producto vacío');
+        }
+
+        const qRef = query(ref, where('codigo', '==', codigo));
+        const snap = await getDocs(qRef);
+
+        if (!snap.empty) {
+            const targetId = snap.docs[0].id;
+            await updateDoc(doc(db, 'empresas', scope.empresa_codigo, 'productos', targetId), {
+                ...productoData,
+                codigo,
+                ...scope,
+                actualizado_en: new Date().toISOString()
+            });
+            console.log('✅ Producto actualizado en Firebase:', targetId);
+            return targetId;
+        }
+
+        const docRef = await addDoc(ref, {
+            ...productoData,
+            codigo,
+            ...scope,
+            creado_en: new Date().toISOString()
+        });
+        console.log('✅ Producto creado en Firebase:', docRef.id);
+        return docRef.id;
+    } catch (err) {
+        console.error('❌ Error guardando producto en Firebase:', err);
+        throw err;
+    }
+}
+
+async function obtenerProductosFirebase() {
+    try {
+        const { ref } = getEmpresaSubcollection('productos');
         const snapshot = await getDocs(ref);
-        const promises = snapshot.docs.map(d => deleteDoc(doc(db, nombre, d.id)));
-        await Promise.all(promises);
-        return snapshot.size || snapshot.docs.length || 0;
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+        console.error('❌ Error obteniendo productos de Firebase:', err);
+        return [];
     }
-
-    async function borrarClientesFirebaseTodos() {
-        return borrarColeccionFirebase('clientes');
-    }
-
-    async function borrarVentasFirebaseTodas() {
-        return borrarColeccionFirebase('ventas');
-    }
+}
 
 // Enviar una venta a Firebase
 async function enviarVentaAFirebase(venta) {
     try {
-        const ventasRef = collection(db, 'ventas');
+        const { ref: ventasRef, scope } = getEmpresaSubcollection('ventas');
         const docRef = await addDoc(ventasRef, {
             ...venta,
+            ...scope,
             sincronizado_en: new Date().toISOString()
         });
         console.log('✅ Venta sincronizada a Firebase:', docRef.id);
@@ -129,7 +251,7 @@ async function enviarVentaAFirebase(venta) {
 // Obtener todas las ventas de Firebase
 async function obtenerVentasDeFirebase() {
     try {
-        const ventasRef = collection(db, 'ventas');
+        const { ref: ventasRef } = getEmpresaSubcollection('ventas');
         const snapshot = await getDocs(ventasRef);
         return snapshot.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }));
     } catch (err) {
@@ -157,7 +279,28 @@ async function sincronizarVentasPendientes({ isRetry = false } = {}) {
 
             // 1) Servidor local
             try {
-                const data = await apiPostJson('/ventas', venta);
+                let usuarioId = null;
+                try {
+                    if (typeof window !== 'undefined') {
+                        if (window.Auth && typeof window.Auth.getUser === 'function') {
+                            const u = window.Auth.getUser();
+                            if (u && u.id) usuarioId = u.id;
+                        }
+                        if (!usuarioId) {
+                            const raw = localStorage.getItem('auth_user');
+                            if (raw) {
+                                const u = JSON.parse(raw);
+                                if (u && u.id) usuarioId = u.id;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('No se pudo determinar usuario para sync de venta', e);
+                }
+
+                const payload = usuarioId ? { ...venta, usuario_id: usuarioId } : venta;
+
+                const data = await apiPostJson('/ventas', payload);
                 console.log(`✅ Venta enviada al servidor: ${venta.id_global} -> ${data.ventaId || data.id || 'OK'}`);
                 synced = true;
             } catch (err) {
@@ -222,10 +365,12 @@ async function descargarVentasDeFirebase() {
 }
 
 export { enviarVentaAFirebase, obtenerVentasDeFirebase, sincronizarVentasPendientes, descargarVentasDeFirebase };
-export { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas };
+export { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas, borrarProductosFirebaseTodos };
 
-// API de clientes
+// API de clientes y productos
 export { upsertClienteFirebase, obtenerClientesFirebase, eliminarClienteFirebasePorCedula };
+export { upsertProductoFirebase, obtenerProductosFirebase };
+export { upsertEmpresaFirebase };
 
 // También exponer en el scope global para que `app.js` (no-module or simple calls)
 // pueda invocarlo sin hacer `import` (compatibilidad)
@@ -235,6 +380,10 @@ if (typeof window !== 'undefined') {
     window.upsertClienteFirebase = upsertClienteFirebase;
     window.eliminarClienteFirebasePorCedula = eliminarClienteFirebasePorCedula;
     window.obtenerClientesFirebase = obtenerClientesFirebase;
-        window.borrarClientesFirebaseTodos = borrarClientesFirebaseTodos;
-        window.borrarVentasFirebaseTodas = borrarVentasFirebaseTodas;
+    window.upsertProductoFirebase = upsertProductoFirebase;
+    window.obtenerProductosFirebase = obtenerProductosFirebase;
+    window.borrarClientesFirebaseTodos = borrarClientesFirebaseTodos;
+    window.borrarVentasFirebaseTodas = borrarVentasFirebaseTodas;
+    window.borrarProductosFirebaseTodos = borrarProductosFirebaseTodos;
+    window.upsertEmpresaFirebase = upsertEmpresaFirebase;
 }

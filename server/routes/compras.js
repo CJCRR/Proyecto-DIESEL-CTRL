@@ -8,7 +8,8 @@ router.get('/', requireAuth, (req, res) => {
   try {
     const limit = parseInt(req.query.limit, 10) || 100;
     const proveedor_id = req.query.proveedor_id ? parseInt(req.query.proveedor_id, 10) : undefined;
-    const rows = listCompras({ limit, proveedor_id });
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const rows = listCompras({ limit, proveedor_id, empresaId });
     res.json(rows);
   } catch (err) {
     console.error('Error listando compras:', err.message);
@@ -20,7 +21,8 @@ router.get('/', requireAuth, (req, res) => {
 router.get('/:id', requireAuth, (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const data = getCompra(id);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const data = getCompra(id, empresaId);
     if (!data) return res.status(404).json({ error: 'Compra no encontrada' });
     res.json(data);
   } catch (err) {

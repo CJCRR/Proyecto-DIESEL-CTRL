@@ -42,10 +42,26 @@ function appendFechaFilters(where, params, { desde, hasta, alias = 'v', campo = 
   if (hasta) { where.push(`date(${alias}.${campo}) <= date(?)`); params.push(hasta); }
 }
 
-function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500 }) {
+/**
+ * Añade filtro por empresa sobre una tabla de ventas aliased como `alias`.
+ * Espera que ventas.usuario_id apunte a usuarios.id.
+ *
+ * @param {string[]} where
+ * @param {Array<string|number>} params
+ * @param {{alias?:string,empresaId?:number|null}} opts
+ */
+function appendEmpresaFilter(where, params, { alias = 'v', empresaId } = {}) {
+  if (empresaId !== undefined && empresaId !== null) {
+    where.push(`EXISTS (SELECT 1 FROM usuarios u WHERE u.id = ${alias}.usuario_id AND u.empresa_id = ?)`);
+    params.push(empresaId);
+  }
+}
+
+function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500, empresaId }) {
   const where = [];
   const params = [];
   appendFechaFilters(where, params, { desde, hasta, alias: 'v', campo: 'fecha' });
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   if (cliente) { where.push("(v.cliente LIKE ? OR v.cedula LIKE ? OR v.telefono LIKE ?)"); params.push('%' + cliente + '%', '%' + cliente + '%', '%' + cliente + '%'); }
   if (vendedor) { where.push("v.vendedor LIKE ?"); params.push('%' + vendedor + '%'); }
   if (metodo) { where.push("v.metodo_pago = ?"); params.push(metodo); }
@@ -100,18 +116,22 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
  * totales normalizados (incluyendo IVA cuando está disponible).
  * @returns {Array<import('../types').Venta>}
  */
-function getVentasSinDevolucion() {
+function getVentasSinDevolucion(empresaId) {
+  const where = [];
+  const params = [];
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
+  where.push('NOT EXISTS (SELECT 1 FROM devoluciones d WHERE d.venta_original_id = v.id)');
+  const whereSQL = 'WHERE ' + where.join(' AND ');
+
   const rows = db.prepare(`
-    SELECT id, fecha, cliente, vendedor, cedula, telefono,
-           total_bs, tasa_bcv, descuento, metodo_pago, referencia,
-           iva_pct, total_bs_iva, total_usd_iva
-    FROM ventas
-    WHERE NOT EXISTS (
-      SELECT 1 FROM devoluciones d WHERE d.venta_original_id = ventas.id
-    )
-    ORDER BY fecha DESC
+    SELECT v.id, v.fecha, v.cliente, v.vendedor, v.cedula, v.telefono,
+           v.total_bs, v.tasa_bcv, v.descuento, v.metodo_pago, v.referencia,
+           v.iva_pct, v.total_bs_iva, v.total_usd_iva
+    FROM ventas v
+    ${whereSQL}
+    ORDER BY v.fecha DESC
     LIMIT 100
-  `).all();
+  `).all(...params);
 
   return rows.map((v) => {
     const tasa = Number(v.tasa_bcv || 0) || 0;
@@ -137,8 +157,8 @@ function getVentasSinDevolucion() {
  * @param {{desde?:string,hasta?:string,cliente?:string,vendedor?:string,metodo?:string,limit?:number}} params
  * @returns {Array<import('../types').Venta>}
  */
-function getVentasRango(params) {
-  return queryVentasRango(params);
+function getVentasRango(params, empresaId) {
+  return queryVentasRango({ ...params, empresaId });
 }
 
 /**
@@ -148,8 +168,8 @@ function getVentasRango(params) {
  * @param {{desde?:string,hasta?:string,cliente?:string,vendedor?:string,metodo?:string,limit?:number}} params
  * @returns {string}
  */
-function buildVentasRangoCsv(params) {
-  const rows = queryVentasRango(params);
+function buildVentasRangoCsv(params, empresaId) {
+  const rows = queryVentasRango({ ...params, empresaId });
   const header = ['fecha','cliente','vendedor','metodo_pago','referencia','tasa_bcv','descuento','total_bs','total_bs_iva','total_usd','total_usd_iva','bruto_bs','bruto_usd','costo_bs','costo_usd','margen_bs','margen_usd'];
   const toCsv = (val) => {
     if (val === null || val === undefined) return '';
@@ -167,24 +187,33 @@ function buildVentasRangoCsv(params) {
  * de la última semana y montos totales aproximados en Bs y USD.
  * @returns {{ventasHoy:number,ventasSemana:number,totalBs:number,totalUsd:number}}
  */
-function getKpis() {
+function getKpis(empresaId) {
+  const where = [];
+  const params = [];
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
+  const whereSQL = where.length ? ('AND ' + where.join(' AND ')) : '';
+
   const ventasHoyRow = db.prepare(`
-      SELECT COUNT(*) as count FROM ventas
-      WHERE date(fecha) = date('now','localtime')
-    `).get();
+      SELECT COUNT(*) as count FROM ventas v
+      WHERE date(v.fecha) = date('now','localtime') ${whereSQL ? whereSQL.replace('AND ', 'AND ') : ''}
+    `).get(...params);
 
   const ventasSemanaRow = db.prepare(`
-      SELECT COUNT(*) as count FROM ventas
-      WHERE date(fecha) >= date('now','localtime','-6 days')
-    `).get();
+      SELECT COUNT(*) as count FROM ventas v
+      WHERE date(v.fecha) >= date('now','localtime','-6 days') ${whereSQL ? whereSQL.replace('AND ', 'AND ') : ''}
+    `).get(...params);
+
+  const totalWhere = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const totalBsRow = db.prepare(`
-      SELECT COALESCE(SUM(total_bs), 0) as total_bs FROM ventas
-    `).get();
+      SELECT COALESCE(SUM(v.total_bs), 0) as total_bs FROM ventas v
+      ${totalWhere}
+    `).get(...params);
 
   const totalUsdRow = db.prepare(`
-      SELECT COALESCE(SUM(CASE WHEN COALESCE(tasa_bcv,0) != 0 THEN total_bs / tasa_bcv ELSE total_bs END), 0) as total_usd FROM ventas
-    `).get();
+      SELECT COALESCE(SUM(CASE WHEN COALESCE(v.tasa_bcv,0) != 0 THEN v.total_bs / v.tasa_bcv ELSE v.total_bs END), 0) as total_usd FROM ventas v
+      ${totalWhere}
+    `).get(...params);
 
   return {
     ventasHoy: ventasHoyRow.count || 0,
@@ -199,7 +228,12 @@ function getKpis() {
  * @param {number} limit
  * @returns {Array<{codigo:string,descripcion:string,total_qty:number,total_bs:number,total_usd:number,costo_bs:number,costo_usd:number,margen_bs:number,margen_usd:number}>}
  */
-function getTopProductos(limit) {
+function getTopProductos(limit, empresaId) {
+  const where = [];
+  const params = [];
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
+  const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
   return db.prepare(`
       SELECT p.codigo, p.descripcion,
         SUM(vd.cantidad) as total_qty,
@@ -216,10 +250,11 @@ function getTopProductos(limit) {
       FROM venta_detalle vd
       JOIN ventas v ON v.id = vd.venta_id
       JOIN productos p ON p.id = vd.producto_id
+      ${whereSQL}
       GROUP BY p.id
       ORDER BY total_qty DESC
       LIMIT ?
-    `).all(limit);
+    `).all(...params, limit);
 }
 
 /**
@@ -227,10 +262,11 @@ function getTopProductos(limit) {
  * @param {{desde?:string,hasta?:string,limit:number}} params
  * @returns {Array<{codigo:string,descripcion:string,total_qty:number,total_bs:number,total_usd:number,costo_bs:number,costo_usd:number,margen_bs:number,margen_usd:number}>}
  */
-function getMargenProductos({ desde, hasta, limit }) {
+function getMargenProductos({ desde, hasta, limit, empresaId }) {
   const where = [];
   const params = [];
   appendFechaFilters(where, params, { desde, hasta, alias: 'v', campo: 'fecha' });
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   return db.prepare(`
@@ -257,11 +293,12 @@ function getMargenProductos({ desde, hasta, limit }) {
  * @param {{desde?:string,hasta?:string,a_pct?:number|string,b_pct?:number|string}} params
  * @returns {Array<{codigo:string,descripcion:string,total_qty:number,total_bs:number,total_usd:number,share:number,cumulative:number,clase:"A"|"B"|"C">>}
  */
-function getAbcProductos({ desde, hasta, a_pct, b_pct }) {
+function getAbcProductos({ desde, hasta, a_pct, b_pct, empresaId }) {
   const { a, b } = parseAB({ a_pct, b_pct });
   const where = [];
   const params = [];
   appendFechaFilters(where, params, { desde, hasta, alias: 'v', campo: 'fecha' });
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`
@@ -286,7 +323,7 @@ function getAbcProductos({ desde, hasta, a_pct, b_pct }) {
  *
  * @returns {{items:Array<{codigo:string,descripcion:string,precio_usd:number,stock:number,total_usd:number}>,totals:{totalUsd:number,totalBs:number,tasa:number}}}
  */
-function getInventario() {
+function getInventario(empresaId) {
   const cfgTasaRow = db.prepare(`SELECT valor FROM config WHERE clave='tasa_bcv'`).get();
   const cfgTasa = cfgTasaRow && cfgTasaRow.valor ? parseFloat(cfgTasaRow.valor) : null;
   const ventaTasaRow = db.prepare(`SELECT tasa_bcv FROM ventas WHERE tasa_bcv IS NOT NULL ORDER BY fecha DESC LIMIT 1`).get();
@@ -295,11 +332,19 @@ function getInventario() {
       ? cfgTasa
       : (!Number.isNaN(ventaTasa) && ventaTasa > 0 ? ventaTasa : 1);
 
+  const params = [];
+  let where = '';
+  if (empresaId) {
+    where = 'WHERE empresa_id = ?';
+    params.push(empresaId);
+  }
+
   const productos = db.prepare(`
       SELECT codigo, descripcion, precio_usd, stock, (stock * COALESCE(precio_usd,0)) as total_usd
       FROM productos
+      ${where}
       ORDER BY codigo
-    `).all();
+    `).all(...params);
 
   const totalUsd = productos.reduce((s,p) => s + (p.total_usd || 0), 0);
   const totalBs = totalUsd * tasa;
@@ -312,10 +357,15 @@ function getInventario() {
  * @param {number|string} id
  * @returns {{venta: import('../types').Venta, detalles: import('../types').VentaDetalle[]}|null}
  */
-function getVentaConDetalles(id) {
+function getVentaConDetalles(id, empresaId) {
+  const where = [];
+  const params = [id];
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
+  const whereSQL = where.length ? ('AND ' + where.join(' AND ')) : '';
+
   const venta = db.prepare(`
-    SELECT * FROM ventas WHERE id = ?
-  `).get(id);
+    SELECT v.* FROM ventas v WHERE v.id = ? ${whereSQL}
+  `).get(...params);
 
   if (!venta) return null;
 
@@ -345,7 +395,13 @@ function getBajoStock(umbral) {
   return { min, items };
 }
 
-function getSeriesVentasDiarias(dias) {
+function getSeriesVentasDiarias(dias, empresaId) {
+  const where = [];
+  const params = [];
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
+  where.push("date(v.fecha) >= date('now','localtime', ?)");
+  const whereSQL = 'WHERE ' + where.join(' AND ');
+
   return db.prepare(`
       SELECT date(v.fecha) AS dia,
         SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
@@ -355,13 +411,19 @@ function getSeriesVentasDiarias(dias) {
       FROM ventas v
       JOIN venta_detalle vd ON vd.venta_id = v.id
       JOIN productos p ON p.id = vd.producto_id
-      WHERE date(v.fecha) >= date('now','localtime', ?)
+      ${whereSQL}
       GROUP BY dia
       ORDER BY dia ASC
-    `).all(`-${dias-1} days`);
+    `).all(...params, `-${dias-1} days`);
 }
 
-function getSeriesVentasMensuales(meses) {
+function getSeriesVentasMensuales(meses, empresaId) {
+  const where = [];
+  const params = [];
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
+  where.push("date(v.fecha) >= date('now','localtime', ?)");
+  const whereSQL = 'WHERE ' + where.join(' AND ');
+
   return db.prepare(`
       SELECT strftime('%Y-%m', v.fecha) AS mes,
         SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
@@ -371,14 +433,14 @@ function getSeriesVentasMensuales(meses) {
       FROM ventas v
       JOIN venta_detalle vd ON vd.venta_id = v.id
       JOIN productos p ON p.id = vd.producto_id
-      WHERE date(v.fecha) >= date('now','localtime', ?)
+      ${whereSQL}
       GROUP BY mes
       ORDER BY mes ASC
-    `).all(`-${meses*30} days`);
+    `).all(...params, `-${meses*30} days`);
 }
 
-function getTendenciasMensuales(meses) {
-  const rows = getSeriesVentasMensuales(meses);
+function getTendenciasMensuales(meses, empresaId) {
+  const rows = getSeriesVentasMensuales(meses, empresaId);
   const enhanced = rows.map((row, idx) => {
     const prev = idx > 0 ? rows[idx - 1] : null;
     const delta = (curr, prevVal) => {
@@ -397,11 +459,12 @@ function getTendenciasMensuales(meses) {
   return enhanced;
 }
 
-function getTopClientes({ desde, hasta, limit }) {
+function getTopClientes({ desde, hasta, limit, empresaId }) {
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   return db.prepare(`
@@ -418,12 +481,13 @@ function getTopClientes({ desde, hasta, limit }) {
     `).all(...params, limit);
 }
 
-function getAbcClientes({ desde, hasta, a_pct, b_pct }) {
+function getAbcClientes({ desde, hasta, a_pct, b_pct, empresaId }) {
   const { a, b } = parseAB({ a_pct, b_pct });
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`
@@ -441,11 +505,12 @@ function getAbcClientes({ desde, hasta, a_pct, b_pct }) {
   return classifyABC(rows, 'total_usd', a, b);
 }
 
-function getVendedoresComparativa({ desde, hasta }) {
+function getVendedoresComparativa({ desde, hasta, empresaId }) {
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   return db.prepare(`
@@ -465,11 +530,12 @@ function getVendedoresComparativa({ desde, hasta }) {
     `).all(...params);
 }
 
-function getVendedoresRoi({ desde, hasta }) {
+function getVendedoresRoi({ desde, hasta, empresaId }) {
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`
@@ -502,7 +568,13 @@ function getVendedoresRoi({ desde, hasta }) {
   });
 }
 
-function getMargenActual() {
+function getMargenActual(empresaId) {
+  const where = [];
+  const params = [];
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
+  where.push("date(v.fecha) = date('now','localtime')");
+  const whereSQLHoy = 'WHERE ' + where.join(' AND ');
+
   const hoy = db.prepare(`
       SELECT 
         SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS ingresos_bs,
@@ -512,8 +584,14 @@ function getMargenActual() {
       FROM ventas v
       JOIN venta_detalle vd ON vd.venta_id = v.id
       JOIN productos p ON p.id = vd.producto_id
-      WHERE date(v.fecha) = date('now','localtime')
-    `).get();
+      ${whereSQLHoy}
+    `).get(...params);
+
+  const whereMes = [];
+  const paramsMes = [];
+  appendEmpresaFilter(whereMes, paramsMes, { alias: 'v', empresaId });
+  whereMes.push("strftime('%Y-%m', v.fecha) = strftime('%Y-%m', 'now','localtime')");
+  const whereSQLMes = 'WHERE ' + whereMes.join(' AND ');
 
   const mes = db.prepare(`
       SELECT 
@@ -524,8 +602,8 @@ function getMargenActual() {
       FROM ventas v
       JOIN venta_detalle vd ON vd.venta_id = v.id
       JOIN productos p ON p.id = vd.producto_id
-      WHERE strftime('%Y-%m', v.fecha) = strftime('%Y-%m', 'now','localtime')
-    `).get();
+      ${whereSQLMes}
+    `).get(...paramsMes);
 
   const calc = (x) => ({
     ingresos_bs: Number(x.ingresos_bs || 0),
@@ -539,11 +617,12 @@ function getMargenActual() {
   return { hoy: calc(hoy || {}), mes: calc(mes || {}) };
 }
 
-function getVendedoresRanking({ desde, hasta }) {
+function getVendedoresRanking({ desde, hasta, empresaId }) {
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`
@@ -570,10 +649,14 @@ function getVendedoresRanking({ desde, hasta }) {
   }));
 }
 
-function getHistorialCliente({ q, limit }) {
+function getHistorialCliente({ q, limit, empresaId }) {
   if (!q || !q.trim()) return [];
   const lim = parseInt(limit) || 100;
   const like = `%${q}%`;
+  const where = ["(v.cliente LIKE ? OR v.cedula LIKE ? OR v.telefono LIKE ?)"];
+  const params = [like, like, like];
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
+  const whereSQL = 'WHERE ' + where.join(' AND ');
   return db.prepare(`
       SELECT v.id, v.fecha, v.cliente, v.vendedor, v.metodo_pago, v.tasa_bcv,
              COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0) as total_bs,
@@ -581,18 +664,19 @@ function getHistorialCliente({ q, limit }) {
                       SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs) as total_usd
       FROM ventas v
       JOIN venta_detalle vd ON vd.venta_id = v.id
-      WHERE v.cliente LIKE ? OR v.cedula LIKE ? OR v.telefono LIKE ?
+      ${whereSQL}
       GROUP BY v.id
       ORDER BY v.fecha DESC
       LIMIT ?
-    `).all(like, like, like, lim);
+    `).all(...params, lim);
 }
 
-function getRentabilidadCategorias({ desde, hasta }) {
+function getRentabilidadCategorias({ desde, hasta, empresaId }) {
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`
@@ -630,11 +714,12 @@ function getRentabilidadCategorias({ desde, hasta }) {
   });
 }
 
-function getRentabilidadProveedores({ desde, hasta }) {
+function getRentabilidadProveedores({ desde, hasta, empresaId }) {
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`
@@ -674,11 +759,12 @@ function getRentabilidadProveedores({ desde, hasta }) {
   });
 }
 
-function getResumenFinanciero({ desde, hasta }) {
+function getResumenFinanciero({ desde, hasta, empresaId }) {
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const row = db.prepare(`
@@ -711,8 +797,8 @@ function getResumenFinanciero({ desde, hasta }) {
   };
 }
 
-function buildRentabilidadCategoriasCsv(params) {
-  const rows = getRentabilidadCategorias(params);
+function buildRentabilidadCategoriasCsv(params, empresaId) {
+  const rows = getRentabilidadCategorias({ ...params, empresaId });
   const header = ['categoria','total_qty','ingresos_bs','ingresos_usd','costos_bs','costos_usd','margen_bs','margen_usd','margen_pct'];
   const toCsv = (val) => {
     if (val === null || val === undefined) return '';
@@ -725,8 +811,8 @@ function buildRentabilidadCategoriasCsv(params) {
   return csv;
 }
 
-function buildRentabilidadProveedoresCsv(params) {
-  const rows = getRentabilidadProveedores(params);
+function buildRentabilidadProveedoresCsv(params, empresaId) {
+  const rows = getRentabilidadProveedores({ ...params, empresaId });
   const header = ['proveedor_id','proveedor','total_qty','ingresos_bs','ingresos_usd','costos_bs','costos_usd','margen_bs','margen_usd','margen_pct'];
   const toCsv = (val) => {
     if (val === null || val === undefined) return '';

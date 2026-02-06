@@ -17,6 +17,7 @@ const backupRoutes = require('./routes/backup');
 const authRoutes = require('./routes/auth');
 const usuariosRoutes = require('./routes/usuarios');
 const empresasAdminRoutes = require('./routes/empresas_admin');
+const syncRoutes = require('./routes/sync');
 const cobranzasRoutes = require('./routes/cobranzas');
 const devolucionesRoutes = require('./routes/devoluciones');
 const proveedoresRoutes = require('./routes/proveedores');
@@ -81,6 +82,7 @@ app.use('/backup', backupRoutes);
 app.use('/cobranzas', cobranzasRoutes);
 app.use('/alertas', alertasRoutes);
 app.use('/presupuestos', presupuestosRoutes);
+app.use('/sync', syncRoutes);
 
 // Backup automático (configurable por variables de entorno)
 const isTestEnv = process.env.NODE_ENV === 'test';

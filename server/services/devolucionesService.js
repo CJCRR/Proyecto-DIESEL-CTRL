@@ -188,7 +188,7 @@ function registrarDevolucion(payload = {}) {
 }
 
 function getHistorialDevoluciones(query = {}) {
-  const { cliente = '', cedula = '', limit = 10, desde = '', hasta = '' } = query;
+  const { cliente = '', cedula = '', limit = 10, desde = '', hasta = '', empresaId = null } = query;
   const lim = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
   const where = [];
   const params = [];
@@ -196,6 +196,14 @@ function getHistorialDevoluciones(query = {}) {
   if (cedula) { where.push('cliente_doc LIKE ?'); params.push(`%${cedula}%`); }
   if (desde) { where.push("date(fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(fecha) <= date(?)"); params.push(hasta); }
+  if (empresaId != null) {
+    where.push(`EXISTS (
+      SELECT 1 FROM ventas v
+      JOIN usuarios u ON u.id = v.usuario_id
+      WHERE v.id = devoluciones.venta_original_id AND u.empresa_id = ?
+    )`);
+    params.push(empresaId);
+  }
   const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const rows = db.prepare(`

@@ -3,8 +3,16 @@ const router = express.Router();
 const { requireAuth } = require('./auth');
 const { registrarDevolucion, getHistorialDevoluciones } = require('../services/devolucionesService');
 
+// El superadmin no debe registrar ni ver devoluciones de empresas
+function forbidSuperadmin(req, res, next) {
+  if (req.usuario && req.usuario.rol === 'superadmin') {
+    return res.status(403).json({ error: 'Superadmin no puede acceder a devoluciones de empresas' });
+  }
+  next();
+}
+
 // Registrar una devolución de productos
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { devolucionId, total_bs, total_usd } = registrarDevolucion(req.body || {});
     res.json({ message: 'Devolución registrada', devolucionId, total_bs, total_usd });
@@ -21,9 +29,9 @@ router.post('/', requireAuth, (req, res) => {
 });
 
 // Historial de devoluciones (por cliente y rango opcional)
-router.get('/historial', requireAuth, (req, res) => {
+router.get('/historial', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const rows = getHistorialDevoluciones(req.query || {});
+    const rows = getHistorialDevoluciones({ ...(req.query || {}), empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
     console.error('Error obteniendo historial de devoluciones:', err.message);

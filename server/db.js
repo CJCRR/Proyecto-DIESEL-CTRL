@@ -495,6 +495,165 @@ const migrations = [
         db.prepare("ALTER TABLE empresas ADD COLUMN proximo_cobro TEXT").run();
       }
     }
+  },
+  {
+    id: '013_sync_tablas_basicas',
+    up: () => {
+      // Cola de operaciones a sincronizar (principalmente usada en modo local)
+      db.prepare(`CREATE TABLE IF NOT EXISTS sync_outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        empresa_id INTEGER,
+        tipo TEXT NOT NULL,
+        entidad TEXT NOT NULL,
+        entidad_id_local INTEGER,
+        evento_uid TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        estado TEXT DEFAULT 'pendiente',
+        intentos INTEGER DEFAULT 0,
+        ultimo_error TEXT,
+        creado_en TEXT DEFAULT (datetime('now')),
+        actualizado_en TEXT DEFAULT (datetime('now')),
+        enviado_en TEXT,
+        confirmado_en TEXT
+      )`).run();
+
+      if (!indexExists('idx_sync_outbox_estado')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_sync_outbox_estado ON sync_outbox (estado)').run();
+      }
+      if (!indexExists('idx_sync_outbox_evento_uid')) {
+        db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_outbox_evento_uid ON sync_outbox (evento_uid)').run();
+      }
+
+      // Registro de eventos ya aplicados en el lado nube para evitar duplicados (idempotencia)
+      db.prepare(`CREATE TABLE IF NOT EXISTS sync_inbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        empresa_id INTEGER,
+        origen TEXT,
+        evento_uid TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        entidad TEXT NOT NULL,
+        aplicado_en TEXT DEFAULT (datetime('now')),
+        payload_original TEXT
+      )`).run();
+
+      if (!indexExists('idx_sync_inbox_evento_uid')) {
+        db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_inbox_evento_uid ON sync_inbox (evento_uid)').run();
+      }
+    }
+  },
+  {
+    id: '014_empresas_metricas_diarias',
+    up: () => {
+      db.prepare(`CREATE TABLE IF NOT EXISTS empresa_metricas_diarias (
+        empresa_id INTEGER NOT NULL,
+        fecha TEXT NOT NULL,
+        ventas_count INTEGER DEFAULT 0,
+        total_bs REAL DEFAULT 0,
+        total_usd REAL DEFAULT 0,
+        creado_en TEXT DEFAULT (datetime('now')),
+        actualizado_en TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (empresa_id, fecha)
+      )`).run();
+
+      if (!indexExists('idx_emp_metricas_fecha')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_emp_metricas_fecha ON empresa_metricas_diarias (fecha)').run();
+      }
+    }
+  },
+  {
+    id: '015_productos_multiempresa',
+    up: () => {
+      // Asociar productos a empresas para separar inventario
+      if (!columnExists('productos', 'empresa_id')) {
+        db.prepare('ALTER TABLE productos ADD COLUMN empresa_id INTEGER').run();
+      }
+
+      // Normalizar: productos existentes → empresa LOCAL (id=1) si está vacío
+      db.prepare('UPDATE productos SET empresa_id = 1 WHERE empresa_id IS NULL').run();
+
+      // Índice por empresa + código para búsquedas rápidas
+      if (!indexExists('idx_productos_empresa_codigo')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_productos_empresa_codigo ON productos (empresa_id, codigo)').run();
+      }
+    }
+  },
+  {
+    id: '016_empresas_contacto',
+    up: () => {
+      // Datos básicos de contacto por empresa
+      if (!columnExists('empresas', 'rif')) {
+        db.prepare("ALTER TABLE empresas ADD COLUMN rif TEXT").run();
+      }
+      if (!columnExists('empresas', 'telefono')) {
+        db.prepare("ALTER TABLE empresas ADD COLUMN telefono TEXT").run();
+      }
+      if (!columnExists('empresas', 'direccion')) {
+        db.prepare("ALTER TABLE empresas ADD COLUMN direccion TEXT").run();
+      }
+    }
+  },
+  {
+    id: '017_proveedores_compras_multiempresa',
+    up: () => {
+      // Asociar proveedores a empresas
+      if (!columnExists('proveedores', 'empresa_id')) {
+        db.prepare('ALTER TABLE proveedores ADD COLUMN empresa_id INTEGER').run();
+        // Proveedores existentes pertenecen a la empresa LOCAL (id=1)
+        db.prepare('UPDATE proveedores SET empresa_id = 1 WHERE empresa_id IS NULL').run();
+      }
+      if (!indexExists('idx_proveedores_empresa')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_proveedores_empresa ON proveedores (empresa_id)').run();
+      }
+
+      // Asociar compras a empresas
+      if (!columnExists('compras', 'empresa_id')) {
+        db.prepare('ALTER TABLE compras ADD COLUMN empresa_id INTEGER').run();
+      }
+
+      // Rellenar empresa_id en compras a partir del usuario
+      db.prepare(`
+        UPDATE compras
+        SET empresa_id = (
+          SELECT u.empresa_id
+          FROM usuarios u
+          WHERE u.id = compras.usuario_id
+        )
+        WHERE empresa_id IS NULL
+      `).run();
+
+      // Cualquier compra huérfana va a LOCAL
+      db.prepare('UPDATE compras SET empresa_id = 1 WHERE empresa_id IS NULL').run();
+
+      if (!indexExists('idx_compras_empresa')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_compras_empresa ON compras (empresa_id)').run();
+      }
+    }
+  },
+  {
+    id: '018_presupuestos_multiempresa',
+    up: () => {
+      // Asociar presupuestos a empresas
+      if (!columnExists('presupuestos', 'empresa_id')) {
+        db.prepare('ALTER TABLE presupuestos ADD COLUMN empresa_id INTEGER').run();
+      }
+
+      db.prepare(`
+        UPDATE presupuestos
+        SET empresa_id = (
+          SELECT u.empresa_id
+          FROM usuarios u
+          WHERE u.id = presupuestos.usuario_id
+        )
+        WHERE empresa_id IS NULL
+      `).run();
+
+      // Presupuestos antiguos sin usuario asociado van a LOCAL
+      db.prepare('UPDATE presupuestos SET empresa_id = 1 WHERE empresa_id IS NULL').run();
+
+      if (!indexExists('idx_presupuestos_empresa')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuestos_empresa ON presupuestos (empresa_id)').run();
+      }
+    }
   }
 ];
 

@@ -12,6 +12,7 @@ function mapProveedor(row) {
   return {
     id: row.id,
     nombre: row.nombre,
+    empresa_id: row.empresa_id || null,
     rif: row.rif || '',
     telefono: row.telefono || '',
     email: row.email || '',
@@ -23,9 +24,14 @@ function mapProveedor(row) {
   };
 }
 
-function listProveedores({ q, soloActivos } = {}) {
+function listProveedores({ q, soloActivos, empresaId } = {}) {
   const where = [];
   const params = [];
+
+  if (empresaId) {
+    where.push('p.empresa_id = ?');
+    params.push(empresaId);
+  }
 
   if (soloActivos) {
     where.push('p.activo = 1');
@@ -47,12 +53,19 @@ function listProveedores({ q, soloActivos } = {}) {
   return rows.map(mapProveedor);
 }
 
-function getProveedor(id) {
-  const row = db.prepare('SELECT * FROM proveedores WHERE id = ?').get(id);
+function getProveedor(id, empresaId) {
+  const row = empresaId
+    ? db.prepare('SELECT * FROM proveedores WHERE id = ? AND empresa_id = ?').get(id, empresaId)
+    : db.prepare('SELECT * FROM proveedores WHERE id = ?').get(id);
   return mapProveedor(row);
 }
 
-function createProveedor(payload = {}) {
+function createProveedor(payload = {}, empresaId) {
+  if (!empresaId) {
+    const err = new Error('Usuario sin empresa asociada');
+    err.tipo = 'VALIDACION';
+    throw err;
+  }
   const nombre = safeStr(payload.nombre, 160);
   if (!nombre) {
     const err = new Error('Nombre de proveedor requerido');
@@ -67,15 +80,15 @@ function createProveedor(payload = {}) {
   const notas = safeStr(payload.notas, MAX_TEXT);
 
   const stmt = db.prepare(`
-    INSERT INTO proveedores (nombre, rif, telefono, email, direccion, notas, activo)
-    VALUES (?, ?, ?, ?, ?, ?, 1)
+    INSERT INTO proveedores (nombre, rif, telefono, email, direccion, notas, activo, empresa_id)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
   `);
-  const info = stmt.run(nombre, rif, telefono, email, direccion, notas);
-  return getProveedor(info.lastInsertRowid);
+  const info = stmt.run(nombre, rif, telefono, email, direccion, notas, empresaId);
+  return getProveedor(info.lastInsertRowid, empresaId);
 }
 
-function updateProveedor(id, payload = {}) {
-  const prov = getProveedor(id);
+function updateProveedor(id, payload = {}, empresaId) {
+  const prov = getProveedor(id, empresaId);
   if (!prov) return null;
 
   const nombre = payload.nombre !== undefined ? safeStr(payload.nombre, 160) : prov.nombre;
@@ -94,18 +107,18 @@ function updateProveedor(id, payload = {}) {
   db.prepare(`
     UPDATE proveedores
     SET nombre = ?, rif = ?, telefono = ?, email = ?, direccion = ?, notas = ?, activo = ?, actualizado_en = datetime('now')
-    WHERE id = ?
-  `).run(nombre, rif, telefono, email, direccion, notas, activo, id);
+    WHERE id = ? AND empresa_id = ?
+  `).run(nombre, rif, telefono, email, direccion, notas, activo, id, empresaId);
 
-  return getProveedor(id);
+  return getProveedor(id, empresaId);
 }
 
-function toggleProveedorActivo(id, activo) {
-  const prov = getProveedor(id);
+function toggleProveedorActivo(id, activo, empresaId) {
+  const prov = getProveedor(id, empresaId);
   if (!prov) return null;
   const val = activo ? 1 : 0;
-  db.prepare('UPDATE proveedores SET activo = ?, actualizado_en = datetime(\'now\') WHERE id = ?').run(val, id);
-  return getProveedor(id);
+  db.prepare('UPDATE proveedores SET activo = ?, actualizado_en = datetime(\'now\') WHERE id = ? AND empresa_id = ?').run(val, id, empresaId);
+  return getProveedor(id, empresaId);
 }
 
 module.exports = {

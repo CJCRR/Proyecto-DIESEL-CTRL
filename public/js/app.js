@@ -29,6 +29,59 @@ const tablaCuerpo = document.getElementById('venta-items-cuerpo');
 const btnVender = document.getElementById('btnVender');
 // Toast container
 
+function setupKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+        // Evitar interferir con combinaciones del navegador o inputs cuando no aplica
+        const tag = (e.target && e.target.tagName) || '';
+        const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || (e.target && e.target.isContentEditable);
+
+        // F2: enfocar búsqueda de producto
+        if (e.key === 'F2') {
+            e.preventDefault();
+            const buscar = document.getElementById('buscar');
+            if (buscar) buscar.focus();
+            return;
+        }
+
+        // F3: enfocar nombre de cliente
+        if (e.key === 'F3') {
+            e.preventDefault();
+            const cli = document.getElementById('v_cliente');
+            if (cli) cli.focus();
+            return;
+        }
+
+        // F9: registrar venta rápida (solo si no hay otro modificador)
+        if (e.key === 'F9' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            try {
+                if (typeof registrarVenta === 'function') {
+                    registrarVenta();
+                } else if (window.registrarVenta) {
+                    window.registrarVenta();
+                }
+            } catch (err) {
+                console.warn('Error ejecutando atajo F9 registrarVenta', err);
+            }
+            return;
+        }
+
+        // Ctrl+Enter: registrar venta incluso escribiendo en inputs de pago/cliente
+        if (e.key === 'Enter' && e.ctrlKey && !e.shiftKey && !e.altKey) {
+            e.preventDefault();
+            try {
+                if (typeof registrarVenta === 'function') {
+                    registrarVenta();
+                } else if (window.registrarVenta) {
+                    window.registrarVenta();
+                }
+            } catch (err) {
+                console.warn('Error ejecutando atajo Ctrl+Enter registrarVenta', err);
+            }
+        }
+    });
+}
+
 function setTasaUI(tasa, actualizadoEn) {
     TASA_BCV_POS = Number(tasa || 1) || 1;
     if (actualizadoEn) TASA_BCV_UPDATED_POS = actualizadoEn;
@@ -563,6 +616,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const btnDefault = document.querySelector('.hist-btn[data-hist="ventas"]');
     if (btnDefault) btnDefault.click();
+
+    // Atajos de teclado del POS (F2 búsqueda, F3 cliente, F9 / Ctrl+Enter vender)
+    setupKeyboardShortcuts();
 });
 
 function finalizarVentaUI() {

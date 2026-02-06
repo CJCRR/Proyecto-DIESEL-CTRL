@@ -85,7 +85,7 @@
 ## Fase 14: Infraestructura y Despliegue
 - [x] Centralizar configuración sensible en variables de entorno (puerto, ruta de base de datos, credenciales admin, flags de debug).
 - [x] Crear un `docker-compose` opcional para levantar la app y la base de datos con volúmenes persistentes.
-- [ ] Añadir pequeños detalles de UX avanzada (atajos de teclado, indicadores de carga globales) una vez estabilizado todo lo anterior.
+- [x] Añadir pequeños detalles de UX avanzada (atajos de teclado, indicadores de carga globales) una vez estabilizado todo lo anterior.
 
 ## Fase 15: Modelo Multiempresa (Backend)
 - [x] Definir tabla de empresas (empresas) con campos básicos: id, nombre, codigo, estado, fecha_alta, fecha_corte, dias_gracia, nota_interna.
@@ -99,10 +99,10 @@
 - [x] Ajustar middlewares de autorización para que propaguen empresa_id y empresa_codigo en req.usuario, de forma que las rutas puedan validar empresa además de rol.
 
 ## Fase 17: Sincronización Local ↔ Nube
-- [ ] Diseñar el formato de la cola de operaciones offline (ventas, presupuestos y mínimos necesarios) en el POS local.
-- [ ] Crear endpoints en el backend nube para recibir lotes de operaciones por empresa y evitar duplicados.
-- [ ] Implementar un cliente de sincronización en la instalación local que envíe la cola cuando haya internet, con reintentos.
-- [ ] Añadir indicadores de estado de sincronización en la UI (último sync correcto, pendientes, errores).
+- [x] Diseñar el formato base de la cola de operaciones offline (tabla `sync_outbox` con eventos por empresa, `evento_uid`, payload y estado).
+- [x] Crear tablas de soporte para idempotencia en el backend nube (`sync_inbox` con `evento_uid` único por evento).
+- [x] Crear endpoints iniciales en el backend nube para recibir lotes de operaciones por empresa (`POST /sync/push`) y preparar el endpoint de descarga (`GET /sync/pull`).
+- [descartado] Cliente de sync completo + pull nube (no necesario por ahora).
 
 ## Fase 18: Panel Master y Licencias
 - [x] Crear panel web para superadmin con listado de empresas, filtros y búsqueda (public/pages/admin-empresas.html + /admin/empresas).
@@ -110,9 +110,9 @@
 - [x] Mostrar alertas de empresas morosas o suspendidas tanto en el panel master como en el login de la empresa (resaltado visual en panel y aviso en login cuando empresa_estado = 'morosa'; bloqueo total si 'suspendida').
 - [x] Integrar el chequeo de licencia en el flujo de login y en operaciones críticas (el login bloquea empresas con estado 'suspendida').
 
-## Fase 19: Portal Web del Dueño (Empresa)
-- [ ] Crear vistas ligeras en la nube para admin_empresa: resumen de ventas, reportes clave y gestión básica (por ejemplo, presupuestos).
-- [ ] Hacer estas vistas responsive para uso cómodo desde móvil.
-- [ ] Respetar roles dentro de la empresa (admin_empresa vs lectura) en el portal nube.
+## Fase 19: Experiencia Web para Dueño (Empresa)
+- [descartado] Crear portal separado y login distinto para admin_empresa (se reutilizan las vistas actuales con el mismo flujo de login).
+- [ ] Asegurar que las vistas clave actuales sean totalmente usables en móvil (POS, dashboard, reportes principales).
+- [ ] Revisar estilos responsive (Tailwind) de tablas y tarjetas para que se adapten bien en pantallas pequeñas.
 
 ## Notas de Progreso

@@ -19,9 +19,14 @@ function safeStr(v, max) {
 router.get('/', requireAuth, (req, res) => {
   try {
     const { desde, hasta, cliente, estado, limit = 100 } = req.query;
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
     const lim = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
     const where = [];
     const params = [];
+    if (empresaId) {
+      where.push('p.empresa_id = ?');
+      params.push(empresaId);
+    }
     if (desde) { where.push("date(p.fecha) >= date(?)"); params.push(desde); }
     if (hasta) { where.push("date(p.fecha) <= date(?)"); params.push(hasta); }
     if (cliente) { where.push("(p.cliente LIKE ? OR p.cliente_doc LIKE ? OR p.telefono LIKE ?)"); params.push(`%${cliente}%`, `%${cliente}%`, `%${cliente}%`); }
@@ -47,7 +52,10 @@ router.get('/:id', requireAuth, (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ error: 'ID inválido' });
-    const presupuesto = db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const presupuesto = empresaId
+      ? db.prepare('SELECT * FROM presupuestos WHERE id = ? AND empresa_id = ?').get(id, empresaId)
+      : db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
     if (!presupuesto) return res.status(404).json({ error: 'Presupuesto no encontrado' });
     const detalles = db.prepare(`
       SELECT pd.*, p.stock
@@ -67,7 +75,10 @@ router.get('/nota/:id', requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).send('ID inválido');
-    const presupuesto = db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const presupuesto = empresaId
+      ? db.prepare('SELECT * FROM presupuestos WHERE id = ? AND empresa_id = ?').get(id, empresaId)
+      : db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
     if (!presupuesto) return res.status(404).send('Presupuesto no encontrado');
     const detalles = db.prepare(`
       SELECT pd.cantidad, pd.precio_usd, pd.subtotal_bs, pd.descripcion, pd.codigo
@@ -164,21 +175,26 @@ router.post('/', requireAuth, (req, res) => {
 
   try {
     const fecha = new Date().toISOString();
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+
+    if (!empresaId) {
+      return res.status(400).json({ error: 'Usuario sin empresa asociada' });
+    }
     let totalBs = 0;
     let totalUsd = 0;
 
     const tx = db.transaction(() => {
       const info = db.prepare(`
-        INSERT INTO presupuestos (fecha, cliente, cliente_doc, telefono, tasa_bcv, descuento, total_bs, total_usd, valido_hasta, estado, notas, usuario_id)
-        VALUES (?, ?, ?, ?, ?, ?, 0, 0, NULL, 'activo', ?, ?)
-      `).run(fecha, clienteSafe, cedulaSafe, telefonoSafe, tasa, descuentoNum, notasSafe, req.usuario?.id || null);
+        INSERT INTO presupuestos (fecha, cliente, cliente_doc, telefono, tasa_bcv, descuento, total_bs, total_usd, valido_hasta, estado, notas, usuario_id, empresa_id)
+        VALUES (?, ?, ?, ?, ?, ?, 0, 0, NULL, 'activo', ?, ?, ?)
+      `).run(fecha, clienteSafe, cedulaSafe, telefonoSafe, tasa, descuentoNum, notasSafe, req.usuario?.id || null, empresaId);
 
       const presupuestoId = info.lastInsertRowid;
 
       for (const item of items) {
         const codigo = safeStr(item.codigo, 64).toUpperCase();
         const cantidad = parseInt(item.cantidad, 10);
-        const producto = db.prepare('SELECT id, codigo, descripcion, precio_usd FROM productos WHERE codigo = ?').get(codigo);
+        const producto = db.prepare('SELECT id, codigo, descripcion, precio_usd FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
         if (!producto) throw new Error(`Producto ${codigo} no existe`);
 
         const precio = Number(producto.precio_usd || 0);
