@@ -27,9 +27,12 @@ import { apiFetchJson } from './app-api.js';
   const user = JSON.parse(localStorage.getItem('auth_user') || 'null');
 
   function applyRoleGuards(u) {
-    // Superadmin: sólo debe usar el panel master de empresas
+    // Superadmin: puede usar panel master y página de ajustes (para 2FA)
     if (u && u.rol === 'superadmin') {
-      if (!window.location.pathname.includes('/pages/admin-empresas.html')) {
+      const path = window.location.pathname;
+      const esPanelEmpresas = path.includes('/pages/admin-empresas.html');
+      const esAjustes = path.includes('/pages/ajustes.html');
+      if (!esPanelEmpresas && !esAjustes) {
         window.location.href = '/pages/admin-empresas.html';
         return false;
       }
@@ -75,7 +78,7 @@ import { apiFetchJson } from './app-api.js';
     const drawer = document.getElementById('drawer');
     const currentUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
     if (drawer && currentUser) {
-      // Superadmin: menú especial solo para panel master
+      // Superadmin: menú especial para panel master y ajustes de cuenta
       if (currentUser.rol === 'superadmin') {
         const nav = drawer.querySelector('nav');
         if (nav) {
@@ -83,6 +86,10 @@ import { apiFetchJson } from './app-api.js';
             <a href="/pages/admin-empresas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
               <i class="fas fa-building text-blue-600"></i>
               Empresas (Master)
+            </a>
+            <a href="/pages/ajustes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+              <i class="fas fa-shield-alt text-emerald-600"></i>
+              Seguridad / 2FA
             </a>
           `;
         }
@@ -92,7 +99,7 @@ import { apiFetchJson } from './app-api.js';
       // Mostrar/ocultar accesos solo admin
       const gearButtons = document.querySelectorAll('.admin-only-gear');
       gearButtons.forEach(btn => {
-        if (currentUser.rol === 'admin') {
+        if (currentUser.rol === 'admin' || currentUser.rol === 'superadmin') {
           btn.style.removeProperty('display');
         } else {
           btn.style.display = 'none';

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth, requireRole } = require('./auth');
+const { registrarAuditoria } = require('../services/auditLogService');
 const {
   ajustarStock,
   listarAjustes,
@@ -18,6 +19,19 @@ const {
 router.post('/', requireAuth, (req, res) => {
   try {
     ajustarStock(req.body || {});
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'AJUSTE_STOCK',
+        entidad: 'ajuste_stock',
+        entidadId: null,
+        detalle: req.body || {},
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
     res.json({ message: 'Ajuste de inventario procesado correctamente.' });
   } catch (err) {
     console.error('Error en ajuste:', err.message);
@@ -106,7 +120,8 @@ router.post('/stock-minimo', requireAuth, (req, res) => {
 
 router.get('/config', requireAuth, (req, res) => {
   try {
-    const data = obtenerConfigGeneral();
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const data = obtenerConfigGeneral(empresaId);
     res.json(data);
   } catch (err) {
     console.error('Error obteniendo config general', err.message);
@@ -116,7 +131,8 @@ router.get('/config', requireAuth, (req, res) => {
 
 router.post('/config', requireAuth, (req, res) => {
   try {
-    const result = guardarConfigGeneral(req.body || {});
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const result = guardarConfigGeneral(req.body || {}, empresaId);
     res.json(result);
   } catch (err) {
     console.error('Error guardando config general', err.message);
@@ -131,8 +147,26 @@ router.post('/purge-data', requireAuth, requireRole('admin'), (req, res) => {
     return res.status(400).json({ error: 'Confirmación inválida' });
   }
 
+  const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+  if (!empresaId) {
+    return res.status(400).json({ error: 'No se pudo determinar la empresa del usuario' });
+  }
+
   try {
-    purgeTransactionalData();
+    purgeTransactionalData(empresaId);
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'PURGE_TRANSACCIONAL',
+        entidad: 'empresa',
+        entidadId: empresaId,
+        detalle: { empresaId },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error('Error borrando datos:', err.message);

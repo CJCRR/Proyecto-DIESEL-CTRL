@@ -60,15 +60,15 @@ function renderReporte() {
         const m = MONEDA === 'USD' ? r.margen_usd || 0 : r.margen_bs || 0;
         total += Number(t);
         margen += Number(m);
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-50 cursor-pointer';
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 cursor-pointer';
         tr.dataset.id = String(r.id);
                 tr.innerHTML = `
             <td class="p-2 whitespace-nowrap"><i id="venta-toggle-icon-${r.id}" class="fas fa-chevron-down mr-2 text-slate-500"></i>${new Date(r.fecha).toLocaleString()}</td>
       <td class="p-2">${r.cliente || ''}</td>
-      <td class="p-2">${r.vendedor || ''}</td>
-      <td class="p-2">${r.metodo_pago || ''}</td>
-      <td class="p-2 text-slate-600 text-xs">${r.referencia || '—'}</td>
+            <td class="p-2 hidden sm:table-cell">${r.vendedor || ''}</td>
+            <td class="p-2 hidden sm:table-cell">${r.metodo_pago || ''}</td>
+            <td class="p-2 text-slate-600 text-xs hidden md:table-cell">${r.referencia || '—'}</td>
     <td class="p-2 text-right font-semibold">${formatNumber(t)}</td>
     <td class="p-2 text-right text-blue-700 font-semibold">${formatNumber(m)}</td>
     `;

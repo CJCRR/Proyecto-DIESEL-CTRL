@@ -12,6 +12,8 @@ function resetDevolucionesData() {
   db.prepare('DELETE FROM devolucion_detalle').run();
   db.prepare('DELETE FROM devoluciones').run();
   db.prepare("DELETE FROM config WHERE clave = 'devolucion_politica'").run();
+   db.prepare('DELETE FROM venta_detalle').run();
+   db.prepare('DELETE FROM ventas').run();
   db.prepare('DELETE FROM productos').run();
 }
 
@@ -99,5 +101,88 @@ describe('Rutas HTTP /devoluciones', () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  test('POST /devoluciones rechaza superadmin con 403', async () => {
+    const { token } = createTestUserAndToken({ rol: 'superadmin', empresaId: null });
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/devoluciones')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(403);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  test('GET /devoluciones/historial solo devuelve devoluciones de la empresa del usuario', async () => {
+    const app = buildApp();
+
+    // Reset específico para este escenario
+    resetDevolucionesData();
+
+    const empresaAId = 1;
+    const infoEmpB = db
+      .prepare("INSERT INTO empresas (nombre, codigo, estado) VALUES ('Empresa Dev B', 'EMPDEV', 'activa')")
+      .run();
+    const empresaBId = infoEmpB.lastInsertRowid;
+
+    const { userId: userAId, token: tokenA } = createTestUserAndToken({ rol: 'admin', empresaId: empresaAId });
+    const { userId: userBId, token: tokenB } = createTestUserAndToken({ rol: 'admin', empresaId: empresaBId });
+
+    // Crear productos compartidos
+    const prod = db
+      .prepare('INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock) VALUES (?,?,?,?,?)')
+      .run('DEV-MULTI', 'Prod Dev Multi', 10, 5, 0);
+
+    // Ventas por empresa
+    const ventaA = db
+      .prepare(`INSERT INTO ventas (fecha, cliente, vendedor, metodo_pago, total_bs, tasa_bcv, usuario_id)
+                VALUES (datetime('now'), 'Cliente Dev A', 'Vend A', 'EFECTIVO', 100, 10, ?)`)
+      .run(userAId);
+
+    const ventaB = db
+      .prepare(`INSERT INTO ventas (fecha, cliente, vendedor, metodo_pago, total_bs, tasa_bcv, usuario_id)
+                VALUES (datetime('now'), 'Cliente Dev B', 'Vend B', 'EFECTIVO', 200, 10, ?)`)
+      .run(userBId);
+
+    // Detalles de ventas
+    db
+      .prepare('INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs) VALUES (?,?,?,?,?,?)')
+      .run(ventaA.lastInsertRowid, prod.lastInsertRowid, 1, 10, 5, 100);
+
+    db
+      .prepare('INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs) VALUES (?,?,?,?,?,?)')
+      .run(ventaB.lastInsertRowid, prod.lastInsertRowid, 2, 10, 5, 200);
+
+    // Devoluciones ligadas a cada venta
+    db
+      .prepare(`INSERT INTO devoluciones (fecha, cliente, cliente_doc, telefono, tasa_bcv, referencia, motivo, venta_original_id, total_bs, total_usd, usuario_id)
+                VALUES (datetime('now'), 'Cliente Dev A', 'V-300', '', 10, 'REF-A', 'Motivo A', ?, 50, 5, ?)`)
+      .run(ventaA.lastInsertRowid, userAId);
+
+    db
+      .prepare(`INSERT INTO devoluciones (fecha, cliente, cliente_doc, telefono, tasa_bcv, referencia, motivo, venta_original_id, total_bs, total_usd, usuario_id)
+                VALUES (datetime('now'), 'Cliente Dev B', 'V-400', '', 10, 'REF-B', 'Motivo B', ?, 60, 6, ?)`)
+      .run(ventaB.lastInsertRowid, userBId);
+
+    const resA = await request(app)
+      .get('/devoluciones/historial?limit=10')
+      .set('Authorization', `Bearer ${tokenA}`);
+    expect(resA.status).toBe(200);
+    expect(Array.isArray(resA.body)).toBe(true);
+    const clientesA = resA.body.map((r) => r.cliente);
+    expect(clientesA).toContain('Cliente Dev A');
+    expect(clientesA).not.toContain('Cliente Dev B');
+
+    const resB = await request(app)
+      .get('/devoluciones/historial?limit=10')
+      .set('Authorization', `Bearer ${tokenB}`);
+    expect(resB.status).toBe(200);
+    expect(Array.isArray(resB.body)).toBe(true);
+    const clientesB = resB.body.map((r) => r.cliente);
+    expect(clientesB).toContain('Cliente Dev B');
+    expect(clientesB).not.toContain('Cliente Dev A');
   });
 });

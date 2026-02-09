@@ -241,6 +241,62 @@
             </div>
         </section>
 
+        <!-- Seguridad (2FA) -->
+        <section id="sec-2fa" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Seguridad</p>
+                    <h2 class="text-lg font-black">Doble factor (2FA)</h2>
+                </div>
+                <span id="twofa-status-badge" class="px-2 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Cargando...</span>
+            </div>
+            <div class="space-y-4 text-sm text-slate-600">
+                <p>
+                    El doble factor de autenticación agrega una capa extra de seguridad a tu cuenta
+                    usando una app como Google Authenticator o Authy.
+                    Solo está disponible para usuarios con rol <span class="font-semibold">admin</span> o <span class="font-semibold">superadmin</span>.
+                </p>
+
+                <div id="twofa-setup-block" class="space-y-3">
+                    <p class="text-slate-700 font-semibold">Configurar 2FA en esta cuenta</p>
+                    <button id="btn-2fa-setup" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+                        Generar código de configuración
+                    </button>
+                    <div id="twofa-setup-data" class="mt-3 space-y-2 hidden">
+                        <p class="text-xs text-slate-500">1. Agrega una nueva cuenta en tu app 2FA, usando el código secreto de abajo.</p>
+                        <div class="p-2 bg-slate-100 rounded text-xs break-all font-mono select-all" id="twofa-secret">SECRETO</div>
+                        <p class="text-xs text-slate-500">Opcional: algunas apps permiten pegar directamente esta URL:</p>
+                        <div class="p-2 bg-slate-100 rounded text-[11px] break-all font-mono select-all" id="twofa-otpauth">otpauth://...</div>
+                        <p class="text-xs text-slate-500">O escanea este código QR en tu app 2FA:</p>
+                        <div id="twofa-qr" class="inline-flex items-center justify-center p-2 border rounded-xl bg-slate-50"></div>
+                        <p class="text-xs text-slate-500">2. Escribe un código generado por tu app para confirmar y activar 2FA:</p>
+                        <div class="flex gap-2 items-center">
+                            <input id="twofa-code-enable" type="text" inputmode="numeric" maxlength="8" placeholder="Código de 6 dígitos"
+                                class="w-40 p-2 border rounded-lg text-center tracking-[0.3em]">
+                            <button id="btn-2fa-enable" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition">
+                                Confirmar y activar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="twofa-enabled-block" class="space-y-3 hidden">
+                    <p class="text-slate-700 font-semibold">2FA activo para esta cuenta</p>
+                    <p class="text-xs text-slate-500">
+                        Para desactivar 2FA debes escribir un código válido generado por tu app.
+                        Solo hagas esto si estás seguro.
+                    </p>
+                    <div class="flex gap-2 items-center">
+                        <input id="twofa-code-disable" type="text" inputmode="numeric" maxlength="8" placeholder="Código actual"
+                            class="w-40 p-2 border rounded-lg text-center tracking-[0.3em]">
+                        <button id="btn-2fa-disable" class="px-3 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700 transition">
+                            Desactivar 2FA
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5">
             <div class="flex items-center justify-between mb-3">
                 <div>
@@ -261,7 +317,32 @@
         </section>
     </main>
 
+    <!-- Modal confirmación para borrar todos los datos -->
+    <div id="modal-purge-all" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <h3 class="text-lg font-bold text-rose-700 mb-2">Borrar todo el sistema</h3>
+            <p class="text-sm text-slate-600 mb-2">
+                Esta acción eliminará inventario, ventas, devoluciones, cuentas por cobrar, reportes y clientes.
+                No se puede deshacer.
+            </p>
+            <p class="text-sm text-rose-600 font-semibold mb-3">Para continuar, escriba <span
+                    class="font-mono">BORRAR</span> en el cuadro de abajo.</p>
+            <input id="purge-confirm-text" type="text" placeholder="Escriba BORRAR para confirmar"
+                class="w-full px-3 py-2 border rounded-lg text-sm mb-4" />
+            <div class="flex justify-end gap-2">
+                <button type="button" id="purge-cancelar"
+                    class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cancelar</button>
+                <button type="button" id="purge-confirmar"
+                    class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold">Sí,
+                    borrar todo</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast-container" class="fixed right-4 bottom-4 flex flex-col gap-2 z-50"></div>
+
+    <!-- Librería ligera para generar códigos QR en el navegador -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <script type="module" src="/js/auth-guard.js"></script>
     <script type="module" src="/js/theme.js"></script>

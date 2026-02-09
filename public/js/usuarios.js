@@ -1,4 +1,5 @@
 import { apiFetchJson } from './app-api.js';
+import { upsertUsuarioFirebase, deleteUsuarioFirebase } from './firebase-sync.js';
 
 // Intentar cargar utilidades centralizadas para toasts si no están disponibles
 (async () => {
@@ -32,6 +33,14 @@ const inputPassword = document.getElementById('usuario-password');
 const inputNombre = document.getElementById('usuario-nombre');
 const inputRol = document.getElementById('usuario-rol');
 const passwordHint = document.getElementById('password-hint');
+
+// Modal de confirmación de acciones (activar / desactivar / eliminar)
+const modalConfirmUsuario = document.getElementById('modal-confirm-usuario');
+const ucTitle = document.getElementById('uc-title');
+const ucMessage = document.getElementById('uc-message');
+const ucCancelar = document.getElementById('uc-cancelar');
+const ucConfirmar = document.getElementById('uc-confirmar');
+let currentUsuarioConfirmAction = null;
 
 // Cargar usuarios
 async function cargarUsuarios() {
@@ -155,9 +164,24 @@ async function guardarUsuario(e) {
   try {
     if (modoEdicion) {
       const id = inputId.value;
-      await apiFetchJson(`/admin/usuarios/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+      const resp = await apiFetchJson(`/admin/usuarios/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+      // Sincronizar perfil ligero a Firebase (mejor esfuerzo)
+      if (resp && resp.usuario) {
+        try {
+          await upsertUsuarioFirebase(resp.usuario);
+        } catch (syncErr) {
+          console.warn('No se pudo sincronizar usuario a Firebase (update):', syncErr);
+        }
+      }
     } else {
-      await apiFetchJson('/admin/usuarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+      const resp = await apiFetchJson('/admin/usuarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+      if (resp && resp.usuario) {
+        try {
+          await upsertUsuarioFirebase(resp.usuario);
+        } catch (syncErr) {
+          console.warn('No se pudo sincronizar usuario a Firebase (create):', syncErr);
+        }
+      }
     }
 
 	if (window.showToast) {
@@ -181,80 +205,116 @@ async function guardarUsuario(e) {
 async function desactivarUsuario(id) {
   const usuario = usuarios.find(u => u.id === id);
   if (!usuario) return;
+  const doDesactivar = async () => {
+    try {
+      await apiFetchJson(`/admin/usuarios/${id}`, { method: 'DELETE' });
+      if (window.showToast) {
+        window.showToast('Usuario desactivado exitosamente', 'success');
+      } else {
+        alert('Usuario desactivado exitosamente');
+      }
+      await cargarUsuarios();
+    } catch (err) {
+      console.error(err);
+      if (window.showToast) {
+        window.showToast(err.message || 'Error al desactivar usuario', 'error');
+      } else {
+        alert(err.message || 'Error al desactivar usuario');
+      }
+    }
+  };
 
-  if (!confirm(`¿Estás seguro de desactivar al usuario "${usuario.username}"?\n\nEsto cerrará todas sus sesiones activas.`)) {
+  if (!modalConfirmUsuario) {
+    const ok = window.confirm(`¿Estás seguro de desactivar al usuario "${usuario.username}"?\n\nEsto cerrará todas sus sesiones activas.`);
+    if (!ok) return;
+    await doDesactivar();
     return;
   }
 
-  try {
-    await apiFetchJson(`/admin/usuarios/${id}`, { method: 'DELETE' });
-  if (window.showToast) {
-    window.showToast('Usuario desactivado exitosamente', 'success');
-  } else {
-    alert('Usuario desactivado exitosamente');
-  }
-    await cargarUsuarios();
-  } catch (err) {
-    console.error(err);
-  if (window.showToast) {
-    window.showToast(err.message || 'Error al desactivar usuario', 'error');
-  } else {
-    alert(err.message || 'Error al desactivar usuario');
-  }
-  }
+  ucTitle.textContent = 'Desactivar usuario';
+  ucMessage.textContent = `¿Estás seguro de desactivar al usuario "${usuario.username}"? Esto cerrará todas sus sesiones activas.`;
+  currentUsuarioConfirmAction = doDesactivar;
+  modalConfirmUsuario.classList.remove('hidden');
+  modalConfirmUsuario.classList.add('flex');
 }
 
 // Activar usuario
 async function activarUsuario(id) {
   const usuario = usuarios.find(u => u.id === id);
   if (!usuario) return;
+  const doActivar = async () => {
+    try {
+      await apiFetchJson(`/admin/usuarios/${id}/activar`, { method: 'POST' });
+      if (window.showToast) {
+        window.showToast('Usuario activado exitosamente', 'success');
+      } else {
+        alert('Usuario activado exitosamente');
+      }
+      await cargarUsuarios();
+    } catch (err) {
+      console.error(err);
+      if (window.showToast) {
+        window.showToast(err.message || 'Error al activar usuario', 'error');
+      } else {
+        alert(err.message || 'Error al activar usuario');
+      }
+    }
+  };
 
-  if (!confirm(`¿Activar al usuario "${usuario.username}"?`)) {
+  if (!modalConfirmUsuario) {
+    const ok = window.confirm(`¿Activar al usuario "${usuario.username}"?`);
+    if (!ok) return;
+    await doActivar();
     return;
   }
 
-  try {
-    await apiFetchJson(`/admin/usuarios/${id}/activar`, { method: 'POST' });
-  if (window.showToast) {
-    window.showToast('Usuario activado exitosamente', 'success');
-  } else {
-    alert('Usuario activado exitosamente');
-  }
-    await cargarUsuarios();
-  } catch (err) {
-    console.error(err);
-  if (window.showToast) {
-    window.showToast(err.message || 'Error al activar usuario', 'error');
-  } else {
-    alert(err.message || 'Error al activar usuario');
-  }
-  }
+  ucTitle.textContent = 'Activar usuario';
+  ucMessage.textContent = `¿Activar al usuario "${usuario.username}"?`;
+  currentUsuarioConfirmAction = doActivar;
+  modalConfirmUsuario.classList.remove('hidden');
+  modalConfirmUsuario.classList.add('flex');
 }
 
 // Eliminar usuario definitivamente
 async function eliminarUsuario(id) {
   const usuario = usuarios.find(u => u.id === id);
   if (!usuario) return;
+  const doEliminar = async () => {
+    try {
+      await apiFetchJson(`/admin/usuarios/${id}/eliminar`, { method: 'DELETE' });
+      try {
+        await deleteUsuarioFirebase(id);
+      } catch (syncErr) {
+        console.warn('No se pudo eliminar perfil de usuario en Firebase:', syncErr);
+      }
+      if (window.showToast) {
+        window.showToast('Usuario eliminado definitivamente', 'success');
+      } else {
+        alert('Usuario eliminado definitivamente');
+      }
+      await cargarUsuarios();
+    } catch (err) {
+      console.error(err);
+      if (window.showToast) {
+        window.showToast(err.message || 'Error al eliminar usuario', 'error');
+      } else {
+        alert(err.message || 'Error al eliminar usuario');
+      }
+    }
+  };
 
-  const confirmado = confirm(`¿Eliminar definitivamente al usuario "${usuario.username}"?\n\nEsta acción no se puede deshacer. Si tiene ventas asociadas, no se podrá eliminar.`);
-  if (!confirmado) return;
+  if (!modalConfirmUsuario) {
+    const confirmado = window.confirm(`¿Eliminar definitivamente al usuario "${usuario.username}"?\n\nEsta acción no se puede deshacer. Si tiene ventas asociadas, no se podrá eliminar.`);
+    if (!confirmado) return;
+    await doEliminar();
+    return;
+  }
 
-  try {
-    await apiFetchJson(`/admin/usuarios/${id}/eliminar`, { method: 'DELETE' });
-  if (window.showToast) {
-    window.showToast('Usuario eliminado definitivamente', 'success');
-  } else {
-    alert('Usuario eliminado definitivamente');
-  }
-    await cargarUsuarios();
-  } catch (err) {
-    console.error(err);
-  if (window.showToast) {
-    window.showToast(err.message || 'Error al eliminar usuario', 'error');
-  } else {
-    alert(err.message || 'Error al eliminar usuario');
-  }
-  }
+  ucTitle.textContent = 'Eliminar usuario';
+  ucMessage.textContent = `¿Eliminar definitivamente al usuario "${usuario.username}"? Esta acción no se puede deshacer. Si tiene ventas asociadas, no se podrá eliminar.`;
+  currentUsuarioConfirmAction = doEliminar;
+  modalConfirmUsuario.classList.remove('hidden');
+  modalConfirmUsuario.classList.add('flex');
 }
 
 // Funciones del modal
@@ -282,6 +342,29 @@ document.addEventListener('keydown', (e) => {
     cerrarModal();
   }
 });
+
+// Eventos para modal de confirmación de usuario
+if (modalConfirmUsuario && ucCancelar) {
+  ucCancelar.addEventListener('click', () => {
+    modalConfirmUsuario.classList.add('hidden');
+    modalConfirmUsuario.classList.remove('flex');
+    currentUsuarioConfirmAction = null;
+  });
+}
+
+if (modalConfirmUsuario && ucConfirmar) {
+  ucConfirmar.addEventListener('click', () => {
+    try {
+      if (typeof currentUsuarioConfirmAction === 'function') {
+        currentUsuarioConfirmAction();
+      }
+    } finally {
+      modalConfirmUsuario.classList.add('hidden');
+      modalConfirmUsuario.classList.remove('flex');
+      currentUsuarioConfirmAction = null;
+    }
+  });
+}
 
 // Cargar usuarios al iniciar
 cargarUsuarios();

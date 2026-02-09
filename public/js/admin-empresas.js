@@ -38,6 +38,38 @@ const uaNombre = document.getElementById('ua-nombre');
 const uaCancelar = document.getElementById('ua-cancelar');
 let uaEmpresaId = null;
 
+// Modal confirmación genérica de acción sobre empresa
+const modalConfirm = document.getElementById('modal-confirm-empresa');
+const mcTitle = document.getElementById('mc-title');
+const mcMessage = document.getElementById('mc-message');
+const mcCancelar = document.getElementById('mc-cancelar');
+const mcConfirmar = document.getElementById('mc-confirmar');
+let currentConfirmAction = null;
+
+// Modal plan / monto
+const modalPlan = document.getElementById('modal-plan-empresa');
+const formPlan = document.getElementById('form-plan-empresa');
+const mpPlan = document.getElementById('mp-plan');
+const mpMonto = document.getElementById('mp-monto');
+const mpCancelar = document.getElementById('mp-cancelar');
+let mpEmpresaId = null;
+
+// Modal registrar pago
+const modalPago = document.getElementById('modal-pago-empresa');
+const formPago = document.getElementById('form-pago-empresa');
+const rpFecha = document.getElementById('rp-fecha');
+const rpMeses = document.getElementById('rp-meses');
+const rpCancelar = document.getElementById('rp-cancelar');
+let rpEmpresaId = null;
+
+// Modal ciclo de facturación
+const modalCiclo = document.getElementById('modal-ciclo-empresa');
+const formCiclo = document.getElementById('form-ciclo-empresa');
+const ecCorte = document.getElementById('ec-corte');
+const ecGracia = document.getElementById('ec-gracia');
+const ecCancelar = document.getElementById('ec-cancelar');
+let ecEmpresaId = null;
+
 let empresas = [];
 
 async function cargarEmpresas() {
@@ -188,44 +220,77 @@ async function patchEmpresa(id, payload, successMessage) {
 window.__activarEmpresa = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
-  if (!confirm(`¿Activar la empresa "${empresa.nombre}"?`)) return;
-  patchEmpresa(id, { estado: 'activa' }, 'Empresa activada');
+  if (!modalConfirm) {
+    patchEmpresa(id, { estado: 'activa' }, 'Empresa activada');
+    return;
+  }
+  mcTitle.textContent = 'Activar empresa';
+  mcMessage.textContent = `¿Activar la empresa "${empresa.nombre}"?`;
+  currentConfirmAction = () => {
+    patchEmpresa(id, { estado: 'activa' }, 'Empresa activada');
+  };
+  modalConfirm.classList.remove('hidden');
+  modalConfirm.classList.add('flex');
 };
 
 window.__suspenderEmpresa = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
-  if (!confirm(`¿Suspender la empresa "${empresa.nombre}"?
-\nEsto bloqueará el acceso de sus usuarios hasta que se reactive.`)) return;
-  patchEmpresa(id, { estado: 'suspendida' }, 'Empresa suspendida');
+  if (!modalConfirm) {
+    patchEmpresa(id, { estado: 'suspendida' }, 'Empresa suspendida');
+    return;
+  }
+  mcTitle.textContent = 'Suspender empresa';
+  mcMessage.textContent = `¿Suspender la empresa "${empresa.nombre}"? Esto bloqueará el acceso de sus usuarios hasta que se reactive.`;
+  currentConfirmAction = () => {
+    patchEmpresa(id, { estado: 'suspendida' }, 'Empresa suspendida');
+  };
+  modalConfirm.classList.remove('hidden');
+  modalConfirm.classList.add('flex');
 };
 
 window.__marcarMorosa = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
-  if (!confirm(`¿Marcar la empresa "${empresa.nombre}" como morosa?`)) return;
-  patchEmpresa(id, { estado: 'morosa' }, 'Empresa marcada como morosa');
+  if (!modalConfirm) {
+    patchEmpresa(id, { estado: 'morosa' }, 'Empresa marcada como morosa');
+    return;
+  }
+  mcTitle.textContent = 'Marcar empresa morosa';
+  mcMessage.textContent = `¿Marcar la empresa "${empresa.nombre}" como morosa?`;
+  currentConfirmAction = () => {
+    patchEmpresa(id, { estado: 'morosa' }, 'Empresa marcada como morosa');
+  };
+  modalConfirm.classList.remove('hidden');
+  modalConfirm.classList.add('flex');
 };
 
 window.__editarPlan = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
-
-  const planActual = empresa.plan || '';
-  const montoActual = Number(empresa.monto_mensual || 0);
-
-  const nuevoPlan = prompt('Nombre del plan (Ej: Mensual, Pro, Multi-sucursal):', planActual);
-  if (nuevoPlan === null) return;
-
-  const nuevoMontoStr = prompt('Monto mensual en USD:', montoActual > 0 ? String(montoActual) : '0');
-  if (nuevoMontoStr === null) return;
-  const nuevoMonto = Number(nuevoMontoStr);
-  if (Number.isNaN(nuevoMonto) || nuevoMonto < 0) {
-    if (window.showToast) window.showToast('Monto inválido (debe ser un número positivo).', 'error'); else alert('Monto inválido (debe ser un número positivo).');
+  if (!modalPlan) {
+    const planActual = empresa.plan || '';
+    const montoActual = Number(empresa.monto_mensual || 0);
+    const nuevoPlan = window.prompt('Nombre del plan (Ej: Mensual, Pro, Multi-sucursal):', planActual);
+    if (nuevoPlan === null) return;
+    const nuevoMontoStr = window.prompt('Monto mensual en USD:', montoActual > 0 ? String(montoActual) : '0');
+    if (nuevoMontoStr === null) return;
+    const nuevoMonto = Number(nuevoMontoStr);
+    if (Number.isNaN(nuevoMonto) || nuevoMonto < 0) {
+      if (window.showToast) window.showToast('Monto inválido (debe ser un número positivo).', 'error'); else alert('Monto inválido (debe ser un número positivo).');
+      return;
+    }
+    patchEmpresa(id, { plan: nuevoPlan, monto_mensual: nuevoMonto }, 'Plan y monto actualizados');
     return;
   }
 
-  patchEmpresa(id, { plan: nuevoPlan, monto_mensual: nuevoMonto }, 'Plan y monto actualizados');
+  mpEmpresaId = id;
+  mpPlan.value = empresa.plan || '';
+  const montoActual = Number(empresa.monto_mensual || 0);
+  mpMonto.value = Number.isNaN(montoActual) ? '' : String(montoActual);
+  modalPlan.classList.remove('hidden');
+  modalPlan.classList.add('flex');
+  setTimeout(() => mpPlan.focus(), 50);
 };
 
 function formatDateInput(date) {
@@ -244,60 +309,74 @@ function addMonths(date, months) {
 window.__registrarPago = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
+  if (!modalPago) {
+    const hoy = new Date();
+    const fechaDefault = formatDateInput(hoy);
+    const fechaPagoStr = window.prompt('Fecha del pago (YYYY-MM-DD):', fechaDefault);
+    if (fechaPagoStr === null) return;
+    const fechaPago = new Date(fechaPagoStr);
+    if (Number.isNaN(fechaPago.getTime())) {
+      if (window.showToast) window.showToast('Fecha de pago inválida.', 'error'); else alert('Fecha de pago inválida.');
+      return;
+    }
+    const mesesStr = window.prompt('Meses pagados (1 = mensual, 3 = trimestral, etc.):', '1');
+    if (mesesStr === null) return;
+    const meses = parseInt(mesesStr, 10);
+    if (Number.isNaN(meses) || meses <= 0 || meses > 24) {
+      if (window.showToast) window.showToast('Cantidad de meses inválida (1-24).', 'error'); else alert('Cantidad de meses inválida (1-24).');
+      return;
+    }
+    const proximoCobroDate = addMonths(fechaPago, meses);
+    const proximoCobroStr = formatDateInput(proximoCobroDate);
+    patchEmpresa(id, {
+      ultimo_pago_en: fechaPagoStr,
+      proximo_cobro: proximoCobroStr,
+      estado: 'activa'
+    }, 'Pago registrado y próximo cobro actualizado');
+    return;
+  }
 
+  rpEmpresaId = id;
   const hoy = new Date();
-  const fechaDefault = formatDateInput(hoy);
-
-  const fechaPagoStr = prompt('Fecha del pago (YYYY-MM-DD):', fechaDefault);
-  if (fechaPagoStr === null) return;
-  const fechaPago = new Date(fechaPagoStr);
-  if (Number.isNaN(fechaPago.getTime())) {
-    if (window.showToast) window.showToast('Fecha de pago inválida.', 'error'); else alert('Fecha de pago inválida.');
-    return;
-  }
-
-  const mesesStr = prompt('Meses pagados (1 = mensual, 3 = trimestral, etc.):', '1');
-  if (mesesStr === null) return;
-  const meses = parseInt(mesesStr, 10);
-  if (Number.isNaN(meses) || meses <= 0 || meses > 24) {
-    if (window.showToast) window.showToast('Cantidad de meses inválida (1-24).', 'error'); else alert('Cantidad de meses inválida (1-24).');
-    return;
-  }
-
-  const proximoCobroDate = addMonths(fechaPago, meses);
-  const proximoCobroStr = formatDateInput(proximoCobroDate);
-
-  patchEmpresa(id, {
-    ultimo_pago_en: fechaPagoStr,
-    proximo_cobro: proximoCobroStr,
-    estado: 'activa'
-  }, 'Pago registrado y próximo cobro actualizado');
+  rpFecha.value = formatDateInput(hoy);
+  rpMeses.value = '1';
+  modalPago.classList.remove('hidden');
+  modalPago.classList.add('flex');
+  setTimeout(() => rpFecha.focus(), 50);
 };
 
 window.__editarCiclo = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
+  if (!modalCiclo) {
+    const actualCorte = empresa.fecha_corte || 1;
+    const actualGracia = empresa.dias_gracia || 7;
+    const nuevoCorteStr = window.prompt('Día de corte de facturación (1-28):', String(actualCorte));
+    if (nuevoCorteStr === null) return;
+    const nuevoCorte = parseInt(nuevoCorteStr, 10);
+    if (Number.isNaN(nuevoCorte) || nuevoCorte < 1 || nuevoCorte > 28) {
+      if (window.showToast) window.showToast('Valor de día de corte inválido (1-28).', 'error'); else alert('Valor de día de corte inválido (1-28).');
+      return;
+    }
+    const nuevoGraciaStr = window.prompt('Días de gracia (0-60):', String(actualGracia));
+    if (nuevoGraciaStr === null) return;
+    const nuevoGracia = parseInt(nuevoGraciaStr, 10);
+    if (Number.isNaN(nuevoGracia) || nuevoGracia < 0 || nuevoGracia > 60) {
+      if (window.showToast) window.showToast('Valor de días de gracia inválido (0-60).', 'error'); else alert('Valor de días de gracia inválido (0-60).');
+      return;
+    }
+    patchEmpresa(id, { fecha_corte: nuevoCorte, dias_gracia: nuevoGracia }, 'Ciclo de facturación actualizado');
+    return;
+  }
 
+  ecEmpresaId = id;
   const actualCorte = empresa.fecha_corte || 1;
   const actualGracia = empresa.dias_gracia || 7;
-
-  const nuevoCorteStr = prompt(`Día de corte de facturación (1-28):`, String(actualCorte));
-  if (nuevoCorteStr === null) return;
-  const nuevoCorte = parseInt(nuevoCorteStr, 10);
-  if (Number.isNaN(nuevoCorte) || nuevoCorte < 1 || nuevoCorte > 28) {
-    if (window.showToast) window.showToast('Valor de día de corte inválido (1-28).', 'error'); else alert('Valor de día de corte inválido (1-28).');
-    return;
-  }
-
-  const nuevoGraciaStr = prompt(`Días de gracia (0-60):`, String(actualGracia));
-  if (nuevoGraciaStr === null) return;
-  const nuevoGracia = parseInt(nuevoGraciaStr, 10);
-  if (Number.isNaN(nuevoGracia) || nuevoGracia < 0 || nuevoGracia > 60) {
-    if (window.showToast) window.showToast('Valor de días de gracia inválido (0-60).', 'error'); else alert('Valor de días de gracia inválido (0-60).');
-    return;
-  }
-
-  patchEmpresa(id, { fecha_corte: nuevoCorte, dias_gracia: nuevoGracia }, 'Ciclo de facturación actualizado');
+  ecCorte.value = String(actualCorte);
+  ecGracia.value = String(actualGracia);
+  modalCiclo.classList.remove('hidden');
+  modalCiclo.classList.add('flex');
+  setTimeout(() => ecCorte.focus(), 50);
 };
 
 btnBuscar.addEventListener('click', () => {
@@ -468,6 +547,142 @@ formAdminEmp.addEventListener('submit', async (e) => {
   }
 });
 
+// --- Eventos modales extra ---
+
+// Confirmación genérica
+if (mcCancelar && modalConfirm) {
+  mcCancelar.addEventListener('click', () => {
+    modalConfirm.classList.add('hidden');
+    modalConfirm.classList.remove('flex');
+    currentConfirmAction = null;
+  });
+}
+
+if (mcConfirmar && modalConfirm) {
+  mcConfirmar.addEventListener('click', () => {
+    try {
+      if (typeof currentConfirmAction === 'function') {
+        currentConfirmAction();
+      }
+    } finally {
+      modalConfirm.classList.add('hidden');
+      modalConfirm.classList.remove('flex');
+      currentConfirmAction = null;
+    }
+  });
+}
+
+// Modal plan / monto
+if (mpCancelar && modalPlan) {
+  mpCancelar.addEventListener('click', () => {
+    modalPlan.classList.add('hidden');
+    modalPlan.classList.remove('flex');
+    mpEmpresaId = null;
+  });
+}
+
+if (formPlan && modalPlan) {
+  formPlan.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!mpEmpresaId) return;
+    const plan = (mpPlan.value || '').trim();
+    const montoStr = (mpMonto.value || '').trim();
+    let monto = null;
+    if (montoStr !== '') {
+      monto = Number(montoStr);
+      if (Number.isNaN(monto) || monto < 0) {
+        if (window.showToast) window.showToast('Monto inválido (debe ser un número positivo).', 'error'); else alert('Monto inválido (debe ser un número positivo).');
+        mpMonto.focus();
+        return;
+      }
+    }
+    modalPlan.classList.add('hidden');
+    modalPlan.classList.remove('flex');
+    const payload = { plan: plan || null, monto_mensual: monto };
+    patchEmpresa(mpEmpresaId, payload, 'Plan y monto actualizados');
+    mpEmpresaId = null;
+  });
+}
+
+// Modal registrar pago
+if (rpCancelar && modalPago) {
+  rpCancelar.addEventListener('click', () => {
+    modalPago.classList.add('hidden');
+    modalPago.classList.remove('flex');
+    rpEmpresaId = null;
+  });
+}
+
+if (formPago && modalPago) {
+  formPago.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!rpEmpresaId) return;
+    const fechaStr = (rpFecha.value || '').trim();
+    if (!fechaStr) {
+      if (window.showToast) window.showToast('Debe indicar la fecha del pago.', 'error'); else alert('Debe indicar la fecha del pago.');
+      rpFecha.focus();
+      return;
+    }
+    const fechaPago = new Date(fechaStr);
+    if (Number.isNaN(fechaPago.getTime())) {
+      if (window.showToast) window.showToast('Fecha de pago inválida.', 'error'); else alert('Fecha de pago inválida.');
+      rpFecha.focus();
+      return;
+    }
+    const mesesStr = (rpMeses.value || '').trim();
+    const meses = parseInt(mesesStr, 10);
+    if (Number.isNaN(meses) || meses <= 0 || meses > 24) {
+      if (window.showToast) window.showToast('Cantidad de meses inválida (1-24).', 'error'); else alert('Cantidad de meses inválida (1-24).');
+      rpMeses.focus();
+      return;
+    }
+    const proximoCobroDate = addMonths(fechaPago, meses);
+    const proximoCobroStr = formatDateInput(proximoCobroDate);
+    modalPago.classList.add('hidden');
+    modalPago.classList.remove('flex');
+    patchEmpresa(rpEmpresaId, {
+      ultimo_pago_en: fechaStr,
+      proximo_cobro: proximoCobroStr,
+      estado: 'activa'
+    }, 'Pago registrado y próximo cobro actualizado');
+    rpEmpresaId = null;
+  });
+}
+
+// Modal ciclo de facturación
+if (ecCancelar && modalCiclo) {
+  ecCancelar.addEventListener('click', () => {
+    modalCiclo.classList.add('hidden');
+    modalCiclo.classList.remove('flex');
+    ecEmpresaId = null;
+  });
+}
+
+if (formCiclo && modalCiclo) {
+  formCiclo.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!ecEmpresaId) return;
+    const corteStr = (ecCorte.value || '').trim();
+    const graciaStr = (ecGracia.value || '').trim();
+    const corte = parseInt(corteStr, 10);
+    const gracia = parseInt(graciaStr, 10);
+    if (Number.isNaN(corte) || corte < 1 || corte > 28) {
+      if (window.showToast) window.showToast('Valor de día de corte inválido (1-28).', 'error'); else alert('Valor de día de corte inválido (1-28).');
+      ecCorte.focus();
+      return;
+    }
+    if (Number.isNaN(gracia) || gracia < 0 || gracia > 60) {
+      if (window.showToast) window.showToast('Valor de días de gracia inválido (0-60).', 'error'); else alert('Valor de días de gracia inválido (0-60).');
+      ecGracia.focus();
+      return;
+    }
+    modalCiclo.classList.add('hidden');
+    modalCiclo.classList.remove('flex');
+    patchEmpresa(ecEmpresaId, { fecha_corte: corte, dias_gracia: gracia }, 'Ciclo de facturación actualizado');
+    ecEmpresaId = null;
+  });
+}
+
 // Funciones globales para botones de acciones
 window.__abrirCrearAdmin = function (id) {
   const empresa = empresas.find(e => e.id === id);
@@ -478,19 +693,38 @@ window.__abrirCrearAdmin = function (id) {
 window.__eliminarEmpresa = async function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
-  const confirmado = confirm(`¿Eliminar la empresa "${empresa.nombre}"?\n\nSolo se permitirá si no tiene usuarios ni productos asociados.`);
-  if (!confirmado) return;
-
-  try {
-    await apiFetchJson(`/admin/empresas/${id}`, { method: 'DELETE' });
-    if (window.showToast) window.showToast('Empresa eliminada correctamente.', 'success');
-    else alert('Empresa eliminada correctamente.');
-    await cargarEmpresas();
-  } catch (err) {
-    console.error(err);
-    const msg = err && err.message ? err.message : 'Error al eliminar empresa';
-    if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
+  if (!modalConfirm) {
+    const confirmado = window.confirm(`¿Eliminar la empresa "${empresa.nombre}"?\n\nSolo se permitirá si no tiene usuarios ni productos asociados.`);
+    if (!confirmado) return;
+    try {
+      await apiFetchJson(`/admin/empresas/${id}`, { method: 'DELETE' });
+      if (window.showToast) window.showToast('Empresa eliminada correctamente.', 'success');
+      else alert('Empresa eliminada correctamente.');
+      await cargarEmpresas();
+    } catch (err) {
+      console.error(err);
+      const msg = err && err.message ? err.message : 'Error al eliminar empresa';
+      if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
+    }
+    return;
   }
+
+  mcTitle.textContent = 'Eliminar empresa';
+  mcMessage.textContent = `¿Eliminar la empresa "${empresa.nombre}"? Solo se permitirá si no tiene usuarios ni productos asociados.`;
+  currentConfirmAction = async () => {
+    try {
+      await apiFetchJson(`/admin/empresas/${id}`, { method: 'DELETE' });
+      if (window.showToast) window.showToast('Empresa eliminada correctamente.', 'success');
+      else alert('Empresa eliminada correctamente.');
+      await cargarEmpresas();
+    } catch (err) {
+      console.error(err);
+      const msg = err && err.message ? err.message : 'Error al eliminar empresa';
+      if (window.showToast) window.showToast(msg, 'error'); else alert(msg);
+    }
+  };
+  modalConfirm.classList.remove('hidden');
+  modalConfirm.classList.add('flex');
 };
 
 // Carga inicial

@@ -18,11 +18,13 @@ describe('comprasService.crearCompra', () => {
   });
 
   test('crea compra, detalle y actualiza stock/costo', () => {
+    const empresaId = 1;
+
     const user = db
       .prepare(
-        'INSERT INTO usuarios (username, password, rol, activo) VALUES (?,?,?,1)'
+        'INSERT INTO usuarios (username, password, rol, activo, empresa_id) VALUES (?,?,?,?,?)'
       )
-      .run('compras_tester', 'testpass', 'admin');
+      .run('compras_tester', 'testpass', 'admin', 1, empresaId);
 
     const prov = db
       .prepare(
@@ -53,7 +55,7 @@ describe('comprasService.crearCompra', () => {
           },
         ],
       },
-      { id: user.lastInsertRowid }
+      { id: user.lastInsertRowid, empresa_id: empresaId }
     );
 
     expect(result).toBeDefined();

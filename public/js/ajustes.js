@@ -4,6 +4,12 @@ import { apiFetchJson } from './app-api.js';
 
 let configCache = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
 
+// Referencias para el modal de borrado total (zona de riesgo)
+let modalPurge = null;
+let purgeInput = null;
+let purgeCancelar = null;
+let purgeConfirmar = null;
+
 
 function renderTiers(list = []) {
     const cont = document.getElementById('tiers');
@@ -160,7 +166,59 @@ function setupUI() {
         document.getElementById('btnDemoNota')?.addEventListener('click', printDemoNota);
     document.getElementById('btnUploadLogo')?.addEventListener('click', () => uploadHelper('n_logo'));
     document.getElementById('btnUploadMarca')?.addEventListener('click', () => uploadMarcaHelper());
-    document.getElementById('btnPurgeAll')?.addEventListener('click', purgeAllData);
+
+    // Inicializar modal de borrado total
+    modalPurge = document.getElementById('modal-purge-all');
+    purgeInput = document.getElementById('purge-confirm-text');
+    purgeCancelar = document.getElementById('purge-cancelar');
+    purgeConfirmar = document.getElementById('purge-confirmar');
+
+    const btnPurge = document.getElementById('btnPurgeAll');
+    if (btnPurge) {
+        btnPurge.addEventListener('click', () => {
+            if (modalPurge) {
+                if (purgeInput) purgeInput.value = '';
+                modalPurge.classList.remove('hidden');
+                modalPurge.classList.add('flex');
+                setTimeout(() => { if (purgeInput) purgeInput.focus(); }, 50);
+            } else {
+                // Fallback a confirmación por prompt si el modal no existe
+                purgeAllData();
+            }
+        });
+    }
+
+    if (modalPurge && purgeCancelar) {
+        purgeCancelar.addEventListener('click', () => {
+            modalPurge.classList.add('hidden');
+            modalPurge.classList.remove('flex');
+        });
+    }
+
+    if (modalPurge && purgeConfirmar) {
+        purgeConfirmar.addEventListener('click', async () => {
+            if (!purgeInput || purgeInput.value !== 'BORRAR') {
+                showToast('Debes escribir BORRAR para continuar', 'error');
+                if (purgeInput) purgeInput.focus();
+                return;
+            }
+            modalPurge.classList.add('hidden');
+            modalPurge.classList.remove('flex');
+            await purgeAllData(true);
+        });
+
+        // Permitir Enter dentro del input para confirmar
+        if (purgeInput) {
+            purgeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    purgeConfirmar.click();
+                }
+            });
+        }
+    }
+
+    setup2FASection();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -301,11 +359,13 @@ async function printDemoNota(){
     setTimeout(() => { win.focus(); win.print(); }, 300);
 }
 
-async function purgeAllData() {
-    const confirmText = prompt('Esta acción borrará TODOS los datos. Escribe BORRAR para continuar:');
-    if (confirmText !== 'BORRAR') {
-        showToast('Operación cancelada', 'info');
-        return;
+async function purgeAllData(fromModal = false) {
+    if (!fromModal) {
+        const confirmText = prompt('Esta acción borrará TODOS los datos. Escribe BORRAR para continuar:');
+        if (confirmText !== 'BORRAR') {
+            showToast('Operación cancelada', 'info');
+            return;
+        }
     }
 
     try {
@@ -323,5 +383,165 @@ async function purgeAllData() {
         setTimeout(() => window.location.reload(), 1200);
     } catch (err) {
         showToast(err.message || 'Error borrando datos', 'error');
+    }
+}
+
+function getCurrentUser() {
+    try {
+        return window.Auth && typeof window.Auth.getUser === 'function'
+            ? window.Auth.getUser()
+            : JSON.parse(localStorage.getItem('auth_user') || 'null');
+    } catch {
+        return null;
+    }
+}
+
+function updateTwoFAStatusUI(user) {
+    const badge = document.getElementById('twofa-status-badge');
+    const setupBlock = document.getElementById('twofa-setup-block');
+    const enabledBlock = document.getElementById('twofa-enabled-block');
+    const qr = document.getElementById('twofa-qr');
+    if (!badge || !setupBlock || !enabledBlock) return;
+
+    const enabled = !!(user && user.twofa_enabled);
+
+    if (enabled) {
+        badge.textContent = '2FA activo';
+        badge.className = 'px-2 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700';
+        setupBlock.classList.add('hidden');
+        enabledBlock.classList.remove('hidden');
+        if (qr) qr.innerHTML = '';
+    } else {
+        badge.textContent = '2FA desactivado';
+        badge.className = 'px-2 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600';
+        setupBlock.classList.remove('hidden');
+        enabledBlock.classList.add('hidden');
+        if (qr) qr.innerHTML = '';
+    }
+}
+
+function renderTwoFAQr(otpauthUrl) {
+    const container = document.getElementById('twofa-qr');
+    if (!container || !otpauthUrl) return;
+    if (typeof window.QRCode !== 'function') return;
+    // Limpiar QR anterior si existe
+    container.innerHTML = '';
+    try {
+        // Librería qrcodejs: constructor QRCode(element, options)
+        new window.QRCode(container, {
+            text: otpauthUrl,
+            width: 160,
+            height: 160,
+            correctLevel: window.QRCode.CorrectLevel ? window.QRCode.CorrectLevel.M : undefined,
+        });
+    } catch (err) {
+        console.warn('No se pudo generar QR 2FA:', err);
+    }
+}
+
+function setup2FASection() {
+    const sec = document.getElementById('sec-2fa');
+    if (!sec) return;
+
+    const user = getCurrentUser();
+    if (!user || (user.rol !== 'admin' && user.rol !== 'superadmin')) {
+        sec.classList.add('hidden');
+        return;
+    }
+
+    // Inicializar estado visual
+    updateTwoFAStatusUI(user);
+
+    const btnSetup = document.getElementById('btn-2fa-setup');
+    const setupData = document.getElementById('twofa-setup-data');
+    const secretEl = document.getElementById('twofa-secret');
+    const otpauthEl = document.getElementById('twofa-otpauth');
+    const codeEnable = document.getElementById('twofa-code-enable');
+    const btnEnable = document.getElementById('btn-2fa-enable');
+    const codeDisable = document.getElementById('twofa-code-disable');
+    const btnDisable = document.getElementById('btn-2fa-disable');
+
+    if (btnSetup && setupData && secretEl && otpauthEl) {
+        btnSetup.addEventListener('click', async () => {
+            try {
+                const j = await apiFetchJson('/auth/2fa/setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                if (j && j.secret) {
+                    secretEl.textContent = j.secret;
+                    otpauthEl.textContent = j.otpauth_url || '';
+                    if (j.otpauth_url) {
+                        renderTwoFAQr(j.otpauth_url);
+                    }
+                    setupData.classList.remove('hidden');
+                    if (codeEnable) codeEnable.focus();
+                    showToast('Secreto 2FA generado. Configura tu app y luego confirma.', 'success');
+                } else {
+                    showToast('No se pudo generar secreto 2FA', 'error');
+                }
+            } catch (err) {
+                showToast(err.message || 'Error preparando 2FA', 'error');
+            }
+        });
+    }
+
+    if (btnEnable && codeEnable) {
+        btnEnable.addEventListener('click', async () => {
+            const token = (codeEnable.value || '').trim();
+            if (!token) {
+                showToast('Escribe el código de tu app 2FA', 'error');
+                codeEnable.focus();
+                return;
+            }
+            try {
+                const j = await apiFetchJson('/auth/2fa/enable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+                if (j && j.success) {
+                    const u = getCurrentUser() || {};
+                    u.twofa_enabled = true;
+                    localStorage.setItem('auth_user', JSON.stringify(u));
+                    updateTwoFAStatusUI(u);
+                    showToast('2FA habilitado correctamente', 'success');
+                } else {
+                    showToast('No se pudo habilitar 2FA', 'error');
+                }
+            } catch (err) {
+                showToast(err.message || 'Error al habilitar 2FA', 'error');
+            }
+        });
+    }
+
+    if (btnDisable && codeDisable) {
+        btnDisable.addEventListener('click', async () => {
+            const token = (codeDisable.value || '').trim();
+            if (!token) {
+                showToast('Escribe un código válido de tu app 2FA', 'error');
+                codeDisable.focus();
+                return;
+            }
+            try {
+                const j = await apiFetchJson('/auth/2fa/disable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+                if (j && j.success) {
+                    const u = getCurrentUser() || {};
+                    u.twofa_enabled = false;
+                    localStorage.setItem('auth_user', JSON.stringify(u));
+                    updateTwoFAStatusUI(u);
+                    showToast('2FA deshabilitado para esta cuenta', 'success');
+                } else {
+                    showToast('No se pudo deshabilitar 2FA', 'error');
+                }
+            } catch (err) {
+                showToast(err.message || 'Error al deshabilitar 2FA', 'error');
+            }
+        });
     }
 }

@@ -112,7 +112,53 @@
 
 ## Fase 19: Experiencia Web para Dueño (Empresa)
 - [descartado] Crear portal separado y login distinto para admin_empresa (se reutilizan las vistas actuales con el mismo flujo de login).
-- [ ] Asegurar que las vistas clave actuales sean totalmente usables en móvil (POS, dashboard, reportes principales).
-- [ ] Revisar estilos responsive (Tailwind) de tablas y tarjetas para que se adapten bien en pantallas pequeñas.
+- [x] Asegurar que las vistas clave actuales sean totalmente usables en móvil (POS, dashboard, reportes principales).
+- [x] Revisar estilos responsive (Tailwind) de tablas y tarjetas para que se adapten bien en pantallas pequeñas.
+
+## Fase 20: Refuerzo Multiempresa y Tests
+- [x] Añadir pruebas automatizadas específicas para rutas multiempresa críticas (ventas, reportes, compras, cobranzas, devoluciones, usuarios) verificando que siempre filtren por empresa_id.
+- [x] Agregar pruebas para el panel master de empresas (empresas_admin) con restricciones de acceso solo para superadmin.
+- [x] Incluir pruebas que verifiquen que un usuario de empresa nunca ve datos de otra empresa (ventas, cobranzas, devoluciones, usuarios, reportes clave).
+- [ ] Documentar en README los casos de prueba multiempresa principales y cómo ejecutarlos.
+
+## Fase 21: UX Panel Master y Formularios Críticos
+- [x] Reemplazar diálogos nativos (prompt/confirm) en el panel master de empresas por modales con Tailwind para editar plan/monto, registrar pagos y editar ciclo de facturación.
+- [x] Normalizar mensajes de error y éxito en la UI usando showToast, diferenciando claramente errores de negocio (validación) de errores de red/servidor.
+- [x] Revisar textos y ayudas contextuales en formularios sensibles (usuarios, empresas, ajustes generales) para que sean más claros para usuarios no técnicos.
+
+## Fase 22: Rendimiento e Índices
+- [x] Revisar y documentar índices existentes en SQLite para tablas grandes (ventas, productos, usuarios, cuentas_cobrar).
+- [x] Crear índices adicionales donde sea necesario, por ejemplo: ventas(empresa_id, fecha, usuario_id), productos(empresa_id, codigo), usuarios(empresa_id, username) para mejorar búsquedas y reportes.
+- [ ] Revisar consultas pesadas en reportesService, cobranzasService y comprasService usando EXPLAIN y optimizar filtros/joins cuando sea necesario.
+- [ ] Documentar recomendaciones de mantenimiento de la base SQLite (backups, rotación de archivos, tamaño esperado por empresa/año).
+ - [ ] Testear rendimiento con histórico grande de ventas/inventario (a validar a largo plazo cuando existan más datos reales).
+
+## Fase 23: Eventos y Métricas (Nube)
+- [x] Definir y documentar un esquema ligero de eventos de negocio (ej: venta_registrada, usuario_creado, empresa_actualizada) con sus campos mínimos.
+- [x] Documentar en README el endpoint /sync/push y el formato esperado de eventos por empresa (incluyendo ejemplos de payload).
+- [x] Añadir emisión opcional de eventos usuario_creado y empresa_actualizada en las rutas correspondientes, reutilizando la infraestructura de sync existente.
+- [idea] Evaluar y documentar una posible colección en Firestore para almacenar ciertos eventos o métricas agregadas por empresa (solo si aporta valor futuro).
+
+## Fase 24: Seguridad Avanzada (Futuro)
+// Primera iteración implementada: auditoría básica + campos de 2FA en backend.
+- [x] Completar endpoints y flujo backend para 2FA opcional (por ejemplo TOTP) para cuentas superadmin y, si se requiere, para admin_empresa.
+- [x] Agregar una tabla o mecanismo de logs de auditoría para registrar acciones críticas (cambios de plan, eliminación de empresa, creación y eliminación de usuarios, ajustes masivos de inventario).
+- [idea] Evaluar políticas de caducidad y rotación de contraseñas para superadmin/admin_empresa, documentando pros y contras para el contexto de este sistema.
+
+## Fase 25: Branding por Empresa (Futuro)
+- [idea] Añadir campos de branding en la tabla empresas (logo_url, color_primario, color_secundario) y sincronizarlos también a Firestore en empresas/{codigo}.
+- [idea] Adaptar theme.js para leer estos valores de branding y aplicar un esquema de colores personalizado por empresa en el frontend (navbar, botones principales, acentos).
+- [idea] Permitir que el admin de empresa configure ciertos aspectos visuales simples (logo y color principal) desde ajustes, respetando límites razonables para no romper la UI.
+
+## Fase 26: Escalabilidad de Base de Datos (Idea)
+- [idea] Evaluar, a medio/largo plazo, una posible migración de SQLite a un motor como PostgreSQL/MySQL si el volumen de datos o el número de empresas/usuarios concurrentes crece significativamente.
+- [idea] Abstraer aún más el acceso a datos en los servicios (ventasService, reportesService, etc.) para facilitar un cambio de motor de base de datos en el futuro.
+- [idea] Documentar una estrategia de migración (export/import) y compatibilidad con instalaciones existentes, en caso de decidir un cambio de motor.
+
+## Fase 27: Despliegue en Nube y Actualizaciones (Idea)
+- [idea] Documentar un flujo estándar de despliegue en VPS (Node.js + PM2 + Nginx + HTTPS) para Diesel-CTRL en modo multiempresa.
+- [idea] Definir estrategia de entornos `staging` y `producción` (bases separadas) para probar cambios antes de publicarlos a todas las empresas.
+- [idea] Especificar procedimiento de actualización sin pérdida de datos (backup previo del .sqlite, `git pull`, `npm install`, `pm2 restart`, verificación rápida).
+- [idea] Evaluar automatizar backups remotos del archivo SQLite (S3 u otro servidor) y plan básico de recuperación ante fallos.
 
 ## Notas de Progreso

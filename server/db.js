@@ -654,6 +654,56 @@ const migrations = [
         db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuestos_empresa ON presupuestos (empresa_id)').run();
       }
     }
+  },
+  {
+    id: '019_indices_rendimiento_base',
+    up: () => {
+      // Índice compuesto para acelerar búsquedas de usuarios por empresa y username
+      if (!indexExists('idx_usuarios_empresa_username')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_usuarios_empresa_username ON usuarios (empresa_id, username)').run();
+      }
+
+      // Índice para acelerar consultas de ventas por usuario y fecha
+      if (!indexExists('idx_ventas_usuario_fecha')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_ventas_usuario_fecha ON ventas (usuario_id, fecha)').run();
+      }
+    }
+  },
+  {
+    id: '020_auditoria_y_2fa_basico',
+    up: () => {
+      // Tabla de auditoría para acciones críticas
+      db.prepare(`CREATE TABLE IF NOT EXISTS auditoria (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT NOT NULL DEFAULT (datetime('now')),
+        usuario_id INTEGER,
+        empresa_id INTEGER,
+        accion TEXT NOT NULL,
+        entidad TEXT,
+        entidad_id INTEGER,
+        detalle TEXT,
+        ip TEXT,
+        user_agent TEXT
+      )`).run();
+
+      if (!indexExists('idx_auditoria_fecha')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria (fecha)').run();
+      }
+      if (!indexExists('idx_auditoria_usuario')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria (usuario_id)').run();
+      }
+      if (!indexExists('idx_auditoria_entidad')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_auditoria_entidad ON auditoria (entidad, entidad_id)').run();
+      }
+
+      // Campos básicos para 2FA opcional en usuarios (solo backend por ahora)
+      if (!columnExists('usuarios', 'twofa_enabled')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN twofa_enabled INTEGER DEFAULT 0").run();
+      }
+      if (!columnExists('usuarios', 'twofa_secret')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN twofa_secret TEXT").run();
+      }
+    }
   }
 ];
 

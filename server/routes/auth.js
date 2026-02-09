@@ -4,6 +4,7 @@ const db = require('../db');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
+const speakeasy = require('speakeasy');
 const { signJwt } = require('../middleware/jwt');
 
 // Generar token único
@@ -50,7 +51,7 @@ function debeSuspenderEmpresa(estadoActual, proximoCobroStr, diasGracia) {
 // POST /auth/login - Iniciar sesión (multiempresa-ready)
 router.post('/login', loginLimiter, (req, res) => {
   limpiarSesionesExpiradas();
-  const { username, password, empresaCodigo, empresa_codigo } = req.body;
+  const { username, password, empresaCodigo, empresa_codigo, twofa } = req.body || {};
   const empresaCode = empresaCodigo || empresa_codigo || null;
 
   if (!username || !password) {
@@ -69,7 +70,7 @@ router.post('/login', loginLimiter, (req, res) => {
     const usuario = empresa
       ? db.prepare(`
              SELECT u.id, u.username, u.nombre_completo, u.rol, u.activo, u.password,
-               u.failed_attempts, u.locked_until, u.must_change_password,
+               u.failed_attempts, u.locked_until, u.must_change_password, u.twofa_enabled, u.twofa_secret,
                u.empresa_id,
                e.codigo AS empresa_codigo, e.estado AS empresa_estado,
                e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia
@@ -79,7 +80,7 @@ router.post('/login', loginLimiter, (req, res) => {
         `).get(username, empresa.id)
       : db.prepare(`
              SELECT u.id, u.username, u.nombre_completo, u.rol, u.activo, u.password,
-               u.failed_attempts, u.locked_until, u.must_change_password,
+               u.failed_attempts, u.locked_until, u.must_change_password, u.twofa_enabled, u.twofa_secret,
                u.empresa_id,
                e.codigo AS empresa_codigo, e.estado AS empresa_estado,
                e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia
@@ -155,6 +156,30 @@ router.post('/login', loginLimiter, (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
+    // Si es superadmin y tiene 2FA habilitado, exigir código TOTP válido
+    if (usuario.rol === 'superadmin' && usuario.twofa_enabled) {
+      if (!usuario.twofa_secret) {
+        const logger = require('../services/logger');
+        logger.warn('Usuario superadmin con 2FA habilitado pero sin secreto configurado', { usuario_id: usuario.id });
+        return res.status(500).json({ error: '2FA mal configurado para esta cuenta. Contacte al administrador.' });
+      }
+      const token2fa = (twofa || '').toString().trim();
+      if (!token2fa) {
+        return res.status(400).json({ error: 'Se requiere código 2FA para superadmin' });
+      }
+
+      const valid2fa = speakeasy.totp.verify({
+        secret: usuario.twofa_secret,
+        encoding: 'base32',
+        token: token2fa,
+        window: 1,
+      });
+
+      if (!valid2fa) {
+        return res.status(401).json({ error: 'Código 2FA inválido' });
+      }
+    }
+
     // Reset de intentos fallidos al iniciar sesión exitoso
     db.prepare('UPDATE usuarios SET failed_attempts = 0, locked_until = NULL WHERE id = ?').run(usuario.id);
 
@@ -182,7 +207,8 @@ router.post('/login', loginLimiter, (req, res) => {
       empresa_id: usuario.empresa_id || null,
       empresa_codigo: usuario.empresa_codigo || null,
       empresa_estado: usuario.empresa_estado || null,
-      must_change_password: !!usuario.must_change_password
+      must_change_password: !!usuario.must_change_password,
+      twofa_enabled: !!usuario.twofa_enabled
     };
     const jwtToken = signJwt(jwtPayload);
 
@@ -250,7 +276,7 @@ router.get('/verificar', (req, res) => {
   }
   try {
     const sesion = db.prepare(`
-        SELECT s.*, u.username, u.nombre_completo, u.rol, u.must_change_password,
+        SELECT s.*, u.username, u.nombre_completo, u.rol, u.must_change_password, u.twofa_enabled,
           u.empresa_id, e.codigo AS empresa_codigo, e.estado AS empresa_estado
       FROM sesiones s
       JOIN usuarios u ON u.id = s.usuario_id
@@ -270,7 +296,8 @@ router.get('/verificar', (req, res) => {
         empresa_id: sesion.empresa_id || null,
         empresa_codigo: sesion.empresa_codigo || null,
         empresa_estado: sesion.empresa_estado || null,
-        must_change_password: !!sesion.must_change_password
+        must_change_password: !!sesion.must_change_password,
+        twofa_enabled: !!sesion.twofa_enabled
       },
       via: 'token'
     });
@@ -278,6 +305,116 @@ router.get('/verificar', (req, res) => {
     const logger = require('../services/logger');
     logger.error('Error verificando sesión:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al verificar sesión' });
+  }
+});
+
+// POST /auth/2fa/setup - Generar secreto inicial para 2FA (superadmin/admin)
+router.post('/2fa/setup', requireAuth, (req, res) => {
+  try {
+    const usuarioActual = req.usuario;
+    if (!usuarioActual || !['superadmin', 'admin'].includes(usuarioActual.rol)) {
+      return res.status(403).json({ error: 'Permisos insuficientes para configurar 2FA' });
+    }
+
+    const row = db.prepare('SELECT id, username, twofa_enabled, twofa_secret FROM usuarios WHERE id = ?').get(usuarioActual.id);
+    if (!row) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (row.twofa_enabled) {
+      return res.status(400).json({ error: '2FA ya está habilitado para este usuario' });
+    }
+
+    const secret = speakeasy.generateSecret({ name: `Diesel-CTRL (${row.username})` });
+
+    db.prepare('UPDATE usuarios SET twofa_secret = ? WHERE id = ?').run(secret.base32, row.id);
+
+    res.json({
+      secret: secret.base32,
+      otpauth_url: secret.otpauth_url,
+    });
+  } catch (err) {
+    const logger = require('../services/logger');
+    logger.error('Error en /auth/2fa/setup:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    res.status(500).json({ error: 'Error al preparar 2FA' });
+  }
+});
+
+// POST /auth/2fa/enable - Verificar código y marcar 2FA como habilitado
+router.post('/2fa/enable', requireAuth, (req, res) => {
+  const { token } = req.body || {};
+  if (!token) {
+    return res.status(400).json({ error: 'Código 2FA requerido' });
+  }
+
+  try {
+    const usuarioActual = req.usuario;
+    if (!usuarioActual || !['superadmin', 'admin'].includes(usuarioActual.rol)) {
+      return res.status(403).json({ error: 'Permisos insuficientes para habilitar 2FA' });
+    }
+
+    const row = db.prepare('SELECT id, username, twofa_enabled, twofa_secret FROM usuarios WHERE id = ?').get(usuarioActual.id);
+    if (!row || !row.twofa_secret) {
+      return res.status(400).json({ error: '2FA no está en modo configuración. Use primero /auth/2fa/setup.' });
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: row.twofa_secret,
+      encoding: 'base32',
+      token: String(token),
+      window: 1,
+    });
+
+    if (!verified) {
+      return res.status(400).json({ error: 'Código 2FA inválido' });
+    }
+
+    db.prepare('UPDATE usuarios SET twofa_enabled = 1 WHERE id = ?').run(row.id);
+
+    res.json({ success: true, twofa_enabled: true });
+  } catch (err) {
+    const logger = require('../services/logger');
+    logger.error('Error en /auth/2fa/enable:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    res.status(500).json({ error: 'Error al habilitar 2FA' });
+  }
+});
+
+// POST /auth/2fa/disable - Deshabilitar 2FA verificando el código actual
+router.post('/2fa/disable', requireAuth, (req, res) => {
+  const { token } = req.body || {};
+  if (!token) {
+    return res.status(400).json({ error: 'Código 2FA requerido' });
+  }
+
+  try {
+    const usuarioActual = req.usuario;
+    if (!usuarioActual || !['superadmin', 'admin'].includes(usuarioActual.rol)) {
+      return res.status(403).json({ error: 'Permisos insuficientes para deshabilitar 2FA' });
+    }
+
+    const row = db.prepare('SELECT id, username, twofa_enabled, twofa_secret FROM usuarios WHERE id = ?').get(usuarioActual.id);
+    if (!row || !row.twofa_secret) {
+      return res.status(400).json({ error: '2FA no está configurado para este usuario' });
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: row.twofa_secret,
+      encoding: 'base32',
+      token: String(token),
+      window: 1,
+    });
+
+    if (!verified) {
+      return res.status(400).json({ error: 'Código 2FA inválido' });
+    }
+
+    db.prepare('UPDATE usuarios SET twofa_enabled = 0, twofa_secret = NULL WHERE id = ?').run(row.id);
+
+    res.json({ success: true, twofa_enabled: false });
+  } catch (err) {
+    const logger = require('../services/logger');
+    logger.error('Error en /auth/2fa/disable:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    res.status(500).json({ error: 'Error al deshabilitar 2FA' });
   }
 });
 

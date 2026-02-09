@@ -39,6 +39,7 @@ describe('cobranzasService cuentas por cobrar', () => {
 
     const { cuenta: cuentaActualizada, pagos } = cobranzasService.registrarPago(
       cuenta.id,
+      null,
       {
         monto: 50,
         moneda: 'USD',

@@ -206,6 +206,189 @@ async function actualizarTasaBcvAutomatica() {
   }
 }
 
+// ===== BORRADO DE DATOS TRANSACCIONALES =====
+
+/**
+ * Borra datos transaccionales (ventas, devoluciones, cuentas por cobrar,
+ * pagos, inventario, métricas, etc.).
+ *
+ * - Si `empresaId` es null/undefined: purge GLOBAL (todas las empresas),
+ *   pensado para entornos de prueba/demo controlados.
+ * - Si `empresaId` es un número válido: solo borra datos asociados a esa
+ *   empresa, respetando la integridad referencial y sin tocar secuencias
+ *   globales ni tablas puramente globales.
+ *
+ * @param {number|null|undefined} empresaId
+ */
+function purgeTransactionalData(empresaId) {
+  const hasEmpresaScope = empresaId !== null && empresaId !== undefined;
+
+  // Purge GLOBAL (compatibilidad y uso muy controlado)
+  if (!hasEmpresaScope) {
+    db.transaction(() => {
+      // Primero tablas de detalle que dependen de cabeceras y productos
+      db.prepare('DELETE FROM devolucion_detalle').run();
+      db.prepare('DELETE FROM devoluciones').run();
+      db.prepare('DELETE FROM venta_detalle').run();
+      db.prepare('DELETE FROM pagos_cc').run();
+      db.prepare('DELETE FROM cuentas_cobrar').run();
+      db.prepare('DELETE FROM presupuesto_detalle').run();
+      db.prepare('DELETE FROM compra_detalle').run();
+
+      // Luego cabeceras de movimientos comerciales
+      db.prepare('DELETE FROM ventas').run();
+      db.prepare('DELETE FROM presupuestos').run();
+      db.prepare('DELETE FROM compras').run();
+
+      // Ajustes, métricas y colas de sync
+      db.prepare('DELETE FROM ajustes_stock').run();
+      db.prepare('DELETE FROM empresa_metricas_diarias').run();
+      db.prepare('DELETE FROM sync_outbox').run();
+      db.prepare('DELETE FROM sync_inbox').run();
+
+      // Finalmente inventario y alertas relacionadas
+      db.prepare('DELETE FROM productos').run();
+      db.prepare('DELETE FROM alertas').run();
+
+      const hasSeq = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sqlite_sequence'")
+        .get();
+      if (hasSeq) {
+        db.prepare(`DELETE FROM sqlite_sequence WHERE name IN (
+            'devolucion_detalle','devoluciones','venta_detalle','pagos_cc','cuentas_cobrar',
+            'presupuesto_detalle','presupuestos','compra_detalle','compras',
+            'ajustes_stock','empresa_metricas_diarias','sync_outbox','sync_inbox',
+            'productos','alertas'
+          )`).run();
+      }
+    })();
+    return;
+  }
+
+  const empresaIdNum = Number(empresaId);
+  if (!Number.isFinite(empresaIdNum) || empresaIdNum <= 0) {
+    throw new Error('empresaId inválido para purgeTransactionalData');
+  }
+
+  // Purge SOLO de la empresa indicada
+  db.transaction(() => {
+    const eid = empresaIdNum;
+
+    // === DETALLES LIGADOS A VENTAS/DEVOLUCIONES ===
+
+    // Detalle de ventas de usuarios de la empresa
+    db.prepare(`
+      DELETE FROM venta_detalle
+      WHERE venta_id IN (
+        SELECT v.id
+        FROM ventas v
+        JOIN usuarios u ON u.id = v.usuario_id
+        WHERE u.empresa_id = ?
+      )
+    `).run(eid);
+
+    // Detalle de devoluciones cuya venta original pertenece a la empresa
+    db.prepare(`
+      DELETE FROM devolucion_detalle
+      WHERE devolucion_id IN (
+        SELECT d.id
+        FROM devoluciones d
+        WHERE EXISTS (
+          SELECT 1
+          FROM ventas v
+          JOIN usuarios u ON u.id = v.usuario_id
+          WHERE v.id = d.venta_original_id AND u.empresa_id = ?
+        )
+      )
+    `).run(eid);
+
+    // Devoluciones ligadas a ventas de la empresa
+    db.prepare(`
+      DELETE FROM devoluciones
+      WHERE EXISTS (
+        SELECT 1
+        FROM ventas v
+        JOIN usuarios u ON u.id = v.usuario_id
+        WHERE v.id = devoluciones.venta_original_id AND u.empresa_id = ?
+      )
+    `).run(eid);
+
+    // === CUENTAS POR COBRAR Y PAGOS LIGADOS A VENTAS DE LA EMPRESA ===
+
+    db.prepare(`
+      DELETE FROM pagos_cc
+      WHERE cuenta_id IN (
+        SELECT cc.id
+        FROM cuentas_cobrar cc
+        JOIN ventas v ON v.id = cc.venta_id
+        JOIN usuarios u ON u.id = v.usuario_id
+        WHERE u.empresa_id = ?
+      )
+    `).run(eid);
+
+    db.prepare(`
+      DELETE FROM cuentas_cobrar
+      WHERE venta_id IN (
+        SELECT v.id
+        FROM ventas v
+        JOIN usuarios u ON u.id = v.usuario_id
+        WHERE u.empresa_id = ?
+      )
+    `).run(eid);
+
+    // Cabeceras de ventas de usuarios de la empresa
+    db.prepare(`
+      DELETE FROM ventas
+      WHERE EXISTS (
+        SELECT 1 FROM usuarios u
+        WHERE u.id = ventas.usuario_id AND u.empresa_id = ?
+      )
+    `).run(eid);
+
+    // === PRESUPUESTOS Y COMPRAS (tienen empresa_id directo) ===
+
+    db.prepare(`
+      DELETE FROM presupuesto_detalle
+      WHERE presupuesto_id IN (
+        SELECT id FROM presupuestos WHERE empresa_id = ?
+      )
+    `).run(eid);
+
+    db.prepare('DELETE FROM presupuestos WHERE empresa_id = ?').run(eid);
+
+    db.prepare(`
+      DELETE FROM compra_detalle
+      WHERE compra_id IN (
+        SELECT id FROM compras WHERE empresa_id = ?
+      )
+    `).run(eid);
+
+    db.prepare('DELETE FROM compras WHERE empresa_id = ?').run(eid);
+
+    // === AJUSTES DE STOCK LIGADOS A PRODUCTOS DE LA EMPRESA ===
+
+    db.prepare(`
+      DELETE FROM ajustes_stock
+      WHERE producto_id IN (
+        SELECT id FROM productos WHERE empresa_id = ?
+      )
+    `).run(eid);
+
+    // === MÉTRICAS Y SYNC POR EMPRESA ===
+
+    db.prepare('DELETE FROM empresa_metricas_diarias WHERE empresa_id = ?').run(eid);
+    db.prepare('DELETE FROM sync_outbox WHERE empresa_id = ?').run(eid);
+    db.prepare('DELETE FROM sync_inbox WHERE empresa_id = ?').run(eid);
+
+    // === INVENTARIO (PRODUCTOS) DE LA EMPRESA ===
+
+    db.prepare('DELETE FROM productos WHERE empresa_id = ?').run(eid);
+
+    // Nota: NO tocamos alertas ni sqlite_sequence aquí para no afectar
+    // a otras empresas ni a IDs ya existentes.
+  })();
+}
+
 // ===== STOCK MÍNIMO =====
 
 /**
@@ -271,13 +454,35 @@ const DEFAULT_NOTA = {
 /**
  * Devuelve la configuración general combinada para empresa, descuentos,
  * política de devolución y nota de entrega.
+ *
+ * Si se pasa `empresaId`, primero intenta leer claves con scope de empresa
+ * (por ejemplo `empresa_config:empresa:5`). Si no existen, usa las claves
+ * globales como base y aplica los valores por defecto.
+ *
+ * @param {number|null|undefined} [empresaId]
  * @returns {import('../types').ConfigGeneral}
  */
-function obtenerConfigGeneral() {
-  const empresa = getConfigJSON('empresa_config', DEFAULT_EMPRESA);
-  const descuentos = getConfigJSON('descuentos_volumen', DEFAULT_DESCUENTOS_VOLUMEN);
-  const devolucion = getConfigJSON('devolucion_politica', DEFAULT_DEVOLUCION);
-  const nota = getConfigJSON('nota_config', DEFAULT_NOTA);
+function obtenerConfigGeneral(empresaId) {
+  const empresaBase = getConfigJSON('empresa_config', DEFAULT_EMPRESA);
+  const descuentosBase = getConfigJSON('descuentos_volumen', DEFAULT_DESCUENTOS_VOLUMEN);
+  const devolucionBase = getConfigJSON('devolucion_politica', DEFAULT_DEVOLUCION);
+  const notaBase = getConfigJSON('nota_config', DEFAULT_NOTA);
+
+  const suffix = empresaId ? `:empresa:${empresaId}` : '';
+
+  const empresa = suffix
+    ? getConfigJSON(`empresa_config${suffix}`, empresaBase)
+    : empresaBase;
+  const descuentos = suffix
+    ? getConfigJSON(`descuentos_volumen${suffix}`, descuentosBase)
+    : descuentosBase;
+  const devolucion = suffix
+    ? getConfigJSON(`devolucion_politica${suffix}`, devolucionBase)
+    : devolucionBase;
+  const nota = suffix
+    ? getConfigJSON(`nota_config${suffix}`, notaBase)
+    : notaBase;
+
   return { empresa, descuentos_volumen: descuentos, devolucion, nota };
 }
 
@@ -285,10 +490,14 @@ function obtenerConfigGeneral() {
  * Normaliza y guarda la configuración general (empresa, descuentos por volumen,
  * política de devoluciones y diseño de nota) en la tabla `config`.
  *
+ * Si se pasa `empresaId`, los valores se guardan con scope de empresa
+ * (por ejemplo `empresa_config:empresa:5`), sin tocar las claves globales.
+ *
  * @param {Partial<import('../types').ConfigGeneral>} payload
+ * @param {number|null|undefined} [empresaId]
  * @returns {{ok:true} & import('../types').ConfigGeneral}
  */
-function guardarConfigGeneral(payload = {}) {
+function guardarConfigGeneral(payload = {}, empresaId) {
   const { empresa = {}, descuentos_volumen = [], devolucion = {}, nota = {} } = payload;
 
   let nombreEmpresa = (empresa.nombre || '').toString().slice(0, 120);
@@ -348,10 +557,12 @@ function guardarConfigGeneral(payload = {}) {
   };
 
   const now = new Date().toISOString();
-  setConfig('empresa_config', JSON.stringify(safeEmpresa), now);
-  setConfig('descuentos_volumen', JSON.stringify(safeDescuentos), now);
-  setConfig('devolucion_politica', JSON.stringify(safeDevolucion), now);
-  setConfig('nota_config', JSON.stringify(safeNota), now);
+  const suffix = empresaId ? `:empresa:${empresaId}` : '';
+
+  setConfig(`empresa_config${suffix}`, JSON.stringify(safeEmpresa), now);
+  setConfig(`descuentos_volumen${suffix}`, JSON.stringify(safeDescuentos), now);
+  setConfig(`devolucion_politica${suffix}`, JSON.stringify(safeDevolucion), now);
+  setConfig(`nota_config${suffix}`, JSON.stringify(safeNota), now);
 
   return {
     ok: true,
@@ -360,37 +571,6 @@ function guardarConfigGeneral(payload = {}) {
     devolucion: safeDevolucion,
     nota: safeNota,
   };
-}
-
-// ===== BORRADO DE DATOS TRANSACCIONALES =====
-
-/**
- * Borra datos transaccionales (ventas, devoluciones, cuentas por cobrar,
- * pagos, productos, alertas, etc.) para permitir un reinicio controlado
- * del entorno de pruebas o demo.
- */
-function purgeTransactionalData() {
-  db.transaction(() => {
-    db.prepare('DELETE FROM devolucion_detalle').run();
-    db.prepare('DELETE FROM devoluciones').run();
-    db.prepare('DELETE FROM venta_detalle').run();
-    db.prepare('DELETE FROM ventas').run();
-    db.prepare('DELETE FROM pagos_cc').run();
-    db.prepare('DELETE FROM cuentas_cobrar').run();
-    db.prepare('DELETE FROM ajustes_stock').run();
-    db.prepare('DELETE FROM productos').run();
-    db.prepare('DELETE FROM alertas').run();
-
-    const hasSeq = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sqlite_sequence'")
-      .get();
-    if (hasSeq) {
-      db.prepare(`DELETE FROM sqlite_sequence WHERE name IN (
-          'devolucion_detalle','devoluciones','venta_detalle','ventas','pagos_cc',
-          'cuentas_cobrar','ajustes_stock','productos','alertas'
-        )`).run();
-    }
-  })();
 }
 
 module.exports = {

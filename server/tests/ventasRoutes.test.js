@@ -71,4 +71,17 @@ describe('Rutas HTTP /ventas', () => {
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error');
   });
+
+  test('POST /ventas rechaza superadmin con 403', async () => {
+    const { token } = createTestUserAndToken({ rol: 'superadmin' });
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/ventas')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ items: [], cliente: 'X' });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toHaveProperty('error');
+  });
 });

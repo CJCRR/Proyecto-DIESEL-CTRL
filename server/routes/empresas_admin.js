@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require('../db');
 const { requireAuth, requireRole } = require('./auth');
 const bcrypt = require('bcryptjs');
+const { registrarEventoNegocio } = require('../services/eventosService');
+const { registrarAuditoria } = require('../services/auditLogService');
 
 // GET /admin/empresas - Listar empresas con filtros básicos (solo superadmin)
 router.get('/', requireAuth, requireRole('superadmin'), (req, res) => {
@@ -103,10 +105,39 @@ router.post('/', requireAuth, requireRole('superadmin'), (req, res) => {
       FROM empresas
       WHERE id = ?
     `).get(info.lastInsertRowid);
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'EMPRESA_CREADA',
+        entidad: 'empresa',
+        entidadId: nueva.id,
+        detalle: {
+          codigo: nueva.codigo,
+          nombre: nueva.nombre,
+          plan: nueva.plan,
+          monto_mensual: nueva.monto_mensual,
+        },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
+    try {
+      registrarEventoNegocio(nueva.id, {
+        tipo: 'empresa_creada',
+        entidad: 'empresa',
+        entidadId: nueva.id,
+        origen: 'panel-master',
+        payload: nueva,
+      });
+    } catch (_err) {
+      // No romper flujo si falla el registro del evento
+    }
 
     res.status(201).json({
       message: 'Empresa creada correctamente',
-      empresa: nueva
+      empresa: nueva,
     });
   } catch (err) {
     const logger = require('../services/logger');
@@ -203,10 +234,36 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
       FROM empresas
       WHERE id = ?
     `).get(id);
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'EMPRESA_ACTUALIZADA',
+        entidad: 'empresa',
+        entidadId: empresa.id,
+        detalle: {
+          cambios: req.body || {},
+        },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
+    try {
+      registrarEventoNegocio(empresa.id, {
+        tipo: 'empresa_actualizada',
+        entidad: 'empresa',
+        entidadId: empresa.id,
+        origen: 'panel-master',
+        payload: empresaActualizada,
+      });
+    } catch (_err) {
+      // No romper flujo si falla el registro del evento
+    }
 
     res.json({
       message: 'Empresa actualizada correctamente',
-      empresa: empresaActualizada
+      empresa: empresaActualizada,
     });
   } catch (err) {
     const logger = require('../services/logger');
@@ -249,6 +306,23 @@ router.delete('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
 
     // Finalmente eliminar la empresa
     db.prepare('DELETE FROM empresas WHERE id = ?').run(id);
+
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'EMPRESA_ELIMINADA',
+        entidad: 'empresa',
+        entidadId: empresa.id,
+        detalle: {
+          codigo: empresa.codigo,
+          nombre: empresa.nombre,
+        },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
 
     res.json({ message: 'Empresa eliminada correctamente' });
   } catch (err) {

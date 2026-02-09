@@ -15,6 +15,8 @@ describe('proveedoresService', () => {
   });
 
   test('createProveedor y listProveedores funcionan', () => {
+    const empresaId = 1;
+
     const prov = proveedoresService.createProveedor({
       nombre: 'Proveedor Uno',
       rif: 'J-123',
@@ -22,30 +24,31 @@ describe('proveedoresService', () => {
       email: 'a@b.com',
       direccion: 'Dir',
       notas: 'Notas',
-    });
+    }, empresaId);
 
     expect(prov.id).toBeDefined();
     expect(prov.nombre).toBe('Proveedor Uno');
 
-    const lista = proveedoresService.listProveedores({ q: 'proveedor', soloActivos: true });
+    const lista = proveedoresService.listProveedores({ q: 'proveedor', soloActivos: true, empresaId });
     expect(lista.length).toBe(1);
     expect(lista[0].nombre).toBe('Proveedor Uno');
   });
 
   test('updateProveedor y toggleProveedorActivo actualizan datos', () => {
-    const prov = proveedoresService.createProveedor({ nombre: 'Prov', rif: 'J-1' });
+    const empresaId = 1;
+    const prov = proveedoresService.createProveedor({ nombre: 'Prov', rif: 'J-1' }, empresaId);
 
     const actualizado = proveedoresService.updateProveedor(prov.id, {
       nombre: 'Prov Editado',
       telefono: '111',
       activo: false,
-    });
+    }, empresaId);
 
     expect(actualizado.nombre).toBe('Prov Editado');
     expect(actualizado.telefono).toBe('111');
     expect(actualizado.activo).toBe(false);
 
-    const reactivado = proveedoresService.toggleProveedorActivo(prov.id, true);
+    const reactivado = proveedoresService.toggleProveedorActivo(prov.id, true, empresaId);
     expect(reactivado.activo).toBe(true);
   });
 });

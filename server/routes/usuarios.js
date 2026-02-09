@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require('../db');
 const { requireAuth, requireRole } = require('./auth');
 const bcrypt = require('bcryptjs');
+const { registrarEventoNegocio } = require('../services/eventosService');
+const { registrarAuditoria } = require('../services/auditLogService');
 
 // GET /admin/usuarios - Listar usuarios de la empresa (solo admin de empresa)
 router.get('/', requireAuth, requireRole('admin'), (req, res) => {
@@ -71,10 +73,45 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
       SELECT id, username, nombre_completo, rol, activo, creado_en
       FROM usuarios WHERE id = ?
     `).get(result.lastInsertRowid);
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'USUARIO_CREADO',
+        entidad: 'usuario',
+        entidadId: nuevoUsuario.id,
+        detalle: {
+          username: nuevoUsuario.username,
+          rol: nuevoUsuario.rol,
+          activo: nuevoUsuario.activo,
+        },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
+    try {
+      registrarEventoNegocio(empresaId, {
+        tipo: 'usuario_creado',
+        entidad: 'usuario',
+        entidadId: nuevoUsuario.id,
+        origen: 'panel-empresa',
+        payload: {
+          id: nuevoUsuario.id,
+          username: nuevoUsuario.username,
+          nombre_completo: nuevoUsuario.nombre_completo,
+          rol: nuevoUsuario.rol,
+          activo: nuevoUsuario.activo,
+          creado_en: nuevoUsuario.creado_en,
+        },
+      });
+    } catch (_err) {
+      // No romper flujo si falla el registro del evento
+    }
 
-    res.json({ 
+    res.json({
       message: 'Usuario creado exitosamente',
-      usuario: nuevoUsuario
+      usuario: nuevoUsuario,
     });
   } catch (err) {
     console.error('Error creando usuario:', err);
@@ -149,6 +186,22 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
       FROM usuarios WHERE id = ?
     `).get(id);
 
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'USUARIO_ACTUALIZADO',
+        entidad: 'usuario',
+        entidadId: usuarioActualizado.id,
+        detalle: {
+          cambios: req.body || {},
+        },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
+
     res.json({
       message: 'Usuario actualizado exitosamente',
       usuario: usuarioActualizado
@@ -187,6 +240,22 @@ router.delete('/:id/eliminar', requireAuth, requireRole('admin'), (req, res) => 
     db.prepare('DELETE FROM sesiones WHERE usuario_id = ?').run(id);
     db.prepare('DELETE FROM usuarios WHERE id = ?').run(id);
 
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'USUARIO_ELIMINADO',
+        entidad: 'usuario',
+        entidadId: usuario.id,
+        detalle: {
+          username: usuario.username,
+        },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
+
     res.json({ message: 'Usuario eliminado definitivamente' });
   } catch (err) {
     console.error('Error eliminando usuario:', err);
@@ -215,6 +284,22 @@ router.delete('/:id', requireAuth, requireRole('admin'), (req, res) => {
     // Eliminar sesiones activas del usuario
     db.prepare('DELETE FROM sesiones WHERE usuario_id = ?').run(id);
 
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'USUARIO_DESACTIVADO',
+        entidad: 'usuario',
+        entidadId: usuario.id,
+        detalle: {
+          username: usuario.username,
+        },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
+
     res.json({ message: 'Usuario desactivado exitosamente' });
   } catch (err) {
     console.error('Error desactivando usuario:', err);
@@ -233,6 +318,22 @@ router.post('/:id/activar', requireAuth, requireRole('admin'), (req, res) => {
     }
 
     db.prepare('UPDATE usuarios SET activo = 1 WHERE id = ?').run(id);
+
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'USUARIO_ACTIVADO',
+        entidad: 'usuario',
+        entidadId: usuario.id,
+        detalle: {
+          id: usuario.id,
+        },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+    } catch (_err) {
+      // no romper flujo si auditoría falla
+    }
 
     res.json({ message: 'Usuario activado exitosamente' });
   } catch (err) {

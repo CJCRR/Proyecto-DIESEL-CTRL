@@ -50,12 +50,13 @@ function listCompras({ limit = 100, proveedor_id, empresaId } = {}) {
 }
 
 function getCompra(id, empresaId) {
-  const cab = db.prepare(`
+  const stmt = db.prepare(`
     SELECT c.*, p.nombre AS proveedor_nombre
     FROM compras c
     LEFT JOIN proveedores p ON p.id = c.proveedor_id
     WHERE c.id = ? ${empresaId ? 'AND c.empresa_id = ?' : ''}
-  `).get.apply(db, empresaId ? [id, empresaId] : [id]);
+  `);
+  const cab = empresaId ? stmt.get(id, empresaId) : stmt.get(id);
   if (!cab) return null;
   const detalles = db.prepare(`
     SELECT d.*, pr.codigo AS producto_codigo_db, pr.descripcion AS producto_descripcion_db, pr.marca AS producto_marca_db

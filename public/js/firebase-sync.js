@@ -95,6 +95,54 @@ async function upsertEmpresaFirebase(empresa) {
     }
 }
 
+// --- USUARIOS (PERFIL LIGERO) ---
+// Guardar un perfil mínimo de usuario bajo empresas/{empresa_codigo}/usuarios/{usuarioId}
+// No se guardan contraseñas ni datos sensibles, solo info básica para futuras integraciones nube.
+async function upsertUsuarioFirebase(usuario) {
+    try {
+        if (!usuario || (!usuario.id && !usuario.usuario_id)) {
+            throw new Error('Usuario sin id para Firebase');
+        }
+
+        const { scope } = getEmpresaSubcollection('usuarios');
+        const usuarioId = String(usuario.id || usuario.usuario_id);
+        const ref = doc(db, 'empresas', scope.empresa_codigo, 'usuarios', usuarioId);
+        const nowIso = new Date().toISOString();
+
+        const payload = {
+            usuario_id: Number(usuarioId),
+            username: usuario.username || null,
+            nombre_completo: usuario.nombre_completo || null,
+            rol: usuario.rol || null,
+            activo: usuario.activo != null ? !!usuario.activo : true,
+            creado_en: usuario.creado_en || null,
+            ultimo_login: usuario.ultimo_login || null,
+            actualizado_en: nowIso,
+            ...scope
+        };
+
+        await setDoc(ref, payload, { merge: true });
+        console.log('✅ Usuario perfil upsert en Firebase:', scope.empresa_codigo, usuarioId);
+        return usuarioId;
+    } catch (err) {
+        console.error('❌ Error guardando perfil de usuario en Firebase:', err);
+        throw err;
+    }
+}
+
+async function deleteUsuarioFirebase(usuarioId) {
+    try {
+        if (!usuarioId) return;
+        const { scope } = getEmpresaSubcollection('usuarios');
+        const ref = doc(db, 'empresas', scope.empresa_codigo, 'usuarios', String(usuarioId));
+        await deleteDoc(ref);
+        console.log('✅ Perfil de usuario eliminado en Firebase:', scope.empresa_codigo, usuarioId);
+    } catch (err) {
+        console.error('❌ Error eliminando perfil de usuario en Firebase:', err);
+        // No relanzamos: la eliminación en SQLite ya se hizo; esto es mejor-esfuerzo.
+    }
+}
+
 // --- CLIENTES ---
 async function upsertClienteFirebase(cliente) {
     try {
@@ -370,7 +418,7 @@ export { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas, borrarProductos
 // API de clientes y productos
 export { upsertClienteFirebase, obtenerClientesFirebase, eliminarClienteFirebasePorCedula };
 export { upsertProductoFirebase, obtenerProductosFirebase };
-export { upsertEmpresaFirebase };
+export { upsertEmpresaFirebase, upsertUsuarioFirebase, deleteUsuarioFirebase };
 
 // También exponer en el scope global para que `app.js` (no-module or simple calls)
 // pueda invocarlo sin hacer `import` (compatibilidad)
@@ -386,4 +434,6 @@ if (typeof window !== 'undefined') {
     window.borrarVentasFirebaseTodas = borrarVentasFirebaseTodas;
     window.borrarProductosFirebaseTodos = borrarProductosFirebaseTodos;
     window.upsertEmpresaFirebase = upsertEmpresaFirebase;
+    window.upsertUsuarioFirebase = upsertUsuarioFirebase;
+    window.deleteUsuarioFirebase = deleteUsuarioFirebase;
 }
