@@ -17,8 +17,41 @@ import { apiFetchJson } from './app-api.js';
         root.style.setProperty('--brand-accent', a);
     }
 
+    function applyBrandingDom(branding = {}) {
+        const titulo = (branding.titulo || 'DIESEL CTRL').toString().trim() || 'DIESEL CTRL';
+        const drawerNombre = (branding.drawer_nombre || branding.titulo || 'Diesel Ctrl').toString().trim() || titulo;
 
-    async function loadAndApply() {
+        const mainTitleEl = document.getElementById('brand-main-title');
+        if (mainTitleEl) {
+            mainTitleEl.textContent = titulo;
+        }
+
+        const drawerNameEl = document.getElementById('drawer-app-name');
+        if (drawerNameEl) {
+            drawerNameEl.textContent = drawerNombre;
+        }
+
+        const footerEl = document.getElementById('global-footer-branding');
+        if (footerEl) {
+            const year = new Date().getFullYear();
+            footerEl.textContent = `© ${year} ${titulo}. Sistema de gestión de ventas.`;
+        }
+
+        if (typeof document !== 'undefined' && document.title) {
+            let t = document.title;
+            const patterns = [
+                /Diesel[-\s]*CTRL/gi,
+                /Diesel[-\s]*Ctrl/gi,
+                /DIESEL[-\s]*CTRL/gi
+            ];
+            patterns.forEach((re) => {
+                t = t.replace(re, titulo);
+            });
+            document.title = t;
+        }
+    }
+
+    async function loadAndApplyEmpresaTheme() {
         if (window.location.pathname.includes('/pages/login.html')) return;
         // Usa cache local si existe
         try {
@@ -40,5 +73,17 @@ import { apiFetchJson } from './app-api.js';
         }
     }
 
-    loadAndApply();
+    async function loadAndApplyBranding() {
+        try {
+            const data = await apiFetchJson('/admin/ajustes/branding');
+            if (data && (data.titulo || data.drawer_nombre)) {
+                applyBrandingDom(data);
+            }
+        } catch (err) {
+            console.warn('No se pudo aplicar branding global', err?.message || err);
+        }
+    }
+
+    loadAndApplyEmpresaTheme();
+    loadAndApplyBranding();
 })();

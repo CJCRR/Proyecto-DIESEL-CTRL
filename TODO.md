@@ -143,12 +143,10 @@
 // Primera iteración implementada: auditoría básica + campos de 2FA en backend.
 - [x] Completar endpoints y flujo backend para 2FA opcional (por ejemplo TOTP) para cuentas superadmin y, si se requiere, para admin_empresa.
 - [x] Agregar una tabla o mecanismo de logs de auditoría para registrar acciones críticas (cambios de plan, eliminación de empresa, creación y eliminación de usuarios, ajustes masivos de inventario).
-- [idea] Evaluar políticas de caducidad y rotación de contraseñas para superadmin/admin_empresa, documentando pros y contras para el contexto de este sistema.
 
-## Fase 25: Branding por Empresa (Futuro)
-- [idea] Añadir campos de branding en la tabla empresas (logo_url, color_primario, color_secundario) y sincronizarlos también a Firestore en empresas/{codigo}.
-- [idea] Adaptar theme.js para leer estos valores de branding y aplicar un esquema de colores personalizado por empresa en el frontend (navbar, botones principales, acentos).
-- [idea] Permitir que el admin de empresa configure ciertos aspectos visuales simples (logo y color principal) desde ajustes, respetando límites razonables para no romper la UI.
+## Fase 25: Branding por Empresa
+- [x] Adaptar theme.js para leer los valores de branding (empresa_config por empresa) y aplicar un esquema de colores personalizado por empresa en el frontend (navbar, botones principales, acentos).
+- [x] Permitir que el admin de empresa configure aspectos visuales simples (nombre comercial, logo y colores) desde Ajustes, respetando límites razonables para no romper la UI.
 
 ## Fase 26: Escalabilidad de Base de Datos (Idea)
 - [idea] Evaluar, a medio/largo plazo, una posible migración de SQLite a un motor como PostgreSQL/MySQL si el volumen de datos o el número de empresas/usuarios concurrentes crece significativamente.

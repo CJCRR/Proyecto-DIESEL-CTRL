@@ -12,6 +12,8 @@ const {
   guardarStockMinimo,
   obtenerConfigGeneral,
   guardarConfigGeneral,
+  obtenerBrandingGlobal,
+  guardarBrandingGlobal,
   purgeTransactionalData,
 } = require('../services/ajustesService');
 
@@ -137,6 +139,29 @@ router.post('/config', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error guardando config general', err.message);
     res.status(500).json({ error: 'No se pudo guardar configuración' });
+  }
+});
+
+// ===== BRANDING GLOBAL DEL PANEL (nombre visible para todas las empresas) =====
+
+// Público: cualquier visitante (incluido el login) puede leer el branding
+router.get('/branding', (req, res) => {
+  try {
+    const data = obtenerBrandingGlobal();
+    res.json(data);
+  } catch (err) {
+    console.error('Error obteniendo branding global', err.message);
+    res.status(500).json({ error: 'No se pudo obtener branding' });
+  }
+});
+
+router.post('/branding', requireAuth, requireRole('superadmin'), (req, res) => {
+  try {
+    const result = guardarBrandingGlobal(req.body || {});
+    res.json(result);
+  } catch (err) {
+    console.error('Error guardando branding global', err.message);
+    res.status(500).json({ error: 'No se pudo guardar branding' });
   }
 });
 

@@ -70,7 +70,53 @@ const ecGracia = document.getElementById('ec-gracia');
 const ecCancelar = document.getElementById('ec-cancelar');
 let ecEmpresaId = null;
 
+// Branding del panel superadmin
+const brandTituloInput = document.getElementById('brand-titulo');
+const brandDrawerInput = document.getElementById('brand-drawer');
+const btnGuardarBranding = document.getElementById('btn-guardar-branding');
+const brandMainTitleEl = document.getElementById('brand-main-title');
+const drawerAppNameEl = document.getElementById('drawer-app-name');
+
+const DEFAULT_BRAND_TITULO = 'DIESEL CTRL';
+const DEFAULT_BRAND_DRAWER = 'Diesel Ctrl';
+
 let empresas = [];
+
+function aplicarBrandingEnVista(branding) {
+  const titulo = (branding && branding.titulo ? String(branding.titulo).trim() : '') || DEFAULT_BRAND_TITULO;
+  const drawerNombre = (branding && branding.drawer_nombre ? String(branding.drawer_nombre).trim() : '') || DEFAULT_BRAND_DRAWER;
+
+  if (brandMainTitleEl) {
+    brandMainTitleEl.textContent = titulo;
+  }
+  if (drawerAppNameEl) {
+    drawerAppNameEl.textContent = drawerNombre;
+  }
+
+  if (typeof document !== 'undefined' && document.title) {
+    document.title = `Empresas (Master) — ${titulo}`;
+  }
+}
+
+async function cargarBranding() {
+  if (!brandTituloInput || !btnGuardarBranding) return;
+  try {
+    const data = await apiFetchJson('/admin/ajustes/branding');
+    const branding = data && data.branding ? data.branding : data;
+    const titulo = (branding && branding.titulo) || DEFAULT_BRAND_TITULO;
+    const drawerNombre = (branding && branding.drawer_nombre) || branding.titulo || DEFAULT_BRAND_DRAWER;
+
+    brandTituloInput.value = titulo;
+    if (brandDrawerInput) brandDrawerInput.value = drawerNombre;
+
+    aplicarBrandingEnVista({ titulo, drawer_nombre: drawerNombre });
+  } catch (err) {
+    console.warn('No se pudo cargar branding del panel', err && err.message ? err.message : err);
+    brandTituloInput.value = DEFAULT_BRAND_TITULO;
+    if (brandDrawerInput) brandDrawerInput.value = DEFAULT_BRAND_DRAWER;
+    aplicarBrandingEnVista({ titulo: DEFAULT_BRAND_TITULO, drawer_nombre: DEFAULT_BRAND_DRAWER });
+  }
+}
 
 async function cargarEmpresas() {
   try {
@@ -683,6 +729,30 @@ if (formCiclo && modalCiclo) {
   });
 }
 
+// Guardar branding global del panel
+if (btnGuardarBranding && brandTituloInput) {
+  btnGuardarBranding.addEventListener('click', async () => {
+    const titulo = (brandTituloInput.value || '').trim() || DEFAULT_BRAND_TITULO;
+    const drawerNombre = ((brandDrawerInput && brandDrawerInput.value) || '').trim() || titulo || DEFAULT_BRAND_DRAWER;
+    try {
+      const resp = await apiFetchJson('/admin/ajustes/branding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo, drawer_nombre: drawerNombre })
+      });
+      const branding = resp && resp.branding ? resp.branding : { titulo, drawer_nombre: drawerNombre };
+      aplicarBrandingEnVista(branding);
+      if (window.showToast) window.showToast('Branding actualizado correctamente.', 'success');
+      else alert('Branding actualizado correctamente.');
+    } catch (err) {
+      console.error(err);
+      const msg = err && err.message ? err.message : 'Error al guardar branding';
+      if (window.showToast) window.showToast(msg, 'error');
+      else alert(msg);
+    }
+  });
+}
+
 // Funciones globales para botones de acciones
 window.__abrirCrearAdmin = function (id) {
   const empresa = empresas.find(e => e.id === id);
@@ -729,3 +799,4 @@ window.__eliminarEmpresa = async function (id) {
 
 // Carga inicial
 cargarEmpresas();
+cargarBranding();

@@ -90,6 +90,34 @@ function getConfigJSON(clave, defObj = {}) {
   }
 }
 
+// ===== BRANDING GLOBAL DEL PANEL (SUPERADMIN) =====
+
+const DEFAULT_APP_BRANDING = {
+  titulo: 'DIESEL CTRL',
+  drawer_nombre: 'Diesel Ctrl',
+};
+
+function obtenerBrandingGlobal() {
+  const branding = getConfigJSON('app_branding', DEFAULT_APP_BRANDING) || {};
+  const titulo = (branding.titulo || DEFAULT_APP_BRANDING.titulo).toString().trim().slice(0, 80) || DEFAULT_APP_BRANDING.titulo;
+  const drawerNombreBase = (branding.drawer_nombre || branding.titulo || DEFAULT_APP_BRANDING.drawer_nombre);
+  const drawer_nombre = drawerNombreBase.toString().trim().slice(0, 80) || titulo || DEFAULT_APP_BRANDING.drawer_nombre;
+  return { titulo, drawer_nombre };
+}
+
+function guardarBrandingGlobal(payload = {}) {
+  const rawTitulo = (payload.titulo || DEFAULT_APP_BRANDING.titulo);
+  const titulo = rawTitulo.toString().trim().slice(0, 80) || DEFAULT_APP_BRANDING.titulo;
+  const rawDrawer = payload.drawer_nombre || titulo || DEFAULT_APP_BRANDING.drawer_nombre;
+  const drawer_nombre = rawDrawer.toString().trim().slice(0, 80) || titulo || DEFAULT_APP_BRANDING.drawer_nombre;
+
+  const obj = { titulo, drawer_nombre };
+  const now = new Date().toISOString();
+  setConfig('app_branding', JSON.stringify(obj), now);
+
+  return { ok: true, branding: obj };
+}
+
 // ===== TASA BCV =====
 
 /**
@@ -583,5 +611,7 @@ module.exports = {
   guardarStockMinimo,
   obtenerConfigGeneral,
   guardarConfigGeneral,
+  obtenerBrandingGlobal,
+  guardarBrandingGlobal,
   purgeTransactionalData,
 };
