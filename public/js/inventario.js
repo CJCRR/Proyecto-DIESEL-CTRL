@@ -29,6 +29,10 @@ const movMotivo = document.getElementById('mov_motivo');
 const movMsg = document.getElementById('mov_msg');
 const movList = document.getElementById('movimientos-list');
 const btnMoverDeposito = document.getElementById('btnMoverDeposito');
+const movStockDetalle = document.getElementById('mov_stock_detalle');
+
+// Select dinámico para elegir depósito origen cuando hay stock en varios depósitos
+let movDepOrigenSelect = null;
 
 // Modal simple con animación
 const modal = document.createElement('div');
@@ -120,7 +124,7 @@ async function cargarAjustes() {
         rows.forEach(r => {
             const d = document.createElement('div');
             d.className = 'p-2 border-b';
-            d.innerHTML = `<div class="font-bold">${r.codigo || '—'} <span class="text-xs text-slate-400">(${r.diferencia>0?'+':''}${r.diferencia})</span></div><div class="text-xs text-slate-400">${r.motivo} — ${new Date(r.fecha).toLocaleString()}</div>`;
+            d.innerHTML = `<div class="font-bold">${r.codigo || '—'} <span class="text-xs text-slate-400">(${r.diferencia > 0 ? '+' : ''}${r.diferencia})</span></div><div class="text-xs text-slate-400">${r.motivo} — ${new Date(r.fecha).toLocaleString()}</div>`;
             el.appendChild(d);
         });
     } catch (err) {
@@ -146,13 +150,14 @@ async function cargarMovimientosDeposito() {
             const origen = r.deposito_origen_nombre || '—';
             const destino = r.deposito_destino_nombre || '—';
             const motivo = r.motivo || '';
+            const cantidad = r.cantidad != null ? r.cantidad : '';
             return `
                 <div class="px-3 py-2 border-b last:border-b-0 bg-white odd:bg-slate-50">
                     <div class="flex justify-between items-center">
                         <div class="font-semibold text-slate-700">${prod}</div>
                         <div class="text-[10px] text-slate-400">${fecha}</div>
                     </div>
-                    <div class="text-[11px] text-slate-500">${origen} → ${destino}${motivo ? ` • ${motivo}` : ''}</div>
+                    <div class="text-[11px] text-slate-500">${origen} → ${destino}${cantidad !== '' ? ` • Cant: ${cantidad}` : ''}${motivo ? ` • ${motivo}` : ''}</div>
                 </div>
             `;
         }).join('');
@@ -200,8 +205,11 @@ function renderList(items) {
         const margenCls = margenVal >= 0 ? 'text-emerald-700' : 'text-rose-700';
         const el = document.createElement('div');
         el.className = 'p-3 border rounded flex justify-between items-start gap-3 hover:bg-slate-50 cursor-pointer';
-        const depositoNombre = p.deposito_nombre || '';
-        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria||''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div>${p.marca ? `<div class="text-xs text-slate-500">Marca: ${p.marca}</div>` : ''}${depositoNombre ? `<div class="text-xs text-slate-400">Depósito: ${depositoNombre}</div>` : ''}</div>
+        const depositoDetalle = p.stock_detalle || '';
+        const depositoLabel = depositoDetalle
+            ? `Depósito: ${depositoDetalle}`
+            : (p.deposito_nombre ? `Depósito: ${p.deposito_nombre}` : '');
+        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria || ''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div>${p.marca ? `<div class="text-xs text-slate-500">Marca: ${p.marca}</div>` : ''}${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}</div>
             <div class="text-right space-y-1 min-w-[160px]">
                 <div class="text-sm font-black">Stock: ${p.stock}</div>
                 <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)} • Costo $${costo.toFixed(2)}</div>
@@ -217,6 +225,12 @@ function renderList(items) {
             if (f_marca) f_marca.value = p.marca || '';
             if (f_deposito) f_deposito.value = p.deposito_id || '';
             msg.innerText = '';
+
+            // Autocompletar sección de movimientos entre depósitos
+            if (movCodigo) {
+                movCodigo.value = p.codigo;
+                cargarProductoParaMovimiento();
+            }
         };
         lista.appendChild(el);
     });
@@ -258,10 +272,10 @@ btnExportCsv.addEventListener('click', async () => {
 });
 
 // Helper: detect delimiter by counting in a sample
-function detectDelimiter(text){
+function detectDelimiter(text) {
     const raw = text.replace(/^\uFEFF/, '');
-    const lines = raw.split(/\r?\n/).slice(0,5).join('\n');
-    const counts = { '\t': (lines.match(/\t/g)||[]).length, ';': (lines.match(/;/g)||[]).length, ',': (lines.match(/,/g)||[]).length };
+    const lines = raw.split(/\r?\n/).slice(0, 5).join('\n');
+    const counts = { '\t': (lines.match(/\t/g) || []).length, ';': (lines.match(/;/g) || []).length, ',': (lines.match(/,/g) || []).length };
     let delim = ';';
     const max = Math.max(counts['\t'], counts[';'], counts[',']);
     if (max === counts['\t']) delim = '\t';
@@ -270,7 +284,7 @@ function detectDelimiter(text){
 }
 
 // Client-side parser for preview (supports quotes)
-function parseDelimited(text, delim){
+function parseDelimited(text, delim) {
     const rows = [];
     let i = 0, len = text.length;
     let cur = [];
@@ -280,7 +294,7 @@ function parseDelimited(text, delim){
         const ch = text[i];
         if (inQuotes) {
             if (ch === '"') {
-                if (i+1 < len && text[i+1] === '"') { field += '"'; i += 2; continue; }
+                if (i + 1 < len && text[i + 1] === '"') { field += '"'; i += 2; continue; }
                 inQuotes = false; i++; continue;
             } else { field += ch; i++; continue; }
         } else {
@@ -292,7 +306,7 @@ function parseDelimited(text, delim){
         }
     }
     if (field !== '' || inQuotes || cur.length) { cur.push(field); rows.push(cur); }
-    return rows.map(r => r.map(c => (c||'').toString()));
+    return rows.map(r => r.map(c => (c || '').toString()));
 }
 
 btnImportCsv.addEventListener('click', async () => {
@@ -302,25 +316,25 @@ btnImportCsv.addEventListener('click', async () => {
     try {
         // detect and parse for preview
         const delim = detectDelimiter(text);
-        const rows = parseDelimited(text.replace(/^\uFEFF/, ''), delim).filter(r => r.some(c => (c||'').toString().trim() !== ''));
+        const rows = parseDelimited(text.replace(/^\uFEFF/, ''), delim).filter(r => r.some(c => (c || '').toString().trim() !== ''));
         if (!rows || rows.length === 0) return showToast('Archivo sin filas', 'error');
 
         // determine if header
         let start = 0;
-        const first = rows[0].map(c => (c||'').toString().toLowerCase());
+        const first = rows[0].map(c => (c || '').toString().toLowerCase());
         if (first.some(h => h.includes('codigo')) && first.some(h => h.includes('descripcion'))) start = 1;
 
         // build HTML preview table (up to 10 rows)
         const previewRows = rows.slice(0, Math.min(10, rows.length));
         let html = '<table class="w-full text-xs table-fixed border-collapse">';
         html += '<thead><tr class="bg-slate-100"><th class="px-2 py-1 border">#</th>';
-        const headerCols = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria','marca','deposito_codigo'];
+        const headerCols = ['codigo', 'descripcion', 'precio_usd', 'costo_usd', 'stock', 'categoria', 'marca', 'deposito_codigo'];
         headerCols.forEach(h => { html += `<th class="px-2 py-1 border">${h}</th>`; });
         html += '</tr></thead><tbody>';
-        for (let i = 0; i < previewRows.length; i++){
+        for (let i = 0; i < previewRows.length; i++) {
             const cols = previewRows[i];
-            html += `<tr class="odd:bg-white even:bg-slate-50"><td class="px-2 py-1 border">${i+1}</td>`;
-            for (let j=0;j<headerCols.length;j++){ html += `<td class="px-2 py-1 border">${(cols[j]||'').toString()}</td>`; }
+            html += `<tr class="odd:bg-white even:bg-slate-50"><td class="px-2 py-1 border">${i + 1}</td>`;
+            for (let j = 0; j < headerCols.length; j++) { html += `<td class="px-2 py-1 border">${(cols[j] || '').toString()}</td>`; }
             html += '</tr>';
         }
         html += '</tbody></table>';
@@ -334,13 +348,13 @@ btnImportCsv.addEventListener('click', async () => {
         const onConfirm = async () => {
             importPreviewConfirm.disabled = true;
             try {
-                const res = await fetch('/admin/productos/import', { 
-                    method: 'POST', 
+                const res = await fetch('/admin/productos/import', {
+                    method: 'POST',
                     credentials: 'same-origin',
-                    headers: { 
+                    headers: {
                         'Content-Type': 'text/plain'
-                    }, 
-                    body: text 
+                    },
+                    body: text
                 });
                 const d = await res.json();
                 if (!res.ok) { console.error('Import error response:', d); const errMsg = d.error || d.details || 'Error importando CSV'; showToast(errMsg, 'error'); }
@@ -386,45 +400,45 @@ form.addEventListener('submit', async (e) => {
     const exists = productosCache.find(p => p.codigo === body.codigo);
     try {
         if (!exists) {
-            const res = await fetch('/admin/productos', { 
-                method: 'POST', 
+            const res = await fetch('/admin/productos', {
+                method: 'POST',
                 credentials: 'same-origin',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json'
-                }, 
-                body: JSON.stringify(body) 
+                },
+                body: JSON.stringify(body)
             });
             const d = await res.json();
             if (!res.ok) throw new Error(d.error || 'Error crear');
             msg.innerText = 'Producto creado.';
         } else {
-            const res = await fetch('/admin/productos/' + encodeURIComponent(body.codigo), { 
-                method: 'PUT', 
+            const res = await fetch('/admin/productos/' + encodeURIComponent(body.codigo), {
+                method: 'PUT',
                 credentials: 'same-origin',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json'
-                }, 
-                body: JSON.stringify({ 
-                    descripcion: body.descripcion, 
-                    precio_usd: body.precio_usd, 
-                    costo_usd: body.costo_usd, 
-                    stock: body.stock, 
+                },
+                body: JSON.stringify({
+                    descripcion: body.descripcion,
+                    precio_usd: body.precio_usd,
+                    costo_usd: body.costo_usd,
+                    stock: body.stock,
                     categoria: body.categoria,
                     marca: body.marca,
                     deposito_id: body.deposito_id
-                }) 
+                })
             });
             const d = await res.json();
             if (!res.ok) throw new Error(d.error || 'Error actualizar');
             msg.innerText = 'Producto actualizado.';
         }
 
-            // Sincronizar producto a Firebase (por empresa)
-            try {
-                await upsertProductoFirebase(body);
-            } catch (syncErr) {
-                console.error('No se pudo sincronizar producto a Firebase:', syncErr);
-            }
+        // Sincronizar producto a Firebase (por empresa)
+        try {
+            await upsertProductoFirebase(body);
+        } catch (syncErr) {
+            console.error('No se pudo sincronizar producto a Firebase:', syncErr);
+        }
         // reload list at first page (do not overwrite user's top filter)
         currentPage = 0;
         await cargarProductos();
@@ -453,7 +467,7 @@ btnBorrar.addEventListener('click', () => {
     });
     modalOk.onclick = async () => {
         try {
-            const res = await fetch('/admin/productos/' + encodeURIComponent(codigo), { 
+            const res = await fetch('/admin/productos/' + encodeURIComponent(codigo), {
                 method: 'DELETE',
                 credentials: 'same-origin'
             });
@@ -534,6 +548,11 @@ async function cargarProductoParaMovimiento() {
     const codigo = movCodigo.value.trim();
     movInfo.textContent = 'Buscando producto...';
     movDepOrigen.textContent = '—';
+    if (movStockDetalle) movStockDetalle.textContent = '';
+    if (movDepOrigenSelect) {
+        movDepOrigenSelect.remove();
+        movDepOrigenSelect = null;
+    }
     if (!codigo) {
         movInfo.textContent = 'Ingresa un código y presiona Enter.';
         return;
@@ -543,11 +562,57 @@ async function cargarProductoParaMovimiento() {
         if (!res.ok) throw new Error('Producto no encontrado');
         const p = await res.json();
         movInfo.textContent = `${p.codigo || ''} — ${p.descripcion || ''} (Stock total: ${p.stock ?? 0})`;
-        movDepOrigen.textContent = p.deposito_nombre || 'Depósito actual';
+        const exps = Array.isArray(p.existencias_por_deposito) ? p.existencias_por_deposito : [];
+
+        if (movStockDetalle) {
+            if (exps.length) {
+                const partes = exps.map(e => `${e.deposito_nombre || 'Depósito'}: ${e.cantidad}`);
+                movStockDetalle.textContent = `Stock por depósito → ${partes.join(' • ')}`;
+            } else {
+                movStockDetalle.textContent = '';
+            }
+        }
+
+        // Determinar depósitos con stock positivo para posible selección de origen
+        const expsConStock = exps.filter(e => Number(e.cantidad || 0) > 0);
+
+        if (expsConStock.length <= 1) {
+            // Solo un depósito con stock: mostrar texto fijo (no editable)
+            const unico = expsConStock[0];
+            movDepOrigen.textContent = (unico && unico.deposito_nombre) ? unico.deposito_nombre : (p.deposito_nombre || 'Depósito actual');
+            if (movDepOrigenSelect) {
+                movDepOrigenSelect.remove();
+                movDepOrigenSelect = null;
+            }
+        } else {
+            // Varios depósitos con stock: permitir elegir depósito origen
+            movDepOrigen.textContent = 'Seleccione depósito origen';
+            if (!movDepOrigenSelect) {
+                movDepOrigenSelect = document.createElement('select');
+                movDepOrigenSelect.id = 'mov_deposito_origen_select';
+                movDepOrigenSelect.className = 'w-full p-2 border rounded mt-1 text-[11px]';
+                if (movDepOrigen.parentElement) {
+                    movDepOrigen.parentElement.appendChild(movDepOrigenSelect);
+                }
+            }
+            movDepOrigenSelect.innerHTML = '';
+            expsConStock.forEach(e => {
+                const opt = document.createElement('option');
+                opt.value = e.deposito_id;
+                opt.textContent = `${e.deposito_nombre || 'Depósito'} (${e.cantidad})`;
+                movDepOrigenSelect.appendChild(opt);
+            });
+
+            // Seleccionar por defecto el depósito principal del producto si está en la lista
+            if (p.deposito_id && expsConStock.some(e => e.deposito_id === p.deposito_id)) {
+                movDepOrigenSelect.value = String(p.deposito_id);
+            }
+        }
     } catch (err) {
         console.error(err);
         movInfo.textContent = err.message || 'Error cargando producto';
         movDepOrigen.textContent = '—';
+        if (movStockDetalle) movStockDetalle.textContent = '';
     }
 }
 
@@ -572,11 +637,23 @@ async function ejecutarMovimientoDeposito() {
         return;
     }
     try {
+        const origenId = movDepOrigenSelect && movDepOrigenSelect.value
+            ? parseInt(movDepOrigenSelect.value, 10)
+            : NaN;
+        const payload = {
+            codigo,
+            deposito_destino_id: parseInt(destId, 10),
+            cantidad,
+            motivo,
+        };
+        if (!Number.isNaN(origenId)) {
+            payload.deposito_origen_id = origenId;
+        }
         const res = await fetch('/depositos/mover', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ codigo, deposito_destino_id: parseInt(destId, 10), cantidad, motivo }),
+            body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Error moviendo producto');

@@ -88,32 +88,113 @@ router.get('/', requireAuth, (req, res) => {
         : null;
 
     try {
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+
+        // Modo normal: sin filtro de depósito → usar stock total de productos
+        if (depositoId === null || Number.isNaN(depositoId)) {
+            const where = [];
+            const params = [];
+            where.push('p.empresa_id = ?');
+            params.push(empresaId);
+            if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%' + q + '%', '%' + q + '%'); }
+            if (categoria) { where.push('lower(p.categoria) LIKE ?'); params.push('%' + String(categoria).toLowerCase() + '%'); }
+            if (stock_lt !== null) { where.push('p.stock < ?'); params.push(stock_lt); }
+            if (stock_gt !== null) { where.push('p.stock > ?'); params.push(stock_gt); }
+
+            const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+            const productos = db.prepare(`
+                                SELECT p.id,
+                                             p.codigo,
+                                             p.descripcion,
+                                             p.precio_usd,
+                                             p.costo_usd,
+                                             p.stock,
+                                             p.categoria,
+                                             p.marca,
+                                             p.deposito_id,
+                                             d.nombre AS deposito_nombre,
+                                             (
+                                                 SELECT GROUP_CONCAT(
+                                                     d2.nombre || ' ' || (
+                                                         CASE
+                                                             WHEN sd2.cantidad = CAST(sd2.cantidad AS INTEGER)
+                                                                 THEN CAST(CAST(sd2.cantidad AS INTEGER) AS TEXT)
+                                                             ELSE printf('%.2f', sd2.cantidad)
+                                                         END
+                                                     ),
+                                                     ' / '
+                                                 )
+                                                 FROM stock_por_deposito sd2
+                                                 JOIN depositos d2 ON d2.id = sd2.deposito_id
+                                                 WHERE sd2.producto_id = p.id
+                                             ) AS stock_detalle
+                                FROM productos p
+                                LEFT JOIN depositos d ON d.id = p.deposito_id
+                                ${whereSQL}
+                                ORDER BY p.codigo ASC
+                                LIMIT ? OFFSET ?
+                        `).all(...params, limit, offset);
+
+            const countRow = db.prepare(`SELECT COUNT(*) as total FROM productos p ${whereSQL}`).get(...params);
+
+            return res.json({ items: productos, total: countRow.total || 0 });
+        }
+
+        // Modo filtrado por depósito: mostrar stock de ESE depósito usando stock_por_deposito
         const where = [];
         const params = [];
-        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
         where.push('p.empresa_id = ?');
         params.push(empresaId);
-        if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%'+q+'%', '%'+q+'%'); }
+        where.push('sd.deposito_id = ?');
+        params.push(depositoId);
+        if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%' + q + '%', '%' + q + '%'); }
         if (categoria) { where.push('lower(p.categoria) LIKE ?'); params.push('%' + String(categoria).toLowerCase() + '%'); }
-        if (stock_lt !== null) { where.push('p.stock < ?'); params.push(stock_lt); }
-        if (stock_gt !== null) { where.push('p.stock > ?'); params.push(stock_gt); }
-        if (depositoId !== null && !Number.isNaN(depositoId)) { where.push('p.deposito_id = ?'); params.push(depositoId); }
+        if (stock_lt !== null) { where.push('sd.cantidad < ?'); params.push(stock_lt); }
+        if (stock_gt !== null) { where.push('sd.cantidad > ?'); params.push(stock_gt); }
 
         const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
         const productos = db.prepare(`
-            SELECT p.id, p.codigo, p.descripcion, p.precio_usd, p.costo_usd, p.stock, p.categoria, p.marca,
-                   p.deposito_id,
-                   d.nombre AS deposito_nombre
-            FROM productos p
-            LEFT JOIN depositos d ON d.id = p.deposito_id
-            ${whereSQL}
-            ORDER BY p.codigo ASC
-            LIMIT ? OFFSET ?
-        `).all(...params, limit, offset);
+                        SELECT p.id,
+                                     p.codigo,
+                                     p.descripcion,
+                                     p.precio_usd,
+                                     p.costo_usd,
+                                     sd.cantidad AS stock,
+                                     p.categoria,
+                                     p.marca,
+                                     sd.deposito_id AS deposito_id,
+                                     d.nombre AS deposito_nombre,
+                                     (
+                                         SELECT GROUP_CONCAT(
+                                             d2.nombre || ' ' || (
+                                                 CASE
+                                                     WHEN sd2.cantidad = CAST(sd2.cantidad AS INTEGER)
+                                                         THEN CAST(CAST(sd2.cantidad AS INTEGER) AS TEXT)
+                                                     ELSE printf('%.2f', sd2.cantidad)
+                                                 END
+                                             ),
+                                             ' / '
+                                         )
+                                         FROM stock_por_deposito sd2
+                                         JOIN depositos d2 ON d2.id = sd2.deposito_id
+                                         WHERE sd2.producto_id = p.id
+                                     ) AS stock_detalle
+                        FROM productos p
+                        JOIN stock_por_deposito sd ON sd.producto_id = p.id
+                        LEFT JOIN depositos d ON d.id = sd.deposito_id
+                        ${whereSQL}
+                        ORDER BY p.codigo ASC
+                        LIMIT ? OFFSET ?
+                `).all(...params, limit, offset);
 
-        // Conteo total con mismos filtros (sin join innecesario)
-        const countRow = db.prepare(`SELECT COUNT(*) as total FROM productos p ${whereSQL}`).get(...params);
+        const countRow = db.prepare(`
+            SELECT COUNT(*) as total
+            FROM productos p
+            JOIN stock_por_deposito sd ON sd.producto_id = p.id
+            ${whereSQL}
+        `).get(...params);
 
         res.json({ items: productos, total: countRow.total || 0 });
     } catch (err) {
@@ -143,17 +224,17 @@ router.get('/export', requireAuth, (req, res) => {
         if (delimParam === 'tab' || delimParam === 'tsv') { delimiter = '\t'; contentType = 'text/tab-separated-values; charset=utf-8'; ext = 'tsv'; }
         else if (delimParam === 'comma' || delimParam === ',') { delimiter = ','; ext = 'csv'; }
 
-        function quoteField(v){
+        function quoteField(v) {
             if (v === null || v === undefined) return '';
             const s = String(v);
             // escape double quotes
             const hasSpecial = s.includes('"') || s.includes('\r') || s.includes('\n') || s.includes(delimiter);
-            if (s.includes('"')) return '"' + s.replace(/"/g,'""') + '"';
+            if (s.includes('"')) return '"' + s.replace(/"/g, '""') + '"';
             if (hasSpecial) return '"' + s + '"';
             return s;
         }
 
-        const header = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria','marca','deposito_codigo'].join(delimiter) + '\r\n';
+        const header = ['codigo', 'descripcion', 'precio_usd', 'costo_usd', 'stock', 'categoria', 'marca', 'deposito_codigo'].join(delimiter) + '\r\n';
         const lines = rows.map(r => {
             return [
                 quoteField(r.codigo),
@@ -200,7 +281,7 @@ router.post('/import', requireAuth, (req, res) => {
         else if (max === counts[';']) detectedDelim = ';';
 
         // General CSV/TSV parser supporting quoted fields and a configurable delimiter
-        function parseDelimited(txt, delim){
+        function parseDelimited(txt, delim) {
             const rows = [];
             let i = 0, len = txt.length;
             let cur = [];
@@ -210,7 +291,7 @@ router.post('/import', requireAuth, (req, res) => {
                 const ch = txt[i];
                 if (inQuotes) {
                     if (ch === '"') {
-                        if (i+1 < len && txt[i+1] === '"') { field += '"'; i += 2; continue; }
+                        if (i + 1 < len && txt[i + 1] === '"') { field += '"'; i += 2; continue; }
                         inQuotes = false; i++; continue;
                     } else {
                         field += ch; i++; continue;
@@ -227,17 +308,17 @@ router.post('/import', requireAuth, (req, res) => {
             return rows;
         }
 
-        const rows = parseDelimited(raw, detectedDelim).map(r => r.map(c => (c||'').toString()));
+        const rows = parseDelimited(raw, detectedDelim).map(r => r.map(c => (c || '').toString()));
         console.log('Import CSV: detected delimiter=', JSON.stringify(detectedDelim), 'rows=', rows.length);
         if (!rows || rows.length === 0) return res.status(400).json({ error: 'CSV sin contenido' });
 
         // remove completely empty rows
-        const nonEmpty = rows.filter(r => r.some(c => (c||'').toString().trim() !== ''));
+        const nonEmpty = rows.filter(r => r.some(c => (c || '').toString().trim() !== ''));
         if (nonEmpty.length === 0) return res.status(400).json({ error: 'CSV sin filas válidas' });
 
         // detect header row more flexibly
         let start = 0;
-        const first = nonEmpty[0].map(c => (c||'').toString().toLowerCase());
+        const first = nonEmpty[0].map(c => (c || '').toString().toLowerCase());
         if (first.some(h => h.includes('codigo')) && first.some(h => h.includes('descripcion'))) start = 1;
 
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
@@ -315,7 +396,7 @@ router.post('/import', requireAuth, (req, res) => {
         res.json({
             message: 'CSV procesado',
             detectedDelimiter: detectedDelim,
-            preview: nonEmpty.slice(0,5),
+            preview: nonEmpty.slice(0, 5),
             counts: { totalRows: nonEmpty.length, dataRows: toImport.length, inserted: inserted.length, updated: updated.length, skipped: skipped.length, errors: rowErrors.length },
             items: { inserted, updated, skipped, rowErrors }
         });
