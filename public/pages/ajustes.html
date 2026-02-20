@@ -85,6 +85,59 @@
             </div>
         </section>
 
+        <!-- Depósitos de inventario -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inventario</p>
+                    <h2 class="text-lg font-black">Depósitos de inventario</h2>
+                    <p class="text-[11px] text-slate-500 mt-1">Configura los depósitos físicos donde guardas tu inventario.</p>
+                </div>
+                <button id="btnNuevoDeposito"
+                    class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Nuevo depósito</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div class="md:col-span-2 space-y-2" id="depositos-lista">
+                    <div class="text-[12px] text-slate-400">Cargando depósitos...</div>
+                </div>
+                <div class="md:col-span-1">
+                    <h3 id="deposito-form-title" class="text-sm font-semibold text-slate-700 mb-2">Nuevo depósito</h3>
+                    <form id="deposito-form" class="space-y-3">
+                        <input type="hidden" id="deposito_id" value="">
+                        <div>
+                            <label class="text-xs font-semibold text-slate-500">Nombre del depósito</label>
+                            <input id="deposito_nombre"
+                                class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Ej: Depósito Principal" />
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-slate-500">Código (opcional)</label>
+                            <input id="deposito_codigo"
+                                class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="PRINCIPAL, SECUNDARIO..." />
+                        </div>
+                        <div class="flex flex-col gap-1 mt-1">
+                            <label class="inline-flex items-center gap-2 text-xs text-slate-600">
+                                <input id="deposito_principal" type="checkbox" class="h-4 w-4">
+                                <span>Marcar como depósito principal</span>
+                            </label>
+                            <label class="inline-flex items-center gap-2 text-xs text-slate-600">
+                                <input id="deposito_activo" type="checkbox" class="h-4 w-4" checked>
+                                <span>Depósito activo (usable en inventario y compras)</span>
+                            </label>
+                        </div>
+                        <div class="flex gap-2 pt-2">
+                            <button type="submit"
+                                class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Guardar</button>
+                            <button type="button" id="deposito_cancelar"
+                                class="px-3 py-2 border rounded-lg text-sm">Cancelar</button>
+                        </div>
+                        <p id="deposito_msg" class="text-[11px] text-slate-500 mt-1"></p>
+                    </form>
+                </div>
+            </div>
+        </section>
+
         <!-- Nota de Entrega: Personalización -->
         <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-4">

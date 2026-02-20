@@ -159,4 +159,26 @@
 - [idea] Especificar procedimiento de actualización sin pérdida de datos (backup previo del .sqlite, `git pull`, `npm install`, `pm2 restart`, verificación rápida).
 - [idea] Evaluar automatizar backups remotos del archivo SQLite (S3 u otro servidor) y plan básico de recuperación ante fallos.
 
+## Fase 28: Estrategia de Precios
+- [idea] Implementar en ajustes hasta 3 precios adicionales configurables por empresa, calculados en % en base al precio USD base (ejemplo: 50 + 45%).
+- [idea] Permitir que en el POS se pueda seleccionar fácilmente el precio base o cualquiera de los otros precios configurados por producto/nivel.
+
+## Fase 29: Comisiones por Vendedor
+- [idea] Definir en ajustes un porcentaje de comisión por venta (global o por rol/usuario) para cada empresa.
+- [idea] Hacer que el campo vendedor en ventas sea un selector de usuarios de la empresa y calcular automáticamente la comisión de cada venta.
+- [idea] Añadir reportes para ver el total de comisiones generadas por vendedor en un rango de fechas.
+
+## Fase 30: Flujo de Compras e Inventario ✅
+- [x] Implementar un botón de "crear producto" en la página de compras para no tener que ir al inventario al registrar una compra, usando un formulario flotante/modal.
+- [x] Ajustar la página de inventario para que el orden por defecto de los productos sea alfabético y agregar más filtros (por categoría, proveedor, stock, etc.) para facilitar la búsqueda.
+
+## Fase 31: Múltiples Depósitos de Inventario
+- [x] Implementar soporte básico de depósitos por empresa en base de datos (tabla depositos y campo deposito_id en productos, con depósito principal por defecto).
+- [x] Añadir servicio y API REST para listar/crear/editar depósitos por empresa.
+- [x] Permitir seleccionar/editar el depósito asociado al producto al crearlo o modificarlo en Inventario y en el flujo de Compras.
+- [x] Conectar filtros/vistas por depósito en Inventario para poder listar productos por depósito.
+- [idea] Añadir movimientos entre depósitos y ajustar reportes para ver existencias por depósito y métricas avanzadas.
+
 ## Notas de Progreso
+
+- [idea] Espacio para anotar ideas rápidas antes de asignarlas a una fase.

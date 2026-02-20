@@ -30,16 +30,41 @@ function ajustarStock(payload = {}) {
   }
 
   db.transaction(() => {
-    const producto = db.prepare('SELECT id, stock, codigo FROM productos WHERE codigo = ?').get(codigo);
+    const producto = db.prepare('SELECT id, stock, codigo, deposito_id, empresa_id FROM productos WHERE codigo = ?').get(codigo);
 
     if (!producto) throw new Error('PRODUCTO_NO_ENCONTRADO');
 
     const nuevoStock = producto.stock + diff;
     if (nuevoStock < 0) throw new Error('STOCK_NEGATIVO');
+    const depositoId = producto.deposito_id;
 
     db.prepare('UPDATE productos SET stock = ? WHERE id = ?').run(nuevoStock, producto.id);
     if (nuevoStock <= 0) {
       insertAlerta('stock', `Stock agotado: ${producto.codigo || codigo}`, { codigo: producto.codigo || codigo, nuevoStock });
+    }
+
+    // Ajustar también existencias en el depósito asignado (si aplica)
+    if (depositoId) {
+      const rowDep = db.prepare(`
+        SELECT cantidad FROM stock_por_deposito
+        WHERE producto_id = ? AND deposito_id = ?
+      `).get(producto.id, depositoId);
+      const cantidadActual = rowDep ? Number(rowDep.cantidad || 0) : 0;
+      const nuevaCantDep = cantidadActual + diff;
+      if (nuevaCantDep < 0) throw new Error('STOCK_NEGATIVO');
+
+      if (rowDep) {
+        db.prepare(`
+          UPDATE stock_por_deposito
+          SET cantidad = ?, actualizado_en = datetime('now')
+          WHERE producto_id = ? AND deposito_id = ?
+        `).run(nuevaCantDep, producto.id, depositoId);
+      } else {
+        db.prepare(`
+          INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+          VALUES (?, ?, ?, ?)
+        `).run(producto.empresa_id || 1, producto.id, depositoId, nuevaCantDep);
+      }
     }
 
     const motivoSafe = safeStr(motivo, MAX_MOTIVO);

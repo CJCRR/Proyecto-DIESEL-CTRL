@@ -704,6 +704,106 @@ const migrations = [
         db.prepare("ALTER TABLE usuarios ADD COLUMN twofa_secret TEXT").run();
       }
     }
+  },
+  {
+    id: '021_depositos_inventario_basico',
+    up: () => {
+      // Tabla de depósitos por empresa
+      db.prepare(`CREATE TABLE IF NOT EXISTS depositos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        empresa_id INTEGER NOT NULL,
+        nombre TEXT NOT NULL,
+        codigo TEXT,
+        es_principal INTEGER DEFAULT 0,
+        activo INTEGER DEFAULT 1,
+        creado_en TEXT DEFAULT (datetime('now')),
+        actualizado_en TEXT DEFAULT (datetime('now'))
+      )`).run();
+
+      if (!indexExists('idx_depositos_empresa')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_depositos_empresa ON depositos (empresa_id)').run();
+      }
+
+      // Columna depósito principal por producto (cada producto pertenece a un depósito)
+      if (!columnExists('productos', 'deposito_id')) {
+        db.prepare('ALTER TABLE productos ADD COLUMN deposito_id INTEGER').run();
+      }
+
+      // Crear un depósito "Principal" para la empresa LOCAL (id=1) si no existe ninguno
+      const existePrincipal = db.prepare('SELECT id FROM depositos WHERE empresa_id = 1 AND es_principal = 1 LIMIT 1').get();
+      let principalId = existePrincipal && existePrincipal.id;
+      if (!principalId) {
+        const info = db.prepare(`
+          INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo)
+          VALUES (1, 'Depósito Principal', 'PRINCIPAL', 1, 1)
+        `).run();
+        principalId = info.lastInsertRowid;
+      }
+
+      // Asegurar que productos existentes apunten al depósito principal por defecto
+      if (principalId) {
+        db.prepare('UPDATE productos SET deposito_id = ? WHERE deposito_id IS NULL').run(principalId);
+      }
+    }
+  },
+  {
+    id: '022_movimientos_depositos_basico',
+    up: () => {
+      // Tabla de movimientos entre depósitos (por ahora registra cambios de depósito por producto)
+      db.prepare(`CREATE TABLE IF NOT EXISTS movimientos_deposito (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        empresa_id INTEGER NOT NULL,
+        producto_id INTEGER NOT NULL,
+        deposito_origen_id INTEGER,
+        deposito_destino_id INTEGER NOT NULL,
+        cantidad REAL,
+        motivo TEXT,
+        creado_en TEXT DEFAULT (datetime('now'))
+      )`).run();
+
+      if (!indexExists('idx_mov_dep_empresa_fecha')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_mov_dep_empresa_fecha ON movimientos_deposito (empresa_id, creado_en DESC)').run();
+      }
+      if (!indexExists('idx_mov_dep_producto')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_mov_dep_producto ON movimientos_deposito (producto_id, creado_en DESC)').run();
+      }
+    }
+  },
+  {
+    id: '023_stock_por_deposito_basico',
+    up: () => {
+      // Existencias por depósito para soportar stock distribuido
+      db.prepare(`CREATE TABLE IF NOT EXISTS stock_por_deposito (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        empresa_id INTEGER NOT NULL,
+        producto_id INTEGER NOT NULL,
+        deposito_id INTEGER NOT NULL,
+        cantidad REAL NOT NULL DEFAULT 0,
+        creado_en TEXT DEFAULT (datetime('now')),
+        actualizado_en TEXT DEFAULT (datetime('now')),
+        UNIQUE (producto_id, deposito_id)
+      )`).run();
+
+      if (!indexExists('idx_stock_dep_empresa_producto')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_stock_dep_empresa_producto ON stock_por_deposito (empresa_id, producto_id)').run();
+      }
+      if (!indexExists('idx_stock_dep_deposito')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_stock_dep_deposito ON stock_por_deposito (deposito_id)').run();
+      }
+
+      // Inicializar existencias por depósito a partir del stock actual y deposito_id de productos
+      // Solo se insertan filas si aún no existen datos para ese producto/deposito
+      db.prepare(`
+        INSERT OR IGNORE INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+        SELECT
+          COALESCE(p.empresa_id, 1) AS empresa_id,
+          p.id AS producto_id,
+          p.deposito_id AS deposito_id,
+          COALESCE(p.stock, 0) AS cantidad
+        FROM productos p
+        WHERE p.deposito_id IS NOT NULL
+      `).run();
+    }
   }
 ];
 

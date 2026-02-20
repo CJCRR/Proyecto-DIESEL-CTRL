@@ -81,7 +81,14 @@
             </div>
             <div class="grid grid-cols-1 gap-3 mb-4">
                 <div>
-                    <label class="text-[11px] font-semibold text-slate-500">Código</label>
+                    <div class="flex items-center justify-between">
+                        <label class="text-[11px] font-semibold text-slate-500">Código</label>
+                        <button id="btnNuevoProducto" type="button"
+                            class="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                            <i class="fas fa-plus-circle"></i>
+                            <span>Nuevo producto</span>
+                        </button>
+                    </div>
                     <div class="relative">
                         <input id="c_codigo" autocomplete="off"
                             class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
@@ -170,6 +177,87 @@
             </div>
         </section>
     </main>
+
+    <!-- Modal: Nuevo producto -->
+    <div id="modal-nuevo-producto"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-black text-slate-600 uppercase tracking-widest">Nuevo producto</h3>
+                <button id="modal-nuevo-producto-cerrar"
+                    class="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <form id="formNuevoProducto" class="space-y-3 text-sm">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-500">Código</label>
+                        <input id="np_codigo" class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Código interno" required />
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-500">Marca</label>
+                        <input id="np_marca" class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Opcional" />
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-500">Descripción</label>
+                    <input id="np_descripcion"
+                        class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Nombre del producto" required />
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-500">Precio USD</label>
+                        <input id="np_precio" type="number" step="0.01"
+                            class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="0.00" required />
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-500">Costo USD</label>
+                        <input id="np_costo" type="number" step="0.01"
+                            class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="0.00" />
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-500">Stock inicial</label>
+                        <input id="np_stock" type="number"
+                            class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="0" value="0" />
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-500">Categoría</label>
+                        <input id="np_categoria"
+                            class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Opcional" />
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-500">Depósito</label>
+                        <select id="np_deposito"
+                            class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">(Elegir Depósito)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between pt-2">
+                    <p id="modal-nuevo-producto-msg" class="text-[11px] text-slate-500"></p>
+                    <div class="flex gap-2">
+                        <button type="button" id="modal-nuevo-producto-cancelar"
+                            class="px-4 py-2 rounded-full text-sm bg-slate-100 text-slate-700 hover:bg-slate-200">Cancelar</button>
+                        <button type="submit"
+                            class="px-4 py-2 rounded-full text-sm bg-blue-600 text-white font-semibold hover:bg-blue-700 flex items-center gap-2">
+                            <i class="fas fa-save"></i>
+                            <span>Guardar producto</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <footer class="border-t border-slate-200 mt-8 py-4 text-center text-xs text-slate-400">
         <p id="global-footer-branding">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>

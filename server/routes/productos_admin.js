@@ -9,7 +9,7 @@ const MAX_FIELD_LEN = 200;
 // POST /admin/productos - Crear nuevo producto
 router.post('/', requireAuth, (req, res) => {
     // 1. Saneamiento de entrada
-    let { codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca } = req.body;
+    let { codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, deposito_id } = req.body;
 
     // Normalización (Mayúsculas para códigos)
     codigo = codigo ? codigo.trim().toUpperCase() : '';
@@ -19,6 +19,7 @@ router.post('/', requireAuth, (req, res) => {
     stock = parseInt(stock) || 0;
     categoria = categoria ? String(categoria).trim() : null;
     marca = marca ? String(marca).trim().slice(0, MAX_FIELD_LEN) : null;
+    const depositoId = deposito_id ? parseInt(deposito_id, 10) || null : null;
 
     // 2. Validaciones
     if (!codigo || codigo.length < 3) {
@@ -33,6 +34,9 @@ router.post('/', requireAuth, (req, res) => {
     if (isNaN(costo_usd) || costo_usd < 0) {
         return res.status(400).json({ error: 'El costo debe ser un número mayor o igual a 0.' });
     }
+    if (!depositoId || Number.isNaN(depositoId)) {
+        return res.status(400).json({ error: 'Debe seleccionar un depósito para el producto.' });
+    }
 
     try {
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
@@ -45,9 +49,19 @@ router.post('/', requireAuth, (req, res) => {
 
         // 4. Inserción
         const info = db.prepare(`
-            INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresaId);
+            INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresaId, depositoId);
+
+        // Inicializar existencias en stock_por_deposito para este producto
+        try {
+            db.prepare(`
+                INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+                VALUES (?, ?, ?, ?)
+            `).run(empresaId, info.lastInsertRowid, depositoId, stock);
+        } catch (errStock) {
+            console.warn('No se pudo inicializar stock_por_deposito para el nuevo producto:', errStock.message);
+        }
 
         res.status(201).json({
             message: 'Producto creado exitosamente',
@@ -69,30 +83,37 @@ router.get('/', requireAuth, (req, res) => {
     const categoria = req.query.categoria ? String(req.query.categoria).trim() : null;
     const stock_lt = req.query.stock_lt !== undefined ? parseInt(req.query.stock_lt) : null;
     const stock_gt = req.query.stock_gt !== undefined ? parseInt(req.query.stock_gt) : null;
+    const depositoId = req.query.deposito_id !== undefined && req.query.deposito_id !== ''
+        ? parseInt(req.query.deposito_id, 10)
+        : null;
 
     try {
         const where = [];
         const params = [];
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
-        where.push('empresa_id = ?');
+        where.push('p.empresa_id = ?');
         params.push(empresaId);
-        if (q) { where.push("(lower(codigo) LIKE ? OR lower(descripcion) LIKE ?)"); params.push('%'+q+'%', '%'+q+'%'); }
-        if (categoria) { where.push('lower(categoria) LIKE ?'); params.push('%' + String(categoria).toLowerCase() + '%'); }
-        if (stock_lt !== null) { where.push('stock < ?'); params.push(stock_lt); }
-        if (stock_gt !== null) { where.push('stock > ?'); params.push(stock_gt); }
+        if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%'+q+'%', '%'+q+'%'); }
+        if (categoria) { where.push('lower(p.categoria) LIKE ?'); params.push('%' + String(categoria).toLowerCase() + '%'); }
+        if (stock_lt !== null) { where.push('p.stock < ?'); params.push(stock_lt); }
+        if (stock_gt !== null) { where.push('p.stock > ?'); params.push(stock_gt); }
+        if (depositoId !== null && !Number.isNaN(depositoId)) { where.push('p.deposito_id = ?'); params.push(depositoId); }
 
         const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
         const productos = db.prepare(`
-            SELECT id, codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca
-            FROM productos
+            SELECT p.id, p.codigo, p.descripcion, p.precio_usd, p.costo_usd, p.stock, p.categoria, p.marca,
+                   p.deposito_id,
+                   d.nombre AS deposito_nombre
+            FROM productos p
+            LEFT JOIN depositos d ON d.id = p.deposito_id
             ${whereSQL}
-            ORDER BY codigo ASC
+            ORDER BY p.codigo ASC
             LIMIT ? OFFSET ?
         `).all(...params, limit, offset);
 
-        // Conteo total con mismos filtros
-        const countRow = db.prepare(`SELECT COUNT(*) as total FROM productos ${whereSQL}`).get(...params);
+        // Conteo total con mismos filtros (sin join innecesario)
+        const countRow = db.prepare(`SELECT COUNT(*) as total FROM productos p ${whereSQL}`).get(...params);
 
         res.json({ items: productos, total: countRow.total || 0 });
     } catch (err) {
@@ -105,7 +126,14 @@ router.get('/', requireAuth, (req, res) => {
 router.get('/export', requireAuth, (req, res) => {
     try {
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
-        const rows = db.prepare('SELECT codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca FROM productos WHERE empresa_id = ? ORDER BY codigo').all(empresaId);
+        const rows = db.prepare(`
+            SELECT p.codigo, p.descripcion, p.precio_usd, p.costo_usd, p.stock, p.categoria, p.marca,
+                   d.codigo AS deposito_codigo
+            FROM productos p
+            LEFT JOIN depositos d ON d.id = p.deposito_id
+            WHERE p.empresa_id = ?
+            ORDER BY p.codigo
+        `).all(empresaId);
         // Allow delimiter selection: comma (default), semicolon or tab
         // Default delimiter: semicolon (works better with Excel in many locales)
         const delimParam = (req.query.delim || 'semicolon').toString().toLowerCase();
@@ -125,7 +153,7 @@ router.get('/export', requireAuth, (req, res) => {
             return s;
         }
 
-        const header = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria','marca'].join(delimiter) + '\r\n';
+        const header = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria','marca','deposito_codigo'].join(delimiter) + '\r\n';
         const lines = rows.map(r => {
             return [
                 quoteField(r.codigo),
@@ -134,7 +162,8 @@ router.get('/export', requireAuth, (req, res) => {
                 quoteField(r.costo_usd || ''),
                 quoteField(r.stock || ''),
                 quoteField(r.categoria || ''),
-                quoteField(r.marca || '')
+                quoteField(r.marca || ''),
+                quoteField(r.deposito_codigo || '')
             ].join(delimiter);
         }).join('\r\n');
         const csv = '\uFEFF' + header + lines + '\r\n';
@@ -213,8 +242,11 @@ router.post('/import', requireAuth, (req, res) => {
 
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
         const insert = db.prepare('INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        const insertWithDeposito = db.prepare('INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, deposito_id, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const update = db.prepare('UPDATE productos SET descripcion = ?, precio_usd = ?, costo_usd = ?, stock = ?, categoria = ?, marca = ? WHERE codigo = ? AND empresa_id = ?');
+        const updateWithDeposito = db.prepare('UPDATE productos SET descripcion = ?, precio_usd = ?, costo_usd = ?, stock = ?, categoria = ?, marca = ?, deposito_id = ? WHERE codigo = ? AND empresa_id = ?');
         const findStmt = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?');
+        const findDepositoByCodigo = db.prepare('SELECT id FROM depositos WHERE empresa_id = ? AND (codigo = ? OR nombre = ?)');
 
         const toImport = nonEmpty.slice(start);
         if (toImport.length > MAX_IMPORT_ROWS) {
@@ -241,12 +273,28 @@ router.post('/import', requireAuth, (req, res) => {
                     const stock = parseInt((cols[4] || '').toString().trim()) || 0;
                     const categoria = (cols[5] || '').toString().trim().slice(0, MAX_FIELD_LEN) || null;
                     const marca = (cols[6] || '').toString().trim().slice(0, MAX_FIELD_LEN) || null;
+                    const depositoCodigoRaw = (cols[7] || '').toString().trim();
+                    let depositoId = null;
+                    if (depositoCodigoRaw) {
+                        const dep = findDepositoByCodigo.get(empresaId, depositoCodigoRaw, depositoCodigoRaw);
+                        if (dep && dep.id) {
+                            depositoId = dep.id;
+                        }
+                    }
                     const ex = findStmt.get(codigo, empresaId);
                     if (ex) {
-                        update.run(descripcion, precio, costoVal, stock, categoria, marca, codigo, empresaId);
+                        if (depositoCodigoRaw && depositoId !== null) {
+                            updateWithDeposito.run(descripcion, precio, costoVal, stock, categoria, marca, depositoId, codigo, empresaId);
+                        } else {
+                            update.run(descripcion, precio, costoVal, stock, categoria, marca, codigo, empresaId);
+                        }
                         updated.push(codigo);
                     } else {
-                        insert.run(codigo, descripcion, precio, costoVal, stock, categoria, marca, empresaId);
+                        if (depositoCodigoRaw && depositoId !== null) {
+                            insertWithDeposito.run(codigo, descripcion, precio, costoVal, stock, categoria, marca, depositoId, empresaId);
+                        } else {
+                            insert.run(codigo, descripcion, precio, costoVal, stock, categoria, marca, empresaId);
+                        }
                         inserted.push(codigo);
                     }
                 } catch (rowErr) {

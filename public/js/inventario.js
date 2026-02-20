@@ -11,12 +11,24 @@ const f_precio = document.getElementById('f_precio');
 const f_costo = document.getElementById('f_costo');
 const f_stock = document.getElementById('f_stock');
 const f_marca = document.getElementById('f_marca');
+const f_deposito = document.getElementById('f_deposito');
 const msg = document.getElementById('msg');
 const btnBorrar = document.getElementById('btnBorrar');
 const pageSize = document.getElementById('pageSize');
 const prevPage = document.getElementById('prevPage');
 const nextPage = document.getElementById('nextPage');
 const pagInfo = document.getElementById('paginacion-info');
+const filterDeposito = document.getElementById('filterDeposito');
+// Movimiento entre depósitos
+const movCodigo = document.getElementById('mov_codigo');
+const movInfo = document.getElementById('mov_info');
+const movCantidad = document.getElementById('mov_cantidad');
+const movDepOrigen = document.getElementById('mov_deposito_origen');
+const movDepDestino = document.getElementById('mov_deposito_destino');
+const movMotivo = document.getElementById('mov_motivo');
+const movMsg = document.getElementById('mov_msg');
+const movList = document.getElementById('movimientos-list');
+const btnMoverDeposito = document.getElementById('btnMoverDeposito');
 
 // Modal simple con animación
 const modal = document.createElement('div');
@@ -69,6 +81,7 @@ async function cargarProductos() {
         // aplicar filtros
         const categoriaVal = document.getElementById('filterCategoria') ? document.getElementById('filterCategoria').value.trim() : '';
         const stockFilter = document.getElementById('filterStock') ? document.getElementById('filterStock').value : 'all';
+        const depositoFilterVal = filterDeposito ? filterDeposito.value : '';
         const params = new URLSearchParams();
         params.set('limit', limit);
         params.set('offset', offset);
@@ -78,6 +91,7 @@ async function cargarProductos() {
         if (stockFilter === 'out') params.set('stock_lt', '1');
         if (stockFilter === 'low') params.set('stock_lt', '5');
         if (stockFilter === 'medium') params.set('stock_lt', '20');
+        if (depositoFilterVal) params.set('deposito_id', depositoFilterVal);
         const res = await fetch(`/admin/productos?${params.toString()}`, {
             credentials: 'same-origin'
         });
@@ -115,6 +129,39 @@ async function cargarAjustes() {
     }
 }
 
+// Historial de movimientos entre depósitos
+async function cargarMovimientosDeposito() {
+    if (!movList) return;
+    try {
+        const res = await fetch('/depositos/movimientos?limit=20', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Error movimientos');
+        const rows = await res.json();
+        if (!rows.length) {
+            movList.innerHTML = '<div class="p-2 text-slate-400">Sin movimientos registrados.</div>';
+            return;
+        }
+        movList.innerHTML = rows.map(r => {
+            const fecha = r.creado_en ? new Date(r.creado_en).toLocaleString() : '';
+            const prod = `${r.producto_codigo || ''} — ${r.producto_descripcion || ''}`;
+            const origen = r.deposito_origen_nombre || '—';
+            const destino = r.deposito_destino_nombre || '—';
+            const motivo = r.motivo || '';
+            return `
+                <div class="px-3 py-2 border-b last:border-b-0 bg-white odd:bg-slate-50">
+                    <div class="flex justify-between items-center">
+                        <div class="font-semibold text-slate-700">${prod}</div>
+                        <div class="text-[10px] text-slate-400">${fecha}</div>
+                    </div>
+                    <div class="text-[11px] text-slate-500">${origen} → ${destino}${motivo ? ` • ${motivo}` : ''}</div>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error(err);
+        movList.innerHTML = '<div class="p-2 text-rose-500">Error cargando movimientos</div>';
+    }
+}
+
 function updatePaginationInfo() {
     const limit = parseInt(pageSize.value);
     const start = currentPage * limit + 1;
@@ -126,7 +173,20 @@ function updatePaginationInfo() {
 
 function renderList(items) {
     const qv = q.value.trim().toLowerCase();
-    const filtered = items.filter(p => !qv || p.codigo.toLowerCase().includes(qv) || (p.descripcion || '').toLowerCase().includes(qv));
+    const filtered = items.filter(p => {
+        const codigo = (p.codigo || '').toLowerCase();
+        const desc = (p.descripcion || '').toLowerCase();
+        const marca = (p.marca || '').toLowerCase();
+        return !qv || codigo.includes(qv) || desc.includes(qv) || marca.includes(qv);
+    });
+    // Asegurar orden alfabético estable por código
+    filtered.sort((a, b) => {
+        const ca = (a.codigo || '').toString().toLowerCase();
+        const cb = (b.codigo || '').toString().toLowerCase();
+        if (ca < cb) return -1;
+        if (ca > cb) return 1;
+        return 0;
+    });
     if (filtered.length === 0) {
         lista.innerHTML = '<div class="text-sm text-slate-400">Sin resultados</div>';
         return;
@@ -140,7 +200,8 @@ function renderList(items) {
         const margenCls = margenVal >= 0 ? 'text-emerald-700' : 'text-rose-700';
         const el = document.createElement('div');
         el.className = 'p-3 border rounded flex justify-between items-start gap-3 hover:bg-slate-50 cursor-pointer';
-        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria||''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div>${p.marca ? `<div class="text-xs text-slate-500">Marca: ${p.marca}</div>` : ''}</div>
+        const depositoNombre = p.deposito_nombre || '';
+        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria||''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div>${p.marca ? `<div class="text-xs text-slate-500">Marca: ${p.marca}</div>` : ''}${depositoNombre ? `<div class="text-xs text-slate-400">Depósito: ${depositoNombre}</div>` : ''}</div>
             <div class="text-right space-y-1 min-w-[160px]">
                 <div class="text-sm font-black">Stock: ${p.stock}</div>
                 <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)} • Costo $${costo.toFixed(2)}</div>
@@ -154,6 +215,7 @@ function renderList(items) {
             f_stock.value = p.stock || 0;
             const f_cat = document.getElementById('f_categoria'); if (f_cat) f_cat.value = p.categoria || '';
             if (f_marca) f_marca.value = p.marca || '';
+            if (f_deposito) f_deposito.value = p.deposito_id || '';
             msg.innerText = '';
         };
         lista.appendChild(el);
@@ -166,6 +228,7 @@ const topFilterCategoria = document.getElementById('filterCategoria');
 const topFilterStock = document.getElementById('filterStock');
 if (topFilterCategoria) topFilterCategoria.addEventListener('input', () => { currentPage = 0; cargarProductos(); });
 if (topFilterStock) topFilterStock.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
+if (filterDeposito) filterDeposito.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 
 // Import / Export CSV handlers
 const csvFile = document.getElementById('csvFile');
@@ -251,13 +314,13 @@ btnImportCsv.addEventListener('click', async () => {
         const previewRows = rows.slice(0, Math.min(10, rows.length));
         let html = '<table class="w-full text-xs table-fixed border-collapse">';
         html += '<thead><tr class="bg-slate-100"><th class="px-2 py-1 border">#</th>';
-        const headerCols = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria'];
+        const headerCols = ['codigo','descripcion','precio_usd','costo_usd','stock','categoria','marca','deposito_codigo'];
         headerCols.forEach(h => { html += `<th class="px-2 py-1 border">${h}</th>`; });
         html += '</tr></thead><tbody>';
         for (let i = 0; i < previewRows.length; i++){
             const cols = previewRows[i];
             html += `<tr class="odd:bg-white even:bg-slate-50"><td class="px-2 py-1 border">${i+1}</td>`;
-            for (let j=0;j<6;j++){ html += `<td class="px-2 py-1 border">${(cols[j]||'').toString()}</td>`; }
+            for (let j=0;j<headerCols.length;j++){ html += `<td class="px-2 py-1 border">${(cols[j]||'').toString()}</td>`; }
             html += '</tr>';
         }
         html += '</tbody></table>';
@@ -315,7 +378,8 @@ form.addEventListener('submit', async (e) => {
         costo_usd: parseFloat(f_costo.value) || 0,
         stock: parseInt(f_stock.value) || 0,
         categoria: (document.getElementById('f_categoria') && document.getElementById('f_categoria').value.trim()) || '',
-        marca: (f_marca && f_marca.value.trim()) || ''
+        marca: (f_marca && f_marca.value.trim()) || '',
+        deposito_id: (f_deposito && f_deposito.value) ? parseInt(f_deposito.value, 10) : null,
     };
 
     // Decide POST (create) or PUT (update) based on existence
@@ -346,7 +410,8 @@ form.addEventListener('submit', async (e) => {
                     costo_usd: body.costo_usd, 
                     stock: body.stock, 
                     categoria: body.categoria,
-                    marca: body.marca
+                    marca: body.marca,
+                    deposito_id: body.deposito_id
                 }) 
             });
             const d = await res.json();
@@ -366,6 +431,7 @@ form.addEventListener('submit', async (e) => {
         // Limpiar inputs excepto categoria (permite ingresar varios del mismo grupo)
         f_codigo.value = f_desc.value = f_precio.value = f_costo.value = f_stock.value = '';
         if (f_marca) f_marca.value = '';
+        if (f_deposito) f_deposito.value = '';
         msg.innerText = '';
         showToast(!exists ? 'Producto creado.' : 'Producto actualizado.', 'success');
     } catch (err) {
@@ -434,3 +500,112 @@ function showToast(text, type = 'info', ms = 3500) {
 // Inicializar
 cargarProductos();
 cargarAjustes();
+
+// Cargar depósitos para el selector
+async function cargarDepositos() {
+    if (!f_deposito && !filterDeposito && !movDepDestino) return;
+    try {
+        const res = await fetch('/depositos?soloActivos=1', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Error depósitos');
+        const items = await res.json();
+        if (f_deposito) {
+            f_deposito.innerHTML = '<option value="">(Elegir Depósito)</option>' +
+                items.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
+        }
+        if (filterDeposito) {
+            filterDeposito.innerHTML = '<option value="">Todos los depósitos</option>' +
+                items.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
+        }
+        if (movDepDestino) {
+            movDepDestino.innerHTML = '<option value="">Seleccione depósito destino</option>' +
+                items.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
+        }
+    } catch (err) {
+        console.error(err);
+        if (f_deposito) f_deposito.innerHTML = '<option value="">(Elegir Depósito)</option>';
+    }
+}
+
+cargarDepositos();
+
+// Buscar producto para movimiento por código
+async function cargarProductoParaMovimiento() {
+    if (!movCodigo || !movInfo || !movDepOrigen) return;
+    const codigo = movCodigo.value.trim();
+    movInfo.textContent = 'Buscando producto...';
+    movDepOrigen.textContent = '—';
+    if (!codigo) {
+        movInfo.textContent = 'Ingresa un código y presiona Enter.';
+        return;
+    }
+    try {
+        const res = await fetch(`/productos/${encodeURIComponent(codigo)}`, { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Producto no encontrado');
+        const p = await res.json();
+        movInfo.textContent = `${p.codigo || ''} — ${p.descripcion || ''} (Stock total: ${p.stock ?? 0})`;
+        movDepOrigen.textContent = p.deposito_nombre || 'Depósito actual';
+    } catch (err) {
+        console.error(err);
+        movInfo.textContent = err.message || 'Error cargando producto';
+        movDepOrigen.textContent = '—';
+    }
+}
+
+async function ejecutarMovimientoDeposito() {
+    if (!movCodigo || !movDepDestino || !movMsg) return;
+    const codigo = movCodigo.value.trim();
+    const cantidadStr = movCantidad ? movCantidad.value.trim() : '';
+    const destId = movDepDestino.value;
+    const motivo = movMotivo ? movMotivo.value.trim() : '';
+    movMsg.textContent = '';
+    if (!codigo) {
+        movMsg.textContent = 'Ingresa un código de producto.';
+        return;
+    }
+    if (!destId) {
+        movMsg.textContent = 'Selecciona un depósito destino.';
+        return;
+    }
+    const cantidad = cantidadStr ? parseFloat(cantidadStr) : NaN;
+    if (!cantidadStr || Number.isNaN(cantidad) || cantidad <= 0) {
+        movMsg.textContent = 'Ingresa una cantidad válida a mover.';
+        return;
+    }
+    try {
+        const res = await fetch('/depositos/mover', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codigo, deposito_destino_id: parseInt(destId, 10), cantidad, motivo }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error moviendo producto');
+        movMsg.textContent = data.message || 'Producto movido.';
+        // refrescar lista, historial y datos del producto
+        await cargarProductos();
+        await cargarMovimientosDeposito();
+        await cargarProductoParaMovimiento();
+        if (movCantidad) movCantidad.value = '';
+    } catch (err) {
+        console.error(err);
+        movMsg.textContent = err.message || 'Error moviendo producto';
+    }
+}
+
+if (movCodigo) {
+    movCodigo.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            cargarProductoParaMovimiento();
+        }
+    });
+}
+if (btnMoverDeposito) {
+    btnMoverDeposito.addEventListener('click', (e) => {
+        e.preventDefault();
+        ejecutarMovimientoDeposito();
+    });
+}
+
+// Cargar historial inicial de movimientos
+cargarMovimientosDeposito();

@@ -126,6 +126,9 @@
                             <option value="50" selected>50</option>
                         </select>
                         <input id="filterCategoria" placeholder="Categoría" class="p-2 border rounded w-40" />
+                        <select id="filterDeposito" class="p-2 border rounded">
+                            <option value="">Todos los depósitos</option>
+                        </select>
                         <select id="filterStock" class="p-2 border rounded">
                             <option value="all">Todos</option>
                             <option value="out">Sin stock</option>
@@ -157,6 +160,8 @@
                     <input id="f_costo" type="number" step="0.01" class="w-full p-2 border rounded mb-2" />
                     <label class="text-xs">Stock</label>
                     <input id="f_stock" type="number" class="w-full p-2 border rounded mb-2" required />
+                    <label class="text-xs">Depósito</label>
+                    <select id="f_deposito" class="w-full p-2 border rounded mb-2"></select>
                     <label class="text-xs">Categoría</label>
                     <input id="f_categoria" class="w-full p-2 border rounded mb-2" />
                     <label class="text-xs">Marca</label>
@@ -183,6 +188,56 @@
                 <div id="ajustes-list" class="text-sm text-slate-600 max-h-40 overflow-auto">Cargando...</div>
             </aside>
         </div>
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mt-4">
+                <div class="flex justify-between items-center mb-2">
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-800">Movimientos entre depósitos</h2>
+                        <p class="text-[11px] text-slate-500">Mueve un producto completo de un depósito a otro y revisa el historial.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div class="space-y-2 md:col-span-1">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600">Código de producto</label>
+                            <input id="mov_codigo" class="w-full p-2 border rounded" placeholder="Ej: ABC-123" />
+                        </div>
+                        <div>
+                            <p id="mov_info" class="text-[11px] text-slate-500">Ingresa un código y presiona Enter.</p>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600">Cantidad a mover</label>
+                            <input id="mov_cantidad" type="number" min="0" step="1" class="w-full p-2 border rounded" placeholder="Ej: 5" />
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600">Depósito actual</label>
+                            <p id="mov_deposito_origen" class="p-2 border rounded bg-slate-50 text-[11px] text-slate-600">—</p>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600">Mover a depósito</label>
+                            <select id="mov_deposito_destino" class="w-full p-2 border rounded">
+                                <option value="">Seleccione depósito destino</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600">Motivo (opcional)</label>
+                            <input id="mov_motivo" class="w-full p-2 border rounded" placeholder="Reubicación, organización, etc." />
+                        </div>
+                        <div>
+                            <button id="btnMoverDeposito" class="mt-2 px-3 py-2 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700">
+                                Registrar movimiento entre depósitos
+                            </button>
+                            <p id="mov_msg" class="mt-1 text-[11px] text-slate-500"></p>
+                        </div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[11px] font-semibold text-slate-600">Historial reciente</span>
+                            <span class="text-[11px] text-slate-400">Últimos 20 movimientos</span>
+                        </div>
+                        <div id="movimientos-list" class="max-h-64 overflow-auto border rounded bg-slate-50 text-[11px]"></div>
+                    </div>
+                </div>
+            </section>
     </main>
         <footer class="border-t border-slate-200 mt-8 py-4 text-center text-xs text-slate-400">
             <p id="global-footer-branding">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>

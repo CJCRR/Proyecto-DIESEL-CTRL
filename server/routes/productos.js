@@ -33,6 +33,7 @@ router.get('/', requireAuth, (req, res) => {
     }
 });
 
+// GET /productos/:codigo - detalle de producto + existencias por depósito
 router.get('/:codigo', requireAuth, (req, res) => {
     const { codigo } = req.params;
     const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
@@ -40,16 +41,40 @@ router.get('/:codigo', requireAuth, (req, res) => {
     let producto;
     if (empresaId) {
         producto = db
-            .prepare('SELECT * FROM productos WHERE codigo = ? AND empresa_id = ?')
+            .prepare(`
+                SELECT p.*, d.nombre AS deposito_nombre
+                FROM productos p
+                LEFT JOIN depositos d ON d.id = p.deposito_id
+                WHERE p.codigo = ? AND p.empresa_id = ?
+            `)
             .get(codigo, empresaId);
     } else {
         producto = db
-            .prepare('SELECT * FROM productos WHERE codigo = ?')
+            .prepare(`
+                SELECT p.*, d.nombre AS deposito_nombre
+                FROM productos p
+                LEFT JOIN depositos d ON d.id = p.deposito_id
+                WHERE p.codigo = ?
+            `)
             .get(codigo);
     }
 
     if (!producto) {
         return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
+    try {
+        const existencias = db.prepare(`
+            SELECT sd.deposito_id, d.nombre AS deposito_nombre, sd.cantidad
+            FROM stock_por_deposito sd
+            JOIN depositos d ON d.id = sd.deposito_id
+            WHERE sd.producto_id = ?
+            ORDER BY d.nombre ASC
+        `).all(producto.id);
+        producto.existencias_por_deposito = existencias;
+    } catch (err) {
+        // Si la tabla aún no existe por alguna razón, simplemente ignorar
+        console.warn('No se pudieron obtener existencias por depósito:', err.message);
     }
 
     res.json(producto);

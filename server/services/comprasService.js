@@ -108,7 +108,22 @@ function crearCompra(payload = {}, usuario) {
       INSERT INTO compra_detalle (compra_id, producto_id, codigo, descripcion, marca, cantidad, costo_usd, subtotal_bs, lote, observaciones)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const updateProdStock = db.prepare('UPDATE productos SET stock = stock + ?, costo_usd = ? WHERE id = ?');
+
+    const selectProd = db.prepare('SELECT id, descripcion, marca, stock, deposito_id, empresa_id FROM productos WHERE codigo = ? AND empresa_id = ?');
+    const selectStockDep = db.prepare(`
+      SELECT cantidad FROM stock_por_deposito
+      WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const updateStockDepAdd = db.prepare(`
+      UPDATE stock_por_deposito
+      SET cantidad = cantidad + ?, actualizado_en = datetime('now')
+      WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const insertStockDep = db.prepare(`
+      INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+      VALUES (?, ?, ?, ?)
+    `);
+    const updateProdStock = db.prepare('UPDATE productos SET stock = ?, costo_usd = ? WHERE id = ?');
 
     for (const raw of items) {
       const codigo = safeStr(raw.codigo, 80);
@@ -123,7 +138,7 @@ function crearCompra(payload = {}, usuario) {
         throw err;
       }
 
-      const prod = db.prepare('SELECT id, descripcion, marca FROM productos WHERE codigo = ?').get(codigo);
+      const prod = selectProd.get(codigo, empresaId);
       if (!prod) {
         const err = new Error(`Producto no encontrado para código ${codigo}`);
         err.tipo = 'VALIDACION';
@@ -149,7 +164,19 @@ function crearCompra(payload = {}, usuario) {
         obs,
       );
 
-      updateProdStock.run(cantidad, costo, prod.id);
+      // Actualizar stock total del producto y existencias en el depósito asignado
+      const nuevoStockTotal = (prod.stock || 0) + cantidad;
+      updateProdStock.run(nuevoStockTotal, costo, prod.id);
+
+      const depositoId = prod.deposito_id;
+      if (depositoId) {
+        const rowDep = selectStockDep.get(prod.id, depositoId);
+        if (rowDep) {
+          updateStockDepAdd.run(cantidad, prod.id, depositoId);
+        } else {
+          insertStockDep.run(prod.empresa_id || empresaId, prod.id, depositoId, cantidad);
+        }
+      }
     }
 
     db.prepare('UPDATE compras SET total_bs = ?, total_usd = ?, actualizado_en = datetime(\'now\') WHERE id = ?')

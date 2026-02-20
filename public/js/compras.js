@@ -7,6 +7,9 @@ let productoSeleccionado = null;
 let comprasHistorial = [];
 const comprasDetallesCache = {};
 let compraExpandidaId = null;
+let modalNuevoProducto;
+let modalNuevoProductoMsg;
+let depositosComprasCargados = false;
 
 function formNumber(id, def = 0) {
   const v = parseFloat(document.getElementById(id).value || '');
@@ -97,6 +100,112 @@ function renderResumen() {
   const totalBs = totalUsd * tasa;
   const el = document.getElementById('c_resumen');
   el.textContent = `Items: ${items.length} • Total USD: $${totalUsd.toFixed(2)} • Total Bs: ${totalBs.toFixed(2)}`;
+}
+
+function abrirModalNuevoProducto() {
+  if (!modalNuevoProducto) return;
+  const codigoInput = document.getElementById('c_codigo');
+  const npCodigo = document.getElementById('np_codigo');
+  const npDescripcion = document.getElementById('np_descripcion');
+  const npPrecio = document.getElementById('np_precio');
+  const npCosto = document.getElementById('np_costo');
+  const npStock = document.getElementById('np_stock');
+  const npCategoria = document.getElementById('np_categoria');
+  const npMarca = document.getElementById('np_marca');
+  const npDeposito = document.getElementById('np_deposito');
+
+  if (modalNuevoProductoMsg) modalNuevoProductoMsg.textContent = '';
+
+  // Prefill con código actual si existe
+  if (codigoInput && npCodigo) {
+    npCodigo.value = (codigoInput.value || '').trim();
+  }
+  if (npDescripcion) npDescripcion.value = '';
+  if (npPrecio) npPrecio.value = '';
+  if (npCosto) npCosto.value = '';
+  if (npStock) npStock.value = '0';
+  if (npCategoria) npCategoria.value = '';
+  if (npMarca) npMarca.value = '';
+  if (npDeposito) npDeposito.value = '';
+
+  modalNuevoProducto.classList.remove('hidden');
+}
+
+function cerrarModalNuevoProducto() {
+  if (!modalNuevoProducto) return;
+  modalNuevoProducto.classList.add('hidden');
+}
+
+async function crearProductoDesdeCompras(event) {
+  event.preventDefault();
+  const npCodigo = document.getElementById('np_codigo');
+  const npDescripcion = document.getElementById('np_descripcion');
+  const npPrecio = document.getElementById('np_precio');
+  const npCosto = document.getElementById('np_costo');
+  const npStock = document.getElementById('np_stock');
+  const npCategoria = document.getElementById('np_categoria');
+  const npMarca = document.getElementById('np_marca');
+  const npDeposito = document.getElementById('np_deposito');
+
+  const body = {
+    codigo: (npCodigo.value || '').trim().toUpperCase(),
+    descripcion: (npDescripcion.value || '').trim(),
+    precio_usd: parseFloat(npPrecio.value || '0'),
+    costo_usd: parseFloat(npCosto.value || '0') || 0,
+    stock: parseInt(npStock.value || '0', 10) || 0,
+    categoria: (npCategoria.value || '').trim(),
+    marca: (npMarca.value || '').trim(),
+    deposito_id: (npDeposito && npDeposito.value) ? parseInt(npDeposito.value, 10) : null,
+  };
+
+  if (!body.codigo || !body.descripcion || !body.precio_usd || body.precio_usd <= 0) {
+    if (modalNuevoProductoMsg) {
+      modalNuevoProductoMsg.textContent = 'Código, descripción y precio son obligatorios.';
+    }
+    return;
+  }
+
+  try {
+    const res = await apiFetchJson('/admin/productos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (modalNuevoProductoMsg) {
+      modalNuevoProductoMsg.textContent = '';
+    }
+    showToast(res.message || 'Producto creado', 'success');
+
+    // Cerrar modal y preseleccionar el producto recién creado en el campo de código
+    cerrarModalNuevoProducto();
+    const codigoInput = document.getElementById('c_codigo');
+    if (codigoInput) {
+      codigoInput.value = body.codigo;
+      await cargarProductoPorCodigo(body.codigo);
+    }
+  } catch (err) {
+    console.error(err);
+    if (modalNuevoProductoMsg) {
+      modalNuevoProductoMsg.textContent = err.message || 'Error creando producto';
+    }
+  }
+}
+
+async function cargarDepositosCompras() {
+  if (depositosComprasCargados) return;
+  const npDeposito = document.getElementById('np_deposito');
+  if (!npDeposito) return;
+  try {
+    const res = await apiFetchJson('/depositos?soloActivos=1');
+    const items = Array.isArray(res) ? res : [];
+    npDeposito.innerHTML = '<option value="">(Depósito principal)</option>' +
+      items.map(d => `<option value="${d.id}">${escapeHtml(d.nombre || '')}</option>`).join('');
+    depositosComprasCargados = true;
+  } catch (err) {
+    console.error(err);
+    npDeposito.innerHTML = '<option value="">(Depósito principal)</option>';
+  }
 }
 
 async function cargarProveedoresParaSelect() {
@@ -421,6 +530,46 @@ function setupUI() {
   document.getElementById('c_filtro_proveedor').addEventListener('change', () => {
     cargarHistorialCompras();
   });
+
+  // Modal nuevo producto
+  modalNuevoProducto = document.getElementById('modal-nuevo-producto');
+  modalNuevoProductoMsg = document.getElementById('modal-nuevo-producto-msg');
+  const btnNuevoProducto = document.getElementById('btnNuevoProducto');
+  const btnCerrarModal = document.getElementById('modal-nuevo-producto-cerrar');
+  const btnCancelarModal = document.getElementById('modal-nuevo-producto-cancelar');
+  const formNuevoProducto = document.getElementById('formNuevoProducto');
+
+  if (btnNuevoProducto && modalNuevoProducto) {
+    btnNuevoProducto.addEventListener('click', (e) => {
+      e.preventDefault();
+      abrirModalNuevoProducto();
+    });
+  }
+  if (btnCerrarModal && modalNuevoProducto) {
+    btnCerrarModal.addEventListener('click', (e) => {
+      e.preventDefault();
+      cerrarModalNuevoProducto();
+    });
+  }
+  if (btnCancelarModal && modalNuevoProducto) {
+    btnCancelarModal.addEventListener('click', (e) => {
+      e.preventDefault();
+      cerrarModalNuevoProducto();
+    });
+  }
+  if (modalNuevoProducto) {
+    modalNuevoProducto.addEventListener('click', (e) => {
+      if (e.target === modalNuevoProducto) {
+        cerrarModalNuevoProducto();
+      }
+    });
+  }
+  if (formNuevoProducto) {
+    formNuevoProducto.addEventListener('submit', crearProductoDesdeCompras);
+  }
+
+  // Cargar depósitos para el modal de nuevo producto
+  cargarDepositosCompras();
 }
 
 window.addEventListener('DOMContentLoaded', () => {

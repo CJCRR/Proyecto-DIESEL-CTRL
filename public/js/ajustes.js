@@ -4,6 +4,10 @@ import { apiFetchJson } from './app-api.js';
 
 let configCache = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
 
+// Estado para depósitos
+let depositosCache = [];
+let depositoEditId = null;
+
 // Referencias para el modal de borrado total (zona de riesgo)
 let modalPurge = null;
 let purgeInput = null;
@@ -219,12 +223,150 @@ function setupUI() {
     }
 
     setup2FASection();
+
+    // Gestión de depósitos de inventario
+    setupDepositosUI();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
     setupUI();
     loadConfig();
 });
+
+function renderDepositosList() {
+    const cont = document.getElementById('depositos-lista');
+    if (!cont) return;
+    if (!depositosCache.length) {
+        cont.innerHTML = '<div class="text-[12px] text-slate-400">No hay depósitos configurados. Crea al menos uno.</div>';
+        return;
+    }
+    cont.innerHTML = '';
+    depositosCache.forEach(dep => {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'w-full text-left p-3 border rounded-xl flex justify-between items-center gap-3 hover:bg-slate-50 transition';
+        const badges = [];
+        if (dep.es_principal) badges.push('<span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-100 text-emerald-700 font-semibold">Principal</span>');
+        if (!dep.activo) badges.push('<span class="px-2 py-0.5 text-[10px] rounded-full bg-slate-200 text-slate-600 font-semibold">Inactivo</span>');
+        el.innerHTML = `
+            <div>
+                <div class="text-sm font-semibold text-slate-800">${dep.nombre}</div>
+                <div class="text-[11px] text-slate-500 flex items-center gap-2">
+                    <span>Código: ${dep.codigo || '—'}</span>
+                    ${badges.join('')}
+                </div>
+            </div>
+            <div class="text-[11px] text-slate-400">
+                ID ${dep.id}
+            </div>
+        `;
+        el.addEventListener('click', () => {
+            fillDepositoForm(dep);
+        });
+        cont.appendChild(el);
+    });
+}
+
+function fillDepositoForm(dep) {
+    depositoEditId = dep && dep.id ? dep.id : null;
+    const title = document.getElementById('deposito-form-title');
+    const idEl = document.getElementById('deposito_id');
+    const nombreEl = document.getElementById('deposito_nombre');
+    const codigoEl = document.getElementById('deposito_codigo');
+    const principalEl = document.getElementById('deposito_principal');
+    const activoEl = document.getElementById('deposito_activo');
+    const msgEl = document.getElementById('deposito_msg');
+    if (msgEl) msgEl.textContent = '';
+    if (!nombreEl || !codigoEl || !principalEl || !activoEl || !idEl || !title) return;
+    if (!dep) {
+        title.textContent = 'Nuevo depósito';
+        idEl.value = '';
+        nombreEl.value = '';
+        codigoEl.value = '';
+        principalEl.checked = false;
+        activoEl.checked = true;
+    } else {
+        title.textContent = 'Editar depósito';
+        idEl.value = dep.id;
+        nombreEl.value = dep.nombre || '';
+        codigoEl.value = dep.codigo || '';
+        principalEl.checked = !!dep.es_principal;
+        activoEl.checked = dep.activo !== false;
+    }
+}
+
+async function loadDepositos() {
+    try {
+        const items = await apiFetchJson('/depositos');
+        depositosCache = Array.isArray(items) ? items : [];
+        renderDepositosList();
+    } catch (err) {
+        console.error(err);
+        const cont = document.getElementById('depositos-lista');
+        if (cont) cont.innerHTML = '<div class="text-[12px] text-rose-500">Error cargando depósitos</div>';
+    }
+}
+
+function setupDepositosUI() {
+    const btnNuevo = document.getElementById('btnNuevoDeposito');
+    const form = document.getElementById('deposito-form');
+    const btnCancelar = document.getElementById('deposito_cancelar');
+    if (btnNuevo) {
+        btnNuevo.addEventListener('click', (e) => {
+            e.preventDefault();
+            fillDepositoForm(null);
+        });
+    }
+    if (btnCancelar) {
+        btnCancelar.addEventListener('click', (e) => {
+            e.preventDefault();
+            fillDepositoForm(null);
+        });
+    }
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const idStr = document.getElementById('deposito_id')?.value || '';
+            const nombre = document.getElementById('deposito_nombre')?.value.trim() || '';
+            const codigo = document.getElementById('deposito_codigo')?.value.trim() || '';
+            const es_principal = !!document.getElementById('deposito_principal')?.checked;
+            const activo = !!document.getElementById('deposito_activo')?.checked;
+            const msgEl = document.getElementById('deposito_msg');
+            if (!nombre) {
+                if (msgEl) msgEl.textContent = 'El nombre es obligatorio.';
+                return;
+            }
+            const payload = { nombre, codigo, es_principal, activo };
+            try {
+                if (!idStr) {
+                    // Crear
+                    await apiFetchJson('/depositos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    showToast('Depósito creado', 'success');
+                } else {
+                    // Actualizar
+                    await apiFetchJson(`/depositos/${encodeURIComponent(idStr)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    showToast('Depósito actualizado', 'success');
+                }
+                await loadDepositos();
+                fillDepositoForm(null);
+            } catch (err) {
+                console.error(err);
+                if (msgEl) msgEl.textContent = err.message || 'Error guardando depósito';
+            }
+        });
+    }
+
+    // Cargar lista inicial
+    loadDepositos();
+}
 
 function renderPreview() {
         const prev = document.getElementById('nota-preview');

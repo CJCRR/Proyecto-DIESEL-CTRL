@@ -118,9 +118,23 @@ function registrarVenta(payload) {
 
         const ventaId = ventaResult.lastInsertRowid;
 
+        const selectProducto = db.prepare('SELECT id, stock, precio_usd, costo_usd, descripcion, deposito_id, empresa_id FROM productos WHERE codigo = ?');
+        const selectStockDep = db.prepare(`
+            SELECT cantidad FROM stock_por_deposito
+            WHERE producto_id = ? AND deposito_id = ?
+        `);
+        const updateStockDepSub = db.prepare(`
+            UPDATE stock_por_deposito
+            SET cantidad = cantidad - ?, actualizado_en = datetime('now')
+            WHERE producto_id = ? AND deposito_id = ?
+        `);
+        const updateProdStock = db.prepare(`
+            UPDATE productos SET stock = ? WHERE id = ?
+        `);
+
         for (const item of items) {
             // Buscar producto real en DB por CÓDIGO
-            const producto = db.prepare('SELECT id, stock, precio_usd, costo_usd, descripcion FROM productos WHERE codigo = ?').get(item.codigo);
+            const producto = selectProducto.get(item.codigo);
 
             if (!producto) {
                 throw new Error(`El producto con código ${item.codigo} no existe en la base de datos`);
@@ -128,6 +142,17 @@ function registrarVenta(payload) {
 
             if (producto.stock < item.cantidad) {
                 throw new Error(`Stock insuficiente para el producto: ${item.codigo}`);
+            }
+
+            const depositoVentaId = producto.deposito_id;
+            if (!depositoVentaId) {
+                throw new Error(`El producto ${item.codigo} no tiene depósito asignado para la venta`);
+            }
+
+            const stockDepRow = selectStockDep.get(producto.id, depositoVentaId);
+            const stockEnDeposito = stockDepRow ? Number(stockDepRow.cantidad || 0) : 0;
+            if (stockEnDeposito < item.cantidad) {
+                throw new Error(`Stock insuficiente en el depósito asignado para el producto: ${item.codigo}`);
             }
 
             const subtotalUsd = producto.precio_usd * item.cantidad;
@@ -141,11 +166,11 @@ function registrarVenta(payload) {
                     VALUES (?, ?, ?, ?, ?, ?)
                 `).run(ventaId, producto.id, item.cantidad, producto.precio_usd, producto.costo_usd || 0, subtotalBs);
 
-            // Descontar del inventario y verificar stock crítico
+            // Descontar del inventario por depósito y en total, y verificar stock crítico
             const nuevoStock = producto.stock - item.cantidad;
-            db.prepare(`
-                    UPDATE productos SET stock = ? WHERE id = ?
-                `).run(nuevoStock, producto.id);
+            updateProdStock.run(nuevoStock, producto.id);
+
+            updateStockDepSub.run(item.cantidad, producto.id, depositoVentaId);
             if (nuevoStock <= 0) {
                 insertAlerta('stock', `Stock agotado: ${item.codigo}`, { codigo: item.codigo, descripcion: producto.descripcion || '' });
             }

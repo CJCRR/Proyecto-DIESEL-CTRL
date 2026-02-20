@@ -24,6 +24,7 @@ const proveedoresRoutes = require('./routes/proveedores');
 const comprasRoutes = require('./routes/compras');
 const { router: alertasRoutes } = require('./routes/alertas');
 const presupuestosRoutes = require('./routes/presupuestos');
+const depositosRoutes = require('./routes/depositos');
 
 const app = express();
 // Enforce HTTPS en producción
@@ -71,6 +72,7 @@ app.use('/admin/ajustes', ajustesRoutes);
 app.use('/admin/usuarios', usuariosRoutes);
 app.use('/admin/empresas', empresasAdminRoutes);
 app.use('/proveedores', proveedoresRoutes);
+app.use('/depositos', depositosRoutes);
 app.use('/compras', comprasRoutes);
 app.use('/productos', productosRoutes);
 app.use('/ventas', ventasRoutes);

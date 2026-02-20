@@ -125,6 +125,24 @@ function registrarDevolucion(payload = {}) {
       devueltosPrevios = obtenerDevueltosPrevios(venta_original_id);
     }
 
+    const selectProducto = db.prepare('SELECT id, precio_usd, stock, deposito_id, empresa_id FROM productos WHERE codigo = ?');
+    const selectStockDep = db.prepare(`
+      SELECT cantidad FROM stock_por_deposito
+      WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const upsertStockDep = {
+      suma: db.prepare(`
+        UPDATE stock_por_deposito
+        SET cantidad = cantidad + ?, actualizado_en = datetime('now')
+        WHERE producto_id = ? AND deposito_id = ?
+      `),
+      insert: db.prepare(`
+        INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+        VALUES (?, ?, ?, ?)
+      `),
+    };
+    const updateProdStock = db.prepare('UPDATE productos SET stock = ? WHERE id = ?');
+
     for (const item of items) {
       const codigo = safeStr(item.codigo, 64);
       const cantidad = Math.abs(parseInt(item.cantidad, 10));
@@ -133,7 +151,7 @@ function registrarDevolucion(payload = {}) {
         error.tipo = 'VALIDACION';
         throw error;
       }
-      const producto = db.prepare('SELECT id, precio_usd, stock FROM productos WHERE codigo = ?').get(codigo);
+      const producto = selectProducto.get(codigo);
       if (!producto) {
         const error = new Error(`El producto ${codigo} no existe`);
         error.tipo = 'VALIDACION';
@@ -176,7 +194,19 @@ function registrarDevolucion(payload = {}) {
           VALUES (?, ?, ?, ?, ?)
         `).run(devId, producto.id, cantidad, producto.precio_usd || 0, subtotalBs);
 
-      db.prepare('UPDATE productos SET stock = stock + ? WHERE id = ?').run(cantidad, producto.id);
+      // Aumentar stock total y en el depósito asignado al producto
+      const nuevoStockTotal = (producto.stock || 0) + cantidad;
+      updateProdStock.run(nuevoStockTotal, producto.id);
+
+      const depositoId = producto.deposito_id;
+      if (depositoId) {
+        const rowDep = selectStockDep.get(producto.id, depositoId);
+        if (rowDep) {
+          upsertStockDep.suma.run(cantidad, producto.id, depositoId);
+        } else {
+          upsertStockDep.insert.run(producto.empresa_id || null, producto.id, depositoId, cantidad);
+        }
+      }
     }
 
     db.prepare('UPDATE devoluciones SET total_bs = ?, total_usd = ? WHERE id = ?').run(totalBs, totalUsd, devId);
