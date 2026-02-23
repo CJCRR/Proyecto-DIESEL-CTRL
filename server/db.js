@@ -805,6 +805,29 @@ const migrations = [
       `).run();
     }
   }
+  ,
+  {
+    id: '024_usuarios_comision_pct',
+    up: () => {
+      if (!columnExists('usuarios', 'comision_pct')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN comision_pct REAL DEFAULT 0").run();
+      }
+    }
+  },
+  {
+    id: '025_ventas_comision',
+    up: () => {
+      if (!columnExists('ventas', 'comision_pct')) {
+        db.prepare("ALTER TABLE ventas ADD COLUMN comision_pct REAL DEFAULT 0").run();
+      }
+      if (!columnExists('ventas', 'comision_bs')) {
+        db.prepare("ALTER TABLE ventas ADD COLUMN comision_bs REAL DEFAULT 0").run();
+      }
+      if (!columnExists('ventas', 'comision_usd')) {
+        db.prepare("ALTER TABLE ventas ADD COLUMN comision_usd REAL DEFAULT 0").run();
+      }
+    }
+  }
 ];
 
 const applyMigrations = () => {

@@ -112,8 +112,8 @@ function registrarVenta(payload) {
     const transaction = db.transaction(() => {
         // Crear la cabecera de la venta con total 0 inicialmente, guardando descuento y metodo_pago
         const ventaResult = db.prepare(`
-                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, iva_pct, total_bs_iva, total_usd_iva, usuario_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?)
+                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, iva_pct, total_bs_iva, total_usd_iva, usuario_id, comision_pct, comision_bs, comision_usd)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, 0, 0, 0)
             `).run(fecha, clienteSafe, vendedorSafe, cedulaSafe, telefonoSafe, tasa_bcv, descuentoNum, metodoSafe, referenciaSafe, usuario_id);
 
         const ventaId = ventaResult.lastInsertRowid;
@@ -185,9 +185,24 @@ function registrarVenta(payload) {
                 const totalBsIva = totalConDescuentoBs * factorIva;
                 const totalUsdIva = totalConDescuentoUsd * factorIva;
 
-                // Actualizar el total final sumado en la cabecera, incluyendo IVA
-                db.prepare('UPDATE ventas SET total_bs = ?, iva_pct = ?, total_bs_iva = ?, total_usd_iva = ? WHERE id = ?')
-                    .run(totalConDescuentoBs, ivaPctNum, totalBsIva, totalUsdIva, ventaId);
+                // Calcular comisión del vendedor (si hay usuario_id asociado)
+                let comisionPct = 0;
+                let comisionBs = 0;
+                let comisionUsd = 0;
+                if (usuario_id) {
+                    const row = db.prepare('SELECT comision_pct FROM usuarios WHERE id = ?').get(usuario_id);
+                    if (row && row.comision_pct != null) {
+                        comisionPct = Math.max(0, Math.min(100, Number(row.comision_pct) || 0));
+                        const factor = comisionPct / 100;
+                        // Usar totales con descuento pero sin IVA como base de comisión
+                        comisionBs = totalConDescuentoBs * factor;
+                        comisionUsd = totalConDescuentoUsd * factor;
+                    }
+                }
+
+                // Actualizar el total final sumado en la cabecera, incluyendo IVA y campos de comisión
+                db.prepare('UPDATE ventas SET total_bs = ?, iva_pct = ?, total_bs_iva = ?, total_usd_iva = ?, comision_pct = ?, comision_bs = ?, comision_usd = ? WHERE id = ?')
+                    .run(totalConDescuentoBs, ivaPctNum, totalBsIva, totalUsdIva, comisionPct, comisionBs, comisionUsd, ventaId);
 
         // Si la venta es a crédito, registrar cuenta por cobrar enlazada
         let cuentaCobrarId = null;

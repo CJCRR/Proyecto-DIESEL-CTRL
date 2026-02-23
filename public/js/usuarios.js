@@ -32,6 +32,7 @@ const inputUsername = document.getElementById('usuario-username');
 const inputPassword = document.getElementById('usuario-password');
 const inputNombre = document.getElementById('usuario-nombre');
 const inputRol = document.getElementById('usuario-rol');
+const inputComision = document.getElementById('usuario-comision');
 const passwordHint = document.getElementById('password-hint');
 
 // Modal de confirmación de acciones (activar / desactivar / eliminar)
@@ -87,12 +88,17 @@ function renderUsuarios() {
       ? new Date(u.ultimo_login).toLocaleString()
       : '<span class="text-slate-400">Nunca</span>';
 
+    const comisionTexto = (u.comision_pct !== undefined && u.comision_pct !== null)
+      ? (Number(u.comision_pct) ? (Number(u.comision_pct).toFixed(2).replace(/\.00$/, '') + '%') : '0%')
+      : '0%';
+
     const esMismoUsuario = u.id === usuarioActual.id;
 
     html += '<tr class="hover:bg-slate-50 transition">';
     html += '<td class="p-4"><div class="flex items-center gap-2"><div class="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center"><i class="fas fa-user text-slate-600"></i></div><div><div class="font-semibold text-slate-800">' + (u.username || '') + '</div>' + (esMismoUsuario ? '<span class="text-xs text-blue-600">(Tú)</span>' : '') + '</div></div></td>';
     html += '<td class="p-4 text-slate-600">' + (u.nombre_completo || '-') + '</td>';
     html += '<td class="p-4">' + (rolBadge[u.rol] || (u.rol || '')) + '</td>';
+    html += '<td class="p-4 text-slate-600">' + comisionTexto + '</td>';
     html += '<td class="p-4">' + estadoBadge + '</td>';
     html += '<td class="p-4 text-sm text-slate-500">' + ultimoLogin + '</td>';
     html += '<td class="p-4"><div class="flex gap-2 justify-end">';
@@ -122,6 +128,7 @@ function nuevoUsuario() {
   inputUsername.disabled = false;
   inputPassword.required = true;
   passwordHint.textContent = 'Mínimo 6 caracteres';
+  if (inputComision) inputComision.value = '';
   abrirModal();
 }
 
@@ -141,6 +148,9 @@ function editarUsuario(id) {
   passwordHint.textContent = 'Dejar en blanco para mantener la contraseña actual';
   inputNombre.value = usuario.nombre_completo || '';
   inputRol.value = usuario.rol;
+  if (inputComision) inputComision.value = (usuario.comision_pct !== undefined && usuario.comision_pct !== null)
+    ? String(usuario.comision_pct)
+    : '';
 
   abrirModal();
 }
@@ -153,7 +163,8 @@ async function guardarUsuario(e) {
     username: inputUsername.value.trim(),
     password: inputPassword.value,
     nombre_completo: inputNombre.value.trim(),
-    rol: inputRol.value
+    rol: inputRol.value,
+    comision_pct: inputComision && inputComision.value !== '' ? parseFloat(inputComision.value) : 0
   };
 
   // Si estamos editando y no se cambió la contraseña, no enviarla

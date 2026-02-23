@@ -6,7 +6,7 @@ import { guardarProductoLocal } from './db-local.js';
 import {
     carrito, productoSeleccionado, modoDevolucion, actualizarTabla, setModoDevolucion,
     toggleDevolucion, prepararParaAgregar, agregarAlCarrito, eliminarDelCarrito,
-    limpiarSeleccion, getVentaSeleccionada, setVentaSeleccionada
+    limpiarSeleccion, getVentaSeleccionada, setVentaSeleccionada, recalcularPreciosPorNivel
 } from './modules/cart.js';
 
 import {
@@ -24,6 +24,7 @@ let ventasRecientesCache = [];
 let configGeneral = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
 let lastAutoDescuentoVolumen = null;
 let historialModo = 'ventas';
+let vendedoresPOS = [];
 
 const tablaCuerpo = document.getElementById('venta-items-cuerpo');
 const btnVender = document.getElementById('btnVender');
@@ -159,8 +160,39 @@ async function cargarConfigGeneral() {
         };
         try { window.configGeneral = configGeneral; } catch {}
         aplicarTemaEmpresa();
+        aplicarEstrategiaPreciosUI();
     } catch (err) {
         console.warn('Config general no cargada', err.message);
+    }
+}
+
+async function cargarVendedoresPOS() {
+    const sel = document.getElementById('v_vendedor');
+    try {
+        const data = await apiFetchJson('/admin/usuarios/vendedores-list');
+        vendedoresPOS = Array.isArray(data) ? data : [];
+        if (!sel) return;
+
+        const opciones = ['<option value="">Seleccionar vendedor</option>'];
+        vendedoresPOS.forEach((u) => {
+            const nombre = (u.nombre_completo || u.username || '').trim();
+            const texto = nombre ? `${escapeHtml(nombre)}` : escapeHtml(u.username || '');
+            opciones.push(`<option value="${u.id}">${texto}</option>`);
+        });
+        sel.innerHTML = opciones.join('');
+
+        const authUser = window.Auth ? window.Auth.getUser() : null;
+        if (authUser && authUser.id) {
+            const existe = vendedoresPOS.find(u => u.id === authUser.id);
+            if (existe) {
+                sel.value = String(authUser.id);
+            }
+        }
+    } catch (err) {
+        console.warn('No se pudieron cargar vendedores para POS', err);
+        if (sel) {
+            sel.innerHTML = '<option value="">(Sin vendedores configurados)</option>';
+        }
     }
 }
 
@@ -171,6 +203,75 @@ function aplicarTemaEmpresa() {
     if (color_primario) root.style.setProperty('--brand-primary', color_primario);
     if (color_secundario) root.style.setProperty('--brand-secondary', color_secundario);
     if (color_acento) root.style.setProperty('--brand-accent', color_acento);
+}
+
+function aplicarEstrategiaPreciosUI() {
+    if (!configGeneral || !configGeneral.empresa) return;
+
+    const empresa = configGeneral.empresa;
+    const rawLevels = [
+        { key: '1', nombre: empresa.precio1_nombre, pct: empresa.precio1_pct },
+        { key: '2', nombre: empresa.precio2_nombre, pct: empresa.precio2_pct },
+        { key: '3', nombre: empresa.precio3_nombre, pct: empresa.precio3_pct },
+    ];
+
+    const levels = rawLevels
+        .map(l => ({
+            key: l.key,
+            nombre: (l.nombre || '').toString().slice(0, 60),
+            pct: Number(l.pct) || 0,
+        }))
+        .filter(l => l.pct > 0);
+
+    try { window.priceLevelsConfig = levels; } catch {}
+
+    const wrapper = document.getElementById('pv-price-level-wrapper');
+    const sel = document.getElementById('pv_nivel_precio');
+    const info = document.getElementById('pv_nivel_precio_info');
+    if (!wrapper || !sel) return;
+
+    if (!levels.length) {
+        wrapper.classList.add('hidden');
+        if (info) info.textContent = '';
+        try { window.currentPriceLevelKey = 'base'; } catch {}
+        return;
+    }
+
+    wrapper.classList.remove('hidden');
+
+    const options = ['<option value="base">Base (lista)</option>'];
+    levels.forEach(l => {
+        const label = l.nombre || `Precio ${l.key}`;
+        options.push(`<option value="${l.key}">${escapeHtml(label)} (+${l.pct}% )</option>`);
+    });
+    sel.innerHTML = options.join('');
+    sel.value = 'base';
+
+    const updateInfo = () => {
+        const val = sel.value || 'base';
+        try { window.currentPriceLevelKey = val; } catch {}
+        if (!info) return;
+        if (val === 'base') {
+            info.textContent = 'Usando precio de lista.';
+        } else {
+            const lvl = levels.find(l => l.key === val);
+            if (lvl) {
+                info.textContent = `+${lvl.pct}% sobre precio base`;
+            } else {
+                info.textContent = '';
+            }
+        }
+
+        // Recalcular precios de los items ya agregados al carrito
+        try {
+            recalcularPreciosPorNivel();
+        } catch (e) {
+            console.warn('No se pudo recalcular precios por nivel', e);
+        }
+    };
+
+    sel.onchange = updateInfo;
+    updateInfo();
 }
 
 function validarPoliticaDevolucionLocal(venta) {
@@ -488,6 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     initOfflineUI();
     cargarConfigGeneral();
+    cargarVendedoresPOS();
     actualizarHistorial();
     actualizarSyncPendientes();
     precargarTasaCache();

@@ -67,6 +67,12 @@ function readForms() {
         color_primario: document.getElementById('e_color_primario')?.value || '#2563eb',
         color_secundario: document.getElementById('e_color_secundario')?.value || '#0f172a',
         color_acento: document.getElementById('e_color_acento')?.value || '#f97316',
+        precio1_nombre: document.getElementById('e_precio1_nombre')?.value.trim() || '',
+        precio1_pct: parseFloat(document.getElementById('e_precio1_pct')?.value || '0') || 0,
+        precio2_nombre: document.getElementById('e_precio2_nombre')?.value.trim() || '',
+        precio2_pct: parseFloat(document.getElementById('e_precio2_pct')?.value || '0') || 0,
+        precio3_nombre: document.getElementById('e_precio3_nombre')?.value.trim() || '',
+        precio3_pct: parseFloat(document.getElementById('e_precio3_pct')?.value || '0') || 0,
     };
     const descuentos_volumen = getTiersFromDOM();
     const devolucion = {
@@ -102,6 +108,12 @@ function setForms(cfg) {
     if (document.getElementById('e_color_primario')) document.getElementById('e_color_primario').value = empresa.color_primario || '#2563eb';
     if (document.getElementById('e_color_secundario')) document.getElementById('e_color_secundario').value = empresa.color_secundario || '#0f172a';
     if (document.getElementById('e_color_acento')) document.getElementById('e_color_acento').value = empresa.color_acento || '#f97316';
+    if (document.getElementById('e_precio1_nombre')) document.getElementById('e_precio1_nombre').value = empresa.precio1_nombre || '';
+    if (document.getElementById('e_precio1_pct')) document.getElementById('e_precio1_pct').value = empresa.precio1_pct ?? 0;
+    if (document.getElementById('e_precio2_nombre')) document.getElementById('e_precio2_nombre').value = empresa.precio2_nombre || '';
+    if (document.getElementById('e_precio2_pct')) document.getElementById('e_precio2_pct').value = empresa.precio2_pct ?? 0;
+    if (document.getElementById('e_precio3_nombre')) document.getElementById('e_precio3_nombre').value = empresa.precio3_nombre || '';
+    if (document.getElementById('e_precio3_pct')) document.getElementById('e_precio3_pct').value = empresa.precio3_pct ?? 0;
     renderTiers(descuentos_volumen);
     if (document.getElementById('d_habilitado')) document.getElementById('d_habilitado').checked = devolucion.habilitado !== false;
     if (document.getElementById('d_dias')) document.getElementById('d_dias').value = devolucion.dias_max ?? 30;

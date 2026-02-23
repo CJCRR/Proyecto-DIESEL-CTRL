@@ -17,7 +17,7 @@ router.get('/', requireAuth, requireRole('admin'), (req, res) => {
       params.push(empresaId);
     }
     const usuarios = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, creado_en, ultimo_login
+      SELECT id, username, nombre_completo, rol, activo, creado_en, ultimo_login, comision_pct
       FROM usuarios
       ${where}
       ORDER BY creado_en DESC
@@ -29,9 +29,33 @@ router.get('/', requireAuth, requireRole('admin'), (req, res) => {
   }
 });
 
+// GET /admin/usuarios/vendedores-list - Lista ligera de usuarios tipo vendedor/admin de la empresa (para POS)
+router.get('/vendedores-list', requireAuth, (req, res) => {
+  try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    if (!empresaId) {
+      return res.json([]);
+    }
+
+    const rows = db.prepare(`
+      SELECT id, username, nombre_completo, rol, comision_pct
+      FROM usuarios
+      WHERE empresa_id = ?
+        AND activo = 1
+        AND rol IN ('admin','vendedor')
+      ORDER BY nombre_completo COLLATE NOCASE ASC, username COLLATE NOCASE ASC
+    `).all(empresaId);
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Error listando vendedores POS:', err);
+    res.status(500).json({ error: 'Error al listar vendedores' });
+  }
+});
+
 // POST /admin/usuarios - Crear nuevo usuario (solo admin)
 router.post('/', requireAuth, requireRole('admin'), (req, res) => {
-  const { username, password, nombre_completo, rol } = req.body;
+  const { username, password, nombre_completo, rol, comision_pct } = req.body;
 
   // Validaciones
   if (!username || !password) {
@@ -51,6 +75,13 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
     return res.status(400).json({ error: 'Rol inválido. Debe ser: admin, vendedor o lectura' });
   }
 
+  const comisionNum = comision_pct !== undefined && comision_pct !== null && comision_pct !== ''
+    ? Number(comision_pct)
+    : 0;
+  if (Number.isNaN(comisionNum) || comisionNum < 0 || comisionNum > 100) {
+    return res.status(400).json({ error: 'La comisión debe ser un número entre 0 y 100' });
+  }
+
   try {
     // Verificar que no exista el username
     const existe = db.prepare('SELECT id FROM usuarios WHERE username = ?').get(username);
@@ -65,12 +96,12 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
       return res.status(400).json({ error: 'Usuario sin empresa asociada' });
     }
     const result = db.prepare(`
-      INSERT INTO usuarios (username, password, nombre_completo, rol, empresa_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(username, hash, nombre_completo || username, rol || 'vendedor', empresaId);
+      INSERT INTO usuarios (username, password, nombre_completo, rol, empresa_id, comision_pct)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(username, hash, nombre_completo || username, rol || 'vendedor', empresaId, comisionNum);
 
     const nuevoUsuario = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, creado_en
+      SELECT id, username, nombre_completo, rol, activo, creado_en, comision_pct
       FROM usuarios WHERE id = ?
     `).get(result.lastInsertRowid);
     try {
@@ -122,7 +153,7 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
 // PUT /admin/usuarios/:id - Actualizar usuario (solo admin)
 router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
   const { id } = req.params;
-  const { nombre_completo, rol, password } = req.body;
+  const { nombre_completo, rol, password, comision_pct } = req.body;
 
   try {
     // Verificar que el usuario existe
@@ -148,6 +179,14 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
       return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
     }
 
+    // Validar comisión si se proporciona
+    if (comision_pct !== undefined) {
+      const comisionNum = comision_pct !== null && comision_pct !== '' ? Number(comision_pct) : 0;
+      if (Number.isNaN(comisionNum) || comisionNum < 0 || comisionNum > 100) {
+        return res.status(400).json({ error: 'La comisión debe ser un número entre 0 y 100' });
+      }
+    }
+
     // Construir query de actualización
     const updates = [];
     const params = [];
@@ -169,6 +208,12 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
       updates.push('must_change_password = 0');
     }
 
+    if (comision_pct !== undefined) {
+      const comisionNum = comision_pct !== null && comision_pct !== '' ? Number(comision_pct) : 0;
+      updates.push('comision_pct = ?');
+      params.push(comisionNum);
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No hay campos para actualizar' });
     }
@@ -182,7 +227,7 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
     `).run(...params);
 
     const usuarioActualizado = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, creado_en
+      SELECT id, username, nombre_completo, rol, activo, creado_en, comision_pct
       FROM usuarios WHERE id = ?
     `).get(id);
 

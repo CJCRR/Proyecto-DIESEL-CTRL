@@ -14,7 +14,14 @@ function forbidSuperadmin(req, res, next) {
 
 router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
     try {
-        const { ventaId, cuentaCobrarId } = registrarVenta(req.body);
+        // Asegurar que siempre se pase usuario_id de la sesión si no viene en el payload
+        const payload = {
+            ...req.body,
+            usuario_id: (req.body && req.body.usuario_id != null)
+                ? req.body.usuario_id
+                : (req.usuario ? req.usuario.id : null),
+        };
+        const { ventaId, cuentaCobrarId } = registrarVenta(payload);
         res.json({ message: 'Venta registrada con éxito', ventaId, cuentaCobrarId });
     } catch (error) {
         // Log estructurado para diagnóstico, manteniendo respuesta 400 con el mensaje

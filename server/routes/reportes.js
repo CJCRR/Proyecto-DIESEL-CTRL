@@ -21,6 +21,7 @@ const {
   getVendedoresComparativa,
   getVendedoresRoi,
   getMargenActual,
+  getComisionesVendedores,
   getVendedoresRanking,
   getHistorialCliente,
   getRentabilidadCategorias,
@@ -252,6 +253,23 @@ router.get('/resumen-financiero', requireAuth, forbidSuperadmin, (req, res) => {
     user: req.usuario ? req.usuario.id : null
   });
   res.status(500).json({ error: 'Error al obtener resumen financiero', code: 'REPORTE_RESUMEN_FINANCIERO_ERROR' });
+  }
+});
+
+router.get('/comisiones-vendedores', requireAuth, forbidSuperadmin, (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const rows = getComisionesVendedores({ desde, hasta, empresaId: req.usuario.empresa_id || null });
+    res.json(rows);
+  } catch (err) {
+    logger.error('Error comisiones vendedores', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener comisiones por vendedor', code: 'REPORTE_COMISIONES_VENDEDORES_ERROR' });
   }
 });
 

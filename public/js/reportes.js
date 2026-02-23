@@ -23,6 +23,7 @@ let clienteTimer = null;
 let cacheRentCat = [];
 let cacheRentProv = [];
 let resumenRent = null;
+let cacheComisiones = [];
 const escapeHtml = (window.escapeHtml) ? window.escapeHtml : (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -294,6 +295,60 @@ async function cargarRentabilidad() {
     }
 }
 
+function renderComisiones() {
+    const cont = document.getElementById('comisiones-contenedor');
+    if (!cont) return;
+
+    if (!cacheComisiones.length) {
+        cont.innerHTML = '<div class="p-2 text-[11px] text-slate-400">Sin ventas con comisión en el rango seleccionado.</div>';
+        return;
+    }
+
+    const fmt = (v) => Number(v || 0).toFixed(2);
+
+    cont.innerHTML = `<table class="w-full text-[11px]"><thead class="bg-slate-100 text-slate-500"><tr>
+        <th class="p-1 text-left">Vendedor</th>
+        <th class="p-1 text-left">Rol</th>
+        <th class="p-1 text-right">Comisión %</th>
+        <th class="p-1 text-right">Ventas</th>
+        <th class="p-1 text-right">Total USD</th>
+        <th class="p-1 text-right">Comisión USD</th>
+    </tr></thead><tbody class="divide-y">
+    ${cacheComisiones.map(r => {
+        const nombre = r.nombre_completo || r.username || '—';
+        const pct = r.comision_pct != null ? Number(r.comision_pct).toFixed(2) + '%' : '0%';
+        return `<tr>
+            <td class="p-1">${escapeHtml(nombre)}</td>
+            <td class="p-1">${escapeHtml(r.rol || '')}</td>
+            <td class="p-1 text-right">${pct}</td>
+            <td class="p-1 text-right">${Number(r.ventas || 0)}</td>
+            <td class="p-1 text-right">${fmt(r.total_usd)}</td>
+            <td class="p-1 text-right font-semibold text-emerald-700">${fmt(r.comision_usd)}</td>
+        </tr>`;
+    }).join('')}
+    </tbody></table>`;
+}
+
+async function cargarComisiones() {
+    const desde = document.getElementById('rpt-desde').value;
+    const hasta = document.getElementById('rpt-hasta').value;
+    const params = new URLSearchParams();
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    try {
+        cacheComisiones = await apiFetchJson(`/reportes/comisiones-vendedores?${params.toString()}`);
+        renderComisiones();
+    } catch (err) {
+        console.error('Error cargando comisiones', err);
+
+        if (window.showToast) {
+            window.showToast('Error cargando el reporte de comisiones.', 'error');
+        } else {
+            alert('Error cargando el reporte de comisiones.');
+        }
+    }
+}
+
 async function cargarReporte() {
     const desde = document.getElementById('rpt-desde').value;
     const hasta = document.getElementById('rpt-hasta').value;
@@ -416,6 +471,11 @@ if (btnRentaProv) {
         if (hasta) params.set('hasta', hasta);
         window.open(`/reportes/rentabilidad/proveedores/export/csv?${params.toString()}`, '_blank');
     });
+}
+
+const btnComisiones = document.getElementById('comisiones-cargar');
+if (btnComisiones) {
+    btnComisiones.addEventListener('click', cargarComisiones);
 }
 
 const presToggle = document.getElementById('pres-toggle');

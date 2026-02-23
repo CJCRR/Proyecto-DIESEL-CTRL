@@ -154,7 +154,26 @@ export async function registrarVenta() {
 	if (vendiendo || carrito.length === 0) return;
 
 	const cliente = document.getElementById('v_cliente').value.trim();
-	const vendedor = document.getElementById('v_vendedor') ? document.getElementById('v_vendedor').value.trim() : '';
+	const selVendedor = document.getElementById('v_vendedor');
+	const authUser = window.Auth ? window.Auth.getUser() : null;
+	let vendedorId = null;
+	let vendedorNombre = '';
+	if (selVendedor) {
+		const val = selVendedor.value;
+		if (val && val !== '') {
+			const parsed = parseInt(val, 10);
+			if (!Number.isNaN(parsed)) vendedorId = parsed;
+			const opt = selVendedor.options[selVendedor.selectedIndex];
+			if (opt && opt.textContent) vendedorNombre = opt.textContent.trim();
+		}
+	}
+	if (!vendedorId && authUser && authUser.id) {
+		vendedorId = authUser.id;
+	}
+	if (!vendedorNombre && authUser) {
+		vendedorNombre = (authUser.nombre_completo || authUser.username || '').trim();
+	}
+	const vendedor = vendedorNombre;
 	const cedula = document.getElementById('v_cedula') ? document.getElementById('v_cedula').value.trim() : '';
 	const telefono = document.getElementById('v_telefono') ? document.getElementById('v_telefono').value.trim() : '';
 	const tasa = parseFloat(document.getElementById('v_tasa').value);
@@ -200,7 +219,8 @@ export async function registrarVenta() {
 		fecha_vencimiento: fechaVenc,
 		iva_pct: ivaPct,
 		fecha: new Date().toISOString(),
-		sync: false
+		sync: false,
+		usuario_id: vendedorId || null
 	};
 
 	const btnVender = document.getElementById('btnVender');
@@ -338,9 +358,12 @@ export async function registrarDevolucion() {
 // --- SINCRONIZACIÓN MANUAL DESDE LOCALSTORAGE (LEGADO) ---
 export async function enviarVentaAlServidor(venta) {
 	const user = window.Auth ? window.Auth.getUser() : null;
+	const baseUsuarioId = (venta && venta.usuario_id != null)
+		? venta.usuario_id
+		: (user ? user.id : null);
 	const ventaConUsuario = {
 		...venta,
-		usuario_id: user ? user.id : null
+		usuario_id: baseUsuarioId
 	};
 
 	const data = await apiFetchJson('/ventas', {

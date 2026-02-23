@@ -154,8 +154,10 @@
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Vendedor /
                             Cajero</label>
-                        <input id="v_vendedor" placeholder="Nombre del vendedor"
-                            class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                        <select id="v_vendedor"
+                            class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white">
+                            <option value="">Seleccionar vendedor</option>
+                        </select>
                     </div>
                 </div>
 
@@ -171,6 +173,17 @@
                     </div>
                     <div id="pv-tasa-alert" class="text-[11px] font-semibold text-amber-600 hidden">Tasa sin actualizar
                         &gt; 8h</div>
+                    <div id="pv-price-level-wrapper" class="mt-2 space-y-1 hidden">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Nivel de precio</label>
+                        <div class="grid grid-cols-12 gap-2 items-center">
+                            <select id="pv_nivel_precio"
+                                class="col-span-8 p-3 border rounded-xl outline-none text-sm bg-white">
+                                <option value="base">Base (lista)</option>
+                            </select>
+                            <div id="pv_nivel_precio_info"
+                                class="col-span-4 text-right text-[11px] text-slate-500"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="pt-4 border-t space-y-3" data-panel-venta>

@@ -125,8 +125,10 @@ async function upsertUsuarioFirebase(usuario) {
         console.log('✅ Usuario perfil upsert en Firebase:', scope.empresa_codigo, usuarioId);
         return usuarioId;
     } catch (err) {
-        console.error('❌ Error guardando perfil de usuario en Firebase:', err);
-        throw err;
+        // Este sync es "best-effort": si falla (por ejemplo, permisos de Firebase),
+        // no debe romper el flujo normal de la app ni mostrar errores rojos fuertes.
+        console.warn('⚠️ No se pudo guardar perfil de usuario en Firebase (se ignora):', err);
+        return null;
     }
 }
 
@@ -327,26 +329,30 @@ async function sincronizarVentasPendientes({ isRetry = false } = {}) {
 
             // 1) Servidor local
             try {
-                let usuarioId = null;
-                try {
-                    if (typeof window !== 'undefined') {
-                        if (window.Auth && typeof window.Auth.getUser === 'function') {
-                            const u = window.Auth.getUser();
-                            if (u && u.id) usuarioId = u.id;
-                        }
-                        if (!usuarioId) {
-                            const raw = localStorage.getItem('auth_user');
-                            if (raw) {
-                                const u = JSON.parse(raw);
+                // Respetar siempre el usuario_id original de la venta (vendedor seleccionado).
+                // Solo usar el usuario logueado como fallback si la venta no trae usuario_id.
+                let usuarioId = venta && venta.usuario_id != null ? venta.usuario_id : null;
+                if (usuarioId == null) {
+                    try {
+                        if (typeof window !== 'undefined') {
+                            if (window.Auth && typeof window.Auth.getUser === 'function') {
+                                const u = window.Auth.getUser();
                                 if (u && u.id) usuarioId = u.id;
                             }
+                            if (usuarioId == null) {
+                                const raw = localStorage.getItem('auth_user');
+                                if (raw) {
+                                    const u = JSON.parse(raw);
+                                    if (u && u.id) usuarioId = u.id;
+                                }
+                            }
                         }
+                    } catch (e) {
+                        console.warn('No se pudo determinar usuario para sync de venta', e);
                     }
-                } catch (e) {
-                    console.warn('No se pudo determinar usuario para sync de venta', e);
                 }
 
-                const payload = usuarioId ? { ...venta, usuario_id: usuarioId } : venta;
+                const payload = usuarioId != null ? { ...venta, usuario_id: usuarioId } : venta;
 
                 const data = await apiPostJson('/ventas', payload);
                 console.log(`✅ Venta enviada al servidor: ${venta.id_global} -> ${data.ventaId || data.id || 'OK'}`);

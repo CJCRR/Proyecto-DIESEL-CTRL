@@ -571,6 +571,12 @@ function guardarConfigGeneral(payload = {}, empresaId) {
     rif: (empresa.rif || '').toString().slice(0, 120),
     telefonos: (empresa.telefonos || '').toString().slice(0, 200),
     ubicacion: (empresa.ubicacion || '').toString().slice(0, 240),
+    precio1_nombre: (empresa.precio1_nombre || '').toString().slice(0, 60),
+    precio1_pct: Math.max(0, Math.min(1000, parseFloat(empresa.precio1_pct) || 0)),
+    precio2_nombre: (empresa.precio2_nombre || '').toString().slice(0, 60),
+    precio2_pct: Math.max(0, Math.min(1000, parseFloat(empresa.precio2_pct) || 0)),
+    precio3_nombre: (empresa.precio3_nombre || '').toString().slice(0, 60),
+    precio3_pct: Math.max(0, Math.min(1000, parseFloat(empresa.precio3_pct) || 0)),
   };
 
   const safeDescuentos = Array.isArray(descuentos_volumen)

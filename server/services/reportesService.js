@@ -649,6 +649,47 @@ function getVendedoresRanking({ desde, hasta, empresaId }) {
   }));
 }
 
+function getComisionesVendedores({ desde, hasta, empresaId }) {
+  const where = [];
+  const params = [];
+  if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
+  if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  if (empresaId !== undefined && empresaId !== null) {
+    where.push('u.empresa_id = ?');
+    params.push(empresaId);
+  }
+  const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+  const rows = db.prepare(`
+      SELECT 
+        u.id AS usuario_id,
+        u.username,
+        u.nombre_completo,
+        u.rol,
+        COALESCE(u.comision_pct, 0) AS comision_pct,
+        COUNT(DISTINCT v.id) AS ventas,
+        -- Totales base sin IVA: usamos total_bs (con descuento, sin IVA) y lo convertimos a USD si hace falta
+        COALESCE(SUM(v.total_bs), 0) AS total_bs,
+        COALESCE(
+          SUM(CASE 
+                WHEN COALESCE(v.total_bs, 0) != 0 AND COALESCE(v.tasa_bcv, 0) != 0 THEN v.total_bs / v.tasa_bcv
+                ELSE v.total_bs
+              END),
+          0
+        ) AS total_usd,
+        -- Comisiones ya calculadas por venta (base sin IVA)
+        COALESCE(SUM(COALESCE(v.comision_bs, 0)), 0) AS comision_bs,
+        COALESCE(SUM(COALESCE(v.comision_usd, 0)), 0) AS comision_usd
+      FROM ventas v
+      JOIN usuarios u ON u.id = v.usuario_id
+      ${whereSQL}
+      GROUP BY u.id, u.username, u.nombre_completo, u.rol, u.comision_pct
+      ORDER BY total_usd DESC
+    `).all(...params);
+
+  return rows;
+}
+
 function getHistorialCliente({ q, limit, empresaId }) {
   if (!q || !q.trim()) return [];
   const lim = parseInt(limit) || 100;
@@ -844,6 +885,7 @@ module.exports = {
   getVendedoresComparativa,
   getVendedoresRoi,
   getMargenActual,
+  getComisionesVendedores,
   getVendedoresRanking,
   getHistorialCliente,
   getRentabilidadCategorias,

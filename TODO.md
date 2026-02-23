@@ -164,9 +164,9 @@
 - [idea] Permitir que en el POS se pueda seleccionar fácilmente el precio base o cualquiera de los otros precios configurados por producto/nivel.
 
 ## Fase 29: Comisiones por Vendedor
-- [idea] Definir en ajustes un porcentaje de comisión por venta (global o por rol/usuario) para cada empresa.
-- [idea] Hacer que el campo vendedor en ventas sea un selector de usuarios de la empresa y calcular automáticamente la comisión de cada venta.
-- [idea] Añadir reportes para ver el total de comisiones generadas por vendedor en un rango de fechas.
+- [x] Definir en ajustes un porcentaje de comisión por venta (global o por rol/usuario) para cada empresa.
+- [x] Hacer que el campo vendedor en ventas sea un selector de usuarios de la empresa y calcular automáticamente la comisión de cada venta.
+- [x] Añadir reportes para ver el total de comisiones generadas por vendedor en un rango de fechas.
 
 ## Fase 30: Flujo de Compras e Inventario ✅
 - [x] Implementar un botón de "crear producto" en la página de compras para no tener que ir al inventario al registrar una compra, usando un formulario flotante/modal.
@@ -177,7 +177,7 @@
 - [x] Añadir servicio y API REST para listar/crear/editar depósitos por empresa.
 - [x] Permitir seleccionar/editar el depósito asociado al producto al crearlo o modificarlo en Inventario y en el flujo de Compras.
 - [x] Conectar filtros/vistas por depósito en Inventario para poder listar productos por depósito.
-- [idea] Añadir movimientos entre depósitos y ajustar reportes para ver existencias por depósito y métricas avanzadas.
+- [x] Añadir movimientos entre depósitos y ajustar reportes para ver existencias por depósito y métricas avanzadas.
 
 ## Notas de Progreso
 
@@ -205,6 +205,34 @@
 4. **Actualizar el código desde GitHub**  
 	- Traer cambios: `git pull origin main`.  
 	- Si hay nuevos paquetes, luego se correrá `npm install`.
+
+### Nota importante: conflicto de `git pull` con `database.sqlite` en la VM
+
+Si al hacer `git pull origin main` en la VM aparece un error tipo:
+
+- `Your local changes to the following files would be overwritten by merge: database.sqlite`
+
+usa siempre este flujo para actualizar el código **sin tocar la base de datos real**:
+
+1. Estar en la carpeta del proyecto en la VM:  
+	- `cd ~/Proyecto-DIESEL-CTRL`
+2. Hacer un backup extra rápido de la base (por seguridad):  
+	- `mkdir -p backups`  
+	- `cp database.sqlite backups/database-$(date +%Y%m%d_%H%M).sqlite`
+3. Mover temporalmente la base de datos fuera del repo antes del pull:  
+	- `mv database.sqlite ~/database.sqlite.staging`
+4. Si el error también menciona un archivo de log (por ejemplo `server/logs/app-2026-02-23.log`), borrarlo o moverlo:  
+	- `rm -f server/logs/app-AAAA-MM-DD.log`  
+	  (reemplazar `AAAA-MM-DD` por la fecha que diga el error de git).
+5. Ejecutar ahora el pull de código sin la base dentro del repo:  
+	- `git pull origin main`
+6. Volver a colocar tu base de datos real dentro del proyecto:  
+	- `mv ~/database.sqlite.staging database.sqlite`
+7. Continuar con los pasos normales (`npm install` si hace falta y `pm2 restart diesel-ctrl`).
+
+Notas:
+- **Nunca hacer `git add` ni `git commit` de `database.sqlite` en la VM.** Esa base es solo de producción.
+- Si vuelve a salir el conflicto en el futuro, repetir exactamente este mismo flujo.
 
 5. **Instalar dependencias (solo si cambió package.json)**  
 	- Ejecutar: `npm install`.  

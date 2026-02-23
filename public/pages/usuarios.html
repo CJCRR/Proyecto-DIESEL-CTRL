@@ -69,6 +69,7 @@
             <th class="p-4 text-left">Usuario</th>
             <th class="p-4 text-left">Nombre Completo</th>
             <th class="p-4 text-left">Rol</th>
+            <th class="p-4 text-left">Comisión</th>
             <th class="p-4 text-left">Estado</th>
             <th class="p-4 text-left">Último Login</th>
             <th class="p-4 text-right">Acciones</th>
@@ -76,7 +77,7 @@
         </thead>
         <tbody id="usuarios-tbody" class="divide-y divide-slate-100">
           <tr>
-            <td colspan="6" class="p-8 text-center text-slate-400">Cargando usuarios...</td>
+            <td colspan="7" class="p-8 text-center text-slate-400">Cargando usuarios...</td>
           </tr>
         </tbody>
       </table>
@@ -133,6 +134,15 @@
             <strong>Admin:</strong> Acceso completo al sistema<br>
             <strong>Lectura:</strong> Solo puede ver información
           </p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">Comisión sobre ventas (%)</label>
+          <input type="number" id="usuario-comision" min="0" max="100" step="0.01"
+            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="Ej: 5 para 5%">
+          <p class="text-xs text-slate-500 mt-1">Porcentaje de comisión que ganará este usuario sobre el monto de sus ventas.
+            Déjalo en 0 si no aplica comisión.</p>
         </div>
 
         <div class="flex gap-3 pt-4">

@@ -105,6 +105,12 @@
  * @property {string} [rif]
  * @property {string} [telefonos]
  * @property {string} [ubicacion]
+ * @property {string} [precio1_nombre]
+ * @property {number} [precio1_pct]
+ * @property {string} [precio2_nombre]
+ * @property {number} [precio2_pct]
+ * @property {string} [precio3_nombre]
+ * @property {number} [precio3_pct]
  */
 
 /**

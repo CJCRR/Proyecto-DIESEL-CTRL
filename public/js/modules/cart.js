@@ -44,6 +44,21 @@ export function agregarAlCarrito() {
 	if (cantidad > productoSeleccionado.stock) { showToast('No hay suficiente stock disponible.', 'error'); return; }
 
 	const index = carrito.findIndex(item => item.codigo === productoSeleccionado.codigo);
+
+	// Determinar el precio de venta segun la estrategia de precios configurada
+	let precioBase = Number(productoSeleccionado.precio_usd || 0) || 0;
+	let precioVenta = precioBase;
+	try {
+		const niveles = Array.isArray(window.priceLevelsConfig) ? window.priceLevelsConfig : [];
+		const nivelActual = window.currentPriceLevelKey || 'base';
+		if (nivelActual !== 'base') {
+			const lvl = niveles.find(l => l.key === nivelActual);
+			if (lvl && typeof lvl.pct === 'number' && !Number.isNaN(lvl.pct)) {
+				precioVenta = precioBase * (1 + (lvl.pct / 100));
+			}
+		}
+	} catch {}
+
 	if (index !== -1) {
 		if ((carrito[index].cantidad + cantidad) > productoSeleccionado.stock) {
 			showToast('La cantidad total en el carrito supera el stock físico.', 'error'); return;
@@ -53,13 +68,43 @@ export function agregarAlCarrito() {
 		carrito.push({
 			codigo: productoSeleccionado.codigo,
 			descripcion: productoSeleccionado.descripcion,
-			precio_usd: productoSeleccionado.precio_usd,
+			precio_base_usd: precioBase,
+			precio_usd: precioVenta,
 			cantidad: cantidad
 		});
 	}
 
 	actualizarTabla();
 	limpiarSeleccion();
+}
+
+export function recalcularPreciosPorNivel() {
+	if (!carrito.length) return;
+
+	let niveles = [];
+	let nivelActual = 'base';
+	try {
+		niveles = Array.isArray(window.priceLevelsConfig) ? window.priceLevelsConfig : [];
+		nivelActual = window.currentPriceLevelKey || 'base';
+	} catch {}
+
+	carrito.forEach(item => {
+		const base = (typeof item.precio_base_usd === 'number' && !Number.isNaN(item.precio_base_usd))
+			? Number(item.precio_base_usd)
+			: (Number(item.precio_usd || 0) || 0);
+		item.precio_base_usd = base;
+
+		let precioVenta = base;
+		if (nivelActual !== 'base') {
+			const lvl = niveles.find(l => l.key === nivelActual);
+			if (lvl && typeof lvl.pct === 'number' && !Number.isNaN(lvl.pct)) {
+				precioVenta = base * (1 + (lvl.pct / 100));
+			}
+		}
+		item.precio_usd = precioVenta;
+	});
+
+	actualizarTabla();
 }
 
 export function actualizarTabla() {
@@ -258,3 +303,4 @@ window.eliminarDelCarrito = eliminarDelCarrito;
 window.prepararParaAgregar = prepararParaAgregar;
 window.actualizarTabla = actualizarTabla;
 window.setModoDevolucion = setModoDevolucion;
+window.recalcularPreciosPorNivel = recalcularPreciosPorNivel;
