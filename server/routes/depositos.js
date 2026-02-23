@@ -213,4 +213,72 @@ router.patch('/:id', requireAuth, requireRole('admin'), (req, res) => {
   }
 });
 
+// DELETE /depositos/:id (solo admin)
+router.delete('/:id', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    if (!empresaId) return res.status(400).json({ error: 'Usuario sin empresa' });
+
+    const id = parseInt(req.params.id, 10);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: 'ID de depósito inválido' });
+    }
+
+    const dep = db.prepare('SELECT * FROM depositos WHERE id = ? AND empresa_id = ?').get(id, empresaId);
+    if (!dep) return res.status(404).json({ error: 'Depósito no encontrado' });
+
+    const force = req.query.force === '1' || req.query.force === 'true';
+
+    const stockRows = db.prepare(`
+      SELECT producto_id, cantidad
+      FROM stock_por_deposito
+      WHERE empresa_id = ? AND deposito_id = ?
+    `).all(empresaId, id);
+
+    if (stockRows.length > 0 && !force) {
+      const productos = new Set(stockRows.map(r => r.producto_id)).size;
+      const totalCantidad = stockRows.reduce((acc, r) => acc + Number(r.cantidad || 0), 0);
+      return res.status(409).json({
+        error: 'El depósito tiene productos/stock asociados.',
+        code: 'DEPOSITO_TIENE_STOCK',
+        productos,
+        totalCantidad,
+      });
+    }
+
+    const tx = db.transaction(() => {
+      if (stockRows.length > 0) {
+        const getProd = db.prepare('SELECT stock FROM productos WHERE id = ? AND empresa_id = ?');
+        const updProd = db.prepare('UPDATE productos SET stock = ? WHERE id = ? AND empresa_id = ?');
+        for (const row of stockRows) {
+          const cant = Number(row.cantidad || 0);
+          if (cant <= 0) continue;
+          const prod = getProd.get(row.producto_id, empresaId);
+          const actualStock = prod ? Number(prod.stock || 0) : 0;
+          const nuevoStock = actualStock - cant;
+          const nuevoSafe = nuevoStock < 0 ? 0 : nuevoStock;
+          updProd.run(nuevoSafe, row.producto_id, empresaId);
+        }
+
+        db.prepare('DELETE FROM stock_por_deposito WHERE empresa_id = ? AND deposito_id = ?')
+          .run(empresaId, id);
+      }
+
+      // Limpiar referencia de depósito en productos de esta empresa
+      db.prepare('UPDATE productos SET deposito_id = NULL WHERE empresa_id = ? AND deposito_id = ?')
+        .run(empresaId, id);
+
+      // Finalmente eliminar el depósito
+      db.prepare('DELETE FROM depositos WHERE empresa_id = ? AND id = ?')
+        .run(empresaId, id);
+    });
+
+    tx();
+    res.json({ message: 'Depósito eliminado' });
+  } catch (err) {
+    console.error('Error eliminando depósito:', err.message);
+    res.status(500).json({ error: 'Error al eliminar depósito' });
+  }
+});
+
 module.exports = router;

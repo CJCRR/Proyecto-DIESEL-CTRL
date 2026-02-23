@@ -1,6 +1,7 @@
 import { apiFetchJson } from './app-api.js';
+
 // Protección de autenticación para todas las páginas
- (function() {
+(function () {
   // Forzar uso de cookies httpOnly (no tokens en localStorage)
   try { localStorage.removeItem('auth_token'); } catch {}
 
@@ -19,17 +20,23 @@ import { apiFetchJson } from './app-api.js';
     return originalFetch(input, opts);
   };
 
-  // Verificar si estamos en la página de login
+  // Verificar si estamos en la página de login: ahí no aplicamos guardas
   if (window.location.pathname.includes('/pages/login.html')) {
     return;
   }
 
-  const user = JSON.parse(localStorage.getItem('auth_user') || 'null');
+  const storedUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
+
+  const isEmpresaAdminRole = (rol) => rol === 'admin' || rol === 'admin_empresa';
+  const isSuperAdminRole = (rol) => rol === 'superadmin';
 
   function applyRoleGuards(u) {
-    // Superadmin: puede usar panel master y página de ajustes (para 2FA)
-    if (u && u.rol === 'superadmin') {
-      const path = window.location.pathname;
+    if (!u) return false;
+
+    const path = window.location.pathname;
+
+    // Superadmin: solo panel master y ajustes (2FA)
+    if (isSuperAdminRole(u.rol)) {
       const esPanelEmpresas = path.includes('/pages/admin-empresas.html');
       const esAjustes = path.includes('/pages/ajustes.html');
       if (!esPanelEmpresas && !esAjustes) {
@@ -39,24 +46,29 @@ import { apiFetchJson } from './app-api.js';
       return true;
     }
 
-    if (window.location.pathname.includes('/pages/dashboard.html') && u.rol !== 'admin') {
+    const esPanelEmpresas = path.includes('/pages/admin-empresas.html');
+    if (esPanelEmpresas) {
+      // Panel master solo para superadmin
       window.location.href = '/pages/index.html';
       return false;
     }
+
+    // Dashboard solo para administradores de empresa
+    if (path.includes('/pages/dashboard.html') && !isEmpresaAdminRole(u.rol)) {
+      window.location.href = '/pages/index.html';
+      return false;
+    }
+
     return true;
   }
 
   async function verificarSesion() {
-    try {
-      const data = await apiFetchJson('/auth/verificar');
-      if (data && data.valido && data.usuario) {
-        localStorage.setItem('auth_user', JSON.stringify(data.usuario));
-        return data.usuario;
-      }
-      throw new Error('Sesión inválida');
-    } catch (err) {
-      return Promise.reject(err);
+    const data = await apiFetchJson('/auth/verificar');
+    if (data && data.valido && data.usuario) {
+      localStorage.setItem('auth_user', JSON.stringify(data.usuario));
+      return data.usuario;
     }
+    throw new Error('Sesión inválida');
   }
 
   function redirectLogin() {
@@ -64,22 +76,25 @@ import { apiFetchJson } from './app-api.js';
     window.location.href = '/pages/login.html';
   }
 
-  if (user) {
-    if (!applyRoleGuards(user)) return;
+  if (storedUser) {
+    if (!applyRoleGuards(storedUser)) return;
     verificarSesion().catch(() => redirectLogin());
   } else {
     verificarSesion()
-      .then(u => { if (!applyRoleGuards(u)) return; })
+      .then((u) => { if (!applyRoleGuards(u)) return; })
       .catch(() => redirectLogin());
   }
 
-  // Agregar botón de logout al drawer si existe
+  // Agregar botón de logout y enlaces del menú al drawer si existe
   setTimeout(() => {
     const drawer = document.getElementById('drawer');
     const currentUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
     if (drawer && currentUser) {
+      const isEmpresaAdmin = isEmpresaAdminRole(currentUser.rol);
+      const isSuperAdmin = isSuperAdminRole(currentUser.rol);
+
       // Superadmin: menú especial para panel master y ajustes de cuenta
-      if (currentUser.rol === 'superadmin') {
+      if (isSuperAdmin) {
         const nav = drawer.querySelector('nav');
         if (nav) {
           nav.innerHTML = `
@@ -93,13 +108,12 @@ import { apiFetchJson } from './app-api.js';
             </a>
           `;
         }
-        // No añadimos enlaces admin-only ni dashboard para superadmin
-        // El bloque de logout se seguirá mostrando abajo
       }
-      // Mostrar/ocultar accesos solo admin
+
+      // Mostrar/ocultar accesos solo admin (engranes de ajustes)
       const gearButtons = document.querySelectorAll('.admin-only-gear');
-      gearButtons.forEach(btn => {
-        if (currentUser.rol === 'admin' || currentUser.rol === 'superadmin') {
+      gearButtons.forEach((btn) => {
+        if (isEmpresaAdmin || isSuperAdmin) {
           btn.style.removeProperty('display');
         } else {
           btn.style.display = 'none';
@@ -108,19 +122,18 @@ import { apiFetchJson } from './app-api.js';
 
       // Ocultar enlaces marcados solo para admin
       const adminLinks = document.querySelectorAll('.admin-only-nav');
-      adminLinks.forEach(link => {
-        if (currentUser.rol === 'admin') {
+      adminLinks.forEach((link) => {
+        if (isEmpresaAdmin) {
           link.style.removeProperty('display');
         } else {
           link.style.display = 'none';
         }
       });
 
-      // Mostrar link de usuarios solo para admins
-      if (currentUser.rol === 'admin') {
+      // Mostrar link de usuarios solo para admins de empresa
+      if (isEmpresaAdmin) {
         const nav = drawer.querySelector('nav');
         if (nav) {
-          // Evitar duplicados si ya existe un enlace a usuarios
           const existingUsuariosLink = nav.querySelector('#nav-usuarios') || nav.querySelector('a[href="/pages/usuarios.html"]');
           if (!existingUsuariosLink) {
             const usuariosLink = document.createElement('a');
@@ -133,10 +146,10 @@ import { apiFetchJson } from './app-api.js';
         }
       }
 
-      // Ocultar dashboard para roles no admin
-      if (currentUser.rol !== 'admin') {
+      // Ocultar dashboard para roles que no sean admin de empresa
+      if (!isEmpresaAdmin) {
         const dashboardLinks = document.querySelectorAll('a[href="/pages/dashboard.html"]');
-        dashboardLinks.forEach(link => {
+        dashboardLinks.forEach((link) => {
           link.style.display = 'none';
         });
       }
@@ -161,8 +174,7 @@ import { apiFetchJson } from './app-api.js';
           <i class="fas fa-sign-out-alt mr-2"></i>Cerrar Sesión
         </button>
         `;
-      
-        // Agregar al final del drawer (antes del último div de atajos)
+
         const atajosDiv = drawer.querySelector('.p-4.border-t.border-slate-100.text-xs.text-slate-500');
         if (atajosDiv && atajosDiv.parentNode) {
           atajosDiv.parentNode.insertBefore(logoutSection, atajosDiv);
@@ -170,14 +182,13 @@ import { apiFetchJson } from './app-api.js';
           drawer.appendChild(logoutSection);
         }
 
-        // Evento de logout
         document.getElementById('btn-logout').addEventListener('click', async () => {
           try {
             await apiFetchJson('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
           } catch (err) {
             console.error('Error cerrando sesión:', err);
           }
-          
+
           localStorage.removeItem('auth_token');
           localStorage.removeItem('auth_user');
           window.location.href = '/pages/login.html';
@@ -192,12 +203,12 @@ import { apiFetchJson } from './app-api.js';
     getToken: () => null,
     isAdmin: () => {
       const user = JSON.parse(localStorage.getItem('auth_user') || 'null');
-      return user && user.rol === 'admin';
+      return user && (user.rol === 'admin' || user.rol === 'admin_empresa');
     },
     logout: () => {
       try {
         apiFetchJson('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
-          .catch(() => {})
+          .catch(() => { })
           .finally(() => {
             localStorage.removeItem('auth_user');
             window.location.href = '/pages/login.html';

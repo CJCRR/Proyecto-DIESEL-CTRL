@@ -5,6 +5,7 @@ const { requireAuth, requireRole } = require('./auth');
 const bcrypt = require('bcryptjs');
 const { registrarEventoNegocio } = require('../services/eventosService');
 const { registrarAuditoria } = require('../services/auditLogService');
+const { purgeTransactionalData } = require('../services/ajustesService');
 
 // GET /admin/empresas - Listar empresas con filtros básicos (solo superadmin)
 router.get('/', requireAuth, requireRole('superadmin'), (req, res) => {
@@ -273,7 +274,6 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
 });
 
 // DELETE /admin/empresas/:id - Eliminar una empresa (solo superadmin)
-// Nota: por seguridad solo se permite si no tiene usuarios ni productos asociados
 router.delete('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
   const { id } = req.params;
 
@@ -288,24 +288,43 @@ router.delete('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
       return res.status(400).json({ error: 'La empresa LOCAL no se puede eliminar' });
     }
 
-    // Verificar dependencias básicas
-    const usuariosCount = db.prepare('SELECT COUNT(*) as c FROM usuarios WHERE empresa_id = ?').get(id).c;
-    if (usuariosCount > 0) {
-      return res.status(409).json({ error: 'No se puede eliminar: la empresa tiene usuarios asociados. Elimínelos o muévalos antes.' });
-    }
+    const empresaId = Number(empresa.id);
 
-    const productosCount = db.prepare('SELECT COUNT(*) as c FROM productos WHERE empresa_id = ?').get(id).c;
-    if (productosCount > 0) {
-      return res.status(409).json({ error: 'No se puede eliminar: la empresa tiene productos en inventario.' });
-    }
+    // 1) Borrar datos transaccionales e inventario de esa empresa (ventas, compras, presupuestos, productos, métricas, sync, etc.)
+    purgeTransactionalData(empresaId);
 
-    // Limpiar métricas/sync relacionadas (si existieran)
-    db.prepare('DELETE FROM empresa_metricas_diarias WHERE empresa_id = ?').run(id);
-    db.prepare('DELETE FROM sync_outbox WHERE empresa_id = ?').run(id);
-    db.prepare('DELETE FROM sync_inbox WHERE empresa_id = ?').run(id);
+    // 2) Borrar datos restantes ligados a la empresa (usuarios, proveedores, depósitos, stock por depósito, branding por empresa, etc.)
+    const tx = db.transaction(() => {
+      // Usuarios de la empresa (no debería afectar a superadmins globales)
+      db.prepare("DELETE FROM usuarios WHERE empresa_id = ? AND (rol IS NULL OR rol != 'superadmin')").run(empresaId);
 
-    // Finalmente eliminar la empresa
-    db.prepare('DELETE FROM empresas WHERE id = ?').run(id);
+      // Proveedores de la empresa
+      db.prepare('DELETE FROM proveedores WHERE empresa_id = ?').run(empresaId);
+
+      // Stock por depósito y movimientos de depósitos de la empresa
+      db.prepare('DELETE FROM stock_por_deposito WHERE empresa_id = ?').run(empresaId);
+      db.prepare('DELETE FROM movimientos_deposito WHERE empresa_id = ?').run(empresaId);
+      db.prepare('DELETE FROM depositos WHERE empresa_id = ?').run(empresaId);
+
+      // Configuración específica de la empresa (branding, nota, descuentos, devoluciones)
+      const eidStr = String(empresaId);
+      db.prepare(`DELETE FROM config WHERE clave IN (
+          'empresa_config:empresa:${eidStr}',
+          'descuentos_volumen:empresa:${eidStr}',
+          'devolucion_politica:empresa:${eidStr}',
+          'nota_config:empresa:${eidStr}'
+        )`).run();
+
+      // Métricas y colas de sync (redundante con purgeTransactionalData, pero inofensivo)
+      db.prepare('DELETE FROM empresa_metricas_diarias WHERE empresa_id = ?').run(empresaId);
+      db.prepare('DELETE FROM sync_outbox WHERE empresa_id = ?').run(empresaId);
+      db.prepare('DELETE FROM sync_inbox WHERE empresa_id = ?').run(empresaId);
+
+      // Finalmente eliminar la empresa
+      db.prepare('DELETE FROM empresas WHERE id = ?').run(empresaId);
+    });
+
+    tx();
 
     try {
       registrarAuditoria({

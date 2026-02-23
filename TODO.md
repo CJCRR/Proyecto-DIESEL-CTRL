@@ -182,3 +182,80 @@
 ## Notas de Progreso
 
 - [idea] Espacio para anotar ideas rápidas antes de asignarlas a una fase.
+
+## Guía paso a paso: despliegue y actualizaciones
+
+1. **Preparar backup de la base de datos (si es producción)**  
+	- Ubicar el archivo SQLite configurado (por ejemplo `database.sqlite`).  
+	- **Nunca borrar este archivo en un entorno con datos reales**, solo hacer copia.  
+	- Los backups se guardarán en la carpeta `backups` dentro del proyecto en la VM.  
+	- Comandos recomendados en la VM (Linux):  
+		- `cd ~/Proyecto-DIESEL-CTRL`  
+		- `mkdir -p backups`  
+		- `cp database.sqlite backups/database-$(date +%Y%m%d_%H%M).sqlite`
+
+2. **Conectarse por SSH al servidor**  
+	- Desde tu PC: `ssh usuario@IP_DEL_SERVIDOR`.  
+	- Verificar que estás en el home correcto con `pwd`.
+
+3. **Ir a la carpeta del proyecto**  
+	- Ejecutar: `cd ~/Proyecto-DIESEL-CTRL` (o la ruta donde esté clonado el repo).  
+	- Confirmar que estás en la rama correcta: `git status`.
+
+4. **Actualizar el código desde GitHub**  
+	- Traer cambios: `git pull origin main`.  
+	- Si hay nuevos paquetes, luego se correrá `npm install`.
+
+5. **Instalar dependencias (solo si cambió package.json)**  
+	- Ejecutar: `npm install`.  
+	- Esperar a que termine sin errores.
+
+6. **Reiniciar la app con PM2**  
+	- Ver procesos actuales: `pm2 list`.  
+	- Reiniciar la app: `pm2 restart diesel-ctrl`.  
+	- Opcional: si es un despliegue grande, primero `pm2 stop diesel-ctrl` y luego `pm2 start server/server.js --name diesel-ctrl`.
+
+7. **Verificar logs y estado**  
+	- Revisar logs recientes: `pm2 logs diesel-ctrl --lines 100`.  
+	- Confirmar que el proceso aparece como `online` en `pm2 list`.
+
+8. **Probar la aplicación**  
+	- Abrir en el navegador la URL del servidor (staging o producción).  
+	- Probar rápidamente: login, una venta de prueba, un reporte y una operación de inventario.
+
+9. **(Opcional) Documentar el despliegue**  
+	- Anotar fecha, cambios principales y si hubo migraciones de base de datos.  
+	- Guardar estas notas junto con el backup de la base de datos si es un cambio grande.
+
+### Restaurar un backup de `database.sqlite`
+
+Si algo sale mal en una actualización y quieres volver a un backup anterior:
+
+1. Conectarse por SSH a la VM y entrar al proyecto:  
+	- `cd ~/Proyecto-DIESEL-CTRL`
+2. Ver la lista de backups disponibles:  
+	- `ls backups`  
+	  (elegir el archivo `database-YYYYMMDD_HHMM.sqlite` que quieras restaurar).
+3. Detener temporalmente la app:  
+	- `pm2 stop diesel-ctrl`
+4. Restaurar el archivo de base de datos desde el backup elegido:  
+	- `cp backups/NOMBRE_DEL_BACKUP.sqlite database.sqlite`
+5. Volver a iniciar la app:  
+	- `pm2 start server/server.js --name diesel-ctrl`  
+	  (o `pm2 restart diesel-ctrl` si el proceso ya existe)
+6. Probar rápidamente la aplicación (login, ventas, reportes) para confirmar que los datos volvieron al estado del backup.
+
+### Nota de troubleshooting: error `better-sqlite3` en la VM
+
+Si al iniciar con PM2 ves en los logs un error parecido a:
+
+- `Error: .../node_modules/better-sqlite3/build/Release/better_sqlite3.node: invalid ELF header`
+
+Entonces hay módulos nativos compilados para Windows que se copiaron a Linux. Para corregirlo en la VM:
+
+1. `cd ~/Proyecto-DIESEL-CTRL`
+2. `rm -rf node_modules`
+3. `npm install`
+4. `pm2 restart diesel-ctrl`
+
+Con esto `better-sqlite3` se recompila para Linux y el servidor vuelve a arrancar normal.

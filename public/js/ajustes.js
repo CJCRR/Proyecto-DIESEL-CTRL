@@ -241,7 +241,7 @@ function renderDepositosList() {
         return;
     }
     cont.innerHTML = '';
-    depositosCache.forEach(dep => {
+    depositosCache.forEach((dep, idx) => {
         const el = document.createElement('button');
         el.type = 'button';
         el.className = 'w-full text-left p-3 border rounded-xl flex justify-between items-center gap-3 hover:bg-slate-50 transition';
@@ -257,7 +257,7 @@ function renderDepositosList() {
                 </div>
             </div>
             <div class="text-[11px] text-slate-400">
-                ID ${dep.id}
+                ID ${idx + 1}
             </div>
         `;
         el.addEventListener('click', () => {
@@ -275,6 +275,7 @@ function fillDepositoForm(dep) {
     const codigoEl = document.getElementById('deposito_codigo');
     const principalEl = document.getElementById('deposito_principal');
     const activoEl = document.getElementById('deposito_activo');
+    const btnEliminar = document.getElementById('deposito_eliminar');
     const msgEl = document.getElementById('deposito_msg');
     if (msgEl) msgEl.textContent = '';
     if (!nombreEl || !codigoEl || !principalEl || !activoEl || !idEl || !title) return;
@@ -285,6 +286,10 @@ function fillDepositoForm(dep) {
         codigoEl.value = '';
         principalEl.checked = false;
         activoEl.checked = true;
+        if (btnEliminar) {
+            btnEliminar.classList.add('hidden');
+            btnEliminar.disabled = true;
+        }
     } else {
         title.textContent = 'Editar depósito';
         idEl.value = dep.id;
@@ -292,6 +297,10 @@ function fillDepositoForm(dep) {
         codigoEl.value = dep.codigo || '';
         principalEl.checked = !!dep.es_principal;
         activoEl.checked = dep.activo !== false;
+        if (btnEliminar) {
+            btnEliminar.classList.remove('hidden');
+            btnEliminar.disabled = false;
+        }
     }
 }
 
@@ -311,6 +320,7 @@ function setupDepositosUI() {
     const btnNuevo = document.getElementById('btnNuevoDeposito');
     const form = document.getElementById('deposito-form');
     const btnCancelar = document.getElementById('deposito_cancelar');
+    const btnEliminar = document.getElementById('deposito_eliminar');
     if (btnNuevo) {
         btnNuevo.addEventListener('click', (e) => {
             e.preventDefault();
@@ -321,6 +331,46 @@ function setupDepositosUI() {
         btnCancelar.addEventListener('click', (e) => {
             e.preventDefault();
             fillDepositoForm(null);
+        });
+    }
+    if (btnEliminar) {
+        btnEliminar.addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (!depositoEditId) return;
+            const dep = depositosCache.find(d => d.id === depositoEditId);
+            const nombre = dep && dep.nombre ? dep.nombre : 'este depósito';
+            try {
+                // Primer intento: verificar si tiene stock/productos asociados
+                await apiFetchJson(`/depositos/${encodeURIComponent(depositoEditId)}`, {
+                    method: 'DELETE',
+                });
+                showToast('Depósito eliminado', 'success');
+                await loadDepositos();
+                fillDepositoForm(null);
+            } catch (err) {
+                if (err.code === 'DEPOSITO_TIENE_STOCK') {
+                    const ok = window.confirm(
+                        `El depósito "${nombre}" tiene productos en inventario.\n\n` +
+                        `Si continúas, esos productos se borrarán permanentemente de la lista de existencias y del stock.\n\n` +
+                        `¿Seguro que deseas eliminar este depósito y su stock asociado?`
+                    );
+                    if (!ok) return;
+                    try {
+                        await apiFetchJson(`/depositos/${encodeURIComponent(depositoEditId)}?force=1`, {
+                            method: 'DELETE',
+                        });
+                        showToast('Depósito y stock asociados eliminados', 'success');
+                        await loadDepositos();
+                        fillDepositoForm(null);
+                    } catch (err2) {
+                        console.error(err2);
+                        showToast(err2.message || 'Error eliminando depósito', 'error');
+                    }
+                } else {
+                    console.error(err);
+                    showToast(err.message || 'Error eliminando depósito', 'error');
+                }
+            }
         });
     }
     if (form) {

@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('./auth');
 const path = require('path');
+const { obtenerConfigGeneral } = require('../services/ajustesService');
 const tplCompact = require(path.join(__dirname, '..', '..', 'public', 'shared', 'nota-template-compact.js'));
 const tplStandard = require(path.join(__dirname, '..', '..', 'public', 'shared', 'nota-template.js'));
 
@@ -75,9 +76,9 @@ router.get('/nota/:id', requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).send('ID inválido');
-    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
-    const presupuesto = empresaId
-      ? db.prepare('SELECT * FROM presupuestos WHERE id = ? AND empresa_id = ?').get(id, empresaId)
+    const empresaIdSesion = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const presupuesto = empresaIdSesion
+      ? db.prepare('SELECT * FROM presupuestos WHERE id = ? AND empresa_id = ?').get(id, empresaIdSesion)
       : db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
     if (!presupuesto) return res.status(404).send('Presupuesto no encontrado');
     const detalles = db.prepare(`
@@ -86,18 +87,30 @@ router.get('/nota/:id', requireAuth, async (req, res) => {
       WHERE pd.presupuesto_id = ?
     `).all(id);
 
-    // Leer configuración de nota y empresa igual que en ventas
-    const cfgNotaRow = db.prepare(`SELECT valor FROM config WHERE clave='nota_config'`).get();
-    const cfgEmpresaRow = db.prepare(`SELECT valor FROM config WHERE clave='empresa_config'`).get();
-    let layout = 'compact';
-    let empresa = {};
-    let notaCfg = {};
-    if (cfgNotaRow && cfgNotaRow.valor) {
-      try { notaCfg = JSON.parse(cfgNotaRow.valor) || {}; layout = notaCfg.layout || 'compact'; } catch {}
+    // Calcular un correlativo de presupuesto por empresa para el campo "NRO:"
+    const empresaIdSeq = presupuesto.empresa_id != null ? presupuesto.empresa_id : empresaIdSesion;
+    let idGlobal = null;
+    if (empresaIdSeq != null) {
+      const filaSeq = db.prepare(`
+        SELECT COUNT(*) AS n
+        FROM presupuestos p2
+        WHERE p2.empresa_id = ? AND p2.id <= ?
+      `).get(empresaIdSeq, presupuesto.id);
+      const correlativo = filaSeq && filaSeq.n ? Number(filaSeq.n) : Number(presupuesto.id);
+      idGlobal = `PRES-${correlativo}`;
+    } else if (presupuesto.id != null) {
+      idGlobal = `PRES-${presupuesto.id}`;
     }
-    if (cfgEmpresaRow && cfgEmpresaRow.valor) {
-      try { empresa = JSON.parse(cfgEmpresaRow.valor); } catch {}
-    }
+
+    // Leer configuración general por empresa (empresa + nota) usando multiempresa
+    const empresaIdCfg = empresaIdSeq != null ? empresaIdSeq : empresaIdSesion;
+    const cfgGeneral = obtenerConfigGeneral(empresaIdCfg);
+    const empresa = (cfgGeneral && cfgGeneral.empresa) || {};
+    const notaCfg = (cfgGeneral && cfgGeneral.nota) || {};
+
+    // Layout de la nota (compact o standard)
+    const layout = notaCfg.layout === 'standard' ? 'standard' : 'compact';
+
     // Lógica robusta para el nombre de empresa igual que en ventas
     let empresaNombre = (empresa && typeof empresa.nombre === 'string' && empresa.nombre.trim())
       ? empresa.nombre.trim()
@@ -106,26 +119,43 @@ router.get('/nota/:id', requireAuth, async (req, res) => {
         : (notaCfg.nombre && typeof notaCfg.nombre === 'string' && notaCfg.nombre.trim())
           ? notaCfg.nombre.trim()
           : 'EMPRESA';
+
+    const logoUrl = (notaCfg.header_logo_url && notaCfg.header_logo_url.toString().trim())
+      || (empresa.logo_url && empresa.logo_url.toString().trim())
+      || '';
+    const rif = (notaCfg.rif && notaCfg.rif.toString().trim())
+      || (empresa.rif && empresa.rif.toString().trim())
+      || '';
+    const telefonos = (notaCfg.telefonos && notaCfg.telefonos.toString().trim())
+      || (empresa.telefonos && empresa.telefonos.toString().trim())
+      || '';
+    const ubicacion = (notaCfg.ubicacion && notaCfg.ubicacion.toString().trim())
+      || (notaCfg.direccion_general && notaCfg.direccion_general.toString().trim())
+      || (empresa.ubicacion && empresa.ubicacion.toString().trim())
+      || '';
+
     const presupuestoConEmpresa = {
       ...presupuesto,
+      // Este campo se usará en la plantilla para mostrar el NRO
+      id_global: idGlobal,
       empresa_nombre: empresaNombre,
-      empresa_logo_url: empresa.logo_url || notaCfg.header_logo_url || '',
-      empresa_ubicacion: empresa.ubicacion || notaCfg.ubicacion || '',
-      empresa_rif: empresa.rif || notaCfg.rif || '',
-      empresa_telefonos: empresa.telefonos || notaCfg.telefonos || '',
+      empresa_logo_url: logoUrl,
+      empresa_ubicacion: ubicacion,
+      empresa_rif: rif,
+      empresa_telefonos: telefonos,
       empresa_marcas: Array.isArray(notaCfg.brand_logos) ? notaCfg.brand_logos : [],
       empresa_encabezado: notaCfg.encabezado_texto || '',
       empresa: {
         nombre: empresaNombre,
-        logo_url: empresa.logo_url || notaCfg.header_logo_url || '',
-        ubicacion: empresa.ubicacion || notaCfg.ubicacion || '',
-        rif: empresa.rif || notaCfg.rif || '',
-        telefonos: empresa.telefonos || notaCfg.telefonos || ''
+        logo_url: logoUrl,
+        ubicacion: ubicacion,
+        rif: rif,
+        telefonos: telefonos
       }
     };
     const tpl = layout === 'standard' ? tplStandard : tplCompact;
     const html = tpl && tpl.buildNotaHTML
-      ? await tpl.buildNotaHTML({ venta: presupuestoConEmpresa, detalles }, { tipo: 'PRESUPUESTO' })
+      ? await tpl.buildNotaHTML({ venta: presupuestoConEmpresa, detalles }, { tipo: 'PRESUPUESTO', notaCfg })
       : '<html><body><pre>Plantilla no disponible</pre></body></html>';
 
     res.set('Content-Type', 'text/html; charset=utf-8');

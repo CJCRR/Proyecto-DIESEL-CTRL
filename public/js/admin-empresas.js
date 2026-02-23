@@ -764,7 +764,7 @@ window.__eliminarEmpresa = async function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   if (!modalConfirm) {
-    const confirmado = window.confirm(`¿Eliminar la empresa "${empresa.nombre}"?\n\nSolo se permitirá si no tiene usuarios ni productos asociados.`);
+    const confirmado = window.confirm(`¿Eliminar la empresa "${empresa.nombre}"?\n\nSe eliminarán todos los usuarios, productos y datos transaccionales asociados a esa empresa (ventas, presupuestos, compras, etc.). Esta acción no se puede deshacer.`);
     if (!confirmado) return;
     try {
       await apiFetchJson(`/admin/empresas/${id}`, { method: 'DELETE' });
@@ -780,7 +780,7 @@ window.__eliminarEmpresa = async function (id) {
   }
 
   mcTitle.textContent = 'Eliminar empresa';
-  mcMessage.textContent = `¿Eliminar la empresa "${empresa.nombre}"? Solo se permitirá si no tiene usuarios ni productos asociados.`;
+  mcMessage.textContent = `¿Eliminar la empresa "${empresa.nombre}"?\n\nSe eliminarán todos los usuarios, productos y datos transaccionales asociados a esa empresa (ventas, presupuestos, compras, etc.). Esta acción no se puede deshacer.`;
   currentConfirmAction = async () => {
     try {
       await apiFetchJson(`/admin/empresas/${id}`, { method: 'DELETE' });
