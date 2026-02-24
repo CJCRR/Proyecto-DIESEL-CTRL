@@ -188,8 +188,8 @@
 
                 <div class="pt-4 border-t space-y-3" data-panel-venta>
                     <div class="grid grid-cols-3 gap-2">
-                        <input id="v_desc" type="number" min="0" max="100" class="p-3 border rounded-xl text-center"
-                            placeholder="Descuento %">
+                        <input id="v_desc" type="number" min="0" step="0.01" class="p-3 border rounded-xl text-center"
+                            placeholder="Descuento $" oninput="actualizarTabla()">
                         <select id="v_metodo" class="p-3 border rounded-xl">
                             <option value="efectivo">Efectivo</option>
                             <option value="tarjeta">Tarjeta</option>

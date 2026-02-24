@@ -79,14 +79,9 @@ export function renderHistorialDevoluciones(list = []) {
 }
 
 export function aplicarDescuentoDevolucion(list = []) {
+	// Ya no aplicamos automáticamente descuentos porcentuales por devoluciones;
+	// el descuento ahora es un monto fijo en USD que el usuario controla manualmente.
 	if (!list.length) return;
-	const inputDesc = document.getElementById('v_desc');
-	if (!inputDesc) return;
-	const actual = parseFloat(inputDesc.value || '0') || 0;
-	if (actual > 0) return;
-	inputDesc.value = '5';
-	showToast('Descuento 5% aplicado por devolución previa del cliente', 'info');
-	actualizarTabla();
 }
 
 export async function cargarHistorialDevoluciones(cliente, cedula) {
@@ -188,7 +183,7 @@ export async function registrarVenta() {
 	if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
 	if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa de cambio válida (> 0)', 'error'); return; }
 
-	const descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
+	const descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0; // monto fijo USD
 	const referencia = (document.getElementById('v_ref') && document.getElementById('v_ref').value)
 		? document.getElementById('v_ref').value.trim()
 		: '';

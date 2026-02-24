@@ -25,7 +25,8 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // POST /depositos/mover - mover stock entre depósitos (total o parcial)
-router.post('/mover', requireAuth, requireRole('admin'), (req, res) => {
+// Permitido para admin y vendedor de la empresa
+router.post('/mover', requireAuth, requireRole('admin', 'admin_empresa', 'vendedor'), (req, res) => {
   try {
     const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
     let { codigo, deposito_origen_id, deposito_destino_id, cantidad, motivo } = req.body || {};
@@ -42,7 +43,25 @@ router.post('/mover', requireAuth, requireRole('admin'), (req, res) => {
     const prod = db.prepare('SELECT id, stock, deposito_id FROM productos WHERE empresa_id = ? AND codigo = ?').get(empresaId, codigo);
     if (!prod) return res.status(404).json({ error: 'Producto no encontrado en esta empresa' });
 
-    const origenId = origenIdRaw && !Number.isNaN(origenIdRaw) ? origenIdRaw : (prod.deposito_id || null);
+    let origenId;
+    if (origenIdRaw && !Number.isNaN(origenIdRaw)) {
+      origenId = origenIdRaw;
+    } else {
+      // Si no se envía depósito origen explícito, intentar inferirlo desde stock_por_deposito
+      const stockRows = db.prepare(`
+        SELECT deposito_id, cantidad
+        FROM stock_por_deposito
+        WHERE producto_id = ?
+      `).all(prod.id);
+      const rowsConStock = stockRows.filter(r => Number(r.cantidad || 0) > 0);
+      if (rowsConStock.length === 1) {
+        // Solo un depósito con stock positivo: usarlo como origen real
+        origenId = rowsConStock[0].deposito_id;
+      } else {
+        // Varios depósitos o ninguno con stock: caer al deposito_id del producto
+        origenId = prod.deposito_id || null;
+      }
+    }
     if (!origenId) {
       return res.status(400).json({ error: 'Depósito origen no definido para el producto' });
     }
@@ -145,7 +164,8 @@ router.post('/mover', requireAuth, requireRole('admin'), (req, res) => {
 });
 
 // GET /depositos/movimientos?limit=20 - historial reciente de movimientos por empresa
-router.get('/movimientos', requireAuth, requireRole('admin'), (req, res) => {
+// Permitido para admin y vendedor de la empresa
+router.get('/movimientos', requireAuth, requireRole('admin', 'admin_empresa', 'vendedor'), (req, res) => {
   try {
     const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
     if (!empresaId) return res.status(400).json({ error: 'Usuario sin empresa' });

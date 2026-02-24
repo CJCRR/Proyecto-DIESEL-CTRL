@@ -113,12 +113,6 @@ function renderSugerenciasClientes(list = []) {
 			if (ced) ced.value = cedula;
 			if (tel) tel.value = telefono;
 			try {
-				const desc = parseFloat(c.descuento);
-				const descInput = document.getElementById('v_desc');
-				if (!Number.isNaN(desc) && descInput) {
-					descInput.value = String(desc);
-					showToast(`Descuento ${desc}% aplicado por cliente`, 'info');
-				}
 				if (c.notas) showToast(`Nota cliente: ${c.notas}`, 'info', 4500);
 			} catch {}
 			cargarHistorialDevoluciones(nombre, cedula);

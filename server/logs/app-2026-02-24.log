@@ -1,0 +1,85 @@
+2026-02-24T15:34:37.565Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T15:34:37.569Z [INFO] 📦 Backup automático creado: backup_2026-02-24T15-34-37-553Z.sqlite 
+2026-02-24T16:09:07.286Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T16:09:09.935Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T16:09:09.940Z [INFO] 📦 Backup automático creado: backup_2026-02-24T16-09-09-926Z.sqlite 
+2026-02-24T16:24:24.304Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T16:24:26.833Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T16:24:26.837Z [INFO] 📦 Backup automático creado: backup_2026-02-24T16-24-26-825Z.sqlite 
+2026-02-24T16:39:47.725Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T16:39:50.529Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T16:39:50.536Z [INFO] 📦 Backup automático creado: backup_2026-02-24T16-39-50-516Z.sqlite 
+2026-02-24T16:54:02.940Z [ERROR] Error procesando la venta Stock insuficiente para el producto: 13011-58050 {"stack":"Error: Stock insuficiente para el producto: 13011-58050\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:144:23\n    at sqliteTransaction (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\better-sqlite3\\lib\\methods\\transaction.js:65:24)\n    at registrarVenta (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:231:12)\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:24:45\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at forbidSuperadmin (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:12:5)\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at requireAuth (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\auth.js:433:14)","url":"/ventas","method":"POST","user":5,"items":1,"cliente":"CRISTOHPER RODRIGUEZ"}
+2026-02-24T17:01:22.376Z [ERROR] Error procesando la venta Stock insuficiente en el depósito asignado para el depósito asignado para el producto: DTCL-0003 {"stack":"Error: Stock insuficiente en el depósito asignado para el depósito asignado para el producto: DTCL-0003\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:155:23\n    at sqliteTransaction (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\better-sqlite3\\lib\\methods\\transaction.js:65:24)\n    at registrarVenta (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:231:12)\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:24:45\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at forbidSuperadmin (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:12:5)\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at requireAuth (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\auth.js:433:14)","url":"/ventas","method":"POST","user":5,"items":1,"cliente":"CRISTOHPER RODRIGUEZ"}
+2026-02-24T17:01:36.713Z [ERROR] Error procesando la venta Stock insuficiente en el depósito asignado para el depósito asignado para el producto: DTCL-0003 {"stack":"Error: Stock insuficiente en el depósito asignado para el depósito asignado para el producto: DTCL-0003\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:155:23\n    at sqliteTransaction (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\better-sqlite3\\lib\\methods\\transaction.js:65:24)\n    at registrarVenta (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:231:12)\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:24:45\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at forbidSuperadmin (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:12:5)\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at requireAuth (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\auth.js:433:14)","url":"/ventas","method":"POST","user":5,"items":1,"cliente":"CRISTOHPER RODRIGUEZ"}
+2026-02-24T17:10:10.381Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T17:10:13.798Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T17:10:13.803Z [INFO] 📦 Backup automático creado: backup_2026-02-24T17-10-13-789Z.sqlite 
+2026-02-24T17:11:06.713Z [ERROR] Error procesando la venta Stock insuficiente en el depósito asignado para el depósito asignado para el producto: DTCL-0003 {"stack":"Error: Stock insuficiente en el depósito asignado para el depósito asignado para el producto: DTCL-0003\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:156:23\n    at sqliteTransaction (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\better-sqlite3\\lib\\methods\\transaction.js:65:24)\n    at registrarVenta (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:234:12)\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:24:45\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at forbidSuperadmin (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:12:5)\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at requireAuth (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\auth.js:433:14)","url":"/ventas","method":"POST","user":5,"items":1,"cliente":"CRISTOHPER RODRIGUEZ"}
+2026-02-24T17:12:33.910Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T17:12:37.509Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T17:12:37.513Z [INFO] 📦 Backup automático creado: backup_2026-02-24T17-12-37-501Z.sqlite 
+2026-02-24T17:13:08.240Z [ERROR] Error procesando la venta Stock insuficiente en el depósito asignado para el depósito asignado para el producto: DTCL-0003 {"stack":"Error: Stock insuficiente en el depósito asignado para el depósito asignado para el producto: DTCL-0003\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:156:23\n    at sqliteTransaction (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\better-sqlite3\\lib\\methods\\transaction.js:65:24)\n    at registrarVenta (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:234:12)\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:24:45\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at forbidSuperadmin (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:12:5)\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at requireAuth (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\auth.js:433:14)","url":"/ventas","method":"POST","user":5,"items":1,"cliente":"CRISTOHPER RODRIGUEZ"}
+2026-02-24T17:19:16.968Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T17:19:19.531Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T17:19:19.534Z [INFO] 📦 Backup automático creado: backup_2026-02-24T17-19-19-523Z.sqlite 
+2026-02-24T17:20:03.058Z [ERROR] Error procesando la venta Stock insuficiente en el depósito asignado para el producto: DTCL-0003 {"stack":"Error: Stock insuficiente en el depósito asignado para el producto: DTCL-0003\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:156:23\n    at sqliteTransaction (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\better-sqlite3\\lib\\methods\\transaction.js:65:24)\n    at registrarVenta (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:234:12)\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:24:45\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at forbidSuperadmin (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:12:5)\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at requireAuth (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\auth.js:433:14)","url":"/ventas","method":"POST","user":5,"items":1,"cliente":"CRISTOHPER RODRIGUEZ"}
+2026-02-24T17:36:08.815Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T17:36:11.428Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T17:36:11.432Z [INFO] 📦 Backup automático creado: backup_2026-02-24T17-36-11-418Z.sqlite 
+2026-02-24T17:39:10.468Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T17:39:13.854Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T17:39:13.859Z [INFO] 📦 Backup automático creado: backup_2026-02-24T17-39-13-845Z.sqlite 
+2026-02-24T17:42:13.247Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T17:42:15.881Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T17:42:15.885Z [INFO] 📦 Backup automático creado: backup_2026-02-24T17-42-15-873Z.sqlite 
+2026-02-24T18:21:39.357Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T18:21:42.324Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T18:21:42.329Z [INFO] 📦 Backup automático creado: backup_2026-02-24T18-21-42-315Z.sqlite 
+2026-02-24T18:35:38.403Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T18:35:41.770Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T18:35:41.774Z [INFO] 📦 Backup automático creado: backup_2026-02-24T18-35-41-761Z.sqlite 
+2026-02-24T18:42:09.257Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T18:42:24.290Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T18:42:24.308Z [INFO] 📦 Backup automático creado: backup_2026-02-24T18-42-24-279Z.sqlite 
+2026-02-24T18:45:03.679Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T18:45:06.635Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T18:45:06.639Z [INFO] 📦 Backup automático creado: backup_2026-02-24T18-45-06-624Z.sqlite 
+2026-02-24T19:08:51.524Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T19:08:54.494Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T19:08:54.498Z [INFO] 📦 Backup automático creado: backup_2026-02-24T19-08-54-486Z.sqlite 
+2026-02-24T19:15:20.263Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T19:15:23.296Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T19:15:23.300Z [INFO] 📦 Backup automático creado: backup_2026-02-24T19-15-23-288Z.sqlite 
+2026-02-24T19:18:20.082Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T19:18:23.268Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T19:18:23.272Z [INFO] 📦 Backup automático creado: backup_2026-02-24T19-18-23-260Z.sqlite 
+2026-02-24T19:19:40.924Z [WARN] Intento fallido de login para usuario cristopher (3), intentos: 1 
+2026-02-24T19:19:49.095Z [WARN] Intento fallido de login para usuario cristopher (3), intentos: 2 
+2026-02-24T19:24:22.996Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T19:24:25.590Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T19:24:25.595Z [INFO] 📦 Backup automático creado: backup_2026-02-24T19-24-25-581Z.sqlite 
+2026-02-24T19:36:47.374Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T19:36:50.694Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T19:36:50.698Z [INFO] 📦 Backup automático creado: backup_2026-02-24T19-36-50-685Z.sqlite 
+2026-02-24T19:46:05.322Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T19:46:08.354Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T19:46:08.358Z [INFO] 📦 Backup automático creado: backup_2026-02-24T19-46-08-345Z.sqlite 
+2026-02-24T20:01:48.369Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T20:01:53.901Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T20:01:53.905Z [INFO] 📦 Backup automático creado: backup_2026-02-24T20-01-53-892Z.sqlite 
+2026-02-24T20:06:28.934Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T20:06:31.309Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T20:06:31.312Z [INFO] 📦 Backup automático creado: backup_2026-02-24T20-06-31-300Z.sqlite 
+2026-02-24T20:16:36.010Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T20:16:39.142Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T20:16:39.146Z [INFO] 📦 Backup automático creado: backup_2026-02-24T20-16-39-133Z.sqlite 
+2026-02-24T20:24:25.514Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T20:24:28.516Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T20:24:28.520Z [INFO] 📦 Backup automático creado: backup_2026-02-24T20-24-28-507Z.sqlite 
+2026-02-24T20:36:50.259Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T20:36:53.717Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T20:36:53.720Z [INFO] 📦 Backup automático creado: backup_2026-02-24T20-36-53-708Z.sqlite 
+2026-02-24T20:47:46.034Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-24T20:47:49.936Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-24T20:47:49.939Z [INFO] 📦 Backup automático creado: backup_2026-02-24T20-47-49-927Z.sqlite 

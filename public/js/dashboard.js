@@ -394,19 +394,11 @@ async function renderAlertasTareas() {
 
         const stock = Array.isArray(j.stock_bajo) ? j.stock_bajo : [];
         const morosos = Array.isArray(j.morosos) ? j.morosos : [];
-        const backup = j.backup || {};
 
         const stockCountEl = document.getElementById('al-stock-count');
         const morososCountEl = document.getElementById('al-morosos-count');
-        const backupEl = document.getElementById('al-backup-status');
         if (stockCountEl) stockCountEl.textContent = String(stock.length);
         if (morososCountEl) morososCountEl.textContent = String(morosos.length);
-        if (backupEl) {
-            const hrs = backup.horas_desde_ultima != null ? Number(backup.horas_desde_ultima).toFixed(1) : '∞';
-            const necesita = backup.necesita_backup ? 'Necesita' : 'OK';
-            backupEl.textContent = `${necesita}${hrs !== '∞' ? ` (${hrs}h)` : ''}`;
-            backupEl.className = `text-sm font-bold ${backup.necesita_backup ? 'text-amber-600' : 'text-emerald-700'}`;
-        }
 
         // Sincronizar UI de umbral (input + botón)
         const umbralInput = document.getElementById('al-stock-umbral');

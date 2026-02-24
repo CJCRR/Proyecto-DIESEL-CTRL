@@ -63,21 +63,28 @@
       : await getNotaConfig();
     const tasa = number(venta.tasa_bcv) || 1;
       const direccionGeneralCliente = notaCfg.direccion_general || notaCfg.ubicacion || '';
-    const descuentoPct = clampPct(venta.descuento);
-    const multiplicador = 1 - (descuentoPct / 100);
+
+    // Descuento como monto fijo en USD
+    const descuentoUsdRaw = number(venta.descuento);
+    let descuentoUsd = descuentoUsdRaw > 0 ? descuentoUsdRaw : 0;
 
     const items = normalizeItems(venta, detalles);
     let totalUSDBase = 0;
-    let totalBsDesc = 0;
+    let totalBsBase = 0;
 
     items.forEach(item => {
       const lineUsd = number(item.precio_usd) * number(item.cantidad);
-      const lineBsDesc = lineUsd * tasa * multiplicador;
+      const lineBs = lineUsd * tasa;
       totalUSDBase += lineUsd;
-      totalBsDesc += lineBsDesc;
+      totalBsBase += lineBs;
     });
 
-    const totalUSDConDesc = totalUSDBase * multiplicador;
+    const maxDescUsd = Math.max(0, totalUSDBase);
+    const aplicadoDescUsd = Math.min(descuentoUsd, maxDescUsd);
+    const aplicadoDescBs = aplicadoDescUsd * tasa;
+
+    const baseUsdDesc = totalUSDBase - aplicadoDescUsd;
+    const baseBsDesc = totalBsBase - aplicadoDescBs;
     const fecha = venta.fecha ? new Date(venta.fecha) : new Date();
     const fechaTexto = (typeof window !== 'undefined' && window.toLocaleDateString)
       ? fecha.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -87,10 +94,10 @@
 
     // ...la nueva declaración de brandImgs y headerLogo ya está más abajo...
     const ivaPct = clampPct(venta.iva_pct != null ? venta.iva_pct : (notaCfg.iva_pct || 0));
-    let ivaUSD = totalUSDConDesc * (ivaPct / 100);
-    let ivaBs = totalBsDesc * (ivaPct / 100);
-    let totalUSDFinal = totalUSDConDesc + ivaUSD;
-    let totalBsFinal = totalBsDesc + ivaBs;
+    let ivaUSD = baseUsdDesc * (ivaPct / 100);
+    let ivaBs = baseBsDesc * (ivaPct / 100);
+    let totalUSDFinal = baseUsdDesc + ivaUSD;
+    let totalBsFinal = baseBsDesc + ivaBs;
 
     // Si la venta trae totales con IVA desde backend, preferirlos para que
     // esta nota compacta coincida exactamente con reportes y otros resúmenes.
@@ -99,14 +106,14 @@
     if (hasTotalesBackendUsd || hasTotalesBackendBs) {
       const canonicalUsd = hasTotalesBackendUsd
         ? Number(venta.total_usd_iva)
-        : (tasa ? Number(venta.total_bs_iva) / tasa : totalUSDConDesc + ivaUSD);
+        : (tasa ? Number(venta.total_bs_iva) / tasa : baseUsdDesc + ivaUSD);
       const canonicalBs = hasTotalesBackendBs
         ? Number(venta.total_bs_iva)
         : canonicalUsd * tasa;
       totalUSDFinal = canonicalUsd;
       totalBsFinal = canonicalBs;
-      ivaUSD = Math.max(0, totalUSDFinal - totalUSDConDesc);
-      ivaBs = Math.max(0, totalBsFinal - totalBsDesc);
+      ivaUSD = Math.max(0, totalUSDFinal - baseUsdDesc);
+      ivaBs = Math.max(0, totalBsFinal - baseBsDesc);
     }
 
     // Determinar los datos de la empresa correctamente (más robusto)
@@ -212,8 +219,8 @@
                 <tbody>
                   ${items.map(item => {
                     const lineUsd = number(item.precio_usd) * number(item.cantidad);
-                    const lineBs = lineUsd * tasa * multiplicador;
-                    const precioBs = number(item.precio_usd) * tasa * multiplicador;
+                    const lineBs = lineUsd * tasa;
+                    const precioBs = number(item.precio_usd) * tasa;
                     return `
                       <tr>
                         <td>${item.codigo}</td>
@@ -232,7 +239,8 @@
             <div class="totales">
               <div class="box" style="border:1px solid #000; min-height:48px; font-size:9px;">NOTA</div>
               <div class="tot-box">
-                <div class="tot-row"><div>Sub-total Bs</div><div class="right">Bs ${totalBsDesc.toFixed(2)}</div></div>
+                <div class="tot-row"><div>Sub-total Bs</div><div class="right">Bs ${totalBsBase.toFixed(2)}</div></div>
+                ${aplicadoDescUsd > 0 ? `<div class="tot-row"><div>Descuento</div><div class="right">$${aplicadoDescUsd.toFixed(2)} / Bs ${aplicadoDescBs.toFixed(2)}</div></div>` : ''}
                 <div class="tot-row"><div>Impuesto / I.V.A (${ivaPct}%)</div><div class="right">$${ivaUSD.toFixed(2)} / Bs ${ivaBs.toFixed(2)}</div></div>
                 <div class="tot-row" style="font-weight:800; grid-template-columns: 1fr 1fr;">
                   <div>${notaCfg.pie || 'Total a Pagar:'}</div>

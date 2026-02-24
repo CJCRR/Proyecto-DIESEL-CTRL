@@ -11,16 +11,32 @@ router.get('/', requireAuth, (req, res) => {
         let productos;
         if (empresaId) {
             productos = db.prepare(`
-                SELECT codigo, descripcion, precio_usd, stock
-                FROM productos
-                WHERE empresa_id = ?
+                SELECT
+                    p.codigo,
+                    p.descripcion,
+                    p.precio_usd,
+                    COALESCE((
+                        SELECT SUM(sd.cantidad)
+                        FROM stock_por_deposito sd
+                        WHERE sd.producto_id = p.id
+                    ), p.stock) AS stock
+                FROM productos p
+                WHERE p.empresa_id = ?
                 ORDER BY stock ASC, codigo ASC
                 LIMIT ?
             `).all(empresaId, limit);
         } else {
             productos = db.prepare(`
-                SELECT codigo, descripcion, precio_usd, stock
-                FROM productos
+                SELECT
+                    p.codigo,
+                    p.descripcion,
+                    p.precio_usd,
+                    COALESCE((
+                        SELECT SUM(sd.cantidad)
+                        FROM stock_por_deposito sd
+                        WHERE sd.producto_id = p.id
+                    ), p.stock) AS stock
+                FROM productos p
                 ORDER BY stock ASC, codigo ASC
                 LIMIT ?
             `).all(limit);

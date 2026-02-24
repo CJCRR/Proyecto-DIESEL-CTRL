@@ -64,11 +64,12 @@ function registrarVenta(payload) {
         throw new Error('La tasa de cambio es inválida o no fue enviada');
     }
 
-    if (typeof descuento !== 'number' && typeof descuento !== 'string') {
+    if (descuento !== undefined && descuento !== null && typeof descuento !== 'number' && typeof descuento !== 'string') {
         throw new Error('Descuento inválido');
     }
 
-    const descuentoNum = Math.max(0, Math.min(100, parseFloat(descuento) || 0));
+    // El descuento ahora se interpreta como monto fijo en USD
+    const descuentoMontoUsd = Math.max(0, parseFloat(descuento) || 0);
 
     const metodoPagoFinal = credito ? (metodo_pago || 'CREDITO') : metodo_pago;
 
@@ -114,7 +115,7 @@ function registrarVenta(payload) {
         const ventaResult = db.prepare(`
                 INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, iva_pct, total_bs_iva, total_usd_iva, usuario_id, comision_pct, comision_bs, comision_usd)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, 0, 0, 0)
-            `).run(fecha, clienteSafe, vendedorSafe, cedulaSafe, telefonoSafe, tasa_bcv, descuentoNum, metodoSafe, referenciaSafe, usuario_id);
+            `).run(fecha, clienteSafe, vendedorSafe, cedulaSafe, telefonoSafe, tasa_bcv, descuentoMontoUsd, metodoSafe, referenciaSafe, usuario_id);
 
         const ventaId = ventaResult.lastInsertRowid;
 
@@ -155,16 +156,23 @@ function registrarVenta(payload) {
                 throw new Error(`Stock insuficiente en el depósito asignado para el producto: ${item.codigo}`);
             }
 
-            const subtotalUsd = producto.precio_usd * item.cantidad;
+            // Usar el precio unitario enviado por el POS (ya con nivel aplicado)
+            // y caer al precio base del producto si no viene en el payload
+            let precioUnitUsd = Number(item.precio_usd);
+            if (!Number.isFinite(precioUnitUsd) || precioUnitUsd <= 0) {
+                precioUnitUsd = Number(producto.precio_usd || 0) || 0;
+            }
+
+            const subtotalUsd = precioUnitUsd * item.cantidad;
             const subtotalBs = subtotalUsd * tasa_bcv;
             totalGeneralUsd += subtotalUsd;
             totalGeneralBs += subtotalBs;
 
-            // Insertar cada item en el detalle
+            // Insertar cada item en el detalle con el precio realmente vendido
             db.prepare(`
                     INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs)
                     VALUES (?, ?, ?, ?, ?, ?)
-                `).run(ventaId, producto.id, item.cantidad, producto.precio_usd, producto.costo_usd || 0, subtotalBs);
+                `).run(ventaId, producto.id, item.cantidad, precioUnitUsd, producto.costo_usd || 0, subtotalBs);
 
             // Descontar del inventario por depósito y en total, y verificar stock crítico
             const nuevoStock = producto.stock - item.cantidad;
@@ -176,10 +184,12 @@ function registrarVenta(payload) {
             }
         }
 
-        // Aplicar descuento (porcentaje) al total acumulado
-        const multiplicador = 1 - Math.max(0, Math.min(100, descuentoNum)) / 100;
-                const totalConDescuentoBs = totalGeneralBs * multiplicador;
-                const totalConDescuentoUsd = totalGeneralUsd * multiplicador;
+        // Aplicar descuento como monto fijo en USD al total acumulado
+        const maxDescUsd = Math.max(0, totalGeneralUsd);
+        const aplicadoUsd = Math.min(descuentoMontoUsd, maxDescUsd);
+        const descBs = aplicadoUsd * tasa_bcv;
+                const totalConDescuentoBs = totalGeneralBs - descBs;
+                const totalConDescuentoUsd = totalGeneralUsd - aplicadoUsd;
 
                 const factorIva = 1 + ivaPctNum / 100;
                 const totalBsIva = totalConDescuentoBs * factorIva;

@@ -158,7 +158,10 @@ async function cargarConfigGeneral() {
             devolucion: data.devolucion || {},
             nota: data.nota || {}
         };
-        try { window.configGeneral = configGeneral; } catch {}
+        try {
+            window.configGeneral = configGeneral;
+            window.lastAutoDescuentoVolumen = lastAutoDescuentoVolumen;
+        } catch {}
         aplicarTemaEmpresa();
         aplicarEstrategiaPreciosUI();
     } catch (err) {
@@ -303,7 +306,7 @@ async function cargarPresupuestoEnPOS(presupuestoId) {
         if (ced) ced.value = presupuesto.cliente_doc || '';
         if (tel) tel.value = presupuesto.telefono || '';
         if (tasaInput) tasaInput.value = Number(presupuesto.tasa_bcv || 1).toFixed(2);
-        if (descInput) descInput.value = String(presupuesto.descuento || 0);
+        if (descInput) descInput.value = String(presupuesto.descuento || 0); // ahora se interpreta como monto en USD
         if (refInput) refInput.value = `PRES-${presupuesto.id}`;
 
         carrito.length = 0;

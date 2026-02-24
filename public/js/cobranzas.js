@@ -206,6 +206,7 @@ async function registrarPago(evt) {
         document.getElementById('form-pago').reset();
         renderDetalle(j);
         await cargarCuentas();
+        await cargarResumen();
     } catch (err) {
         console.error(err);
         showToast(err.message, 'error');

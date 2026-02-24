@@ -10,6 +10,7 @@ const f_desc = document.getElementById('f_desc');
 const f_precio = document.getElementById('f_precio');
 const f_costo = document.getElementById('f_costo');
 const f_stock = document.getElementById('f_stock');
+const f_motivoAjuste = document.getElementById('f_motivo_ajuste');
 const f_marca = document.getElementById('f_marca');
 const f_deposito = document.getElementById('f_deposito');
 const msg = document.getElementById('msg');
@@ -30,6 +31,20 @@ const movMsg = document.getElementById('mov_msg');
 const movList = document.getElementById('movimientos-list');
 const btnMoverDeposito = document.getElementById('btnMoverDeposito');
 const movStockDetalle = document.getElementById('mov_stock_detalle');
+
+// Determinar rol de usuario para habilitar o no edición de stock desde inventario
+let esEmpresaAdmin = false;
+let esSuperAdmin = false;
+try {
+    const currentUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
+    if (currentUser && currentUser.rol) {
+        esEmpresaAdmin = currentUser.rol === 'admin' || currentUser.rol === 'admin_empresa';
+        esSuperAdmin = currentUser.rol === 'superadmin';
+    }
+} catch (e) {
+    console.warn('No se pudo leer auth_user para roles en inventario:', e);
+}
+const puedeEditarStockDesdeInventario = esEmpresaAdmin || esSuperAdmin;
 
 // Select dinámico para elegir depósito origen cuando hay stock en varios depósitos
 let movDepOrigenSelect = null;
@@ -76,6 +91,25 @@ const importPreviewConfirm = previewModal.querySelector('#importPreviewConfirm')
 let productosCache = [];
 let currentPage = 0;
 let currentTotal = 0;
+
+// Ocultar campos de stock/depósito/ajuste para usuarios que no son admin
+if (!puedeEditarStockDesdeInventario) {
+    if (f_stock) {
+        const lblStock = f_stock.previousElementSibling;
+        if (lblStock && lblStock.tagName === 'LABEL') lblStock.classList.add('hidden');
+        f_stock.classList.add('hidden');
+    }
+    if (f_motivoAjuste) {
+        const lblMotivo = f_motivoAjuste.previousElementSibling;
+        if (lblMotivo && lblMotivo.tagName === 'LABEL') lblMotivo.classList.add('hidden');
+        f_motivoAjuste.classList.add('hidden');
+    }
+    if (f_deposito) {
+        const lblDep = f_deposito.previousElementSibling;
+        if (lblDep && lblDep.tagName === 'LABEL') lblDep.classList.add('hidden');
+        f_deposito.classList.add('hidden');
+    }
+}
 
 async function cargarProductos() {
     lista.innerHTML = 'Cargando...';
@@ -184,8 +218,12 @@ function renderList(items) {
         const marca = (p.marca || '').toLowerCase();
         return !qv || codigo.includes(qv) || desc.includes(qv) || marca.includes(qv);
     });
-    // Asegurar orden alfabético estable por código
+    // Asegurar orden alfabético estable por categoría y luego código
     filtered.sort((a, b) => {
+        const catA = (a.categoria || '').toString().toLowerCase();
+        const catB = (b.categoria || '').toString().toLowerCase();
+        if (catA < catB) return -1;
+        if (catA > catB) return 1;
         const ca = (a.codigo || '').toString().toLowerCase();
         const cb = (b.codigo || '').toString().toLowerCase();
         if (ca < cb) return -1;
@@ -206,9 +244,15 @@ function renderList(items) {
         const el = document.createElement('div');
         el.className = 'p-3 border rounded flex justify-between items-start gap-3 hover:bg-slate-50 cursor-pointer';
         const depositoDetalle = p.stock_detalle || '';
-        const depositoLabel = depositoDetalle
-            ? `Depósito: ${depositoDetalle}`
-            : (p.deposito_nombre ? `Depósito: ${p.deposito_nombre}` : '');
+        const totalStock = Number(p.stock || 0);
+        let depositoLabel = '';
+        if (totalStock <= 0) {
+            depositoLabel = 'No hay stock del producto';
+        } else if (depositoDetalle) {
+            depositoLabel = `Depósito: ${depositoDetalle}`;
+        } else if (p.deposito_nombre) {
+            depositoLabel = `Depósito: ${p.deposito_nombre}`;
+        }
         el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria || ''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div>${p.marca ? `<div class="text-xs text-slate-500">Marca: ${p.marca}</div>` : ''}${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}</div>
             <div class="text-right space-y-1 min-w-[160px]">
                 <div class="text-sm font-black">Stock: ${p.stock}</div>
@@ -357,16 +401,56 @@ btnImportCsv.addEventListener('click', async () => {
                     body: text
                 });
                 const d = await res.json();
-                if (!res.ok) { console.error('Import error response:', d); const errMsg = d.error || d.details || 'Error importando CSV'; showToast(errMsg, 'error'); }
-                else {
+                if (!res.ok) {
+                    console.error('Import error response:', d);
+                    const errMsg = d.error || d.details || 'Error importando CSV';
+                    showToast(errMsg, 'error');
+                } else {
                     if (d.counts) {
                         const c = d.counts;
                         const msg = `Filas: ${c.dataRows}, Insertadas: ${c.inserted}, Actualizadas: ${c.updated}, Omitidas: ${c.skipped}, Errores: ${c.errors}`;
                         showToast(msg, 'success', 5000);
-                    } else showToast(d.message || 'Importado', 'success');
-                    currentPage = 0; cargarProductos();
+                    } else {
+                        showToast(d.message || 'Importado', 'success');
+                    }
+
+                    // Sincronizar con Firebase los productos insertados/actualizados
+                    try {
+                        const codigosInsertados = Array.isArray(d.items?.inserted) ? d.items.inserted : [];
+                        const codigosActualizados = Array.isArray(d.items?.updated) ? d.items.updated : [];
+                        const codigos = [...codigosInsertados, ...codigosActualizados];
+
+                        for (const codigo of codigos) {
+                            try {
+                                const prodRes = await fetch('/productos/' + encodeURIComponent(codigo), {
+                                    credentials: 'same-origin'
+                                });
+                                if (!prodRes.ok) continue;
+                                const prod = await prodRes.json();
+                                await upsertProductoFirebase({
+                                    codigo: prod.codigo,
+                                    descripcion: prod.descripcion,
+                                    precio_usd: prod.precio_usd,
+                                    costo_usd: prod.costo_usd,
+                                    stock: prod.stock,
+                                    categoria: prod.categoria,
+                                    marca: prod.marca
+                                });
+                            } catch (syncErr) {
+                                console.error('Error sincronizando producto importado a Firebase', codigo, syncErr);
+                            }
+                        }
+                    } catch (syncListErr) {
+                        console.error('Error preparando sincronización a Firebase tras importación', syncListErr);
+                    }
+
+                    currentPage = 0;
+                    cargarProductos();
                 }
-            } catch (err) { console.error(err); showToast('Error importando CSV', 'error'); }
+            } catch (err) {
+                console.error(err);
+                showToast('Error importando CSV', 'error');
+            }
             importPreviewConfirm.disabled = false;
             // close modal
             previewModal.classList.remove('modal-open');
@@ -385,7 +469,7 @@ btnImportCsv.addEventListener('click', async () => {
 
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const body = {
+    let body = {
         codigo: f_codigo.value.trim(),
         descripcion: f_desc.value.trim(),
         precio_usd: parseFloat(f_precio.value),
@@ -395,9 +479,19 @@ form.addEventListener('submit', async (e) => {
         marca: (f_marca && f_marca.value.trim()) || '',
         deposito_id: (f_deposito && f_deposito.value) ? parseInt(f_deposito.value, 10) : null,
     };
+    const motivoAjuste = f_motivoAjuste ? f_motivoAjuste.value.trim() : '';
+    const exists = productosCache.find(p => p.codigo === body.codigo);
+    const oldStock = exists ? Number(exists.stock || 0) : 0;
+    // Si el usuario no es admin, no debe poder ajustar stock desde este formulario
+    if (!puedeEditarStockDesdeInventario) {
+        body = {
+            ...body,
+            stock: exists ? oldStock : 0,
+        };
+    }
+    const diffStock = body.stock - oldStock;
 
     // Decide POST (create) or PUT (update) based on existence
-    const exists = productosCache.find(p => p.codigo === body.codigo);
     try {
         if (!exists) {
             const res = await fetch('/admin/productos', {
@@ -412,6 +506,14 @@ form.addEventListener('submit', async (e) => {
             if (!res.ok) throw new Error(d.error || 'Error crear');
             msg.innerText = 'Producto creado.';
         } else {
+            // Si se intenta cambiar el stock, exigir motivo de ajuste para admins
+            if (puedeEditarStockDesdeInventario && diffStock !== 0 && !motivoAjuste) {
+                msg.innerText = 'Para cambiar el stock debes indicar un motivo de ajuste.';
+                showToast('Para cambiar el stock debes indicar un motivo de ajuste.', 'error');
+                return;
+            }
+
+            // Actualizar datos generales del producto (sin tocar stock aquí)
             const res = await fetch('/admin/productos/' + encodeURIComponent(body.codigo), {
                 method: 'PUT',
                 credentials: 'same-origin',
@@ -422,7 +524,6 @@ form.addEventListener('submit', async (e) => {
                     descripcion: body.descripcion,
                     precio_usd: body.precio_usd,
                     costo_usd: body.costo_usd,
-                    stock: body.stock,
                     categoria: body.categoria,
                     marca: body.marca,
                     deposito_id: body.deposito_id
@@ -431,6 +532,29 @@ form.addEventListener('submit', async (e) => {
             const d = await res.json();
             if (!res.ok) throw new Error(d.error || 'Error actualizar');
             msg.innerText = 'Producto actualizado.';
+
+            // Si cambió el stock y hay motivo, registrar ajuste de stock
+            if (diffStock !== 0 && motivoAjuste) {
+                try {
+                    const ajusteRes = await fetch('/admin/ajustes', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            codigo: body.codigo,
+                            diferencia: diffStock,
+                            motivo: motivoAjuste
+                        })
+                    });
+                    const adjData = await ajusteRes.json();
+                    if (!ajusteRes.ok || adjData.error) {
+                        throw new Error(adjData.error || 'Error registrando ajuste');
+                    }
+                } catch (errAdj) {
+                    console.error(errAdj);
+                    showToast('Error registrando ajuste de stock: ' + (errAdj.message || ''), 'error');
+                }
+            }
         }
 
         // Sincronizar producto a Firebase (por empresa)
@@ -442,10 +566,12 @@ form.addEventListener('submit', async (e) => {
         // reload list at first page (do not overwrite user's top filter)
         currentPage = 0;
         await cargarProductos();
+        await cargarAjustes();
         // Limpiar inputs excepto categoria (permite ingresar varios del mismo grupo)
         f_codigo.value = f_desc.value = f_precio.value = f_costo.value = f_stock.value = '';
         if (f_marca) f_marca.value = '';
         if (f_deposito) f_deposito.value = '';
+        if (f_motivoAjuste) f_motivoAjuste.value = '';
         msg.innerText = '';
         showToast(!exists ? 'Producto creado.' : 'Producto actualizado.', 'success');
     } catch (err) {

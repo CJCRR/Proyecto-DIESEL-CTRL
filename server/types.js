@@ -47,7 +47,7 @@
  * @property {string} [cedula]
  * @property {string} [telefono]
  * @property {number} tasa_bcv
- * @property {number|string} [descuento]
+ * @property {number|string} [descuento] Monto de descuento en USD (no porcentaje)
  * @property {string} [metodo_pago]
  * @property {string} [referencia]
  * @property {number|null} [usuario_id]

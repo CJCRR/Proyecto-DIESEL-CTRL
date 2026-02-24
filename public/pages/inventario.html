@@ -159,13 +159,15 @@
                     <label class="text-xs">Costo USD</label>
                     <input id="f_costo" type="number" step="0.01" class="w-full p-2 border rounded mb-2" />
                     <label class="text-xs">Stock</label>
-                    <input id="f_stock" type="number" class="w-full p-2 border rounded mb-2" required />
-                    <label class="text-xs">Depósito</label>
-                    <select id="f_deposito" class="w-full p-2 border rounded mb-2"></select>
+                    <input id="f_stock" type="number" class="w-full p-2 border rounded mb-1" required />
+                    <label class="text-[10px] text-slate-500">Motivo ajuste (para historial)</label>
+                    <input id="f_motivo_ajuste" class="w-full p-2 border rounded mb-2" placeholder="Ej: Corrección de inventario" />
                     <label class="text-xs">Categoría</label>
                     <input id="f_categoria" class="w-full p-2 border rounded mb-2" />
                     <label class="text-xs">Marca</label>
                     <input id="f_marca" class="w-full p-2 border rounded mb-4" />
+                    <label class="text-xs">Depósito</label>
+                    <select id="f_deposito" class="w-full p-2 border rounded mb-2"></select>
 
                     <div class="flex gap-2">
                         <button type="submit" id="btnGuardar"

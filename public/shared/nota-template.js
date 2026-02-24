@@ -63,21 +63,28 @@
       : await getNotaConfig();
     const tasa = number(venta.tasa_bcv) || 1;
     const direccionGeneralCliente = notaCfg.direccion_general || notaCfg.ubicacion || '';
-    const descuentoPct = clampPct(venta.descuento);
-    const multiplicador = 1 - (descuentoPct / 100);
+
+    // Descuento ahora es un monto fijo en USD, no un porcentaje
+    const descuentoUsdRaw = number(venta.descuento);
+    let descuentoUsd = descuentoUsdRaw > 0 ? descuentoUsdRaw : 0;
 
     const items = normalizeItems(venta, detalles);
     let totalUSDBase = 0;
-    let totalBsDesc = 0;
+    let totalBsBase = 0;
 
     items.forEach(item => {
       const lineUsd = number(item.precio_usd) * number(item.cantidad);
-      const lineBsDesc = lineUsd * tasa * multiplicador;
+      const lineBs = lineUsd * tasa;
       totalUSDBase += lineUsd;
-      totalBsDesc += lineBsDesc;
+      totalBsBase += lineBs;
     });
 
-    const totalUSDConDesc = totalUSDBase * multiplicador;
+    const maxDescUsd = Math.max(0, totalUSDBase);
+    const aplicadoDescUsd = Math.min(descuentoUsd, maxDescUsd);
+    const aplicadoDescBs = aplicadoDescUsd * tasa;
+
+    const baseUsdDesc = totalUSDBase - aplicadoDescUsd;
+    const baseBsDesc = totalBsBase - aplicadoDescBs;
     const fecha = venta.fecha ? new Date(venta.fecha) : new Date();
     const fechaTexto = (typeof window !== 'undefined' && window.toLocaleDateString)
       ? fecha.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -86,10 +93,10 @@
     const idTexto = venta.id_global ? venta.id_global : (venta.id ? `${tipo === 'PRESUPUESTO' ? 'PRES' : 'VENTA'}-0${venta.id}` : '');
 
     const ivaPct = clampPct(venta.iva_pct != null ? venta.iva_pct : (notaCfg.iva_pct || 0));
-    let ivaUSD = totalUSDConDesc * (ivaPct / 100);
-    let ivaBs = totalBsDesc * (ivaPct / 100);
-    let totalUSDFinal = totalUSDConDesc + ivaUSD;
-    let totalBsFinal = totalBsDesc + ivaBs;
+    let ivaUSD = baseUsdDesc * (ivaPct / 100);
+    let ivaBs = baseBsDesc * (ivaPct / 100);
+    let totalUSDFinal = baseUsdDesc + ivaUSD;
+    let totalBsFinal = baseBsDesc + ivaBs;
 
     // Si la venta ya trae totales con IVA desde el backend, usarlos como
     // fuente de verdad para que nota y reportes coincidan exactamente.
@@ -98,15 +105,15 @@
     if (hasTotalesBackendUsd || hasTotalesBackendBs) {
       const canonicalUsd = hasTotalesBackendUsd
         ? Number(venta.total_usd_iva)
-        : (tasa ? Number(venta.total_bs_iva) / tasa : totalUSDConDesc + ivaUSD);
+        : (tasa ? Number(venta.total_bs_iva) / tasa : baseUsdDesc + ivaUSD);
       const canonicalBs = hasTotalesBackendBs
         ? Number(venta.total_bs_iva)
         : canonicalUsd * tasa;
       totalUSDFinal = canonicalUsd;
       totalBsFinal = canonicalBs;
       // Recalcular IVA como diferencia entre total y base con descuento
-      ivaUSD = Math.max(0, totalUSDFinal - totalUSDConDesc);
-      ivaBs = Math.max(0, totalBsFinal - totalBsDesc);
+      ivaUSD = Math.max(0, totalUSDFinal - baseUsdDesc);
+      ivaBs = Math.max(0, totalBsFinal - baseBsDesc);
     }
 
     // Datos de la empresa iguales a la compacta
@@ -131,24 +138,25 @@
     const headerLogoUrl = (empresa.logo_url || venta.empresa_logo_url || notaCfg.header_logo_url || (typeof window !== 'undefined' && window.configGeneral && window.configGeneral.empresa && window.configGeneral.empresa.logo_url ? window.configGeneral.empresa.logo_url : '')).toString();
     const headerLogo = headerLogoUrl ? `<img src="${headerLogoUrl}" style="height:48px;object-fit:contain;">` : '';
 
+    // Plantilla HTML completa (similar a la compacta, pero marcada como "standard")
     const html = `
       <html>
       <head>
         <title>${tipo} - ${idTexto}</title>
         <style>
-          @page { size: letter; margin: 0.6in; }
+          @page { size: letter; margin: 0.2in; }
           body { font-family: Arial, sans-serif; color: #111; font-size: 10px; }
-          .sheet { width: 100%; max-width: 8.5in; min-height: 10.0in; margin: 0 auto; display:flex; flex-direction:column; }
+          .sheet { width: 100%; max-width: 8.5in; min-height: 9.5in; margin: 0 auto; display:flex; flex-direction:column; }
           .top { display: grid; grid-template-columns: 1.4fr 1fr; align-items: center; }
           .brand-strip { text-align: right; }
           .tipo-badge { font-size: 9px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; border: 1px solid #111; padding: 2px 6px; border-radius: 999px; display:inline-block; }
           .brand-text { text-align: right; font-size: 10px; line-height: 1.1; margin-top: 2px; }
           .center-text { display:none; }
-          .main { display:flex; flex-direction:column; flex:1; gap:8px; }
-          .boxes { display: grid; grid-template-columns: 2fr 1.2fr; gap: 6px; margin-top: 4px; }
-          .box { border: 1px solid #000; padding: 4px 6px; font-size: 11px; }
+          .main { display:flex; flex-direction:column; flex:1; gap:4px; }
+          .boxes { display: grid; grid-template-columns: 2fr 1.2fr; gap: 3px; margin-top: 2px; }
+          .box { border: 1px solid #000; padding: 2px 4px; font-size: 10px; }
           .box-row { display: grid; grid-template-columns: 1.05fr 1fr; }
-          .box-cell { padding: 2px 0; line-height: 1.2; }
+          .box-cell { padding: 1px 0; line-height: 1.1; }
           .table-wrap { flex:0; }
           table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; }
           thead th { border: 1px solid #000; padding: 3px 4px; background: #f4f4f4; font-weight: 700; text-transform: uppercase; font-size: 10px; }
@@ -213,8 +221,8 @@
                 <tbody>
                   ${items.map(item => {
                     const lineUsd = number(item.precio_usd) * number(item.cantidad);
-                    const lineBs = lineUsd * tasa * multiplicador;
-                    const precioBs = number(item.precio_usd) * tasa * multiplicador;
+                    const lineBs = lineUsd * tasa;
+                    const precioBs = number(item.precio_usd) * tasa;
                     return `
                       <tr>
                         <td>${item.codigo}</td>
@@ -233,7 +241,8 @@
             <div class="totales">
               <div class="box" style="border:1px solid #000; min-height:72px; font-size:9px;">NOTA</div>
               <div class="tot-box">
-                <div class="tot-row"><div>Sub-total Bs</div><div class="right">Bs ${totalBsDesc.toFixed(2)}</div></div>
+                <div class="tot-row"><div>Sub-total Bs</div><div class="right">Bs ${totalBsBase.toFixed(2)}</div></div>
+                ${aplicadoDescUsd > 0 ? `<div class="tot-row"><div>Descuento</div><div class="right">$${aplicadoDescUsd.toFixed(2)} / Bs ${aplicadoDescBs.toFixed(2)}</div></div>` : ''}
                 <div class="tot-row"><div>Impuesto / I.V.A (${ivaPct}%)</div><div class="right">$${ivaUSD.toFixed(2)} / Bs ${ivaBs.toFixed(2)}</div></div>
                 <div class="tot-row" style="font-weight:800; grid-template-columns: 1fr 1fr;">
                   <div>${notaCfg.pie || 'Total a Pagar:'}</div>

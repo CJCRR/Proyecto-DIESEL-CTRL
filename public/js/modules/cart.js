@@ -124,7 +124,6 @@ export function actualizarTabla() {
 
 	let totalUSD = 0;
 	const tasa = parseFloat(document.getElementById('v_tasa')?.value) || 1;
-	let descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
 
 	carrito.forEach((item, index) => {
 		const subtotalUSD = item.cantidad * item.precio_usd;
@@ -165,31 +164,69 @@ export function actualizarTabla() {
 	}
 
 	const cfg = window.configGeneral || {};
-	if (!modoDevolucion && Array.isArray(cfg.descuentos_volumen) && cfg.descuentos_volumen.length) {
-		const qtyTotal = carrito.reduce((s, it) => s + (Number(it.cantidad) || 0), 0);
-		const tier = [...cfg.descuentos_volumen]
-			.sort((a, b) => b.min_qty - a.min_qty)
-			.find(t => qtyTotal >= Number(t.min_qty || 0));
-		if (tier && Number(tier.descuento_pct) > 0) {
-			const autoDesc = Number(tier.descuento_pct);
-			if (autoDesc !== descuento) {
-				const inputDesc = document.getElementById('v_desc');
-				if (inputDesc) inputDesc.value = String(autoDesc);
-				descuento = autoDesc;
-				if (window.lastAutoDescuentoVolumen !== autoDesc) {
-					showToast(`Descuento ${autoDesc}% aplicado por volumen (≥ ${tier.min_qty})`, 'info');
-				}
-				window.lastAutoDescuentoVolumen = autoDesc;
-			}
-		} else if (window.lastAutoDescuentoVolumen !== null && descuento === window.lastAutoDescuentoVolumen) {
-			const inputDesc = document.getElementById('v_desc');
-			if (inputDesc) inputDesc.value = '0';
-			descuento = 0;
-			window.lastAutoDescuentoVolumen = null;
-		}
-	}
 
-	const totalAfterDiscount = totalUSD * (1 - Math.max(0, Math.min(100, descuento)) / 100);
+	// Descuento por volumen (configurado en %), convertido a monto USD
+	let descuentoInputEl = document.getElementById('v_desc');
+	let descuentoMontoManual = parseFloat(descuentoInputEl ? descuentoInputEl.value : 0) || 0;
+	let autoDescUsd = 0;
+	let totalAfterDiscount;
+
+	if (!modoDevolucion) {
+		const tiers = Array.isArray(cfg.descuentos_volumen) ? cfg.descuentos_volumen : [];
+		if (tiers.length && totalUSD > 0) {
+			// Calcular cantidad total de ítems en el carrito
+			const totalCantidad = carrito.reduce((sum, it) => sum + (Number(it.cantidad) || 0), 0);
+			let mejorTier = null;
+			for (const t of tiers) {
+				const min = Number(t.min_qty) || 0;
+				if (totalCantidad >= min && min > 0) {
+					if (!mejorTier || min > (Number(mejorTier.min_qty) || 0)) {
+						mejorTier = t;
+					}
+				}
+			}
+			if (mejorTier && Number(mejorTier.descuento_pct) > 0) {
+				const pct = Math.max(0, Math.min(100, Number(mejorTier.descuento_pct) || 0));
+				autoDescUsd = totalUSD * (pct / 100);
+				// Aviso visual cuando se aplique o cambie el tramo de volumen
+				try {
+					if (window.showToast) {
+						window.showToast(`Descuento por volumen aplicado: ${pct.toFixed(1)}%`, 'info', 4000);
+					}
+				} catch {}
+			}
+		}
+
+		// Lógica para no pisar un descuento manual del usuario:
+		// - Si el campo está vacío/0 o coincide con el último auto, se reemplaza por el automático.
+		// - Si el usuario modificó el valor, se respeta su monto.
+		const prevAuto = typeof window.lastAutoDescuentoVolumen === 'number' ? window.lastAutoDescuentoVolumen : 0;
+		const diffPrev = Math.abs(descuentoMontoManual - prevAuto);
+		const usuarioModifico = prevAuto > 0 && diffPrev > 0.01;
+
+		if (autoDescUsd > 0 && (!descuentoMontoManual || !usuarioModifico)) {
+			descuentoMontoManual = autoDescUsd;
+			if (descuentoInputEl) {
+				descuentoInputEl.value = autoDescUsd.toFixed(2);
+			}
+			window.lastAutoDescuentoVolumen = autoDescUsd;
+		} else if (!autoDescUsd) {
+			// Sin tramo aplicable: si el valor actual coincide con el último
+			// descuento automático, limpiar también el campo de descuento.
+			if (prevAuto > 0 && !usuarioModifico && descuentoInputEl) {
+				descuentoInputEl.value = '0.00';
+				descuentoMontoManual = 0;
+			}
+			window.lastAutoDescuentoVolumen = 0;
+		}
+
+		let descuentoMonto = descuentoMontoManual;
+		if (!Number.isFinite(descuentoMonto) || descuentoMonto < 0) descuentoMonto = 0;
+		if (descuentoMonto > totalUSD) descuentoMonto = totalUSD;
+		totalAfterDiscount = totalUSD - descuentoMonto;
+	} else {
+		totalAfterDiscount = totalUSD;
+	}
 	const sign = modoDevolucion ? -1 : 1;
 
 	// IVA desde configuración de nota (solo para ventas, no devoluciones)

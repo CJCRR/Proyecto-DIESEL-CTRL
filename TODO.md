@@ -160,8 +160,8 @@
 - [idea] Evaluar automatizar backups remotos del archivo SQLite (S3 u otro servidor) y plan básico de recuperación ante fallos.
 
 ## Fase 28: Estrategia de Precios
-- [idea] Implementar en ajustes hasta 3 precios adicionales configurables por empresa, calculados en % en base al precio USD base (ejemplo: 50 + 45%).
-- [idea] Permitir que en el POS se pueda seleccionar fácilmente el precio base o cualquiera de los otros precios configurados por producto/nivel.
+- [x] Implementar en ajustes hasta 3 precios adicionales configurables por empresa, calculados en % en base al precio USD base (ejemplo: 50 + 45%).
+- [x] Permitir que en el POS se pueda seleccionar fácilmente el precio base o cualquiera de los otros precios configurados por producto/nivel.
 
 ## Fase 29: Comisiones por Vendedor
 - [x] Definir en ajustes un porcentaje de comisión por venta (global o por rol/usuario) para cada empresa.

@@ -21,25 +21,34 @@ router.post('/', requireAuth, (req, res) => {
     marca = marca ? String(marca).trim().slice(0, MAX_FIELD_LEN) : null;
     const depositoId = deposito_id ? parseInt(deposito_id, 10) || null : null;
 
-    // 2. Validaciones
-    if (!codigo || codigo.length < 3) {
-        return res.status(400).json({ error: 'El código debe tener al menos 3 caracteres.' });
-    }
-    if (!descripcion) {
-        return res.status(400).json({ error: 'La descripción es obligatoria.' });
-    }
-    if (isNaN(precio_usd) || precio_usd <= 0) {
-        return res.status(400).json({ error: 'El precio debe ser un número positivo.' });
-    }
-    if (isNaN(costo_usd) || costo_usd < 0) {
-        return res.status(400).json({ error: 'El costo debe ser un número mayor o igual a 0.' });
-    }
-    if (!depositoId || Number.isNaN(depositoId)) {
-        return res.status(400).json({ error: 'Debe seleccionar un depósito para el producto.' });
-    }
-
     try {
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+
+        // 2. Validaciones
+        if (!codigo || codigo.length < 3) {
+            return res.status(400).json({ error: 'El código debe tener al menos 3 caracteres.' });
+        }
+        if (!descripcion) {
+            return res.status(400).json({ error: 'La descripción es obligatoria.' });
+        }
+        if (isNaN(precio_usd) || precio_usd <= 0) {
+            return res.status(400).json({ error: 'El precio debe ser un número positivo.' });
+        }
+        if (isNaN(costo_usd) || costo_usd < 0) {
+            return res.status(400).json({ error: 'El costo debe ser un número mayor o igual a 0.' });
+        }
+
+        // Si no se envió depósito, intentar usar el depósito principal de la empresa
+        let finalDepositoId = depositoId;
+        if (!finalDepositoId || Number.isNaN(finalDepositoId)) {
+            const principalDep = db.prepare('SELECT id FROM depositos WHERE empresa_id = ? AND es_principal = 1 ORDER BY id LIMIT 1').get(empresaId);
+            if (principalDep && principalDep.id) {
+                finalDepositoId = principalDep.id;
+            }
+        }
+        if (!finalDepositoId || Number.isNaN(finalDepositoId)) {
+            return res.status(400).json({ error: 'Debe seleccionar un depósito para el producto.' });
+        }
         // 3. Verificación de duplicados (Optimización: SQLite lanza error en UNIQUE constraint, 
         // pero consultar antes permite dar un mensaje más amigable).
         const existe = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
@@ -51,14 +60,14 @@ router.post('/', requireAuth, (req, res) => {
         const info = db.prepare(`
             INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresaId, depositoId);
+        `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresaId, finalDepositoId);
 
         // Inicializar existencias en stock_por_deposito para este producto
         try {
             db.prepare(`
                 INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
                 VALUES (?, ?, ?, ?)
-            `).run(empresaId, info.lastInsertRowid, depositoId, stock);
+            `).run(empresaId, info.lastInsertRowid, finalDepositoId, stock);
         } catch (errStock) {
             console.warn('No se pudo inicializar stock_por_deposito para el nuevo producto:', errStock.message);
         }
@@ -109,7 +118,11 @@ router.get('/', requireAuth, (req, res) => {
                                              p.descripcion,
                                              p.precio_usd,
                                              p.costo_usd,
-                                             p.stock,
+                                             COALESCE((
+                                                 SELECT SUM(sd3.cantidad)
+                                                 FROM stock_por_deposito sd3
+                                                 WHERE sd3.producto_id = p.id
+                                             ), p.stock) AS stock,
                                              p.categoria,
                                              p.marca,
                                              p.deposito_id,
@@ -127,7 +140,7 @@ router.get('/', requireAuth, (req, res) => {
                                                  )
                                                  FROM stock_por_deposito sd2
                                                  JOIN depositos d2 ON d2.id = sd2.deposito_id
-                                                 WHERE sd2.producto_id = p.id
+                                                 WHERE sd2.producto_id = p.id AND sd2.cantidad > 0
                                              ) AS stock_detalle
                                 FROM productos p
                                 LEFT JOIN depositos d ON d.id = p.deposito_id
@@ -152,6 +165,10 @@ router.get('/', requireAuth, (req, res) => {
         if (categoria) { where.push('lower(p.categoria) LIKE ?'); params.push('%' + String(categoria).toLowerCase() + '%'); }
         if (stock_lt !== null) { where.push('sd.cantidad < ?'); params.push(stock_lt); }
         if (stock_gt !== null) { where.push('sd.cantidad > ?'); params.push(stock_gt); }
+        // Si no se pidió explícitamente un filtro de stock, solo mostrar productos con stock positivo en ese depósito
+        if (stock_lt === null && stock_gt === null) {
+            where.push('sd.cantidad > 0');
+        }
 
         const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
@@ -179,7 +196,7 @@ router.get('/', requireAuth, (req, res) => {
                                          )
                                          FROM stock_por_deposito sd2
                                          JOIN depositos d2 ON d2.id = sd2.deposito_id
-                                         WHERE sd2.producto_id = p.id
+                                         WHERE sd2.producto_id = p.id AND sd2.cantidad > 0
                                      ) AS stock_detalle
                         FROM productos p
                         JOIN stock_por_deposito sd ON sd.producto_id = p.id
@@ -208,8 +225,19 @@ router.get('/export', requireAuth, (req, res) => {
     try {
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
         const rows = db.prepare(`
-            SELECT p.codigo, p.descripcion, p.precio_usd, p.costo_usd, p.stock, p.categoria, p.marca,
-                   d.codigo AS deposito_codigo
+            SELECT
+                p.codigo,
+                p.descripcion,
+                p.precio_usd,
+                p.costo_usd,
+                COALESCE((
+                    SELECT SUM(sd.cantidad)
+                    FROM stock_por_deposito sd
+                    WHERE sd.producto_id = p.id
+                ), p.stock) AS stock,
+                p.categoria,
+                p.marca,
+                d.codigo AS deposito_codigo
             FROM productos p
             LEFT JOIN depositos d ON d.id = p.deposito_id
             WHERE p.empresa_id = ?
@@ -328,6 +356,14 @@ router.post('/import', requireAuth, (req, res) => {
         const updateWithDeposito = db.prepare('UPDATE productos SET descripcion = ?, precio_usd = ?, costo_usd = ?, stock = ?, categoria = ?, marca = ?, deposito_id = ? WHERE codigo = ? AND empresa_id = ?');
         const findStmt = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?');
         const findDepositoByCodigo = db.prepare('SELECT id FROM depositos WHERE empresa_id = ? AND (codigo = ? OR nombre = ?)');
+        const findPrincipalDeposito = db.prepare('SELECT id FROM depositos WHERE empresa_id = ? AND es_principal = 1 ORDER BY id LIMIT 1');
+        const principalDepRow = findPrincipalDeposito.get(empresaId);
+        const principalDepositoId = principalDepRow && principalDepRow.id ? principalDepRow.id : null;
+        const insertStockPorDeposito = db.prepare('INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?, ?, ?, ?)');
+        const findProductoById = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE id = ?');
+        const countStockRowsByProducto = db.prepare('SELECT COUNT(*) AS c FROM stock_por_deposito WHERE producto_id = ?');
+        const selectStockPorDeposito = db.prepare('SELECT cantidad FROM stock_por_deposito WHERE producto_id = ? AND deposito_id = ?');
+        const updateStockPorDeposito = db.prepare("UPDATE stock_por_deposito SET cantidad = ?, actualizado_en = datetime('now') WHERE producto_id = ? AND deposito_id = ?");
 
         const toImport = nonEmpty.slice(start);
         if (toImport.length > MAX_IMPORT_ROWS) {
@@ -364,15 +400,79 @@ router.post('/import', requireAuth, (req, res) => {
                     }
                     const ex = findStmt.get(codigo, empresaId);
                     if (ex) {
-                        if (depositoCodigoRaw && depositoId !== null) {
-                            updateWithDeposito.run(descripcion, precio, costoVal, stock, categoria, marca, depositoId, codigo, empresaId);
+                        // Producto existente
+                        let prodRow = null;
+                        let totalRows = 0;
+                        try {
+                            prodRow = findProductoById.get(ex.id);
+                            if (prodRow) {
+                                const cnt = countStockRowsByProducto.get(ex.id) || { c: 0 };
+                                totalRows = Number(cnt.c || 0);
+                            }
+                        } catch (e) {
+                            prodRow = null;
+                            totalRows = 0;
+                        }
+
+                        let stockParaProducto = stock;
+                        const hayDepositoEnCsv = !!(depositoCodigoRaw && depositoId !== null);
+
+                        // Si el producto ya tiene stock distribuido en varios depósitos y el CSV indica un depósito,
+                        // interpretamos el valor de stock del CSV como ingreso adicional para ese depósito.
+                        if (hayDepositoEnCsv && prodRow && totalRows > 1) {
+                            const stockActual = Number(prodRow.stock || 0);
+                            stockParaProducto = stockActual + stock; // sumar al total
+                        }
+
+                        if (hayDepositoEnCsv) {
+                            updateWithDeposito.run(descripcion, precio, costoVal, stockParaProducto, categoria, marca, depositoId, codigo, empresaId);
                         } else {
-                            update.run(descripcion, precio, costoVal, stock, categoria, marca, codigo, empresaId);
+                            update.run(descripcion, precio, costoVal, stockParaProducto, categoria, marca, codigo, empresaId);
+                        }
+
+                        // Sincronizar stock_por_deposito
+                        try {
+                            if (prodRow && prodRow.deposito_id) {
+                                const depIdForStock = prodRow.deposito_id;
+                                if (totalRows <= 1) {
+                                    // Caso simple: solo un depósito asociado → el stock del CSV es el nuevo total
+                                    const currentDepRow = selectStockPorDeposito.get(ex.id, depIdForStock);
+                                    if (currentDepRow) {
+                                        updateStockPorDeposito.run(stockParaProducto, ex.id, depIdForStock);
+                                    } else {
+                                        insertStockPorDeposito.run(prodRow.empresa_id || empresaId, ex.id, depIdForStock, stockParaProducto);
+                                    }
+                                } else if (hayDepositoEnCsv && depositoId) {
+                                    // Varios depósitos: sumar unidades solo al depósito indicado en el CSV
+                                    const currentDepRow = selectStockPorDeposito.get(ex.id, depositoId);
+                                    const incremento = stock;
+                                    if (currentDepRow) {
+                                        const nuevaCant = Number(currentDepRow.cantidad || 0) + incremento;
+                                        updateStockPorDeposito.run(nuevaCant, ex.id, depositoId);
+                                    } else {
+                                        insertStockPorDeposito.run(prodRow.empresa_id || empresaId, ex.id, depositoId, incremento);
+                                    }
+                                }
+                            }
+                        } catch (syncErr) {
+                            console.warn('No se pudo sincronizar stock_por_deposito al importar producto existente', codigo, syncErr.message);
                         }
                         updated.push(codigo);
                     } else {
-                        if (depositoCodigoRaw && depositoId !== null) {
-                            insertWithDeposito.run(codigo, descripcion, precio, costoVal, stock, categoria, marca, depositoId, empresaId);
+                        // Producto nuevo: si no se indicó depósito pero existe un depósito principal, usarlo por defecto
+                        let finalDepositoId = depositoId;
+                        if (!finalDepositoId && principalDepositoId) {
+                            finalDepositoId = principalDepositoId;
+                        }
+
+                        if (finalDepositoId) {
+                            const info = insertWithDeposito.run(codigo, descripcion, precio, costoVal, stock, categoria, marca, finalDepositoId, empresaId);
+                            // Inicializar stock_por_deposito igual que en la creación manual de productos
+                            try {
+                                insertStockPorDeposito.run(empresaId, info.lastInsertRowid, finalDepositoId, stock);
+                            } catch (errStock) {
+                                console.warn('No se pudo inicializar stock_por_deposito al importar producto', codigo, errStock.message);
+                            }
                         } else {
                             insert.run(codigo, descripcion, precio, costoVal, stock, categoria, marca, empresaId);
                         }
@@ -409,17 +509,24 @@ router.post('/import', requireAuth, (req, res) => {
 // PUT /admin/productos/:codigo - Actualizar producto por código
 router.put('/:codigo', requireAuth, (req, res) => {
     let codigo = req.params.codigo ? req.params.codigo.trim().toUpperCase() : '';
-    let { descripcion, precio_usd, costo_usd, stock, categoria, marca } = req.body;
+    let { descripcion, precio_usd, costo_usd, stock, categoria, marca, deposito_id } = req.body;
 
     descripcion = descripcion ? descripcion.trim() : '';
     precio_usd = precio_usd !== undefined ? parseFloat(precio_usd) : null;
     stock = stock !== undefined ? parseInt(stock) : null;
+    const depositoId = deposito_id !== undefined && deposito_id !== null
+        ? parseInt(deposito_id, 10)
+        : null;
 
     if (!codigo) return res.status(400).json({ error: 'Código inválido' });
 
     try {
-        const existing = db.prepare('SELECT id FROM productos WHERE codigo = ?').get(codigo);
+        const existing = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE codigo = ?').get(codigo);
         if (!existing) return res.status(404).json({ error: 'Producto no encontrado' });
+
+        if (deposito_id !== undefined && deposito_id !== null && (Number.isNaN(depositoId) || depositoId <= 0)) {
+            return res.status(400).json({ error: 'Depósito inválido' });
+        }
 
         const updates = [];
         const params = [];
@@ -429,12 +536,32 @@ router.put('/:codigo', requireAuth, (req, res) => {
         if (stock !== null && !isNaN(stock)) { updates.push('stock = ?'); params.push(stock); }
         if (categoria !== undefined) { updates.push('categoria = ?'); params.push(categoria); }
         if (marca !== undefined) { updates.push('marca = ?'); params.push(marca); }
+        if (deposito_id !== undefined) { updates.push('deposito_id = ?'); params.push(depositoId); }
 
         if (updates.length === 0) return res.status(400).json({ error: 'Nada que actualizar' });
 
         params.push(codigo);
         const sql = `UPDATE productos SET ${updates.join(', ')} WHERE codigo = ?`;
         db.prepare(sql).run(...params);
+
+        // Sincronizar stock_por_deposito cuando el producto tiene depósito definido pero no hay fila asociada
+        const updated = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE codigo = ?').get(codigo);
+        if (updated && updated.deposito_id) {
+            const rowDep = db.prepare(`
+                SELECT cantidad FROM stock_por_deposito
+                WHERE producto_id = ? AND deposito_id = ?
+            `).get(updated.id, updated.deposito_id);
+            if (!rowDep) {
+                try {
+                    db.prepare(`
+                        INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+                        VALUES (?, ?, ?, ?)
+                    `).run(updated.empresa_id, updated.id, updated.deposito_id, updated.stock || 0);
+                } catch (errDep) {
+                    console.warn('No se pudo inicializar stock_por_deposito al actualizar producto:', errDep.message);
+                }
+            }
+        }
 
         res.json({ message: 'Producto actualizado', codigo });
     } catch (err) {
@@ -449,8 +576,29 @@ router.delete('/:codigo', requireAuth, requireRole('admin'), (req, res) => {
     if (!codigo) return res.status(400).json({ error: 'Código inválido' });
 
     try {
-        const info = db.prepare('DELETE FROM productos WHERE codigo = ?').run(codigo);
-        if (info.changes === 0) return res.status(404).json({ error: 'Producto no encontrado' });
+        const prod = db.prepare('SELECT id FROM productos WHERE codigo = ?').get(codigo);
+        if (!prod) return res.status(404).json({ error: 'Producto no encontrado' });
+
+        // No permitir eliminar productos que tengan ventas o devoluciones asociadas
+        const ventasAsociadas = db.prepare('SELECT COUNT(*) AS c FROM venta_detalle WHERE producto_id = ?').get(prod.id);
+        const devAsociadas = db.prepare('SELECT COUNT(*) AS c FROM devolucion_detalle WHERE producto_id = ?').get(prod.id);
+        if ((ventasAsociadas && ventasAsociadas.c > 0) || (devAsociadas && devAsociadas.c > 0)) {
+            return res.status(400).json({
+                error: 'No se puede eliminar el producto porque tiene ventas o devoluciones asociadas. Puede dejarlo con stock 0 para no usarlo más.'
+            });
+        }
+
+        const tx = db.transaction((productoId) => {
+            // Limpiar tablas auxiliares relacionadas con el producto
+            db.prepare('DELETE FROM stock_por_deposito WHERE producto_id = ?').run(productoId);
+            db.prepare('DELETE FROM ajustes_stock WHERE producto_id = ?').run(productoId);
+            db.prepare('DELETE FROM movimientos_deposito WHERE producto_id = ?').run(productoId);
+            const info = db.prepare('DELETE FROM productos WHERE id = ?').run(productoId);
+            return info.changes;
+        });
+
+        const changes = tx(prod.id);
+        if (changes === 0) return res.status(404).json({ error: 'Producto no encontrado' });
         res.json({ message: 'Producto eliminado', codigo });
     } catch (err) {
         console.error('Error eliminando producto:', err);
