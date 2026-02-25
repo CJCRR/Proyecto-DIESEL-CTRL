@@ -12,8 +12,8 @@ const helmetConfig = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'", 'https:'],
-      scriptSrc: ["'self'", 'unsafe-inline', 'https:', 'cdn.tailwindcss.com', 'cdnjs.cloudflare.com'],
-      styleSrc: ["'self'", 'unsafe-inline'],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https:', 'cdn.tailwindcss.com', 'cdnjs.cloudflare.com'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'", 'https:', 'fonts.gstatic.com'],
       imgSrc: ["'self'", 'data:', 'https:'],
       connectSrc: ["'self'", 'https:'],

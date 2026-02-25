@@ -163,13 +163,21 @@ router.post('/mover', requireAuth, requireRole('admin', 'admin_empresa', 'vended
   }
 });
 
-// GET /depositos/movimientos?limit=20 - historial reciente de movimientos por empresa
+// GET /depositos/movimientos?limit=20&codigo=ABC - historial reciente de movimientos por empresa (opcional filtro por código)
 // Permitido para admin y vendedor de la empresa
 router.get('/movimientos', requireAuth, requireRole('admin', 'admin_empresa', 'vendedor'), (req, res) => {
   try {
     const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
     if (!empresaId) return res.status(400).json({ error: 'Usuario sin empresa' });
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const codigo = req.query.codigo ? String(req.query.codigo).trim().toUpperCase() : null;
+    const params = [empresaId];
+    let whereExtra = '';
+    if (codigo) {
+      whereExtra = ' AND p.codigo = ?';
+      params.push(codigo);
+    }
+    params.push(limit);
     const rows = db.prepare(`
       SELECT m.id, m.creado_en, m.cantidad, m.motivo,
              p.codigo AS producto_codigo,
@@ -180,10 +188,10 @@ router.get('/movimientos', requireAuth, requireRole('admin', 'admin_empresa', 'v
       JOIN productos p ON p.id = m.producto_id
       LEFT JOIN depositos d1 ON d1.id = m.deposito_origen_id
       LEFT JOIN depositos d2 ON d2.id = m.deposito_destino_id
-      WHERE m.empresa_id = ?
+      WHERE m.empresa_id = ?${whereExtra}
       ORDER BY m.creado_en DESC, m.id DESC
       LIMIT ?
-    `).all(empresaId, limit);
+    `).all(...params);
     res.json(rows);
   } catch (err) {
     console.error('Error listando movimientos de depósito:', err.message);

@@ -179,6 +179,31 @@
 - [x] Conectar filtros/vistas por depósito en Inventario para poder listar productos por depósito.
 - [x] Añadir movimientos entre depósitos y ajustar reportes para ver existencias por depósito y métricas avanzadas.
 
+## Fase 32: Consistencia de Inventario
+- [x] Crear endpoint/admin tool para recalcular `productos.stock` como suma de `stock_por_deposito` para todos los productos por empresa.
+- [x] Generar un pequeño reporte de anomalías: productos con stock negativo, productos con filas inconsistentes o sin registros en `stock_por_deposito`.
+- [x] Añadir botón protegido (solo admin/superadmin) en Ajustes o Inventario para lanzar el recálculo manualmente, con confirmación clara.
+
+## Fase 33: Panel de Salud y Alertas
+- [x] Diseñar un panel/resumen para dueños (empresa) con: estado de licencia, ventas del día, errores recientes y alertas de inventario.
+- [x] Mostrar alertas de datos incompletos: productos sin costo, sin categoría, sin depósito asociado o sin stock definido.
+- [x] Integrar este panel como sección rápida en dashboard o en Ajustes, aprovechando logs y métricas ya existentes.
+
+## Fase 34: Modos de Importación CSV de Inventario
+- [x] Definir claramente dos modos de importación de stock: "Reconteo total" (reemplaza stock del depósito principal) e "Ingreso adicional" (suma unidades al depósito indicado).
+- [x] Exponer el modo seleccionado en el modal de importación de Inventario y guardarlo por usuario (localStorage) para próximas sesiones.
+- [x] Ajustar la lógica de importación en backend para respetar el modo elegido, manteniendo compatibilidad con el comportamiento actual.
+
+## Fase 35: UX Avanzada de Inventario
+- [x] Añadir indicadores visuales para stock bajo, sin stock y sobrestock (colores o badges en la lista de productos).
+- [x] Incluir accesos rápidos en cada producto para ver historial de ajustes y movimientos entre depósitos.
+- [x] Optimizar la búsqueda/filtros (por proveedor, marca, rango de stock) manteniendo buen rendimiento en listas grandes.
+
+## Fase 36: Pruebas Específicas de Inventario Multi‑depósito
+- [x] Crear pruebas automatizadas para los casos clave de multi‑depósito: creación de productos, movimientos entre depósitos y borrado seguro.
+- [x] Añadir tests para la importación CSV con productos en uno y varios depósitos (modos reconteo vs ingreso adicional y legacy) verificando `stock_por_deposito` y `productos.stock`.
+- [x] Incluir pruebas que aseguren que los endpoints de inventario siempre respetan `empresa_id` y roles (admin, admin_empresa, vendedor) al menos en /depositos/mover, /depositos/movimientos y /admin/productos/import.
+
 ## Notas de Progreso
 
 - [idea] Espacio para anotar ideas rápidas antes de asignarlas a una fase.

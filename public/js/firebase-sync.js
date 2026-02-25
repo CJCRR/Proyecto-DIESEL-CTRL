@@ -281,6 +281,27 @@ async function obtenerProductosFirebase() {
     }
 }
 
+async function eliminarProductoFirebasePorCodigo(codigo) {
+    try {
+        const cod = (codigo || '').trim().toUpperCase();
+        if (!cod) throw new Error('Código de producto vacío');
+
+        const { ref, scope } = getEmpresaSubcollection('productos');
+        const qRef = query(ref, where('codigo', '==', cod));
+        const snap = await getDocs(qRef);
+        if (snap.empty) {
+            return [];
+        }
+        const promises = snap.docs.map(d => deleteDoc(doc(db, 'empresas', scope.empresa_codigo, 'productos', d.id)));
+        await Promise.all(promises);
+        console.log(`✅ Producto(s) eliminados en Firebase para código ${cod}`);
+        return snap.docs.map(d => d.id);
+    } catch (err) {
+        console.error('❌ Error eliminando producto en Firebase:', err);
+        throw err;
+    }
+}
+
 // Enviar una venta a Firebase
 async function enviarVentaAFirebase(venta) {
     try {
@@ -423,7 +444,7 @@ export { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas, borrarProductos
 
 // API de clientes y productos
 export { upsertClienteFirebase, obtenerClientesFirebase, eliminarClienteFirebasePorCedula };
-export { upsertProductoFirebase, obtenerProductosFirebase };
+export { upsertProductoFirebase, obtenerProductosFirebase, eliminarProductoFirebasePorCodigo };
 export { upsertEmpresaFirebase, upsertUsuarioFirebase, deleteUsuarioFirebase };
 
 // También exponer en el scope global para que `app.js` (no-module or simple calls)
@@ -436,6 +457,7 @@ if (typeof window !== 'undefined') {
     window.obtenerClientesFirebase = obtenerClientesFirebase;
     window.upsertProductoFirebase = upsertProductoFirebase;
     window.obtenerProductosFirebase = obtenerProductosFirebase;
+    window.eliminarProductoFirebasePorCodigo = eliminarProductoFirebasePorCodigo;
     window.borrarClientesFirebaseTodos = borrarClientesFirebaseTodos;
     window.borrarVentasFirebaseTodas = borrarVentasFirebaseTodas;
     window.borrarProductosFirebaseTodos = borrarProductosFirebaseTodos;

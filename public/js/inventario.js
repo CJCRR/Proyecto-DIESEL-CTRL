@@ -1,4 +1,4 @@
-import { upsertProductoFirebase } from './firebase-sync.js';
+import { upsertProductoFirebase, eliminarProductoFirebasePorCodigo } from './firebase-sync.js';
 
 // Código principal de inventario (movido desde inventario.html)
 console.log('inventario.html v2.0 - con autenticación');
@@ -20,6 +20,8 @@ const prevPage = document.getElementById('prevPage');
 const nextPage = document.getElementById('nextPage');
 const pagInfo = document.getElementById('paginacion-info');
 const filterDeposito = document.getElementById('filterDeposito');
+const btnRebuildStock = document.getElementById('btnRebuildStock');
+const rebuildStockMsg = document.getElementById('rebuildStockMsg');
 // Movimiento entre depósitos
 const movCodigo = document.getElementById('mov_codigo');
 const movInfo = document.getElementById('mov_info');
@@ -77,6 +79,13 @@ previewModal.innerHTML = `
 <div class="relative bg-white p-4 rounded shadow w-11/12 max-w-3xl modal-panel">
     <h3 class="font-bold mb-2">Vista previa de importación</h3>
     <div id="importPreviewBody" class="max-h-64 overflow-auto text-sm border rounded p-2 mb-4"></div>
+    <div class="flex items-center justify-between mb-4 text-[11px] text-slate-600">
+        <span class="font-semibold">Modo de importación</span>
+        <select id="importMode" class="border rounded px-2 py-1 text-[11px]">
+            <option value="reconteo">Reconteo total (reemplaza stock del depósito principal o indicado)</option>
+            <option value="adicional">Ingreso adicional (suma unidades al depósito)</option>
+        </select>
+    </div>
     <div class="flex justify-end gap-2">
         <button id="importPreviewCancel" class="p-2 bg-slate-200 rounded">Cancelar</button>
         <button id="importPreviewConfirm" class="p-2 bg-indigo-600 text-white rounded">Confirmar importación</button>
@@ -87,6 +96,7 @@ document.body.appendChild(previewModal);
 const importPreviewBody = previewModal.querySelector('#importPreviewBody');
 const importPreviewCancel = previewModal.querySelector('#importPreviewCancel');
 const importPreviewConfirm = previewModal.querySelector('#importPreviewConfirm');
+const importModeSelect = previewModal.querySelector('#importMode');
 
 let productosCache = [];
 let currentPage = 0;
@@ -129,7 +139,14 @@ async function cargarProductos() {
         if (stockFilter === 'out') params.set('stock_lt', '1');
         if (stockFilter === 'low') params.set('stock_lt', '5');
         if (stockFilter === 'medium') params.set('stock_lt', '20');
+        if (stockFilter === 'over') params.set('stock_gt', '100');
         if (depositoFilterVal) params.set('deposito_id', depositoFilterVal);
+        try {
+            const flagIncompletos = localStorage.getItem('inventario_filtro_incompletos');
+            if (flagIncompletos === '1') {
+                params.set('incompletos', '1');
+            }
+        } catch {}
         const res = await fetch(`/admin/productos?${params.toString()}`, {
             credentials: 'same-origin'
         });
@@ -253,13 +270,26 @@ function renderList(items) {
         } else if (p.deposito_nombre) {
             depositoLabel = `Depósito: ${p.deposito_nombre}`;
         }
+        // Badges visuales según nivel de stock
+        let badgeHtml = '';
+        if (Number.isFinite(totalStock)) {
+            if (totalStock <= 0) {
+                badgeHtml = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 ml-2">Sin stock</span>';
+            } else if (totalStock > 0 && totalStock < 5) {
+                badgeHtml = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 ml-2">Stock bajo</span>';
+            } else if (totalStock > 100) {
+                badgeHtml = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 ml-2">Sobre stock</span>';
+            }
+        }
         el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria || ''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div>${p.marca ? `<div class="text-xs text-slate-500">Marca: ${p.marca}</div>` : ''}${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}</div>
-            <div class="text-right space-y-1 min-w-[160px]">
-                <div class="text-sm font-black">Stock: ${p.stock}</div>
+            <div class="text-right space-y-1 min-w-[190px]">
+                <div class="text-sm font-black">Stock: ${p.stock || 0}${badgeHtml}</div>
                 <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)} • Costo $${costo.toFixed(2)}</div>
                 <div class="text-xs ${margenCls}">Margen $${margenVal.toFixed(2)}${margenPct !== null ? ` (${margenPct.toFixed(1)}%)` : ''}</div>
             </div>`;
-        el.onclick = () => {
+
+        el.addEventListener('click', () => {
+            // Click en la tarjeta → cargar datos en el formulario
             f_codigo.value = p.codigo;
             f_desc.value = p.descripcion || '';
             f_precio.value = p.precio_usd || 0;
@@ -275,10 +305,82 @@ function renderList(items) {
                 movCodigo.value = p.codigo;
                 cargarProductoParaMovimiento();
             }
-        };
+
+            // Cargar historial de ajustes filtrado por código
+            (async () => {
+                const elHist = document.getElementById('ajustes-list');
+                if (!elHist) return;
+                elHist.innerHTML = 'Cargando ajustes...';
+                try {
+                    const res = await fetch('/admin/ajustes?limit=50&codigo=' + encodeURIComponent(p.codigo), { credentials: 'same-origin' });
+                    if (!res.ok) throw new Error('Error ajustes');
+                    const rows = await res.json();
+                    if (!rows.length) {
+                        elHist.innerHTML = '<div class="text-xs text-slate-400">Sin ajustes para este producto.</div>';
+                    } else {
+                        elHist.innerHTML = '';
+                        rows.forEach(r => {
+                            const d = document.createElement('div');
+                            d.className = 'p-2 border-b last:border-b-0';
+                            d.innerHTML = `<div class="font-bold text-xs">${r.codigo || p.codigo} <span class="text-slate-400">(${r.diferencia > 0 ? '+' : ''}${r.diferencia})</span></div><div class="text-[10px] text-slate-500">${r.motivo || ''} — ${new Date(r.fecha).toLocaleString()}</div>`;
+                            elHist.appendChild(d);
+                        });
+                    }
+                } catch (err) {
+                    console.error(err);
+                    elHist.innerHTML = '<div class="text-xs text-rose-500">Error cargando ajustes para este producto.</div>';
+                }
+            })();
+
+            // Cargar historial de movimientos filtrado por código
+            (async () => {
+                if (!movList) return;
+                movList.innerHTML = '<div class="p-2 text-slate-400">Cargando movimientos...</div>';
+                try {
+                    const res = await fetch('/depositos/movimientos?limit=20&codigo=' + encodeURIComponent(p.codigo), { credentials: 'same-origin' });
+                    if (!res.ok) throw new Error('Error movimientos');
+                    const rows = await res.json();
+                    if (!rows.length) {
+                        movList.innerHTML = '<div class="p-2 text-slate-400">Sin movimientos para este producto.</div>';
+                    } else {
+                        movList.innerHTML = rows.map(r => {
+                            const fecha = r.creado_en ? new Date(r.creado_en).toLocaleString() : '';
+                            const prod = `${r.producto_codigo || ''} — ${r.producto_descripcion || ''}`;
+                            const origen = r.deposito_origen_nombre || '—';
+                            const destino = r.deposito_destino_nombre || '—';
+                            const motivo = r.motivo || '';
+                            const cantidad = r.cantidad != null ? r.cantidad : '';
+                            return `
+                                <div class="px-3 py-2 border-b last:border-b-0 bg-white odd:bg-slate-50">
+                                    <div class="flex justify-between items-center">
+                                        <div class="font-semibold text-slate-700 text-xs">${prod}</div>
+                                        <div class="text-[10px] text-slate-400">${fecha}</div>
+                                    </div>
+                                    <div class="text-[11px] text-slate-500">${origen} → ${destino}${cantidad !== '' ? ` • Cant: ${cantidad}` : ''}${motivo ? ` • ${motivo}` : ''}</div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    movList.innerHTML = '<div class="p-2 text-rose-500">Error cargando movimientos para este producto.</div>';
+                }
+            })();
+        });
         lista.appendChild(el);
     });
 }
+
+// Aplicar filtro de datos incompletos cuando se llega desde dashboard
+try {
+    const flagIncompletos = localStorage.getItem('inventario_filtro_incompletos');
+    if (flagIncompletos === '1') {
+        localStorage.removeItem('inventario_filtro_incompletos');
+        if (window.showToast) {
+            window.showToast('Mostrando productos con datos incompletos (sin costo, sin categoría, sin depósito o sin stock definido).', 'info');
+        }
+    }
+} catch {}
 
 q.addEventListener('input', () => renderList(productosCache));
 // Filter controls (moved to top)
@@ -384,6 +486,16 @@ btnImportCsv.addEventListener('click', async () => {
         html += '</tbody></table>';
         importPreviewBody.innerHTML = html;
 
+        // Restaurar modo de importación guardado por usuario (si existe)
+        if (importModeSelect) {
+            try {
+                const savedMode = localStorage.getItem('inventario_import_mode');
+                if (savedMode === 'reconteo' || savedMode === 'adicional') {
+                    importModeSelect.value = savedMode;
+                }
+            } catch {}
+        }
+
         // show modal
         previewModal.classList.remove('hidden');
         requestAnimationFrame(() => { previewModal.classList.add('modal-open'); previewModal.style.display = 'flex'; });
@@ -392,7 +504,14 @@ btnImportCsv.addEventListener('click', async () => {
         const onConfirm = async () => {
             importPreviewConfirm.disabled = true;
             try {
-                const res = await fetch('/admin/productos/import', {
+                const mode = importModeSelect ? importModeSelect.value : '';
+                let url = '/admin/productos/import';
+                if (mode === 'reconteo' || mode === 'adicional') {
+                    try { localStorage.setItem('inventario_import_mode', mode); } catch {}
+                    url += `?mode=${encodeURIComponent(mode)}`;
+                }
+
+                const res = await fetch(url, {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {
@@ -602,6 +721,12 @@ btnBorrar.addEventListener('click', () => {
             msg.innerText = 'Producto eliminado.';
             f_codigo.value = f_desc.value = f_precio.value = f_stock.value = '';
             showToast('Producto eliminado.', 'error');
+            // Intentar eliminar también en Firebase (best-effort, no bloqueante)
+            try {
+                await eliminarProductoFirebasePorCodigo(codigo);
+            } catch (syncErr) {
+                console.warn('No se pudo eliminar producto en Firebase (se ignora):', syncErr);
+            }
             // close modal with animation
             modal.classList.remove('modal-open');
             setTimeout(() => { modal.classList.add('hidden'); modal.style.display = ''; }, 220);
@@ -808,6 +933,47 @@ if (btnMoverDeposito) {
         e.preventDefault();
         ejecutarMovimientoDeposito();
     });
+}
+
+// Recalcular stock total desde stock_por_deposito (solo admin/superadmin)
+if (btnRebuildStock) {
+    if (!(esEmpresaAdmin || esSuperAdmin)) {
+        btnRebuildStock.classList.add('hidden');
+        if (rebuildStockMsg) rebuildStockMsg.classList.add('hidden');
+    } else {
+        btnRebuildStock.addEventListener('click', async () => {
+            const confirmar = window.confirm('Esto recalculará el stock total de todos los productos a partir de los depósitos. ¿Continuar?');
+            if (!confirmar) return;
+            if (rebuildStockMsg) rebuildStockMsg.textContent = 'Recalculando stock, por favor espera...';
+            try {
+                const res = await fetch('/admin/ajustes/rebuild-stock', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Error al recalcular stock');
+
+                const total = data.totalProductos || 0;
+                const actualizados = data.actualizados || 0;
+                const mismatches = Array.isArray(data.mismatches) ? data.mismatches.length : 0;
+                const sinDep = Array.isArray(data.sinStockPorDeposito) ? data.sinStockPorDeposito.length : 0;
+                const negativos = Array.isArray(data.negativos) ? data.negativos.length : 0;
+
+                if (rebuildStockMsg) {
+                    rebuildStockMsg.textContent = `Productos: ${total}, actualizados: ${actualizados}. Anomalías → desajustes: ${mismatches}, sin detalle por depósito: ${sinDep}, negativos: ${negativos}.`;
+                }
+                showToast('Recalculo de stock completado.', 'success');
+                currentPage = 0;
+                cargarProductos();
+            } catch (err) {
+                console.error(err);
+                if (rebuildStockMsg) rebuildStockMsg.textContent = 'Error: ' + (err.message || 'No se pudo recalcular el stock');
+                showToast('Error al recalcular stock de inventario', 'error');
+            }
+        });
+    }
 }
 
 // Cargar historial inicial de movimientos

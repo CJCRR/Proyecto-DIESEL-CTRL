@@ -394,6 +394,7 @@ async function renderAlertasTareas() {
 
         const stock = Array.isArray(j.stock_bajo) ? j.stock_bajo : [];
         const morosos = Array.isArray(j.morosos) ? j.morosos : [];
+        const incompletos = j.incompletos || {};
 
         const stockCountEl = document.getElementById('al-stock-count');
         const morososCountEl = document.getElementById('al-morosos-count');
@@ -439,10 +440,29 @@ async function renderAlertasTareas() {
                 tipo: 'MOROSO',
                 html: `<div class=\"py-1 border-b\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-rose-100 text-rose-700\">MOROSO</span><span class=\"font-semibold\">${m.cliente_nombre || 'Cliente'}</span></div><span class=\"text-slate-500\">vence ${m.fecha_vencimiento}</span></div><div class=\"text-xs text-slate-500 truncate\">Saldo: $${Number(m.saldo_usd || 0).toFixed(2)} (${m.estado_calc || m.estado || ''})</div></div>`
             }));
-            const combined = [...rowsStock, ...rowsMor];
+            const incTotal = Number(incompletos.total_incompletos || 0);
+            const rowsInc = incTotal > 0 ? [
+                {
+                    tipo: 'DATOS',
+                    html: `<div id=\"al-datos-incompletos\" class=\"py-1 border-b cursor-pointer hover:bg-slate-50\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-sky-100 text-sky-700\">DATOS</span><span class=\"font-semibold\">Productos con datos incompletos</span></div><span class=\"text-slate-500\">${incTotal}</span></div><div class=\"text-xs text-slate-500 truncate\">Sin costo: ${Number(incompletos.sin_costo || 0)} · Sin categoría: ${Number(incompletos.sin_categoria || 0)} · Sin depósito: ${Number(incompletos.sin_deposito || 0)} · Sin stock definido: ${Number(incompletos.sin_stock_definido || 0)}</div></div>`
+                }
+            ] : [];
+
+            const combined = [...rowsInc, ...rowsStock, ...rowsMor];
             pendEl.innerHTML = combined.length
                 ? combined.slice(0, 14).map(r => r.html).join('')
                 : '<div class="text-slate-400">Sin elementos</div>';
+
+            const datosRow = document.getElementById('al-datos-incompletos');
+            if (datosRow && !datosRow.dataset.bound) {
+                datosRow.dataset.bound = '1';
+                datosRow.addEventListener('click', () => {
+                    try {
+                        localStorage.setItem('inventario_filtro_incompletos', '1');
+                    } catch {}
+                    window.location.href = '/pages/inventario.html';
+                });
+            }
         }
     } catch (err) {
         console.warn('No se pudo cargar alertas/tareas', err);

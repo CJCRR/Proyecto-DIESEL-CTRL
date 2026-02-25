@@ -6,6 +6,8 @@ const db = require(path.join('..', 'db'));
 const { registrarVenta } = require(path.join('..', 'services', 'ventasService'));
 
 function resetVentasData() {
+  db.prepare('DELETE FROM stock_por_deposito').run();
+  db.prepare('DELETE FROM depositos').run();
   db.prepare('DELETE FROM venta_detalle').run();
   db.prepare('DELETE FROM ventas').run();
   db.prepare('DELETE FROM cuentas_cobrar').run();
@@ -18,11 +20,24 @@ describe('ventasService.registrarVenta', () => {
   });
 
   test('registra una venta de contado y descuenta stock', () => {
+    const empresaId = 1;
+
+    const depInfo = db
+      .prepare(
+        'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?,?,?,?,1)'
+      )
+      .run(empresaId, 'Dep Ventas', 'DV1', 1);
+    const depositoId = depInfo.lastInsertRowid;
+
     const insertProducto = db.prepare(
-      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock) VALUES (?,?,?,?,?)'
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id, deposito_id) VALUES (?,?,?,?,?,?,?)'
     );
 
-    const prod = insertProducto.run('COD-1', 'Producto Test', 10, 5, 5);
+    const prod = insertProducto.run('COD-1', 'Producto Test', 10, 5, 5, empresaId, depositoId);
+
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prod.lastInsertRowid, depositoId, 5);
 
     const { ventaId, cuentaCobrarId } = registrarVenta({
       items: [{ codigo: 'COD-1', cantidad: 2 }],
@@ -58,11 +73,24 @@ describe('ventasService.registrarVenta', () => {
   });
 
   test('registra una venta a crédito y crea cuenta por cobrar', () => {
+    const empresaId = 1;
+
+    const depInfo = db
+      .prepare(
+        'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?,?,?,?,1)'
+      )
+      .run(empresaId, 'Dep Ventas 2', 'DV2', 1);
+    const depositoId = depInfo.lastInsertRowid;
+
     const insertProducto = db.prepare(
-      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock) VALUES (?,?,?,?,?)'
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id, deposito_id) VALUES (?,?,?,?,?,?,?)'
     );
 
-    insertProducto.run('COD-2', 'Producto Credito', 50, 20, 10);
+    const prod = insertProducto.run('COD-2', 'Producto Credito', 50, 20, 10, empresaId, depositoId);
+
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prod.lastInsertRowid, depositoId, 10);
 
     const { ventaId, cuentaCobrarId } = registrarVenta({
       items: [{ codigo: 'COD-2', cantidad: 1 }],

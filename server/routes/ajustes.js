@@ -5,6 +5,7 @@ const { registrarAuditoria } = require('../services/auditLogService');
 const {
   ajustarStock,
   listarAjustes,
+  reconciliarStockEmpresa,
   obtenerTasaBcv,
   guardarTasaBcv,
   actualizarTasaBcvAutomatica,
@@ -50,15 +51,28 @@ router.post('/', requireAuth, (req, res) => {
   }
 });
 
-// GET /admin/ajustes - Listar ajustes (últimos 100 por defecto)
+// GET /admin/ajustes - Listar ajustes (últimos 100 por defecto, opcional filtro por código)
 router.get('/', requireAuth, (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
-    const rows = listarAjustes(limit);
+    const codigo = req.query.codigo ? String(req.query.codigo).trim().toUpperCase() : null;
+    const rows = listarAjustes(limit, codigo || undefined);
     res.json(rows);
   } catch (err) {
     console.error('Error listando ajustes:', err);
     res.status(500).json({ error: 'Error al listar ajustes' });
+  }
+});
+
+// POST /admin/ajustes/rebuild-stock - Recalcular stock desde stock_por_deposito (solo roles altos)
+router.post('/rebuild-stock', requireAuth, requireRole('admin', 'admin_empresa', 'superadmin'), (req, res) => {
+  try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+    const info = reconciliarStockEmpresa(empresaId);
+    res.json(info);
+  } catch (err) {
+    console.error('Error reconciliando stock de inventario:', err.message);
+    res.status(500).json({ error: 'Error al recalcular stock de inventario' });
   }
 });
 

@@ -27,10 +27,11 @@ const presupuestosRoutes = require('./routes/presupuestos');
 const depositosRoutes = require('./routes/depositos');
 
 const app = express();
-// Enforce HTTPS en producción
-app.use(enforceHTTPS);
-// Helmet avanzado
-// app.use(helmetConfig);
+// Enforce HTTPS y Helmet sólo en producción
+if (process.env.NODE_ENV === 'production') {
+    app.use(enforceHTTPS);
+    app.use(helmetConfig);
+}
 app.use(cookieParser());
 // Ampliar límite para subir imágenes base64 desde ajustes
 app.use(express.json({ limit: '10mb' }));

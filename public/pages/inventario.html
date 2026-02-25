@@ -134,6 +134,7 @@
                             <option value="out">Sin stock</option>
                             <option value="low">Bajo (&lt;5)</option>
                             <option value="medium">Medio (&lt;20)</option>
+                            <option value="over">Sobre stock (&gt;100)</option>
                         </select>
                     </div>
                 </div>
@@ -186,8 +187,16 @@
                 </div>
                 <!-- filtros movidos arriba -->
                 <hr class="my-4">
-                <h4 class="text-sm font-black mb-2">Historial de ajustes</h4>
+                <h4 class="text-sm font-black mb-1">Historial de ajustes</h4>
+                <p class="text-[11px] text-slate-500 mb-1">Al seleccionar un producto se filtra este historial solo para ese código.</p>
                 <div id="ajustes-list" class="text-sm text-slate-600 max-h-40 overflow-auto">Cargando...</div>
+                <hr class="my-4">
+                <h4 class="text-sm font-black mb-1">Herramientas de mantenimiento</h4>
+                <p class="text-[11px] text-slate-500 mb-2">Solo para administradores: recalcula el stock total a partir de los depósitos.</p>
+                <button id="btnRebuildStock" class="w-full p-2 bg-amber-600 text-white rounded text-xs font-semibold mb-1 hover:bg-amber-700">
+                    Recalcular stock desde depósitos
+                </button>
+                <p id="rebuildStockMsg" class="text-[11px] text-slate-500"></p>
             </aside>
         </div>
             <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mt-4">

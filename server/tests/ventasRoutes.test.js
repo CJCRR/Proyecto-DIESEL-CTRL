@@ -9,6 +9,8 @@ const ventasRoutes = require(path.join('..', 'routes', 'ventas'));
 const { createTestUserAndToken } = require('./testAuthUtils');
 
 function resetVentasData() {
+  db.prepare('DELETE FROM stock_por_deposito').run();
+  db.prepare('DELETE FROM depositos').run();
   db.prepare('DELETE FROM venta_detalle').run();
   db.prepare('DELETE FROM ventas').run();
   db.prepare('DELETE FROM cuentas_cobrar').run();
@@ -28,12 +30,26 @@ describe('Rutas HTTP /ventas', () => {
   }
 
   test('POST /ventas crea venta válida y responde 200', async () => {
-    const { token } = createTestUserAndToken();
+    const empresaId = 1;
+    const { token } = createTestUserAndToken({ empresaId });
     const app = buildApp();
 
+    const depInfo = db
+      .prepare(
+        'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?,?,?,?,1)'
+      )
+      .run(empresaId, 'Dep Ventas HTTP', 'DVH1', 1);
+    const depositoId = depInfo.lastInsertRowid;
+
+    const prodInfo = db
+      .prepare(
+        'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id, deposito_id) VALUES (?,?,?,?,?,?,?)'
+      )
+      .run('COD-HTTP', 'Producto HTTP', 10, 5, 5, empresaId, depositoId);
+
     db.prepare(
-      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock) VALUES (?,?,?,?,?)'
-    ).run('COD-HTTP', 'Producto HTTP', 10, 5, 5);
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prodInfo.lastInsertRowid, depositoId, 5);
 
     const res = await request(app)
       .post('/ventas')

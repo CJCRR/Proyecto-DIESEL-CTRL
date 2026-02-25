@@ -6,6 +6,8 @@ const db = require(path.join('..', 'db'));
 const comprasService = require(path.join('..', 'services', 'comprasService'));
 
 function resetComprasData() {
+  db.prepare('DELETE FROM stock_por_deposito').run();
+  db.prepare('DELETE FROM depositos').run();
   db.prepare('DELETE FROM compra_detalle').run();
   db.prepare('DELETE FROM compras').run();
   db.prepare('DELETE FROM productos').run();
@@ -19,6 +21,13 @@ describe('comprasService.crearCompra', () => {
 
   test('crea compra, detalle y actualiza stock/costo', () => {
     const empresaId = 1;
+
+    const depInfo = db
+      .prepare(
+        'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?,?,?,?,1)'
+      )
+      .run(empresaId, 'Dep Compras', 'DC1', 1);
+    const depositoId = depInfo.lastInsertRowid;
 
     const user = db
       .prepare(
@@ -34,9 +43,14 @@ describe('comprasService.crearCompra', () => {
 
     const prod = db
       .prepare(
-        'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, proveedor_id) VALUES (?,?,?,?,?,?)'
+        'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, proveedor_id, empresa_id, deposito_id) VALUES (?,?,?,?,?,?,?,?)'
       )
-      .run('CP-1', 'Producto Compra', 0, 0, 0, prov.lastInsertRowid);
+      .run('CP-1', 'Producto Compra', 0, 0, 0, prov.lastInsertRowid, empresaId, depositoId);
+
+    // Inicializar stock_por_deposito en 0 (comprasService sumará sobre este depósito)
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prod.lastInsertRowid, depositoId, 0);
 
     const result = comprasService.crearCompra(
       {

@@ -92,6 +92,7 @@ router.get('/', requireAuth, (req, res) => {
     const categoria = req.query.categoria ? String(req.query.categoria).trim() : null;
     const stock_lt = req.query.stock_lt !== undefined ? parseInt(req.query.stock_lt) : null;
     const stock_gt = req.query.stock_gt !== undefined ? parseInt(req.query.stock_gt) : null;
+    const incompletos = req.query.incompletos === '1' || req.query.incompletos === 'true';
     const depositoId = req.query.deposito_id !== undefined && req.query.deposito_id !== ''
         ? parseInt(req.query.deposito_id, 10)
         : null;
@@ -107,8 +108,13 @@ router.get('/', requireAuth, (req, res) => {
             params.push(empresaId);
             if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%' + q + '%', '%' + q + '%'); }
             if (categoria) { where.push('lower(p.categoria) LIKE ?'); params.push('%' + String(categoria).toLowerCase() + '%'); }
-            if (stock_lt !== null) { where.push('p.stock < ?'); params.push(stock_lt); }
-            if (stock_gt !== null) { where.push('p.stock > ?'); params.push(stock_gt); }
+            if (!incompletos) {
+                if (stock_lt !== null) { where.push('p.stock < ?'); params.push(stock_lt); }
+                if (stock_gt !== null) { where.push('p.stock > ?'); params.push(stock_gt); }
+            }
+            if (incompletos) {
+                where.push('((p.costo_usd IS NULL OR p.costo_usd <= 0) OR (p.categoria IS NULL OR TRIM(p.categoria) = \'\') OR p.deposito_id IS NULL OR p.stock IS NULL)');
+            }
 
             const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
@@ -291,6 +297,16 @@ router.post('/import', requireAuth, (req, res) => {
         const text = (typeof req.body === 'string') ? req.body : '';
         if (!text) return res.status(400).json({ error: 'CSV vacío' });
 
+        // Modo de importación: "reconteo" (reemplaza stock) o "adicional" (suma unidades).
+        // Si no viene especificado, se mantiene el comportamiento actual para compatibilidad.
+        const modeRaw = (req.query.mode || req.query.modo || '').toString().toLowerCase();
+        let importMode = null; // null => modo legacy
+        if (['reconteo', 'reconteo_total', 'total', 'recount'].includes(modeRaw)) {
+            importMode = 'reconteo';
+        } else if (['adicional', 'ingreso', 'ingreso_adicional', 'add', 'suma'].includes(modeRaw)) {
+            importMode = 'adicional';
+        }
+
         // detect delimiter: prefer tab if exists, else semicolon, else comma
         const raw = text.replace(/^\uFEFF/, '');
         // detect delimiter by counting occurrences in the first few lines
@@ -363,6 +379,7 @@ router.post('/import', requireAuth, (req, res) => {
         const findProductoById = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE id = ?');
         const countStockRowsByProducto = db.prepare('SELECT COUNT(*) AS c FROM stock_por_deposito WHERE producto_id = ?');
         const selectStockPorDeposito = db.prepare('SELECT cantidad FROM stock_por_deposito WHERE producto_id = ? AND deposito_id = ?');
+        const selectAllStockPorDeposito = db.prepare('SELECT deposito_id, cantidad FROM stock_por_deposito WHERE producto_id = ?');
         const updateStockPorDeposito = db.prepare("UPDATE stock_por_deposito SET cantidad = ?, actualizado_en = datetime('now') WHERE producto_id = ? AND deposito_id = ?");
 
         const toImport = nonEmpty.slice(start);
@@ -414,49 +431,130 @@ router.post('/import', requireAuth, (req, res) => {
                             totalRows = 0;
                         }
 
-                        let stockParaProducto = stock;
+                        const stockActualProducto = prodRow ? Number(prodRow.stock || 0) : 0;
                         const hayDepositoEnCsv = !!(depositoCodigoRaw && depositoId !== null);
 
-                        // Si el producto ya tiene stock distribuido en varios depósitos y el CSV indica un depósito,
-                        // interpretamos el valor de stock del CSV como ingreso adicional para ese depósito.
-                        if (hayDepositoEnCsv && prodRow && totalRows > 1) {
-                            const stockActual = Number(prodRow.stock || 0);
-                            stockParaProducto = stockActual + stock; // sumar al total
+                        // Determinar depósito objetivo para esta fila
+                        let targetDepositoId = null;
+                        if (hayDepositoEnCsv && depositoId !== null) {
+                            targetDepositoId = depositoId;
+                        } else if (prodRow && prodRow.deposito_id) {
+                            targetDepositoId = prodRow.deposito_id;
+                        } else if (principalDepositoId) {
+                            targetDepositoId = principalDepositoId;
                         }
 
-                        if (hayDepositoEnCsv) {
-                            updateWithDeposito.run(descripcion, precio, costoVal, stockParaProducto, categoria, marca, depositoId, codigo, empresaId);
-                        } else {
-                            update.run(descripcion, precio, costoVal, stockParaProducto, categoria, marca, codigo, empresaId);
-                        }
+                        // === Modo legacy (sin modo especificado) ===
+                        if (!importMode) {
+                            let stockParaProducto = stock;
 
-                        // Sincronizar stock_por_deposito
-                        try {
-                            if (prodRow && prodRow.deposito_id) {
-                                const depIdForStock = prodRow.deposito_id;
-                                if (totalRows <= 1) {
-                                    // Caso simple: solo un depósito asociado → el stock del CSV es el nuevo total
-                                    const currentDepRow = selectStockPorDeposito.get(ex.id, depIdForStock);
-                                    if (currentDepRow) {
-                                        updateStockPorDeposito.run(stockParaProducto, ex.id, depIdForStock);
-                                    } else {
-                                        insertStockPorDeposito.run(prodRow.empresa_id || empresaId, ex.id, depIdForStock, stockParaProducto);
-                                    }
-                                } else if (hayDepositoEnCsv && depositoId) {
-                                    // Varios depósitos: sumar unidades solo al depósito indicado en el CSV
-                                    const currentDepRow = selectStockPorDeposito.get(ex.id, depositoId);
-                                    const incremento = stock;
-                                    if (currentDepRow) {
-                                        const nuevaCant = Number(currentDepRow.cantidad || 0) + incremento;
-                                        updateStockPorDeposito.run(nuevaCant, ex.id, depositoId);
-                                    } else {
-                                        insertStockPorDeposito.run(prodRow.empresa_id || empresaId, ex.id, depositoId, incremento);
+                            // Si el producto ya tiene stock distribuido en varios depósitos y el CSV indica un depósito,
+                            // interpretamos el valor de stock del CSV como ingreso adicional para ese depósito.
+                            if (hayDepositoEnCsv && prodRow && totalRows > 1) {
+                                stockParaProducto = stockActualProducto + stock; // sumar al total
+                            }
+
+                            if (hayDepositoEnCsv && depositoId !== null) {
+                                updateWithDeposito.run(descripcion, precio, costoVal, stockParaProducto, categoria, marca, depositoId, codigo, empresaId);
+                            } else {
+                                update.run(descripcion, precio, costoVal, stockParaProducto, categoria, marca, codigo, empresaId);
+                            }
+
+                            // Sincronizar stock_por_deposito
+                            try {
+                                if (prodRow && prodRow.deposito_id) {
+                                    const depIdForStock = prodRow.deposito_id;
+                                    if (totalRows <= 1) {
+                                        // Caso simple: solo un depósito asociado → el stock del CSV es el nuevo total
+                                        const currentDepRow = selectStockPorDeposito.get(ex.id, depIdForStock);
+                                        if (currentDepRow) {
+                                            updateStockPorDeposito.run(stockParaProducto, ex.id, depIdForStock);
+                                        } else {
+                                            insertStockPorDeposito.run(prodRow.empresa_id || empresaId, ex.id, depIdForStock, stockParaProducto);
+                                        }
+                                    } else if (hayDepositoEnCsv && depositoId) {
+                                        // Varios depósitos: sumar unidades solo al depósito indicado en el CSV
+                                        const currentDepRow = selectStockPorDeposito.get(ex.id, depositoId);
+                                        const incremento = stock;
+                                        if (currentDepRow) {
+                                            const nuevaCant = Number(currentDepRow.cantidad || 0) + incremento;
+                                            updateStockPorDeposito.run(nuevaCant, ex.id, depositoId);
+                                        } else {
+                                            insertStockPorDeposito.run(prodRow.empresa_id || empresaId, ex.id, depositoId, incremento);
+                                        }
                                     }
                                 }
+                            } catch (syncErr) {
+                                console.warn('No se pudo sincronizar stock_por_deposito al importar producto existente', codigo, syncErr.message);
                             }
-                        } catch (syncErr) {
-                            console.warn('No se pudo sincronizar stock_por_deposito al importar producto existente', codigo, syncErr.message);
+                        } else if (importMode === 'adicional') {
+                            // === Modo "Ingreso adicional": el stock del CSV es incremento, no total ===
+                            const incremento = stock;
+                            const nuevoTotal = stockActualProducto + incremento;
+
+                            if (targetDepositoId) {
+                                updateWithDeposito.run(descripcion, precio, costoVal, nuevoTotal, categoria, marca, targetDepositoId, codigo, empresaId);
+                            } else {
+                                update.run(descripcion, precio, costoVal, nuevoTotal, categoria, marca, codigo, empresaId);
+                            }
+
+                            // Actualizar stock_por_deposito solo para el depósito objetivo
+                            try {
+                                if (targetDepositoId) {
+                                    const currentDepRow = selectStockPorDeposito.get(ex.id, targetDepositoId);
+                                    const nuevaCant = (currentDepRow ? Number(currentDepRow.cantidad || 0) : 0) + incremento;
+                                    if (currentDepRow) {
+                                        updateStockPorDeposito.run(nuevaCant, ex.id, targetDepositoId);
+                                    } else {
+                                        insertStockPorDeposito.run(prodRow && prodRow.empresa_id ? prodRow.empresa_id : empresaId, ex.id, targetDepositoId, incremento);
+                                    }
+                                }
+                            } catch (syncErr) {
+                                console.warn('No se pudo sincronizar stock_por_deposito (modo adicional) al importar producto existente', codigo, syncErr.message);
+                            }
+                        } else if (importMode === 'reconteo') {
+                            // === Modo "Reconteo total": el stock del CSV reemplaza el stock del depósito objetivo ===
+                            let nuevoTotal = stock;
+
+                            if (targetDepositoId && prodRow) {
+                                // Recalcular el total del producto sumando otros depósitos + nuevo valor del depósito objetivo
+                                let otherTotal = 0;
+                                let currentDepRow = null;
+                                try {
+                                    const rowsDep = selectAllStockPorDeposito.all(ex.id) || [];
+                                    for (const r of rowsDep) {
+                                        const depId = Number(r.deposito_id);
+                                        const cant = Number(r.cantidad || 0);
+                                        if (depId === targetDepositoId) {
+                                            currentDepRow = r;
+                                        } else {
+                                            otherTotal += cant;
+                                        }
+                                    }
+                                } catch (e) {
+                                    otherTotal = 0;
+                                }
+                                nuevoTotal = otherTotal + stock;
+
+                                // Actualizar producto apuntando al depósito objetivo
+                                updateWithDeposito.run(descripcion, precio, costoVal, nuevoTotal, categoria, marca, targetDepositoId, codigo, empresaId);
+
+                                // Actualizar fila de stock_por_deposito para el depósito objetivo
+                                try {
+                                    if (currentDepRow) {
+                                        updateStockPorDeposito.run(stock, ex.id, targetDepositoId);
+                                    } else {
+                                        insertStockPorDeposito.run(prodRow.empresa_id || empresaId, ex.id, targetDepositoId, stock);
+                                    }
+                                } catch (syncErr) {
+                                    console.warn('No se pudo sincronizar stock_por_deposito (modo reconteo) al importar producto existente', codigo, syncErr.message);
+                                }
+                            } else {
+                                // Sin depósito objetivo claro: interpretar el valor como nuevo stock total del producto
+                                update.run(descripcion, precio, costoVal, stock, categoria, marca, codigo, empresaId);
+                            }
                         }
+
                         updated.push(codigo);
                     } else {
                         // Producto nuevo: si no se indicó depósito pero existe un depósito principal, usarlo por defecto

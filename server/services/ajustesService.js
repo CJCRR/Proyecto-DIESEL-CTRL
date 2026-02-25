@@ -78,16 +78,96 @@ function ajustarStock(payload = {}) {
 /**
  * Lista los últimos ajustes de stock aplicados.
  * @param {number} [limit]
+ * @param {string} [codigo]
  * @returns {Array<{id:number,producto_id:number|null,codigo:string|null,descripcion:string|null,diferencia:number,motivo:string,fecha:string}>}
  */
-function listarAjustes(limit = 100) {
+function listarAjustes(limit = 100, codigo) {
+  const params = [];
+  let where = '';
+  if (codigo) {
+    where = 'WHERE p.codigo = ?';
+    params.push(codigo);
+  }
+  params.push(limit);
   return db.prepare(`
       SELECT a.id, a.producto_id, p.codigo, p.descripcion, a.diferencia, a.motivo, a.fecha
       FROM ajustes_stock a
       LEFT JOIN productos p ON p.id = a.producto_id
+      ${where}
       ORDER BY a.fecha DESC
       LIMIT ?
-    `).all(limit);
+    `).all(...params);
+}
+
+// ===== RECONCILIACIÓN DE INVENTARIO =====
+
+/**
+ * Recalcula `productos.stock` a partir de `stock_por_deposito` para una empresa.
+ * Solo actualiza productos que tienen al menos un registro en stock_por_deposito,
+ * tratando esa tabla como fuente de la verdad. Para productos sin filas en
+ * stock_por_deposito no modifica el stock y los reporta como anomalía.
+ *
+ * @param {number|null|undefined} empresaId
+ * @returns {{empresa_id:number,totalProductos:number,actualizados:number,negativos:Array, sinStockPorDeposito:Array, mismatches:Array}}
+ */
+function reconciliarStockEmpresa(empresaId) {
+  const eid = Number(empresaId || 1);
+  if (!Number.isFinite(eid) || eid <= 0) {
+    throw new Error('empresaId inválido para reconciliar stock');
+  }
+
+  const resultado = {
+    empresa_id: eid,
+    totalProductos: 0,
+    actualizados: 0,
+    negativos: [],
+    sinStockPorDeposito: [],
+    mismatches: [],
+  };
+
+  db.transaction(() => {
+    const productos = db.prepare(`
+      SELECT id, codigo, stock
+      FROM productos
+      WHERE empresa_id = ?
+    `).all(eid);
+
+    resultado.totalProductos = productos.length;
+
+    const stmtResumen = db.prepare(`
+      SELECT COUNT(*) AS c, COALESCE(SUM(cantidad), 0) AS total
+      FROM stock_por_deposito
+      WHERE producto_id = ?
+    `);
+    const stmtUpdate = db.prepare('UPDATE productos SET stock = ? WHERE id = ?');
+
+    for (const prod of productos) {
+      const row = stmtResumen.get(prod.id) || { c: 0, total: 0 };
+      const filas = Number(row.c || 0);
+      const totalDep = Number(row.total || 0);
+      const stockActual = Number(prod.stock || 0);
+
+      if (filas === 0) {
+        // No hay detalle por depósito: no tocamos el stock pero lo reportamos
+        if (stockActual !== 0) {
+          resultado.sinStockPorDeposito.push({ codigo: prod.codigo, stock_actual: stockActual });
+        }
+        continue;
+      }
+
+      if (totalDep < 0) {
+        resultado.negativos.push({ codigo: prod.codigo, stock_por_deposito: totalDep });
+      }
+
+      if (totalDep !== stockActual) {
+        resultado.mismatches.push({ codigo: prod.codigo, stock_anterior: stockActual, stock_nuevo: totalDep });
+        stmtUpdate.run(totalDep, prod.id);
+        resultado.actualizados += 1;
+      }
+    }
+  })();
+
+  return resultado;
 }
 
 // ===== UTILIDADES DE CONFIG =====
@@ -635,6 +715,7 @@ function guardarConfigGeneral(payload = {}, empresaId) {
 module.exports = {
   ajustarStock,
   listarAjustes,
+  reconciliarStockEmpresa,
   obtenerTasaBcv,
   guardarTasaBcv,
   actualizarTasaBcvAutomatica,

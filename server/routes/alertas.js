@@ -113,6 +113,39 @@ router.get('/tareas', requireAuth, (req, res) => {
 
     const morosos = empresaId ? getMorosos(empresaId) : [];
 
+    const sinCostoRow = db.prepare(`
+      SELECT COUNT(*) AS c
+      FROM productos
+      WHERE (costo_usd IS NULL OR costo_usd <= 0)${empresaId ? ' AND empresa_id = ?' : ''}
+    `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
+
+    const sinCategoriaRow = db.prepare(`
+      SELECT COUNT(*) AS c
+      FROM productos
+      WHERE (categoria IS NULL OR TRIM(categoria) = '')${empresaId ? ' AND empresa_id = ?' : ''}
+    `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
+
+    const sinDepositoRow = db.prepare(`
+      SELECT COUNT(*) AS c
+      FROM productos
+      WHERE deposito_id IS NULL${empresaId ? ' AND empresa_id = ?' : ''}
+    `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
+
+    const sinStockDefRow = db.prepare(`
+      SELECT COUNT(*) AS c
+      FROM productos
+      WHERE stock IS NULL${empresaId ? ' AND empresa_id = ?' : ''}
+    `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
+
+    const incompletos = {
+      sin_costo: Number(sinCostoRow.c || 0),
+      sin_categoria: Number(sinCategoriaRow.c || 0),
+      sin_deposito: Number(sinDepositoRow.c || 0),
+      sin_stock_definido: Number(sinStockDefRow.c || 0),
+    };
+
+    incompletos.total_incompletos = incompletos.sin_costo + incompletos.sin_categoria + incompletos.sin_deposito + incompletos.sin_stock_definido;
+
     const backupDir = path.join(__dirname, '..', 'backups');
     let ultimaBackup = null;
     try {
@@ -139,6 +172,7 @@ router.get('/tareas', requireAuth, (req, res) => {
     res.json({
       stock_bajo: stockBajo,
       morosos,
+      incompletos,
       backup: {
         ultima: ultimaBackup,
         horas_desde_ultima: horasDesdeUltima,
