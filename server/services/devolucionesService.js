@@ -125,7 +125,7 @@ function registrarDevolucion(payload = {}) {
       devueltosPrevios = obtenerDevueltosPrevios(venta_original_id);
     }
 
-    const selectProducto = db.prepare('SELECT id, precio_usd, stock, deposito_id, empresa_id FROM productos WHERE codigo = ?');
+    const selectProducto = db.prepare('SELECT id, precio_usd, stock, deposito_id, empresa_id FROM productos WHERE codigo = ? AND empresa_id = ?');
     const selectStockDep = db.prepare(`
       SELECT cantidad FROM stock_por_deposito
       WHERE producto_id = ? AND deposito_id = ?
@@ -151,7 +151,7 @@ function registrarDevolucion(payload = {}) {
         error.tipo = 'VALIDACION';
         throw error;
       }
-      const producto = selectProducto.get(codigo);
+      const producto = selectProducto.get(codigo, empresa_id);
       if (!producto) {
         const error = new Error(`El producto ${codigo} no existe`);
         error.tipo = 'VALIDACION';

@@ -1,0 +1,35 @@
+2026-02-26T18:34:23.392Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T18:34:23.396Z [INFO] 📦 Backup automático creado: backup_2026-02-26T18-34-23-378Z.sqlite 
+2026-02-26T18:39:40.733Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T18:39:40.738Z [INFO] 📦 Backup automático creado: backup_2026-02-26T18-39-40-724Z.sqlite 
+2026-02-26T18:52:58.308Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T18:53:00.989Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T18:53:00.993Z [INFO] 📦 Backup automático creado: backup_2026-02-26T18-53-00-980Z.sqlite 
+2026-02-26T18:53:12.170Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T18:53:14.877Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T18:53:14.881Z [INFO] 📦 Backup automático creado: backup_2026-02-26T18-53-14-868Z.sqlite 
+2026-02-26T19:00:20.901Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T19:00:25.893Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T19:00:25.897Z [INFO] 📦 Backup automático creado: backup_2026-02-26T19-00-25-885Z.sqlite 
+2026-02-26T19:14:53.368Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T19:16:20.582Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T19:16:20.588Z [INFO] 📦 Backup automático creado: backup_2026-02-26T19-16-20-574Z.sqlite 
+2026-02-26T19:20:33.170Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T19:20:35.280Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T19:20:35.284Z [INFO] 📦 Backup automático creado: backup_2026-02-26T19-20-35-272Z.sqlite 
+2026-02-26T19:26:10.072Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T19:27:01.293Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T19:27:01.299Z [INFO] 📦 Backup automático creado: backup_2026-02-26T19-27-01-282Z.sqlite 
+2026-02-26T19:32:40.922Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T19:32:48.049Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T19:32:48.054Z [INFO] 📦 Backup automático creado: backup_2026-02-26T19-32-48-040Z.sqlite 
+2026-02-26T19:48:10.754Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T19:48:13.103Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T19:48:13.108Z [INFO] 📦 Backup automático creado: backup_2026-02-26T19-48-13-094Z.sqlite 
+2026-02-26T19:51:17.263Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T19:51:19.902Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T19:51:19.906Z [INFO] 📦 Backup automático creado: backup_2026-02-26T19-51-19-893Z.sqlite 
+2026-02-26T19:52:50.927Z [ERROR] Error procesando la venta empresa_id is not defined {"stack":"ReferenceError: empresa_id is not defined\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:138:62\n    at sqliteTransaction (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\better-sqlite3\\lib\\methods\\transaction.js:65:24)\n    at registrarVenta (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\services\\ventasService.js:234:12)\n    at C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:24:45\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at forbidSuperadmin (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\ventas.js:12:5)\n    at Layer.handle [as handle_request] (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at next (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\node_modules\\express\\lib\\router\\route.js:149:13)\n    at requireAuth (C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\routes\\auth.js:433:14)","url":"/ventas","method":"POST","user":2,"items":1,"cliente":"ccc"}
+2026-02-26T19:55:35.266Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-02-26T19:55:37.257Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-02-26T19:55:37.261Z [INFO] 📦 Backup automático creado: backup_2026-02-26T19-55-37-248Z.sqlite 

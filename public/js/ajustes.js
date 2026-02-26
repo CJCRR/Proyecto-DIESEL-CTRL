@@ -1,4 +1,4 @@
-import { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas } from './firebase-sync.js';
+import { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas, borrarProductosFirebaseTodos } from './firebase-sync.js';
 import { showToast } from './app-utils.js';
 import { apiFetchJson } from './app-api.js';
 
@@ -577,13 +577,15 @@ async function purgeAllData(fromModal = false) {
 
         let firebaseClientes = 0;
         let firebaseVentas = 0;
+        let firebaseProductos = 0;
         try { firebaseClientes = await borrarClientesFirebaseTodos(); } catch (err) { console.warn(err); }
         try { firebaseVentas = await borrarVentasFirebaseTodas(); } catch (err) { console.warn(err); }
+        try { firebaseProductos = await borrarProductosFirebaseTodos(); } catch (err) { console.warn(err); }
 
         try { localStorage.removeItem('clientes_frecuentes_v2'); } catch (err) { console.warn(err); }
         try { await window.borrarDatosLocales?.(); } catch (err) { console.warn(err); }
 
-        showToast(`Datos borrados. Firebase clientes: ${firebaseClientes}, ventas: ${firebaseVentas}`, 'success');
+        showToast(`Datos borrados. Firebase clientes: ${firebaseClientes}, ventas: ${firebaseVentas}, productos: ${firebaseProductos}`, 'success');
         setTimeout(() => window.location.reload(), 1200);
     } catch (err) {
         showToast(err.message || 'Error borrando datos', 'error');

@@ -20,7 +20,7 @@ function safeStr(v, max) {
  * @throws {Error} Cuando faltan datos o el resultado dejaría el stock en negativo.
  */
 function ajustarStock(payload = {}) {
-  const { codigo, diferencia, motivo } = payload;
+  const { codigo, diferencia, motivo, empresa_id } = payload;
   const diff = parseInt(diferencia);
 
   if (!codigo || Number.isNaN(diff) || diff === 0 || !motivo) {
@@ -30,7 +30,7 @@ function ajustarStock(payload = {}) {
   }
 
   db.transaction(() => {
-    const producto = db.prepare('SELECT id, stock, codigo, deposito_id, empresa_id FROM productos WHERE codigo = ?').get(codigo);
+    const producto = db.prepare('SELECT id, stock, codigo, deposito_id, empresa_id FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresa_id);
 
     if (!producto) throw new Error('PRODUCTO_NO_ENCONTRADO');
 

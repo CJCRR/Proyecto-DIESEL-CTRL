@@ -398,7 +398,11 @@ router.post('/import', requireAuth, (req, res) => {
                 const cols = rowsToImport[idx];
                 try {
                     let codigo = (cols[0] || '').toString().trim().slice(0, MAX_FIELD_LEN);
-                    if (!codigo) { skipped.push({ row: idx + start + 1, reason: 'codigo vacío' }); continue; }
+                    if (!codigo) {
+                        // Registrar fila omitida con snapshot de columnas para poder identificarla en el frontend
+                        skipped.push({ row: idx + start + 1, reason: 'codigo vacío', cols });
+                        continue;
+                    }
                     codigo = codigo.toUpperCase();
                     const descripcion = (cols[1] || '').toString().trim().slice(0, MAX_FIELD_LEN);
                     const precio = parseFloat((cols[2] || '').toString().trim()) || 0;
@@ -619,8 +623,13 @@ router.put('/:codigo', requireAuth, (req, res) => {
     if (!codigo) return res.status(400).json({ error: 'Código inválido' });
 
     try {
-        const existing = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE codigo = ?').get(codigo);
-        if (!existing) return res.status(404).json({ error: 'Producto no encontrado' });
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+        if (!empresaId) {
+            return res.status(400).json({ error: 'Usuario sin empresa asociada' });
+        }
+
+        const existing = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
+        if (!existing) return res.status(404).json({ error: 'Producto no encontrado en esta empresa' });
 
         if (deposito_id !== undefined && deposito_id !== null && (Number.isNaN(depositoId) || depositoId <= 0)) {
             return res.status(400).json({ error: 'Depósito inválido' });
@@ -638,12 +647,12 @@ router.put('/:codigo', requireAuth, (req, res) => {
 
         if (updates.length === 0) return res.status(400).json({ error: 'Nada que actualizar' });
 
-        params.push(codigo);
-        const sql = `UPDATE productos SET ${updates.join(', ')} WHERE codigo = ?`;
+        params.push(codigo, empresaId);
+        const sql = `UPDATE productos SET ${updates.join(', ')} WHERE codigo = ? AND empresa_id = ?`;
         db.prepare(sql).run(...params);
 
         // Sincronizar stock_por_deposito cuando el producto tiene depósito definido pero no hay fila asociada
-        const updated = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE codigo = ?').get(codigo);
+        const updated = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
         if (updated && updated.deposito_id) {
             const rowDep = db.prepare(`
                 SELECT cantidad FROM stock_por_deposito
@@ -674,8 +683,13 @@ router.delete('/:codigo', requireAuth, requireRole('admin'), (req, res) => {
     if (!codigo) return res.status(400).json({ error: 'Código inválido' });
 
     try {
-        const prod = db.prepare('SELECT id FROM productos WHERE codigo = ?').get(codigo);
-        if (!prod) return res.status(404).json({ error: 'Producto no encontrado' });
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+        if (!empresaId) {
+            return res.status(400).json({ error: 'Usuario sin empresa asociada' });
+        }
+
+        const prod = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
+        if (!prod) return res.status(404).json({ error: 'Producto no encontrado en esta empresa' });
 
         // No permitir eliminar productos que tengan ventas o devoluciones asociadas
         const ventasAsociadas = db.prepare('SELECT COUNT(*) AS c FROM venta_detalle WHERE producto_id = ?').get(prod.id);

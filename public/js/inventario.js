@@ -529,6 +529,25 @@ btnImportCsv.addEventListener('click', async () => {
                         const c = d.counts;
                         const msg = `Filas: ${c.dataRows}, Insertadas: ${c.inserted}, Actualizadas: ${c.updated}, Omitidas: ${c.skipped}, Errores: ${c.errors}`;
                         showToast(msg, 'success', 5000);
+
+                        // Detalle de filas con problemas (errores u omitidas)
+                        const rowErrors = Array.isArray(d.items?.rowErrors) ? d.items.rowErrors : [];
+                        const skipped = Array.isArray(d.items?.skipped) ? d.items.skipped : [];
+                        if (rowErrors.length || skipped.length) {
+                            const lines = [];
+                            rowErrors.forEach(e => {
+                                const codigo = (e.cols && e.cols[0] ? String(e.cols[0]).trim() : '');
+                                lines.push(`Error fila ${e.row}${codigo ? ` (codigo=${codigo})` : ''}: ${e.error}`);
+                            });
+                            skipped.forEach(s => {
+                                const codigo = (s.cols && s.cols[0] ? String(s.cols[0]).trim() : '');
+                                lines.push(`Omitida fila ${s.row}${codigo ? ` (codigo=${codigo})` : ''}: ${s.reason}`);
+                            });
+                            // Limitar el tamaño del mensaje mostrado en pantalla
+                            const preview = lines.slice(0, 20).join(' \n ');
+                            showToast(`Detalle de problemas en importación (máx 20): ${preview}`, 'warning', 8000);
+                            console.warn('Detalle completo de problemas en importación CSV:', lines.join('\n'));
+                        }
                     } else {
                         showToast(d.message || 'Importado', 'success');
                     }

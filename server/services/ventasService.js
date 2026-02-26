@@ -44,6 +44,7 @@ function registrarVenta(payload) {
         dias_vencimiento = 21,
         fecha_vencimiento = null,
         iva_pct = 0,
+        empresa_id = null,
     } = payload || {};
 
     // 1. Validaciones de entrada (antes se hacían en la ruta)
@@ -105,11 +106,17 @@ function registrarVenta(payload) {
         }
     }
 
+    if (!empresa_id) {
+        throw new Error('empresa_id es requerido para registrar la venta');
+    }
+
     const fecha = new Date().toISOString();
     let totalGeneralBs = 0;
     let totalGeneralUsd = 0;
 
     // 2. Transacción para asegurar integridad (Todo o nada)
+    const empresaId = empresa_id;
+
     const transaction = db.transaction(() => {
         // Crear la cabecera de la venta con total 0 inicialmente, guardando descuento y metodo_pago
         const ventaResult = db.prepare(`
@@ -119,7 +126,7 @@ function registrarVenta(payload) {
 
         const ventaId = ventaResult.lastInsertRowid;
 
-        const selectProducto = db.prepare('SELECT id, stock, precio_usd, costo_usd, descripcion, deposito_id, empresa_id FROM productos WHERE codigo = ?');
+        const selectProducto = db.prepare('SELECT id, stock, precio_usd, costo_usd, descripcion, deposito_id, empresa_id FROM productos WHERE codigo = ? AND empresa_id = ?');
         const selectStockDep = db.prepare(`
             SELECT cantidad FROM stock_por_deposito
             WHERE producto_id = ? AND deposito_id = ?
@@ -134,8 +141,8 @@ function registrarVenta(payload) {
         `);
 
         for (const item of items) {
-            // Buscar producto real en DB por CÓDIGO
-            const producto = selectProducto.get(item.codigo);
+            // Buscar producto real en DB por CÓDIGO dentro de la empresa de la venta
+            const producto = selectProducto.get(item.codigo, empresaId);
 
             if (!producto) {
                 throw new Error(`El producto con código ${item.codigo} no existe en la base de datos`);

@@ -316,7 +316,7 @@ module.exports = router;
 // ===== Bajo stock =====
 router.get('/bajo-stock', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const { min, items } = getBajoStock(req.query.umbral);
+    const { min, items } = getBajoStock(req.query.umbral, req.usuario.empresa_id || null);
     res.json({ min, items });
   } catch (err) {
   logger.error('Error bajo-stock', {

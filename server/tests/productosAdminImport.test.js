@@ -352,14 +352,17 @@ describe('Importación CSV /admin/productos/import (modos reconteo/adicional)', 
     expect(prodB).toBeDefined();
     expect(Number(prodB.stock)).toBe(20);
 
-    // Se crea un nuevo producto homónimo para empresa A
-    // No se debe haber creado un producto MX en empresa A porque el código ya existía en empresa B
+    // Se crea un nuevo producto homónimo para empresa A con el mismo código "MX"
+    // (el código ahora es único por empresa, no global)
     const prodA_mx = db
       .prepare('SELECT stock, empresa_id, deposito_id FROM productos WHERE codigo = ? AND empresa_id = ?')
       .get('MX', empresaA);
-    expect(prodA_mx).toBeUndefined();
+    expect(prodA_mx).toBeDefined();
+    expect(Number(prodA_mx.stock)).toBe(7);
+    expect(prodA_mx.empresa_id).toBe(empresaA);
+    expect(prodA_mx.deposito_id).toBe(depAId);
 
-    // Pero sí se crea MX2 para empresa A, sin afectar los productos de empresa B
+    // Y también se crea MX2 para empresa A, sin afectar los productos de empresa B
     const prodA_mx2 = db
       .prepare('SELECT stock, empresa_id, deposito_id FROM productos WHERE codigo = ? AND empresa_id = ?')
       .get('MX2', empresaA);

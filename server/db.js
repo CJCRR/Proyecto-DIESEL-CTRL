@@ -23,7 +23,7 @@ const db = new Database(dbPath, { verbose: sqlVerbose ? console.log : null });
 const schema = `
   CREATE TABLE IF NOT EXISTS productos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    codigo TEXT UNIQUE,
+    codigo TEXT,
     descripcion TEXT,
     precio_usd REAL,
     costo_usd REAL DEFAULT 0,
@@ -571,9 +571,9 @@ const migrations = [
       // Normalizar: productos existentes → empresa LOCAL (id=1) si está vacío
       db.prepare('UPDATE productos SET empresa_id = 1 WHERE empresa_id IS NULL').run();
 
-      // Índice por empresa + código para búsquedas rápidas
+      // Índice UNIQUE por empresa + código para búsquedas rápidas y unicidad por empresa
       if (!indexExists('idx_productos_empresa_codigo')) {
-        db.prepare('CREATE INDEX IF NOT EXISTS idx_productos_empresa_codigo ON productos (empresa_id, codigo)').run();
+        db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_empresa_codigo ON productos (empresa_id, codigo)').run();
       }
     }
   },
@@ -749,60 +749,52 @@ const migrations = [
   {
     id: '022_movimientos_depositos_basico',
     up: () => {
-      // Tabla de movimientos entre depósitos (por ahora registra cambios de depósito por producto)
-      db.prepare(`CREATE TABLE IF NOT EXISTS movimientos_deposito (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        empresa_id INTEGER NOT NULL,
-        producto_id INTEGER NOT NULL,
-        deposito_origen_id INTEGER,
-        deposito_destino_id INTEGER NOT NULL,
-        cantidad REAL,
-        motivo TEXT,
-        creado_en TEXT DEFAULT (datetime('now'))
-      )`).run();
+      const tx = db.transaction(() => {
+        // Tabla de movimientos entre depósitos (registra cambios de depósito por producto)
+        db.prepare(`CREATE TABLE IF NOT EXISTS movimientos_deposito (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          empresa_id INTEGER NOT NULL,
+          producto_id INTEGER NOT NULL,
+          deposito_origen_id INTEGER,
+          deposito_destino_id INTEGER NOT NULL,
+          cantidad REAL NOT NULL,
+          motivo TEXT,
+          creado_en TEXT DEFAULT (datetime('now'))
+        )`).run();
 
-      if (!indexExists('idx_mov_dep_empresa_fecha')) {
-        db.prepare('CREATE INDEX IF NOT EXISTS idx_mov_dep_empresa_fecha ON movimientos_deposito (empresa_id, creado_en DESC)').run();
-      }
-      if (!indexExists('idx_mov_dep_producto')) {
-        db.prepare('CREATE INDEX IF NOT EXISTS idx_mov_dep_producto ON movimientos_deposito (producto_id, creado_en DESC)').run();
-      }
-    }
-  },
-  {
-    id: '023_stock_por_deposito_basico',
-    up: () => {
-      // Existencias por depósito para soportar stock distribuido
-      db.prepare(`CREATE TABLE IF NOT EXISTS stock_por_deposito (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        empresa_id INTEGER NOT NULL,
-        producto_id INTEGER NOT NULL,
-        deposito_id INTEGER NOT NULL,
-        cantidad REAL NOT NULL DEFAULT 0,
-        creado_en TEXT DEFAULT (datetime('now')),
-        actualizado_en TEXT DEFAULT (datetime('now')),
-        UNIQUE (producto_id, deposito_id)
-      )`).run();
+        // Tabla de stock por depósito (estado actual del stock distribuido)
+        db.prepare(`CREATE TABLE IF NOT EXISTS stock_por_deposito (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          empresa_id INTEGER NOT NULL,
+          producto_id INTEGER NOT NULL,
+          deposito_id INTEGER NOT NULL,
+          cantidad REAL NOT NULL DEFAULT 0,
+          actualizado_en TEXT DEFAULT (datetime('now'))
+        )`).run();
 
-      if (!indexExists('idx_stock_dep_empresa_producto')) {
-        db.prepare('CREATE INDEX IF NOT EXISTS idx_stock_dep_empresa_producto ON stock_por_deposito (empresa_id, producto_id)').run();
-      }
-      if (!indexExists('idx_stock_dep_deposito')) {
-        db.prepare('CREATE INDEX IF NOT EXISTS idx_stock_dep_deposito ON stock_por_deposito (deposito_id)').run();
-      }
+        if (!indexExists('idx_stock_por_deposito_producto_deposito')) {
+          db.prepare(
+            'CREATE INDEX IF NOT EXISTS idx_stock_por_deposito_producto_deposito ON stock_por_deposito (producto_id, deposito_id)'
+          ).run();
+        }
 
-      // Inicializar existencias por depósito a partir del stock actual y deposito_id de productos
-      // Solo se insertan filas si aún no existen datos para ese producto/deposito
-      db.prepare(`
-        INSERT OR IGNORE INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
-        SELECT
-          COALESCE(p.empresa_id, 1) AS empresa_id,
-          p.id AS producto_id,
-          p.deposito_id AS deposito_id,
-          COALESCE(p.stock, 0) AS cantidad
-        FROM productos p
-        WHERE p.deposito_id IS NOT NULL
-      `).run();
+        // Inicializar stock_por_deposito a partir de productos existentes (solo si está vacío)
+        const existing = db.prepare('SELECT COUNT(*) as c FROM stock_por_deposito').get();
+        if (existing.c === 0) {
+          db.prepare(`
+            INSERT OR IGNORE INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+            SELECT
+              COALESCE(p.empresa_id, 1) AS empresa_id,
+              p.id AS producto_id,
+              p.deposito_id AS deposito_id,
+              COALESCE(p.stock, 0) AS cantidad
+            FROM productos p
+            WHERE p.deposito_id IS NOT NULL
+          `).run();
+        }
+      });
+
+      tx();
     }
   }
   ,
@@ -827,6 +819,24 @@ const migrations = [
         db.prepare("ALTER TABLE ventas ADD COLUMN comision_usd REAL DEFAULT 0").run();
       }
     }
+  },
+  {
+    id: '026_fix_movimientos_y_stock_columns',
+    up: () => {
+      const tx = db.transaction(() => {
+        // Asegurar columna motivo en movimientos_deposito
+        if (!columnExists('movimientos_deposito', 'motivo')) {
+          db.prepare('ALTER TABLE movimientos_deposito ADD COLUMN motivo TEXT').run();
+        }
+
+        // Asegurar columna actualizado_en en stock_por_deposito
+        if (!columnExists('stock_por_deposito', 'actualizado_en')) {
+          db.prepare("ALTER TABLE stock_por_deposito ADD COLUMN actualizado_en TEXT DEFAULT (datetime('now'))").run();
+        }
+      });
+
+      tx();
+    }
   }
 ];
 
@@ -850,22 +860,22 @@ const applyMigrations = () => {
 
 applyMigrations();
 
-// Crear usuario admin por defecto si no existen usuarios
+// Crear usuario admin por defecto para la empresa local (id=1) si no existe
 try {
-  const usuariosCount = db.prepare('SELECT count(*) as c FROM usuarios').get();
-  if (usuariosCount.c === 0) {
-    const adminUser = process.env.ADMIN_USERNAME;
-    const adminPass = process.env.ADMIN_PASSWORD;
-    if (adminUser && adminPass) {
+  const adminUser = process.env.ADMIN_USERNAME;
+  const adminPass = process.env.ADMIN_PASSWORD;
+  if (adminUser && adminPass) {
+    const adminEmpresa1 = db.prepare("SELECT id FROM usuarios WHERE empresa_id = 1 AND rol = 'admin' LIMIT 1").get();
+    if (!adminEmpresa1) {
       const hash = bcrypt.hashSync(adminPass, 10);
       db.prepare(`
         INSERT INTO usuarios (username, password, nombre_completo, rol, must_change_password, empresa_id)
         VALUES (?, ?, ?, 'admin', 1, 1)
       `).run(adminUser, hash, 'Administrador');
-      console.log('✅ Usuario admin inicial creado (debe cambiar contraseña)');
-    } else {
-      console.warn('⚠️ No se creó usuario admin: configure ADMIN_USERNAME y ADMIN_PASSWORD');
+      console.log('✅ Usuario admin inicial creado para empresa local (debe cambiar contraseña)');
     }
+  } else {
+    console.warn('⚠️ No se creó usuario admin: configure ADMIN_USERNAME y ADMIN_PASSWORD');
   }
 
   // Crear usuario superadmin global por defecto si no existe ninguno

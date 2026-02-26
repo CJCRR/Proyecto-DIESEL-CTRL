@@ -326,7 +326,21 @@ function getAbcProductos({ desde, hasta, a_pct, b_pct, empresaId }) {
 function getInventario(empresaId) {
   const cfgTasaRow = db.prepare(`SELECT valor FROM config WHERE clave='tasa_bcv'`).get();
   const cfgTasa = cfgTasaRow && cfgTasaRow.valor ? parseFloat(cfgTasaRow.valor) : null;
-  const ventaTasaRow = db.prepare(`SELECT tasa_bcv FROM ventas WHERE tasa_bcv IS NOT NULL ORDER BY fecha DESC LIMIT 1`).get();
+
+  // Tomar la última tasa_bcv de ventas de ESTA empresa (siempre que sea posible)
+  let ventaTasaRow;
+  if (empresaId) {
+    ventaTasaRow = db.prepare(`
+      SELECT v.tasa_bcv
+      FROM ventas v
+      JOIN usuarios u ON u.id = v.usuario_id
+      WHERE v.tasa_bcv IS NOT NULL AND u.empresa_id = ?
+      ORDER BY v.fecha DESC
+      LIMIT 1
+    `).get(empresaId);
+  } else {
+    ventaTasaRow = db.prepare(`SELECT tasa_bcv FROM ventas WHERE tasa_bcv IS NOT NULL ORDER BY fecha DESC LIMIT 1`).get();
+  }
   const ventaTasa = ventaTasaRow && ventaTasaRow.tasa_bcv ? ventaTasaRow.tasa_bcv : null;
   const tasa = (!Number.isNaN(cfgTasa) && cfgTasa > 0)
       ? cfgTasa
@@ -379,19 +393,25 @@ function getVentaConDetalles(id, empresaId) {
   return { venta, detalles };
 }
 
-function getBajoStock(umbral) {
+function getBajoStock(umbral, empresaId) {
   const override = parseInt(umbral);
   const row = db.prepare(`SELECT valor FROM config WHERE clave='stock_minimo'`).get();
   const conf = row && row.valor ? parseInt(row.valor) : 3;
   const min = Number.isFinite(override) ? Math.max(0, override) : conf;
+  const params = [min];
+  let whereExtra = '';
+  if (empresaId) {
+    whereExtra = ' AND empresa_id = ?';
+    params.push(empresaId);
+  }
   const items = db.prepare(`
       SELECT codigo, descripcion, stock, precio_usd,
              (COALESCE(precio_usd,0) * stock) AS total_usd
       FROM productos
-      WHERE CAST(stock AS INTEGER) <= ?
+      WHERE CAST(stock AS INTEGER) <= ?${whereExtra}
       ORDER BY CAST(stock AS INTEGER) ASC, codigo
       LIMIT 100
-    `).all(min);
+    `).all(...params);
   return { min, items };
 }
 

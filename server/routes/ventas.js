@@ -20,6 +20,10 @@ router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
             usuario_id: (req.body && req.body.usuario_id != null)
                 ? req.body.usuario_id
                 : (req.usuario ? req.usuario.id : null),
+            // Pasar siempre empresa_id de la sesión para que el servicio filtre por empresa
+            empresa_id: req.body && req.body.empresa_id != null
+                ? req.body.empresa_id
+                : (req.usuario ? req.usuario.empresa_id : null),
         };
         const { ventaId, cuentaCobrarId } = registrarVenta(payload);
         res.json({ message: 'Venta registrada con éxito', ventaId, cuentaCobrarId });
