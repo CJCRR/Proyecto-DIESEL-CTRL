@@ -21,7 +21,8 @@ const {
 // POST /admin/ajustes - Ajustar Stock (Entrada/Salida manual)
 router.post('/', requireAuth, (req, res) => {
   try {
-    ajustarStock(req.body || {});
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    ajustarStock({ ...(req.body || {}), empresa_id: empresaId });
     try {
       registrarAuditoria({
         usuario: req.usuario,

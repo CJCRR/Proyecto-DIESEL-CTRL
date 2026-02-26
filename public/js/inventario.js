@@ -145,6 +145,8 @@ async function cargarProductos() {
             const flagIncompletos = localStorage.getItem('inventario_filtro_incompletos');
             if (flagIncompletos === '1') {
                 params.set('incompletos', '1');
+                // Consumir el flag después de aplicar el filtro en la primera carga
+                localStorage.removeItem('inventario_filtro_incompletos');
             }
         } catch {}
         const res = await fetch(`/admin/productos?${params.toString()}`, {
@@ -375,15 +377,14 @@ function renderList(items) {
 try {
     const flagIncompletos = localStorage.getItem('inventario_filtro_incompletos');
     if (flagIncompletos === '1') {
-        localStorage.removeItem('inventario_filtro_incompletos');
         if (window.showToast) {
             window.showToast('Mostrando productos con datos incompletos (sin costo, sin categoría, sin depósito o sin stock definido).', 'info');
         }
     }
 } catch {}
+}
 
-q.addEventListener('input', () => renderList(productosCache));
-// Filter controls (moved to top)
+q.addEventListener('input', () => { currentPage = 0; cargarProductos(); });
 const topFilterCategoria = document.getElementById('filterCategoria');
 const topFilterStock = document.getElementById('filterStock');
 if (topFilterCategoria) topFilterCategoria.addEventListener('input', () => { currentPage = 0; cargarProductos(); });
