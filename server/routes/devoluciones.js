@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('./auth');
-const { registrarDevolucion, getHistorialDevoluciones } = require('../services/devolucionesService');
+const { registrarDevolucion, getHistorialDevoluciones, getDevolucionConDetalles } = require('../services/devolucionesService');
 
 // El superadmin no debe registrar ni ver devoluciones de empresas
 function forbidSuperadmin(req, res, next) {
@@ -14,7 +14,13 @@ function forbidSuperadmin(req, res, next) {
 // Registrar una devolución de productos
 router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const { devolucionId, total_bs, total_usd } = registrarDevolucion(req.body || {});
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+    const usuarioId = req.usuario && req.usuario.id ? req.usuario.id : null;
+    const { devolucionId, total_bs, total_usd } = registrarDevolucion({
+      ...(req.body || {}),
+      empresa_id: empresaId,
+      usuario_id: usuarioId,
+    });
     res.json({ message: 'Devolución registrada', devolucionId, total_bs, total_usd });
   } catch (err) {
     console.error('Error registrando devolución:', err.message);
@@ -36,6 +42,20 @@ router.get('/historial', requireAuth, forbidSuperadmin, (req, res) => {
   } catch (err) {
     console.error('Error obteniendo historial de devoluciones:', err.message);
     res.status(500).json({ error: 'Error al obtener devoluciones' });
+  }
+});
+
+// Detalle de una devolución específica
+router.get('/:id', requireAuth, forbidSuperadmin, (req, res) => {
+  try {
+    const dev = getDevolucionConDetalles(req.params.id, req.usuario.empresa_id || null);
+    if (!dev) {
+      return res.status(404).json({ error: 'Devolución no encontrada' });
+    }
+    res.json(dev);
+  } catch (err) {
+    console.error('Error obteniendo devolución por id:', err.message);
+    res.status(500).json({ error: 'Error al obtener devolución' });
   }
 });
 

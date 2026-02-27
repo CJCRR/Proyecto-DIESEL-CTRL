@@ -3,7 +3,7 @@
 import { apiFetchJson } from '../app-api.js';
 import { formatNumber } from '../format-utils.js';
 import { escapeHtml, showToast } from '../app-utils.js';
-import { sincronizarVentasPendientes } from '../firebase-sync.js';
+import { sincronizarVentasPendientes, upsertProductoFirebase } from '../firebase-sync.js';
 import {
 	carrito,
 	modoDevolucion,
@@ -327,6 +327,32 @@ export async function registrarDevolucion() {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(payload)
 		});
+
+		// Luego de registrar la devolución, sincronizar en Firebase
+		// los productos devueltos con su stock actualizado (best-effort).
+		try {
+			const codigos = [...new Set(items.map(it => (it && it.codigo ? String(it.codigo).trim() : '')).filter(Boolean))];
+			for (const codigo of codigos) {
+				try {
+					const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
+					if (!prod || prod.error) continue;
+					await upsertProductoFirebase({
+						codigo: prod.codigo,
+						descripcion: prod.descripcion,
+						precio_usd: prod.precio_usd,
+						costo_usd: prod.costo_usd,
+						stock: prod.stock,
+						categoria: prod.categoria,
+						marca: prod.marca,
+						deposito_id: prod.deposito_id || null,
+					});
+				} catch (errProd) {
+					console.warn('No se pudo sincronizar producto a Firebase tras devolución', codigo, errProd);
+				}
+			}
+		} catch (errSyncProdList) {
+			console.warn('No se pudo sincronizar productos a Firebase tras devolución', errSyncProdList);
+		}
 		if (typeof window.finalizarVentaUI === 'function') {
 			window.finalizarVentaUI();
 		}

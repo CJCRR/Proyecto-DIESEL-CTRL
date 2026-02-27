@@ -123,7 +123,13 @@ function crearCompra(payload = {}, usuario) {
       INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
       VALUES (?, ?, ?, ?)
     `);
-    const updateProdStock = db.prepare('UPDATE productos SET stock = ?, costo_usd = ? WHERE id = ?');
+    const updateProdStock = db.prepare(`
+      UPDATE productos
+      SET stock = ?,
+          costo_usd = ?,
+          marca = COALESCE(NULLIF(?, ''), marca)
+      WHERE id = ?
+    `);
 
     for (const raw of items) {
       const codigo = safeStr(raw.codigo, 80);
@@ -166,7 +172,7 @@ function crearCompra(payload = {}, usuario) {
 
       // Actualizar stock total del producto y existencias en el depósito asignado
       const nuevoStockTotal = (prod.stock || 0) + cantidad;
-      updateProdStock.run(nuevoStockTotal, costo, prod.id);
+      updateProdStock.run(nuevoStockTotal, costo, marca, prod.id);
 
       const depositoId = prod.deposito_id;
       if (depositoId) {

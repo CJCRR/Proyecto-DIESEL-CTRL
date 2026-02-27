@@ -423,11 +423,11 @@ router.get('/abc/clientes', requireAuth, forbidSuperadmin, (req, res) => {
   }
 });
 
-// Comparativa de vendedores
+// Comparativa / ranking de vendedores (endpoint principal usado por el dashboard)
 router.get('/vendedores', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
-    const rows = getVendedoresComparativa({ desde, hasta, empresaId: req.usuario.empresa_id || null });
+    const rows = getVendedoresRanking({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
   logger.error('Error vendedores comparativa', {
@@ -477,22 +477,7 @@ router.get('/margen/actual', requireAuth, forbidSuperadmin, (req, res) => {
 });
 
 // ===== Ranking de vendedores =====
-router.get('/vendedores', requireAuth, forbidSuperadmin, (req, res) => {
-  try {
-    const { desde, hasta } = req.query;
-    const enriched = getVendedoresRanking({ desde, hasta, empresaId: req.usuario.empresa_id || null });
-    res.json(enriched);
-  } catch (err) {
-  logger.error('Error ranking vendedores', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener ranking de vendedores', code: 'REPORTE_VENDEDORES_RANKING_ERROR' });
-  }
-});
+// (se reutiliza el mismo endpoint /vendedores definido arriba)
 
 // ===== Historial por cliente =====
 router.get('/historial-cliente', requireAuth, forbidSuperadmin, (req, res) => {

@@ -47,7 +47,10 @@ function registrarDevolucion(payload = {}) {
     motivo = '',
     venta_original_id = null,
     usuario_id = null,
+    empresa_id = null,
   } = payload;
+
+  const empresaId = Number(empresa_id || 1);
 
   const policy = getDevolucionPolicy();
   if (!policy.habilitado) {
@@ -151,7 +154,7 @@ function registrarDevolucion(payload = {}) {
         error.tipo = 'VALIDACION';
         throw error;
       }
-      const producto = selectProducto.get(codigo, empresa_id);
+      const producto = selectProducto.get(codigo, empresaId);
       if (!producto) {
         const error = new Error(`El producto ${codigo} no existe`);
         error.tipo = 'VALIDACION';
@@ -204,7 +207,7 @@ function registrarDevolucion(payload = {}) {
         if (rowDep) {
           upsertStockDep.suma.run(cantidad, producto.id, depositoId);
         } else {
-          upsertStockDep.insert.run(producto.empresa_id || null, producto.id, depositoId, cantidad);
+          upsertStockDep.insert.run(producto.empresa_id || empresaId || null, producto.id, depositoId, cantidad);
         }
       }
     }
@@ -222,32 +225,85 @@ function getHistorialDevoluciones(query = {}) {
   const lim = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
   const where = [];
   const params = [];
-  if (cliente) { where.push('cliente LIKE ?'); params.push(`%${cliente}%`); }
-  if (cedula) { where.push('cliente_doc LIKE ?'); params.push(`%${cedula}%`); }
-  if (desde) { where.push("date(fecha) >= date(?)"); params.push(desde); }
-  if (hasta) { where.push("date(fecha) <= date(?)"); params.push(hasta); }
+  if (cliente) { where.push('d.cliente LIKE ?'); params.push(`%${cliente}%`); }
+  if (cedula) { where.push('d.cliente_doc LIKE ?'); params.push(`%${cedula}%`); }
+  if (desde) { where.push("date(d.fecha) >= date(?)"); params.push(desde); }
+  if (hasta) { where.push("date(d.fecha) <= date(?)"); params.push(hasta); }
   if (empresaId != null) {
-    where.push(`EXISTS (
-      SELECT 1 FROM ventas v
-      JOIN usuarios u ON u.id = v.usuario_id
-      WHERE v.id = devoluciones.venta_original_id AND u.empresa_id = ?
-    )`);
+    where.push('u.empresa_id = ?');
     params.push(empresaId);
   }
   const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const rows = db.prepare(`
-      SELECT id, fecha, cliente, cliente_doc, referencia, motivo, total_bs, total_usd, venta_original_id
-      FROM devoluciones
+      SELECT d.id, d.fecha, d.cliente, d.cliente_doc, d.referencia, d.motivo,
+             d.total_bs, d.total_usd, d.venta_original_id,
+             CASE
+               WHEN v.id IS NOT NULL THEN (
+                 SELECT COUNT(*)
+                 FROM ventas v2
+                 JOIN usuarios u2 ON u2.id = v2.usuario_id
+                 WHERE u2.empresa_id = u.empresa_id AND v2.id <= v.id
+               )
+               ELSE NULL
+             END AS venta_nro_emp
+      FROM devoluciones d
+      LEFT JOIN ventas v ON v.id = d.venta_original_id
+      LEFT JOIN usuarios u ON u.id = v.usuario_id
       ${whereSQL}
-      ORDER BY fecha DESC
+      ORDER BY d.fecha DESC
       LIMIT ?
     `).all(...params, lim);
 
   return rows;
 }
 
+function getDevolucionConDetalles(id, empresaId = null) {
+  const params = [id];
+  const whereExtra = [];
+
+  if (empresaId != null) {
+    whereExtra.push(`EXISTS (
+      SELECT 1 FROM ventas v
+      JOIN usuarios u ON u.id = v.usuario_id
+      WHERE v.id = d.venta_original_id AND u.empresa_id = ?
+    )`);
+    params.push(empresaId);
+  }
+
+  const whereSQL = whereExtra.length ? ' AND ' + whereExtra.join(' AND ') : '';
+
+  const devolucion = db.prepare(`
+    SELECT d.*, v.fecha AS venta_fecha
+    FROM devoluciones d
+    LEFT JOIN ventas v ON v.id = d.venta_original_id
+    WHERE d.id = ?${whereSQL}
+  `).get(...params);
+
+  if (!devolucion) return null;
+
+  const detalles = db.prepare(`
+    SELECT p.codigo, p.descripcion, dd.cantidad, dd.precio_usd, dd.subtotal_bs
+    FROM devolucion_detalle dd
+    JOIN productos p ON p.id = dd.producto_id
+    WHERE dd.devolucion_id = ?
+  `).all(id);
+
+  let venta = null;
+  if (devolucion.venta_original_id) {
+    venta = db.prepare(`
+      SELECT v.id, v.fecha, v.cliente, v.vendedor, v.metodo_pago, v.referencia,
+             v.total_bs, v.total_bs_iva, v.total_usd_iva, v.tasa_bcv
+      FROM ventas v
+      WHERE v.id = ?
+    `).get(devolucion.venta_original_id);
+  }
+
+  return { devolucion, detalles, venta };
+}
+
 module.exports = {
   registrarDevolucion,
   getHistorialDevoluciones,
+  getDevolucionConDetalles,
 };

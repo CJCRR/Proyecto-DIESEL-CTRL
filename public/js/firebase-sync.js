@@ -377,6 +377,34 @@ async function sincronizarVentasPendientes({ isRetry = false } = {}) {
 
                 const data = await apiPostJson('/ventas', payload);
                 console.log(`✅ Venta enviada al servidor: ${venta.id_global} -> ${data.ventaId || data.id || 'OK'}`);
+
+                // Tras registrar la venta en el backend, actualizar en Firebase
+                // el stock de los productos afectados (best-effort, no bloqueante).
+                try {
+                    const codigos = Array.isArray(venta.items)
+                        ? [...new Set(venta.items.map(it => (it && it.codigo ? String(it.codigo).trim() : '')).filter(Boolean))]
+                        : [];
+                    for (const codigo of codigos) {
+                        try {
+                            const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
+                            if (!prod || prod.error) continue;
+                            await upsertProductoFirebase({
+                                codigo: prod.codigo,
+                                descripcion: prod.descripcion,
+                                precio_usd: prod.precio_usd,
+                                costo_usd: prod.costo_usd,
+                                stock: prod.stock,
+                                categoria: prod.categoria,
+                                marca: prod.marca,
+                                deposito_id: prod.deposito_id || null,
+                            });
+                        } catch (errProd) {
+                            console.warn('No se pudo sincronizar producto a Firebase tras venta', codigo, errProd);
+                        }
+                    }
+                } catch (errSyncProdList) {
+                    console.warn('No se pudo sincronizar productos a Firebase tras venta', errSyncProdList);
+                }
                 synced = true;
             } catch (err) {
                 console.warn(`⚠️ Error enviando al servidor ${venta.id_global}:`, err.message || err);

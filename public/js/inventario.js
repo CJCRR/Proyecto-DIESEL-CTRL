@@ -382,8 +382,6 @@ try {
         }
     }
 } catch {}
-}
-
 q.addEventListener('input', () => { currentPage = 0; cargarProductos(); });
 const topFilterCategoria = document.getElementById('filterCategoria');
 const topFilterStock = document.getElementById('filterStock');

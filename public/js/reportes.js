@@ -18,6 +18,7 @@ let cacheRows = [];
 const detallesCache = new Map();
 let abiertoId = null;
 let cacheDev = [];
+const devDetallesCache = new Map();
 let cachePres = [];
 let clienteTimer = null;
 let cacheRentCat = [];
@@ -56,16 +57,19 @@ function renderReporte() {
     let margen = 0;
     cacheRows.forEach((r) => {
         const t = MONEDA === 'USD'
-            ? (r.total_usd_iva != null ? r.total_usd_iva : (r.total_usd || 0))
-            : (r.total_bs_iva != null ? r.total_bs_iva : (r.total_bs || 0));
-        const m = MONEDA === 'USD' ? r.margen_usd || 0 : r.margen_bs || 0;
+            ? Number(r.total_usd || 0)
+            : Number(r.total_bs || 0);
+        const m = MONEDA === 'USD' ? Number(r.margen_usd || 0) : Number(r.margen_bs || 0);
         total += Number(t);
         margen += Number(m);
+        const badgeDev = r.tiene_devolucion
+            ? '<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 uppercase tracking-wide">DEVOLUCIÓN</span>'
+            : '';
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 cursor-pointer';
         tr.dataset.id = String(r.id);
                 tr.innerHTML = `
-            <td class="p-2 whitespace-nowrap"><i id="venta-toggle-icon-${r.id}" class="fas fa-chevron-down mr-2 text-slate-500"></i>${new Date(r.fecha).toLocaleString()}</td>
+            <td class="p-2 whitespace-nowrap"><i id="venta-toggle-icon-${r.id}" class="fas fa-chevron-down mr-2 text-slate-500"></i>${new Date(r.fecha).toLocaleString()}${badgeDev}</td>
       <td class="p-2">${r.cliente || ''}</td>
             <td class="p-2 hidden sm:table-cell">${r.vendedor || ''}</td>
             <td class="p-2 hidden sm:table-cell">${r.metodo_pago || ''}</td>
@@ -133,8 +137,13 @@ function renderReporte() {
                     const montoBs = d.subtotal_bs != null ? Number(d.subtotal_bs || 0) : (montoUsd * (tasa || 1));
                     const monto = MONEDA === 'USD' ? fmt(montoUsd) + ' USD' : fmt(montoBs) + ' Bs';
                     const codePart = codigo ? `<span class=\"font-semibold\">${codigo}</span> — ` : '';
+                    const devTag = d.devuelto_total
+                        ? '<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-rose-100 text-rose-700 uppercase tracking-wide">DEVUELTO</span>'
+                        : (d.devuelto_parcial
+                            ? `<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700 uppercase tracking-wide">DEVUELTO ${d.devuelto_cant || ''}</span>`
+                            : '');
                     return `<div class="flex items-center justify-between border-b pb-1">
-                        <div class="truncate">${codePart}<span class="text-slate-600">${d.descripcion || ''}</span></div>
+                        <div class="truncate">${codePart}<span class="text-slate-600">${d.descripcion || ''}</span>${devTag}</div>
                         <div class="text-right min-w-[160px]"><span class="text-xs text-slate-500">Cant ${d.cantidad}</span> • <span class="font-semibold">${monto}</span></div>
                     </div>`;
                 }).join('');
@@ -521,17 +530,115 @@ function renderDevoluciones() {
         cont.innerHTML = '<div class="text-xs text-slate-400">Sin devoluciones en el rango.</div>';
         return;
     }
-    cont.innerHTML = cacheDev.map(d => {
-        const total = MONEDA === 'USD' ? (d.total_usd || 0) : (d.total_bs || 0);
-        return `<div class="p-2 border-b flex items-center justify-between text-xs">
+    cont.innerHTML = cacheDev.map((d, idx) => {
+                const total = MONEDA === 'USD' ? (d.total_usd || 0) : (d.total_bs || 0);
+                const nro = idx + 1;
+                const fechaTxt = new Date(d.fecha).toLocaleString();
+                const ventaInfo = d.venta_original_id
+                    ? (d.venta_nro_emp != null ? `Venta #${d.venta_nro_emp}` : `Venta #${d.venta_original_id}`)
+                    : 'Sin venta asociada';
+        return `
+        <div class="border-b">
+          <div class="p-2 flex items-center justify-between text-xs cursor-pointer" data-dev-toggle="${d.id}">
             <div>
-                <div class="font-semibold text-slate-700">${d.cliente || ''}</div>
-                <div class="text-[11px] text-slate-500">#${d.id} • ${new Date(d.fecha).toLocaleString()}${d.referencia ? ' • Ref: ' + d.referencia : ''}</div>
-                ${d.motivo ? `<div class="text-[11px] text-slate-500">${d.motivo}</div>` : ''}
+              <div class="font-semibold text-slate-700">${d.cliente || ''}</div>
+              <div class="text-[11px] text-slate-500">DEV-${nro} • ${fechaTxt} • Ref: ${ventaInfo}</div>
+              ${d.motivo ? `<div class="text-[11px] text-slate-500">${d.motivo}</div>` : ''}
             </div>
-            <div class="text-right font-black text-rose-600">${Number(total).toFixed(2)} ${MONEDA}</div>
+            <div class="text-right">
+              <div class="font-black text-rose-600">${Number(total).toFixed(2)} ${MONEDA}</div>
+              ${d.venta_original_id ? `<button class="mt-1 px-2 py-1 text-[10px] bg-blue-600 text-white rounded" data-ver-venta="${d.venta_original_id}">Ver venta</button>` : ''}
+            </div>
+          </div>
+          <div id="dev-det-${d.id}" class="hidden bg-slate-50 p-2 text-[11px] text-slate-700">Productos devueltos...</div>
         </div>`;
     }).join('');
+
+    // Toggle y carga de detalles de cada devolución
+    cont.querySelectorAll('[data-dev-toggle]').forEach(el => {
+        el.addEventListener('click', async () => {
+            const devId = el.getAttribute('data-dev-toggle');
+            const panel = document.getElementById(`dev-det-${devId}`);
+            if (!panel) return;
+            const oculto = panel.classList.contains('hidden');
+            panel.classList.toggle('hidden');
+            if (!oculto) return;
+
+            if (!devDetallesCache.has(devId)) {
+                panel.textContent = 'Cargando...';
+                try {
+                    const j = await apiFetchJson(`/devoluciones/${devId}`);
+                    devDetallesCache.set(devId, j);
+                } catch (err) {
+                    console.error('Error detalle devolución', err);
+                    panel.textContent = 'Error cargando detalle de la devolución';
+                    return;
+                }
+            }
+
+            const data = devDetallesCache.get(devId) || {};
+            const detalles = data.detalles || [];
+            const devolucion = data.devolucion || {};
+            const tasa = Number(devolucion.tasa_bcv || 0) || 0;
+            const fmt = (v) => Number(v || 0).toFixed(2);
+
+            if (!detalles.length) {
+                panel.innerHTML = '<div class="text-slate-400">Sin productos devueltos.</div>';
+                return;
+            }
+
+            panel.innerHTML = detalles.map(d => {
+                const codigo = d.codigo || '';
+                const montoUsd = Number(d.precio_usd || 0) * Number(d.cantidad || 0);
+                const montoBs = d.subtotal_bs != null ? Number(d.subtotal_bs || 0) : (montoUsd * (tasa || 1));
+                const monto = MONEDA === 'USD' ? fmt(montoUsd) + ' USD' : fmt(montoBs) + ' Bs';
+                const codePart = codigo ? `<span class="font-semibold">${codigo}</span> — ` : '';
+                return `<div class="flex items-center justify-between border-b pb-1">
+                    <div class="truncate">${codePart}<span class="text-slate-600">${d.descripcion || ''}</span></div>
+                    <div class="text-right min-w-[160px]"><span class="text-xs text-slate-500">Cant ${d.cantidad}</span> • <span class="font-semibold">${monto}</span></div>
+                </div>`;
+            }).join('');
+        });
+    });
+
+    // Botones para abrir la venta original en el acordeón de ventas
+    cont.querySelectorAll('[data-ver-venta]').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const ventaId = btn.getAttribute('data-ver-venta');
+            if (ventaId) {
+                abrirVentaEnReporte(ventaId);
+            }
+        });
+    });
+}
+
+function abrirVentaEnReporte(ventaId) {
+    try {
+        const ventasPanel = document.getElementById('ventas-panel');
+        const ventasToggle = document.getElementById('ventas-toggle');
+        if (ventasPanel && ventasPanel.classList.contains('hidden')) {
+            ventasPanel.classList.remove('hidden');
+            if (ventasToggle) {
+                const icon = ventasToggle.querySelector('i');
+                const label = ventasToggle.querySelector('span');
+                if (icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
+                if (label) label.textContent = 'Ocultar';
+            }
+        }
+
+        const row = document.querySelector(`#rpt-tabla tr[data-id="${ventaId}"]`);
+        if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.click();
+        } else if (window.showToast) {
+            window.showToast('La venta de esta devolución no está dentro del rango filtrado.', 'warning');
+        } else {
+            alert('La venta de esta devolución no está dentro del rango filtrado.');
+        }
+    } catch (err) {
+        console.error('Error abriendo venta desde devolución', err);
+    }
 }
 
 document.getElementById('preset-hoy').addEventListener('click', () => { setPreset('hoy'); cargarReporte(); });

@@ -1,5 +1,6 @@
 import { apiFetchJson } from './app-api.js';
 import { showToast, escapeHtml } from './app-utils.js';
+import { upsertProductoFirebase } from './firebase-sync.js';
 
 let proveedores = [];
 let items = [];
@@ -226,7 +227,7 @@ function agregarItemDesdeFormulario() {
   const codigo = document.getElementById('c_codigo').value.trim();
   const cantidad = formInt('c_cantidad', 0);
   const costo = formNumber('c_costo', 0);
-  const lote = document.getElementById('c_lote').value.trim();
+  const marcaInput = document.getElementById('c_lote').value.trim();
 
   if (!codigo || cantidad <= 0 || costo <= 0) {
     showToast('Código, cantidad y costo son requeridos', 'error');
@@ -237,11 +238,13 @@ function agregarItemDesdeFormulario() {
     ? (productoSeleccionado.descripcion || '')
     : '';
 
-  const marca = productoSeleccionado && productoSeleccionado.codigo === codigo
+  const marcaBase = productoSeleccionado && productoSeleccionado.codigo === codigo
     ? (productoSeleccionado.marca || '')
     : '';
 
-  items.push({ codigo, descripcion: desc, marca, cantidad, costo, lote });
+  const marca = marcaInput || marcaBase;
+
+  items.push({ codigo, descripcion: desc, marca, cantidad, costo, lote: '' });
   document.getElementById('c_codigo').value = '';
   document.getElementById('c_cantidad').value = '';
   document.getElementById('c_costo').value = '';
@@ -272,7 +275,7 @@ async function guardarCompra() {
       marca: it.marca,
       cantidad: it.cantidad,
       costo_usd: it.costo,
-      lote: it.lote,
+      lote: '',
       observaciones: it.observaciones,
     })),
   };
@@ -284,6 +287,32 @@ async function guardarCompra() {
       body: JSON.stringify(payload),
     });
     showToast('Compra registrada y stock actualizado', 'success');
+
+    // Sincronizar stock y datos del producto en Firebase para los códigos comprados
+    try {
+      const codigos = [...new Set(items.map(it => (it && it.codigo ? String(it.codigo).trim() : '')).filter(Boolean))];
+      for (const codigo of codigos) {
+        try {
+          const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
+          if (!prod || prod.error) continue;
+          await upsertProductoFirebase({
+            codigo: prod.codigo,
+            descripcion: prod.descripcion,
+            precio_usd: prod.precio_usd,
+            costo_usd: prod.costo_usd,
+            stock: prod.stock,
+            categoria: prod.categoria,
+            marca: prod.marca,
+            deposito_id: prod.deposito_id || null,
+          });
+        } catch (syncErrProd) {
+          console.warn('No se pudo sincronizar producto a Firebase tras compra', codigo, syncErrProd);
+        }
+      }
+    } catch (syncErrList) {
+      console.warn('No se pudo preparar sincronización de productos tras compra', syncErrList);
+    }
+
     limpiarFormularioCompra();
     cargarHistorialCompras();
   } catch (err) {
