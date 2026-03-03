@@ -1,100 +1,46 @@
-// Script de mantenimiento para corregir usuario_id de ventas
-// basado en el campo de texto "vendedor".
+// Script de mantenimiento para sincronizar el campo de texto
+// ventas.vendedor con el usuario real (ventas.usuario_id).
 //
-// Uso:
+// Útil para corregir casos donde se quedó grabado, por ejemplo,
+// "adminalpha" aunque la venta pertenece a otro usuario.
+//
+// Uso desde la raíz del proyecto:
 //   node server/fix-ventas-vendedor.js
 
-const Database = require('better-sqlite3');
-const path = require('path');
-
-// Reutilizamos la misma ruta de database.sqlite que el resto de scripts de mantenimiento
-const dbPath = path.join(__dirname, '..', 'database.sqlite');
-const db = new Database(dbPath);
-
-function normalizarTexto(s) {
-    return (s || '')
-        .toString()
-        .trim()
-        .toLowerCase();
-}
+const db = require('./db');
 
 function main() {
-    // Construir un mapa de posibles nombres/identificadores de usuario -> id
-    const usuarios = db.prepare(`
-    SELECT id, username, nombre_completo
-    FROM usuarios
-  `).all();
+    const totales = db.prepare(`
+        SELECT
+            COUNT(*)                         AS total,
+            SUM(CASE WHEN usuario_id IS NOT NULL THEN 1 ELSE 0 END) AS con_usuario
+        FROM ventas
+    `).get();
 
-    if (!usuarios.length) {
-        console.log('No hay usuarios en la tabla usuarios. Nada que hacer.');
+    console.log('Ventas totales en la base:', totales.total);
+    console.log('Ventas con usuario_id asignado:', totales.con_usuario);
+
+    if (!totales.con_usuario) {
+        console.log('No hay ventas con usuario_id. Nada que hacer.');
         return;
     }
 
-    const map = new Map();
-    for (const u of usuarios) {
-        const claves = new Set();
-        if (u.username) claves.add(normalizarTexto(u.username));
-        if (u.nombre_completo) claves.add(normalizarTexto(u.nombre_completo));
-        // También separar por espacios y registrar la primera palabra, por si el vendedor se guardó abreviado
-        if (u.nombre_completo) {
-            const partes = normalizarTexto(u.nombre_completo).split(/\s+/).filter(Boolean);
-            if (partes.length) claves.add(partes[0]);
-        }
-        for (const k of claves) {
-            if (!k) continue;
-            if (!map.has(k)) {
-                map.set(k, u.id);
-            }
-        }
-    }
+    // Sincroniza ventas.vendedor con el nombre del usuario asociado.
+    // Prioriza nombre_completo y, si no existe, usa username.
+    const stmt = db.prepare(`
+        UPDATE ventas
+        SET vendedor = (
+            SELECT COALESCE(u.nombre_completo, u.username, ventas.vendedor)
+            FROM usuarios u
+            WHERE u.id = ventas.usuario_id
+        )
+        WHERE usuario_id IS NOT NULL
+    `);
 
-    console.log('Claves de mapeo de usuarios construidas:', map.size);
+    const info = stmt.run();
 
-    const ventas = db.prepare(`
-    SELECT id, vendedor, usuario_id
-    FROM ventas
-    WHERE vendedor IS NOT NULL AND TRIM(vendedor) != ''
-  `).all();
-
-    if (!ventas.length) {
-        console.log('No hay ventas con campo vendedor relleno. Nada que corregir.');
-        return;
-    }
-
-    const updateStmt = db.prepare('UPDATE ventas SET usuario_id = ? WHERE id = ?');
-    let corregidas = 0;
-    let yaCorrectas = 0;
-    let sinMatch = 0;
-
-    const tx = db.transaction(() => {
-        for (const v of ventas) {
-            const vendedorNorm = normalizarTexto(v.vendedor);
-            if (!vendedorNorm) {
-                continue;
-            }
-
-            const nuevoUsuarioId = map.get(vendedorNorm);
-            if (!nuevoUsuarioId) {
-                sinMatch += 1;
-                continue;
-            }
-
-            if (v.usuario_id === nuevoUsuarioId) {
-                yaCorrectas += 1;
-                continue;
-            }
-
-            updateStmt.run(nuevoUsuarioId, v.id);
-            corregidas += 1;
-        }
-    });
-
-    tx();
-
-    console.log('Ventas procesadas:', ventas.length);
-    console.log('Ventas ya correctas (usuario_id coincide con vendedor):', yaCorrectas);
-    console.log('Ventas corregidas (usuario_id actualizado según vendedor):', corregidas);
-    console.log('Ventas sin coincidencia clara de vendedor en usuarios:', sinMatch);
+    console.log('Ventas actualizadas (vendedor sincronizado con usuario):', info.changes);
+    console.log('Listo. Revisa ahora tus reportes de ventas.');
 }
 
 main();

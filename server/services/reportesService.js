@@ -68,7 +68,9 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`
-    SELECT v.id, v.fecha, v.cliente, v.vendedor, v.metodo_pago, v.referencia,
+      SELECT v.id, v.fecha, v.cliente,
+        COALESCE(u.nombre_completo, u.username, v.vendedor) AS vendedor,
+        v.metodo_pago, v.referencia,
            v.tasa_bcv, v.descuento, v.iva_pct, v.total_bs_iva, v.total_usd_iva,
            COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0) AS total_bs,
            COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) / NULLIF(v.tasa_bcv,0),
@@ -86,6 +88,7 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
     FROM ventas v
     JOIN venta_detalle vd ON vd.venta_id = v.id
     JOIN productos p ON p.id = vd.producto_id
+    LEFT JOIN usuarios u ON u.id = v.usuario_id
     ${whereSQL}
     GROUP BY v.id
     ORDER BY v.fecha DESC
@@ -171,10 +174,13 @@ function getVentasSinDevolucion(empresaId) {
   const whereSQL = 'WHERE ' + where.join(' AND ');
 
   const rows = db.prepare(`
-    SELECT v.id, v.fecha, v.cliente, v.vendedor, v.cedula, v.telefono,
+      SELECT v.id, v.fecha, v.cliente,
+        COALESCE(u.nombre_completo, u.username, v.vendedor) AS vendedor,
+        v.cedula, v.telefono,
            v.total_bs, v.tasa_bcv, v.descuento, v.metodo_pago, v.referencia,
            v.iva_pct, v.total_bs_iva, v.total_usd_iva
     FROM ventas v
+      LEFT JOIN usuarios u ON u.id = v.usuario_id
     ${whereSQL}
     ORDER BY v.fecha DESC
     LIMIT 100
