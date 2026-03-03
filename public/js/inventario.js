@@ -101,6 +101,7 @@ const importModeSelect = previewModal.querySelector('#importMode');
 let productosCache = [];
 let currentPage = 0;
 let currentTotal = 0;
+let filtroIncompletosActivo = false;
 
 // Ocultar campos de stock/depósito/ajuste para usuarios que no son admin
 if (!puedeEditarStockDesdeInventario) {
@@ -141,14 +142,9 @@ async function cargarProductos() {
         if (stockFilter === 'medium') params.set('stock_lt', '20');
         if (stockFilter === 'over') params.set('stock_gt', '100');
         if (depositoFilterVal) params.set('deposito_id', depositoFilterVal);
-        try {
-            const flagIncompletos = localStorage.getItem('inventario_filtro_incompletos');
-            if (flagIncompletos === '1') {
-                params.set('incompletos', '1');
-                // Consumir el flag después de aplicar el filtro en la primera carga
-                localStorage.removeItem('inventario_filtro_incompletos');
-            }
-        } catch {}
+        if (filtroIncompletosActivo) {
+            params.set('incompletos', '1');
+        }
         const res = await fetch(`/admin/productos?${params.toString()}`, {
             credentials: 'same-origin'
         });
@@ -377,8 +373,10 @@ function renderList(items) {
 try {
     const flagIncompletos = localStorage.getItem('inventario_filtro_incompletos');
     if (flagIncompletos === '1') {
+        filtroIncompletosActivo = true;
+        localStorage.removeItem('inventario_filtro_incompletos');
         if (window.showToast) {
-            window.showToast('Mostrando productos con datos incompletos (sin costo, sin categoría, sin depósito o sin stock definido).', 'info');
+            window.showToast('Mostrando productos con datos incompletos (sin costo, sin categoría, sin depósito, sin stock definido, sin marca o sin precio).', 'info');
         }
     }
 } catch {}

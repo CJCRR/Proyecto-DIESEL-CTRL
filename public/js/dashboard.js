@@ -441,12 +441,30 @@ async function renderAlertasTareas() {
                 html: `<div class=\"py-1 border-b\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-rose-100 text-rose-700\">MOROSO</span><span class=\"font-semibold\">${m.cliente_nombre || 'Cliente'}</span></div><span class=\"text-slate-500\">vence ${m.fecha_vencimiento}</span></div><div class=\"text-xs text-slate-500 truncate\">Saldo: $${Number(m.saldo_usd || 0).toFixed(2)} (${m.estado_calc || m.estado || ''})</div></div>`
             }));
             const incTotal = Number(incompletos.total_incompletos || 0);
-            const rowsInc = incTotal > 0 ? [
-                {
-                    tipo: 'DATOS',
-                    html: `<div id=\"al-datos-incompletos\" class=\"py-1 border-b cursor-pointer hover:bg-slate-50\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-sky-100 text-sky-700\">DATOS</span><span class=\"font-semibold\">Productos con datos incompletos</span></div><span class=\"text-slate-500\">${incTotal}</span></div><div class=\"text-xs text-slate-500 truncate\">Sin costo: ${Number(incompletos.sin_costo || 0)} · Sin categoría: ${Number(incompletos.sin_categoria || 0)} · Sin depósito: ${Number(incompletos.sin_deposito || 0)} · Sin stock definido: ${Number(incompletos.sin_stock_definido || 0)}</div></div>`
-                }
-            ] : [];
+            const incParts = [];
+            const incSinCosto = Number(incompletos.sin_costo || 0);
+            const incSinCategoria = Number(incompletos.sin_categoria || 0);
+            const incSinDeposito = Number(incompletos.sin_deposito || 0);
+            const incSinStockDef = Number(incompletos.sin_stock_definido || 0);
+            const incSinMarca = Number(incompletos.sin_marca || 0);
+            const incSinPrecio = Number(incompletos.sin_precio || 0);
+            if (incSinCosto > 0) incParts.push(`Sin costo: ${incSinCosto}`);
+            if (incSinCategoria > 0) incParts.push(`Sin categoría: ${incSinCategoria}`);
+            if (incSinDeposito > 0) incParts.push(`Sin depósito: ${incSinDeposito}`);
+            if (incSinStockDef > 0) incParts.push(`Sin stock definido: ${incSinStockDef}`);
+            if (incSinMarca > 0) incParts.push(`Sin marca: ${incSinMarca}`);
+            if (incSinPrecio > 0) incParts.push(`Sin precio: ${incSinPrecio}`);
+
+            const incResumen = incParts.join(' · ');
+
+            const rowsInc = incTotal > 0 && incResumen
+                ? [
+                    {
+                        tipo: 'DATOS',
+                        html: `<div id=\"al-datos-incompletos\" class=\"py-1 border-b cursor-pointer hover:bg-slate-50\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-sky-100 text-sky-700\">DATOS</span><span class=\"font-semibold\">Productos con datos incompletos</span></div><span class=\"text-slate-500\">${incTotal}</span></div><div class=\"text-xs text-slate-500 truncate\">${incResumen}</div></div>`
+                    }
+                ]
+                : [];
 
             const combined = [...rowsInc, ...rowsStock, ...rowsMor];
             pendEl.innerHTML = combined.length

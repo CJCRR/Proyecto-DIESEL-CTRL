@@ -137,14 +137,33 @@ router.get('/tareas', requireAuth, (req, res) => {
       WHERE stock IS NULL${empresaId ? ' AND empresa_id = ?' : ''}
     `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
 
+    const sinMarcaRow = db.prepare(`
+      SELECT COUNT(*) AS c
+      FROM productos
+      WHERE (marca IS NULL OR TRIM(marca) = '')${empresaId ? ' AND empresa_id = ?' : ''}
+    `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
+
+    const sinPrecioRow = db.prepare(`
+      SELECT COUNT(*) AS c
+      FROM productos
+      WHERE (precio_usd IS NULL OR precio_usd <= 0)${empresaId ? ' AND empresa_id = ?' : ''}
+    `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
+
     const incompletos = {
       sin_costo: Number(sinCostoRow.c || 0),
       sin_categoria: Number(sinCategoriaRow.c || 0),
       sin_deposito: Number(sinDepositoRow.c || 0),
       sin_stock_definido: Number(sinStockDefRow.c || 0),
+      sin_marca: Number(sinMarcaRow.c || 0),
+      sin_precio: Number(sinPrecioRow.c || 0),
     };
 
-    incompletos.total_incompletos = incompletos.sin_costo + incompletos.sin_categoria + incompletos.sin_deposito + incompletos.sin_stock_definido;
+    incompletos.total_incompletos = incompletos.sin_costo
+      + incompletos.sin_categoria
+      + incompletos.sin_deposito
+      + incompletos.sin_stock_definido
+      + incompletos.sin_marca
+      + incompletos.sin_precio;
 
     const backupDir = path.join(__dirname, '..', 'backups');
     let ultimaBackup = null;

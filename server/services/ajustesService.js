@@ -200,6 +200,14 @@ function setConfig(clave, valor, fecha = new Date().toISOString()) {
     .run(clave, String(valor), fecha);
 }
 
+function buildTasaKey(empresaId) {
+  const eid = empresaId != null ? Number(empresaId) : null;
+  if (Number.isFinite(eid) && eid > 0) {
+    return `tasa_bcv:empresa:${eid}`;
+  }
+  return 'tasa_bcv';
+}
+
 function getConfigJSON(clave, defObj = {}) {
   const raw = getConfig(clave, null);
   if (!raw) return defObj;
@@ -243,22 +251,43 @@ function guardarBrandingGlobal(payload = {}) {
 
 /**
  * Obtiene la última tasa BCV guardada en la configuración.
+ *
+ * Si se pasa `empresaId`, intenta primero leer una clave específica
+ * por empresa (`tasa_bcv:empresa:<id>`). Si no existe, usa la clave
+ * global `tasa_bcv` como fallback para mantener compatibilidad.
+ *
+ * @param {number|null|undefined} [empresaId]
  * @returns {import('../types').TasaBcvInfo}
  */
-function obtenerTasaBcv() {
-  const row = db.prepare(`SELECT valor, actualizado_en FROM config WHERE clave='tasa_bcv'`).get();
+function obtenerTasaBcv(empresaId) {
+  const key = buildTasaKey(empresaId);
+
+  let row = db.prepare(`SELECT valor, actualizado_en FROM config WHERE clave = ?`).get(key);
+
+  // Fallback a clave global histórica si no hay valor por empresa
+  if (!row && key !== 'tasa_bcv') {
+    row = db.prepare(`SELECT valor, actualizado_en FROM config WHERE clave = 'tasa_bcv'`).get();
+  }
+
   const valor = parseFloat(row?.valor ?? '1') || 1;
   return { tasa_bcv: valor, actualizado_en: row?.actualizado_en || null };
 }
 
 /**
  * Guarda una nueva tasa BCV manualmente.
+ *
+ * Cuando hay `empresaId`, persiste la tasa en una clave específica por
+ * empresa para que cada empresa tenga su propia tasa independiente.
+ * Sin `empresaId`, usa la clave global `tasa_bcv` (modo legado/tests).
+ *
  * @param {number} tasa
+ * @param {number|null|undefined} [empresaId]
  * @returns {import('../types').TasaBcvInfo}
  */
-function guardarTasaBcv(tasa) {
+function guardarTasaBcv(tasa, empresaId) {
   const now = new Date().toISOString();
-  setConfig('tasa_bcv', tasa, now);
+  const key = buildTasaKey(empresaId);
+  setConfig(key, tasa, now);
   return { ok: true, tasa_bcv: tasa, actualizado_en: now };
 }
 
@@ -267,9 +296,10 @@ function guardarTasaBcv(tasa) {
  * Nunca lanza error: devuelve un objeto con `ok=false` y la tasa previa
  * si no se pudo actualizar.
  *
+ * @param {number|null|undefined} [empresaId]
  * @returns {Promise<import('../types').TasaBcvInfo>}
  */
-async function actualizarTasaBcvAutomatica() {
+async function actualizarTasaBcvAutomatica(empresaId) {
   const https = require('https');
 
   async function fetchJSON(url) {
@@ -340,17 +370,19 @@ async function actualizarTasaBcvAutomatica() {
       } catch (e) {}
     }
 
-    const previa = parseFloat(getConfig('tasa_bcv', '1')) || 1;
+    const key = buildTasaKey(empresaId);
+    const previa = parseFloat(getConfig(key, '1')) || 1;
     if (!tasa || Number.isNaN(tasa) || tasa <= 0) {
       return { ok: false, tasa_bcv: previa, error: 'No fue posible obtener la tasa automáticamente' };
     }
 
     const now = new Date().toISOString();
-    setConfig('tasa_bcv', tasa, now);
+    setConfig(key, tasa, now);
     return { ok: true, tasa_bcv: tasa, previa, actualizado_en: now };
   } catch (err) {
     console.error('Error actualizando tasa:', err.message);
-    const previa = parseFloat(getConfig('tasa_bcv', '1')) || 1;
+    const key = buildTasaKey(empresaId);
+    const previa = parseFloat(getConfig(key, '1')) || 1;
     return { ok: false, tasa_bcv: previa, error: 'Error actualizando tasa' };
   }
 }

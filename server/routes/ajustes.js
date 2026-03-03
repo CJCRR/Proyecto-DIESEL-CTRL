@@ -83,7 +83,8 @@ router.post('/rebuild-stock', requireAuth, requireRole('admin', 'admin_empresa',
 // GET /ajustes/tasa-bcv
 router.get('/tasa-bcv', requireAuth, (req, res) => {
   try {
-    const data = obtenerTasaBcv();
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const data = obtenerTasaBcv(empresaId);
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: 'No se pudo obtener tasa' });
@@ -96,7 +97,8 @@ router.post('/tasa-bcv', requireAuth, (req, res) => {
   const t = parseFloat(tasa_bcv);
   if (!t || isNaN(t) || t <= 0) return res.status(400).json({ error: 'Tasa inválida' });
   try {
-    const result = guardarTasaBcv(t);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const result = guardarTasaBcv(t, empresaId);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'No se pudo guardar tasa' });
@@ -106,7 +108,8 @@ router.post('/tasa-bcv', requireAuth, (req, res) => {
 // POST /ajustes/tasa-bcv/actualizar - intenta consultar fuentes públicas
 router.post('/tasa-bcv/actualizar', requireAuth, async (req, res) => {
   try {
-    const result = await actualizarTasaBcvAutomatica();
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const result = await actualizarTasaBcvAutomatica(empresaId);
     res.status(200).json(result);
   } catch (err) {
     console.error('Error actualizando tasa (handler):', err.message);

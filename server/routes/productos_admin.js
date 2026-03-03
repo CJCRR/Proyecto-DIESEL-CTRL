@@ -113,7 +113,14 @@ router.get('/', requireAuth, (req, res) => {
                 if (stock_gt !== null) { where.push('p.stock > ?'); params.push(stock_gt); }
             }
             if (incompletos) {
-                where.push('((p.costo_usd IS NULL OR p.costo_usd <= 0) OR (p.categoria IS NULL OR TRIM(p.categoria) = \'\') OR p.deposito_id IS NULL OR p.stock IS NULL)');
+                where.push(`(
+                    (p.costo_usd IS NULL OR p.costo_usd <= 0)
+                    OR (p.categoria IS NULL OR TRIM(p.categoria) = '')
+                    OR p.deposito_id IS NULL
+                    OR p.stock IS NULL
+                    OR (p.marca IS NULL OR TRIM(p.marca) = '')
+                    OR (p.precio_usd IS NULL OR p.precio_usd <= 0)
+                )`);
             }
 
             const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';

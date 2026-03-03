@@ -474,14 +474,39 @@ function getAbcProductos({ desde, hasta, a_pct, b_pct, empresaId }) {
 }
 
 /**
+ * Lee un valor de config y lo devuelve como string, o def si no existe.
+ * Helper local para evitar depender de ajustesService.
+ *
+ * @param {string} clave
+ * @param {string|null} def
+ */
+function getConfigValor(clave, def = null) {
+  const row = db.prepare(`SELECT valor FROM config WHERE clave = ?`).get(clave);
+  if (!row || row.valor === undefined || row.valor === null) return def;
+  return row.valor;
+}
+
+function buildTasaKey(empresaId) {
+  const eid = empresaId != null ? Number(empresaId) : null;
+  if (Number.isFinite(eid) && eid > 0) {
+    return `tasa_bcv:empresa:${eid}`;
+  }
+  return 'tasa_bcv';
+}
+
+/**
  * Reporte resumido de inventario con totales en USD y Bs usando una tasa
  * de cambio derivada de la configuración o de la última venta.
  *
  * @returns {{items:Array<{codigo:string,descripcion:string,precio_usd:number,stock:number,total_usd:number}>,totals:{totalUsd:number,totalBs:number,tasa:number}}}
  */
 function getInventario(empresaId) {
-  const cfgTasaRow = db.prepare(`SELECT valor FROM config WHERE clave='tasa_bcv'`).get();
-  const cfgTasa = cfgTasaRow && cfgTasaRow.valor ? parseFloat(cfgTasaRow.valor) : null;
+  const key = buildTasaKey(empresaId);
+  let cfgRaw = getConfigValor(key, null);
+  if (cfgRaw == null && key !== 'tasa_bcv') {
+    cfgRaw = getConfigValor('tasa_bcv', null);
+  }
+  const cfgTasa = cfgRaw ? parseFloat(cfgRaw) : null;
 
   // Tomar la última tasa_bcv de ventas de ESTA empresa (siempre que sea posible)
   let ventaTasaRow;
