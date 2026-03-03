@@ -85,8 +85,7 @@ import { apiFetchJson } from './app-api.js';
       .catch(() => redirectLogin());
   }
 
-  // Agregar botón de logout y enlaces del menú al drawer si existe
-  setTimeout(() => {
+  function applyNavGuards() {
     const drawer = document.getElementById('drawer');
     const currentUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
     if (drawer && currentUser) {
@@ -195,6 +194,15 @@ import { apiFetchJson } from './app-api.js';
         });
       }
     }
+  }
+
+  // Agregar botón de logout y enlaces del menú al drawer si existe
+  setTimeout(() => {
+    try {
+      applyNavGuards();
+    } catch (err) {
+      console.error('Error aplicando guards de navegación:', err);
+    }
   }, 100);
 
   // Exportar utilidades de auth
@@ -205,6 +213,7 @@ import { apiFetchJson } from './app-api.js';
       const user = JSON.parse(localStorage.getItem('auth_user') || 'null');
       return user && (user.rol === 'admin' || user.rol === 'admin_empresa');
     },
+    applyNavGuards,
     logout: () => {
       try {
         apiFetchJson('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })

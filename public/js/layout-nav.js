@@ -30,6 +30,15 @@ function initDrawerNav(pageId) {
     if (!nav) return;
     const id = pageId || getActiveIdFromLocation();
     nav.innerHTML = buildNavHtml(id);
+
+    // Aplicar reglas de visibilidad según rol (auth-guard)
+    try {
+      if (window.Auth && typeof window.Auth.applyNavGuards === 'function') {
+        window.Auth.applyNavGuards();
+      }
+    } catch (e) {
+      console.error('Error aplicando Auth.applyNavGuards desde layout-nav:', e);
+    }
   } catch (err) {
     console.error('Error inicializando drawer nav', err);
   }
