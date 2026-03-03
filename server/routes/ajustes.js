@@ -57,7 +57,8 @@ router.get('/', requireAuth, (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
     const codigo = req.query.codigo ? String(req.query.codigo).trim().toUpperCase() : null;
-    const rows = listarAjustes(limit, codigo || undefined);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const rows = listarAjustes(limit, codigo || undefined, empresaId);
     res.json(rows);
   } catch (err) {
     console.error('Error listando ajustes:', err);

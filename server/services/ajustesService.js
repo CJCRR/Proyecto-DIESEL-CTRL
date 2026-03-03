@@ -77,18 +77,34 @@ function ajustarStock(payload = {}) {
 
 /**
  * Lista los últimos ajustes de stock aplicados.
+ *
+ * Siempre que sea posible, filtra por empresa usando la relación con
+ * productos. Esto evita que una empresa vea ajustes de otra.
+ *
  * @param {number} [limit]
  * @param {string} [codigo]
+ * @param {number|null} [empresaId]
  * @returns {Array<{id:number,producto_id:number|null,codigo:string|null,descripcion:string|null,diferencia:number,motivo:string,fecha:string}>}
  */
-function listarAjustes(limit = 100, codigo) {
+function listarAjustes(limit = 100, codigo, empresaId) {
   const params = [];
-  let where = '';
+  const whereParts = [];
+
+  const eid = empresaId != null ? Number(empresaId) : null;
+  if (Number.isFinite(eid) && eid > 0) {
+    whereParts.push('p.empresa_id = ?');
+    params.push(eid);
+  }
+
   if (codigo) {
-    where = 'WHERE p.codigo = ?';
+    whereParts.push('p.codigo = ?');
     params.push(codigo);
   }
+
+  const where = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+
   params.push(limit);
+
   return db.prepare(`
       SELECT a.id, a.producto_id, p.codigo, p.descripcion, a.diferencia, a.motivo, a.fecha
       FROM ajustes_stock a
