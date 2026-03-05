@@ -11,6 +11,14 @@ let _refs = {
 	escapeHtml: null
 };
 
+function normalizarTextoBusqueda(text) {
+	return (text || '')
+		.toString()
+		.toLowerCase()
+		.replace(/[ñÑ]/g, 'n')
+		.replace(/[üÜ]/g, 'u');
+}
+
 function setupSearchModule(refs) {
 	Object.assign(_refs, refs);
 	if (_refs.buscarInput) {
@@ -87,8 +95,8 @@ function renderResultados(data) {
 						<span class="font-bold text-xs text-slate-400">${_refs.escapeHtml ? _refs.escapeHtml(p.codigo) : p.codigo}</span>
 					</div>
 					<div class="text-right">
-						<span class="block text-blue-600 font-black">$${_refs.escapeHtml ? _refs.escapeHtml(p.precio_usd) : p.precio_usd}</span>
-						<span class="block text-[9px] font-bold text-slate-400 uppercase">Stock: ${_refs.escapeHtml ? _refs.escapeHtml(p.stock) : p.stock}</span>
+						<span class="block text-blue-600 font-black">Stock: ${_refs.escapeHtml ? _refs.escapeHtml(p.stock) : p.stock}</span>
+						<span class="block text-[13px] font-bold text-slate-400 uppercase">$${_refs.escapeHtml ? _refs.escapeHtml(p.precio_usd) : p.precio_usd}</span>
 					</div>`;
 			li.addEventListener('click', () => {
 				if (_refs.prepararParaAgregar) _refs.prepararParaAgregar(p);
@@ -103,10 +111,10 @@ function renderResultados(data) {
 async function buscarOffline(q) {
 	try {
 		const todos = await obtenerProductosLocales();
-		const term = q.toLowerCase();
+		const term = normalizarTextoBusqueda(q);
 		const filtrados = (todos || []).filter(p => {
-			const codigo = (p.codigo || '').toLowerCase();
-			const desc = (p.descripcion || '').toLowerCase();
+			const codigo = normalizarTextoBusqueda(p.codigo || '');
+			const desc = normalizarTextoBusqueda(p.descripcion || '');
 			return codigo.includes(term) || desc.includes(term);
 		});
 		if (!filtrados.length && _refs.showToast) {

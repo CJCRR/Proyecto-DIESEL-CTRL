@@ -3,19 +3,31 @@ const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('./auth');
 
+
 router.get('/', requireAuth, (req, res) => {
-    const q = req.query.q;
+  const rawQ = (req.query.q || '').trim();
 
-    if (!q || q.length < 2) {
-        return res.json([]);
-    }
+  if (!rawQ || rawQ.length < 2) {
+    return res.json([]);
+  }
 
-    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
-    const params = [`%${q}%`, `%${q}%`];
-    let sql = `
-     SELECT codigo, descripcion, stock, precio_usd, marca
-     FROM productos
-     WHERE (codigo LIKE ? OR descripcion LIKE ?)`;
+  // Normalizar término de búsqueda para hacerla tolerante a mayúsculas,
+  // ñ / Ñ y ü / Ü (cigueñal vs CIGÜEÑAL, etc.)
+  const normQ = rawQ
+    .toLowerCase()
+    .replace(/[ñÑ]/g, 'n')
+    .replace(/[üÜ]/g, 'u');
+  const like = `%${normQ}%`;
+
+  const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+  const params = [like, like];
+  let sql = `
+   SELECT codigo, descripcion, stock, precio_usd, marca
+   FROM productos
+   WHERE (
+     REPLACE(REPLACE(REPLACE(REPLACE(lower(codigo),'ñ','n'),'Ñ','n'),'ü','u'),'Ü','u') LIKE ?
+     OR REPLACE(REPLACE(REPLACE(REPLACE(lower(descripcion),'ñ','n'),'Ñ','n'),'ü','u'),'Ü','u') LIKE ?
+   )`;
     if (empresaId) {
       sql += ' AND empresa_id = ?';
       params.push(empresaId);
