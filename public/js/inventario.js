@@ -793,14 +793,14 @@ function setEditorVisible(visible) {
         if (!layoutInventario.classList.contains('lg:grid-cols-3')) {
             layoutInventario.classList.add('lg:grid-cols-3');
         }
-        if (toggleEditorBtn) toggleEditorBtn.textContent = '<';
+        if (toggleEditorBtn) toggleEditorBtn.textContent = '>';
     } else {
         panelEditor.classList.add('hidden');
         layoutInventario.classList.remove('lg:grid-cols-3');
         if (!layoutInventario.classList.contains('lg:grid-cols-1')) {
             layoutInventario.classList.add('lg:grid-cols-1');
         }
-        if (toggleEditorBtn) toggleEditorBtn.textContent = '>';
+        if (toggleEditorBtn) toggleEditorBtn.textContent = '<';
     }
 }
 
