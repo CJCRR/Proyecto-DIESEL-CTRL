@@ -600,6 +600,8 @@ const DEFAULT_EMPRESA = {
   color_primario: '#2563eb',
   color_secundario: '#0f172a',
   color_acento: '#f97316',
+  // Redondeo opcional de niveles de precio a múltiplos de 5
+  precio_redondeo_0_5: false,
 };
 
 /** @type {import('../types').DescuentoVolumen[]} */
@@ -705,6 +707,7 @@ function guardarConfigGeneral(payload = {}, empresaId) {
     precio2_pct: Math.max(0, Math.min(1000, parseFloat(empresa.precio2_pct) || 0)),
     precio3_nombre: (empresa.precio3_nombre || '').toString().slice(0, 60),
     precio3_pct: Math.max(0, Math.min(1000, parseFloat(empresa.precio3_pct) || 0)),
+    precio_redondeo_0_5: !!empresa.precio_redondeo_0_5,
   };
 
   const safeDescuentos = Array.isArray(descuentos_volumen)

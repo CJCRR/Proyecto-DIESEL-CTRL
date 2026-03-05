@@ -225,7 +225,11 @@ function aplicarEstrategiaPreciosUI() {
         }))
         .filter(l => l.pct > 0);
 
-    try { window.priceLevelsConfig = levels; } catch {}
+    try {
+        window.priceLevelsConfig = levels;
+        // Flag global para redondeo de niveles de precio a 0/5
+        window.priceLevelRoundTo0or5 = !!empresa.precio_redondeo_0_5;
+    } catch {}
 
     const wrapper = document.getElementById('pv-price-level-wrapper');
     const sel = document.getElementById('pv_nivel_precio');
@@ -258,7 +262,8 @@ function aplicarEstrategiaPreciosUI() {
         } else {
             const lvl = levels.find(l => l.key === val);
             if (lvl) {
-                info.textContent = `+${lvl.pct}% sobre precio base`;
+                const redondeoActivo = !!empresa.precio_redondeo_0_5;
+                info.textContent = `+${lvl.pct}% sobre precio base${redondeoActivo ? ' (redondeado a 0/5)' : ''}`;
             } else {
                 info.textContent = '';
             }

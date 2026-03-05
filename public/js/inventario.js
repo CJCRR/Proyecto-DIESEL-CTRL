@@ -126,6 +126,7 @@ if (!puedeEditarStockDesdeInventario) {
     }
 }
 
+// Cargar productos con filtros aplicados y paginación, ordenados alfabéticamente por descripción
 async function cargarProductos() {
     lista.innerHTML = 'Cargando...';
     try {
@@ -220,6 +221,7 @@ async function cargarMovimientosDeposito() {
     }
 }
 
+// Actualizar info de paginación y estado de botones de navegación
 function updatePaginationInfo() {
     const limit = parseInt(pageSize.value);
     const start = currentPage * limit + 1;
@@ -229,6 +231,7 @@ function updatePaginationInfo() {
     nextPage.disabled = end >= currentTotal;
 }
 
+// Renderizar lista de productos con filtros aplicados y orden alfabético
 function renderList(items) {
     const qv = q.value.trim().toLowerCase();
     const filtered = items.filter(p => {
@@ -289,7 +292,8 @@ function renderList(items) {
                 <div class="text-sm font-black">Stock: ${p.stock || 0}${badgeHtml}</div>
                 <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)}</div>
             </div>`;
-
+             
+            // por si quieres que saga el margen y costo también en la lista, aunque puede quedar muy cargada visualmente
             //<div class="text-xs text-slate-600">Precio $${precio.toFixed(2)} • Costo $${costo.toFixed(2)}</div>
             // <div class="text-xs ${margenCls}">Margen $${margenVal.toFixed(2)}${margenPct !== null ? ` (${margenPct.toFixed(1)}%)` : ''}</div>
 
@@ -421,7 +425,7 @@ btnExportCsv.addEventListener('click', async () => {
     }
 });
 
-// Helper: detect delimiter by counting in a sample
+// Búsqueda con fallback a cache local
 function detectDelimiter(text) {
     const raw = text.replace(/^\uFEFF/, '');
     const lines = raw.split(/\r?\n/).slice(0, 5).join('\n');
@@ -433,7 +437,7 @@ function detectDelimiter(text) {
     return delim;
 }
 
-// Client-side parser for preview (supports quotes)
+// Función de parseo de texto delimitado (CSV/TSV) con soporte para comillas y saltos de línea dentro de campos
 function parseDelimited(text, delim) {
     const rows = [];
     let i = 0, len = text.length;
@@ -504,7 +508,7 @@ btnImportCsv.addEventListener('click', async () => {
         previewModal.classList.remove('hidden');
         requestAnimationFrame(() => { previewModal.classList.add('modal-open'); previewModal.style.display = 'flex'; });
 
-        // confirm handler: send original text to server
+        // handler de confirmación de importación   
         const onConfirm = async () => {
             importPreviewConfirm.disabled = true;
             try {
@@ -722,6 +726,7 @@ form.addEventListener('submit', async (e) => {
     }
 });
 
+// Handler para botón de eliminación con confirmación en modal
 btnBorrar.addEventListener('click', () => {
     const codigo = f_codigo.value.trim();
     if (!codigo) return msg.innerText = 'Ingrese código para eliminar.';
@@ -948,6 +953,7 @@ async function cargarProductoParaMovimiento() {
     }
 }
 
+// Ejecutar movimiento entre depósitos
 async function ejecutarMovimientoDeposito() {
     if (!movCodigo || !movDepDestino || !movMsg) return;
     const codigo = movCodigo.value.trim();

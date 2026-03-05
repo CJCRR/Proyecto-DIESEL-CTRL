@@ -14,6 +14,12 @@ export function setVentaSeleccionada(value) {
 	ventaSeleccionada = value;
 }
 
+function redondearA0o5(valor) {
+	const n = Number(valor) || 0;
+	// Redondear al múltiplo de 5 más cercano (0 o 5)
+	return Math.round(n / 5) * 5;
+}
+
 // Referencias a elementos de DOM que usa el carrito
 const buscarInput = document.getElementById('buscar');
 const resultadosUL = document.getElementById('resultados');
@@ -56,6 +62,10 @@ export function agregarAlCarrito() {
 			if (lvl && typeof lvl.pct === 'number' && !Number.isNaN(lvl.pct)) {
 				precioVenta = precioBase * (1 + (lvl.pct / 100));
 			}
+		}
+		// Aplicar redondeo solo para niveles distintos de base cuando esté activo
+		if (nivelActual !== 'base' && window.priceLevelRoundTo0or5) {
+			precioVenta = redondearA0o5(precioVenta);
 		}
 	} catch {}
 
@@ -100,6 +110,9 @@ export function recalcularPreciosPorNivel() {
 			if (lvl && typeof lvl.pct === 'number' && !Number.isNaN(lvl.pct)) {
 				precioVenta = base * (1 + (lvl.pct / 100));
 			}
+		}
+		if (nivelActual !== 'base' && window.priceLevelRoundTo0or5) {
+			precioVenta = redondearA0o5(precioVenta);
 		}
 		item.precio_usd = precioVenta;
 	});

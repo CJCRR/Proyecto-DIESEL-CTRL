@@ -14,7 +14,7 @@ let purgeInput = null;
 let purgeCancelar = null;
 let purgeConfirmar = null;
 
-
+// Renderizar niveles de descuento por volumen en el DOM
 function renderTiers(list = []) {
     const cont = document.getElementById('tiers');
     if (!cont) return;
@@ -48,6 +48,7 @@ function renderTiers(list = []) {
     });
 }
 
+// Función para extraer los datos de los niveles de descuento desde el DOM
 function getTiersFromDOM() {
     const cont = document.getElementById('tiers');
     if (!cont) return [];
@@ -60,6 +61,7 @@ function getTiersFromDOM() {
     }).filter(t => t.min_qty > 0 && t.descuento_pct > 0);
 }
 
+// Función para leer datos de los formularios y construir el objeto de configuración
 function readForms() {
     const empresa = {
         nombre: document.getElementById('e_nombre')?.value.trim() || '',
@@ -73,6 +75,7 @@ function readForms() {
         precio2_pct: parseFloat(document.getElementById('e_precio2_pct')?.value || '0') || 0,
         precio3_nombre: document.getElementById('e_precio3_nombre')?.value.trim() || '',
         precio3_pct: parseFloat(document.getElementById('e_precio3_pct')?.value || '0') || 0,
+        precio_redondeo_0_5: !!document.getElementById('e_precio_redondeo_0_5')?.checked,
     };
     const descuentos_volumen = getTiersFromDOM();
     const devolucion = {
@@ -101,6 +104,7 @@ function readForms() {
     return { empresa, descuentos_volumen, devolucion, nota };
 }
 
+// Función para cargar configuración desde el servidor y llenar los formularios
 function setForms(cfg) {
     const { empresa = {}, descuentos_volumen = [], devolucion = {}, nota = {} } = cfg || {};
     if (document.getElementById('e_nombre')) document.getElementById('e_nombre').value = empresa.nombre || '';
@@ -114,6 +118,7 @@ function setForms(cfg) {
     if (document.getElementById('e_precio2_pct')) document.getElementById('e_precio2_pct').value = empresa.precio2_pct ?? 0;
     if (document.getElementById('e_precio3_nombre')) document.getElementById('e_precio3_nombre').value = empresa.precio3_nombre || '';
     if (document.getElementById('e_precio3_pct')) document.getElementById('e_precio3_pct').value = empresa.precio3_pct ?? 0;
+    if (document.getElementById('e_precio_redondeo_0_5')) document.getElementById('e_precio_redondeo_0_5').checked = !!empresa.precio_redondeo_0_5;
     renderTiers(descuentos_volumen);
     if (document.getElementById('d_habilitado')) document.getElementById('d_habilitado').checked = devolucion.habilitado !== false;
     if (document.getElementById('d_dias')) document.getElementById('d_dias').value = devolucion.dias_max ?? 30;
@@ -168,6 +173,7 @@ async function saveConfig(section) {
     }
 }
 
+// Función para inicializar la UI y cargar datos al DOM
 function setupUI() {
     document.getElementById('btnAddTier')?.addEventListener('click', () => {
         const current = getTiersFromDOM();
@@ -245,6 +251,7 @@ window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
 });
 
+// Función para agregar botón de logout al drawer y enlaces del menú según rol
 function renderDepositosList() {
     const cont = document.getElementById('depositos-lista');
     if (!cont) return;
@@ -279,6 +286,7 @@ function renderDepositosList() {
     });
 }
 
+// Función para llenar el formulario de depósito al editar o limpiar para nuevo
 function fillDepositoForm(dep) {
     depositoEditId = dep && dep.id ? dep.id : null;
     const title = document.getElementById('deposito-form-title');
@@ -316,6 +324,7 @@ function fillDepositoForm(dep) {
     }
 }
 
+// Función para cargar depósitos desde el servidor y renderizar la lista
 async function loadDepositos() {
     try {
         const items = await apiFetchJson('/depositos');
@@ -328,6 +337,7 @@ async function loadDepositos() {
     }
 }
 
+// Función para eliminar un depósito, con manejo de casos donde tiene stock asociado
 function setupDepositosUI() {
     const btnNuevo = document.getElementById('btnNuevoDeposito');
     const form = document.getElementById('deposito-form');
@@ -430,6 +440,8 @@ function setupDepositosUI() {
     loadDepositos();
 }
 
+
+// Función para renderizar la vista previa de la nota según los datos del formulario
 function renderPreview() {
         const prev = document.getElementById('nota-preview');
         if (!prev) return;
@@ -456,6 +468,7 @@ function renderPreview() {
         `;
 }
 
+// Funciones para manejo de uploads de imágenes (logo y marcas) con selección de archivo, conversión a DataURL y subida al servidor
         async function uploadHelper(targetInputId){
             const file = await pickFile();
             if (!file) return;
@@ -467,6 +480,7 @@ function renderPreview() {
             renderPreview();
         }
 
+// Función específica para subir imágenes de marcas, que permite agregar múltiples URLs al textarea
         async function uploadMarcaHelper(){
             const file = await pickFile();
             if (!file) return;
@@ -478,6 +492,7 @@ function renderPreview() {
             renderPreview();
         }
 
+// Función para abrir el selector de archivos y obtener el archivo seleccionado        
         function pickFile(){
             return new Promise(resolve => {
                 const inp = document.createElement('input');
@@ -488,6 +503,7 @@ function renderPreview() {
             });
         }
 
+// Función para convertir un archivo a DataURL usando FileReader        
         function fileToDataURL(file){
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -497,6 +513,7 @@ function renderPreview() {
             });
         }
 
+// Función para subir un DataURL al servidor y obtener la URL de la imagen alojada, con manejo de errores y notificaciones        
         async function uploadDataUrl(dataUrl, name){
             try {
                 try {
@@ -517,6 +534,7 @@ function renderPreview() {
             }
         }
 
+// Función para asegurarse de que el template de nota esté cargado antes de intentar imprimir, con manejo de carga dinámica y errores
 async function ensureNotaTemplateLoaded(layout = 'compact'){
     const targetId = layout === 'standard' ? 'nota-template-lib-std' : 'nota-template-lib-compact';
     const targetSrc = layout === 'standard' ? '/shared/nota-template.js' : '/shared/nota-template-compact.js';
@@ -533,6 +551,7 @@ async function ensureNotaTemplateLoaded(layout = 'compact'){
     });
 }
 
+// Función para imprimir una nota de demostración, útil para verificar que los cambios en el diseño se reflejan correctamente sin necesidad de hacer una venta real
 async function printDemoNota(){
     const { empresa, nota } = readForms();
     const layout = nota.layout || 'compact';
