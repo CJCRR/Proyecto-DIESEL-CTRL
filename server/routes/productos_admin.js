@@ -158,7 +158,7 @@ router.get('/', requireAuth, (req, res) => {
                                 FROM productos p
                                 LEFT JOIN depositos d ON d.id = p.deposito_id
                                 ${whereSQL}
-                                ORDER BY p.codigo ASC
+                                ORDER BY lower(p.descripcion) ASC, p.codigo ASC
                                 LIMIT ? OFFSET ?
                         `).all(...params, limit, offset);
 
@@ -215,7 +215,7 @@ router.get('/', requireAuth, (req, res) => {
                         JOIN stock_por_deposito sd ON sd.producto_id = p.id
                         LEFT JOIN depositos d ON d.id = sd.deposito_id
                         ${whereSQL}
-                        ORDER BY p.codigo ASC
+                        ORDER BY lower(p.descripcion) ASC, p.codigo ASC
                         LIMIT ? OFFSET ?
                 `).all(...params, limit, offset);
 
@@ -230,6 +230,28 @@ router.get('/', requireAuth, (req, res) => {
     } catch (err) {
         console.error('Error listando productos:', err);
         res.status(500).json({ error: 'Error al listar productos' });
+    }
+});
+
+// GET /admin/productos/categorias - Listar categorías distintas de productos por empresa
+router.get('/categorias', requireAuth, (req, res) => {
+    try {
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+        const rows = db.prepare(`
+            SELECT DISTINCT TRIM(categoria) AS categoria
+            FROM productos
+            WHERE empresa_id = ?
+              AND categoria IS NOT NULL
+              AND TRIM(categoria) != ''
+            ORDER BY lower(categoria) ASC
+        `).all(empresaId);
+        const categorias = rows
+            .map(r => r.categoria)
+            .filter(Boolean);
+        res.json({ items: categorias });
+    } catch (err) {
+        console.error('Error listando categorías de productos:', err);
+        res.status(500).json({ error: 'Error al listar categorías' });
     }
 });
 

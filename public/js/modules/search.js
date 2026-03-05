@@ -15,14 +15,31 @@ function setupSearchModule(refs) {
 	Object.assign(_refs, refs);
 	if (_refs.buscarInput) {
 		_refs.buscarInput.addEventListener('input', onBuscarInput);
+		// Cerrar resultados al hacer clic fuera del buscador
+		document.addEventListener('click', onDocumentClick);
 	}
+}
+
+function ocultarResultados() {
+	if (!_refs.resultadosUL) return;
+	_refs.resultadosUL.innerHTML = '';
+	_refs.resultadosUL.classList.add('hidden');
+}
+
+function onDocumentClick(e) {
+	if (!_refs.buscarInput || !_refs.resultadosUL) return;
+	const target = e.target;
+	// Si el clic fue dentro del input o de la lista de resultados, no cerrar
+	if (_refs.buscarInput.contains(target) || _refs.resultadosUL.contains(target)) {
+		return;
+	}
+	ocultarResultados();
 }
 
 async function onBuscarInput() {
 	const q = _refs.buscarInput.value.trim();
 	if (q.length < 2) {
-		_refs.resultadosUL.innerHTML = '';
-		_refs.resultadosUL.classList.add('hidden');
+		ocultarResultados();
 		return;
  	}
 
@@ -64,10 +81,10 @@ function renderResultados(data) {
 		_refs.resultadosUL.classList.remove('hidden');
 		data.forEach(p => {
 			const li = document.createElement('li');
-			li.className = 'p-3 border-b hover:bg-slate-50 cursor-pointer flex justify-between items-center transition-colors';
+			li.className = 'p-1 border-b hover:bg-slate-50 cursor-pointer flex justify-between items-center transition-colors';
 			li.innerHTML = `<div class="flex flex-col">
-						<span class="font-bold text-slate-700">${_refs.escapeHtml ? _refs.escapeHtml(p.codigo) : p.codigo}</span>
-						<span class="text-xs text-slate-400">${_refs.escapeHtml ? _refs.escapeHtml(p.descripcion) : p.descripcion}</span>
+						<span class="font-bold text-slate-700">${_refs.escapeHtml ? _refs.escapeHtml(p.descripcion) : p.descripcion}</span>
+						<span class="font-bold text-xs text-slate-400">${_refs.escapeHtml ? _refs.escapeHtml(p.codigo) : p.codigo}</span>
 					</div>
 					<div class="text-right">
 						<span class="block text-blue-600 font-black">$${_refs.escapeHtml ? _refs.escapeHtml(p.precio_usd) : p.precio_usd}</span>
@@ -91,14 +108,14 @@ async function buscarOffline(q) {
 			const codigo = (p.codigo || '').toLowerCase();
 			const desc = (p.descripcion || '').toLowerCase();
 			return codigo.includes(term) || desc.includes(term);
-		}).slice(0, 50);
+		});
 		if (!filtrados.length && _refs.showToast) {
 			_refs.showToast('Sin conexión. No hay coincidencias en cache local.', 'info');
 		}
 		renderResultados(filtrados);
 	} catch (err) {
 		console.warn('Error buscando en cache local de productos', err);
-		_refs.resultadosUL.classList.add('hidden');
+		ocultarResultados();
 		if (_refs.showToast) _refs.showToast('Error en búsqueda offline', 'error');
 	}
 }

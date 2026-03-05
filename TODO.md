@@ -259,6 +259,16 @@ Notas:
 - **Nunca hacer `git add` ni `git commit` de `database.sqlite` en la VM.** Esa base es solo de producción.
 - Si vuelve a salir el conflicto en el futuro, repetir exactamente este mismo flujo.
 
+### Script de mantenimiento: sincronizar campo vendedor en ventas
+
+- Para alinear el texto del vendedor (`ventas.vendedor`) con el usuario real (`ventas.usuario_id`) en la base de datos del servidor (corrigiendo casos como "adminalpha"):
+	- Conectarse por SSH y entrar al proyecto: `cd ~/Proyecto-DIESEL-CTRL`
+	- (Opcional) parar la app en PM2: `pm2 stop diesel-ctrl`
+	- Ejecutar una vez el script:
+		- `node server/fix-ventas-vendedor.js`
+	- Volver a levantar la app:
+		- `pm2 start diesel-ctrl`
+
 5. **Instalar dependencias (solo si cambió package.json)**  
 	- Ejecutar: `npm install`.  
 	- Esperar a que termine sin errores.

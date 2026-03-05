@@ -22,6 +22,10 @@ const pagInfo = document.getElementById('paginacion-info');
 const filterDeposito = document.getElementById('filterDeposito');
 const btnRebuildStock = document.getElementById('btnRebuildStock');
 const rebuildStockMsg = document.getElementById('rebuildStockMsg');
+const layoutInventario = document.getElementById('inventario-layout');
+const productosSection = document.getElementById('productos-section');
+const panelEditor = document.getElementById('panel-editor');
+const toggleEditorBtn = document.getElementById('toggle-editor');
 // Movimiento entre depósitos
 const movCodigo = document.getElementById('mov_codigo');
 const movInfo = document.getElementById('mov_info');
@@ -229,16 +233,16 @@ function renderList(items) {
     const qv = q.value.trim().toLowerCase();
     const filtered = items.filter(p => {
         const codigo = (p.codigo || '').toLowerCase();
-        const desc = (p.descripcion || '').toLowerCase();
+        const cat = (p.categoria || '').toLowerCase();
         const marca = (p.marca || '').toLowerCase();
-        return !qv || codigo.includes(qv) || desc.includes(qv) || marca.includes(qv);
+        return !qv || codigo.includes(qv) || cat.includes(qv) || marca.includes(qv);
     });
-    // Asegurar orden alfabético estable por categoría y luego código
+    // Orden alfabético por categoria (y luego por código como desempate)
     filtered.sort((a, b) => {
-        const catA = (a.categoria || '').toString().toLowerCase();
-        const catB = (b.categoria || '').toString().toLowerCase();
-        if (catA < catB) return -1;
-        if (catA > catB) return 1;
+        const da = (a.categoria || '').toString().toLowerCase();
+        const db = (b.categoria || '').toString().toLowerCase();
+        if (da < db) return -1;
+        if (da > db) return 1;
         const ca = (a.codigo || '').toString().toLowerCase();
         const cb = (b.codigo || '').toString().toLowerCase();
         if (ca < cb) return -1;
@@ -257,7 +261,7 @@ function renderList(items) {
         const margenPct = precio ? (margenVal / precio) * 100 : null;
         const margenCls = margenVal >= 0 ? 'text-emerald-700' : 'text-rose-700';
         const el = document.createElement('div');
-        el.className = 'p-3 border rounded flex justify-between items-start gap-3 hover:bg-slate-50 cursor-pointer';
+        el.className = 'p-1 border rounded flex justify-between items-start gap-1 hover:bg-slate-50 cursor-pointer';
         const depositoDetalle = p.stock_detalle || '';
         const totalStock = Number(p.stock || 0);
         let depositoLabel = '';
@@ -272,19 +276,21 @@ function renderList(items) {
         let badgeHtml = '';
         if (Number.isFinite(totalStock)) {
             if (totalStock <= 0) {
-                badgeHtml = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 ml-2">Sin stock</span>';
+                badgeHtml = '<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 ml-2">Sin stock</span>';
             } else if (totalStock > 0 && totalStock < 5) {
-                badgeHtml = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 ml-2">Stock bajo</span>';
+                badgeHtml = '<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 ml-2">Stock bajo</span>';
             } else if (totalStock > 100) {
-                badgeHtml = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 ml-2">Sobre stock</span>';
+                badgeHtml = '<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 ml-2">Sobre stock</span>';
             }
         }
-        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs text-slate-400">${p.categoria || ''}</span></div><div class="text-xs text-slate-400">${p.descripcion || ''}</div>${p.marca ? `<div class="text-xs text-slate-500">Marca: ${p.marca}</div>` : ''}${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}</div>
-            <div class="text-right space-y-1 min-w-[190px]">
+        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs ">${p.descripcion || ''}</span></div><div class="text-xs text-slate-400">${p.categoria || ''}${p.marca ? ` · Marca: ${p.marca}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}</div>
+            <div class="text-right space-y-0.5 min-w-[170px]">
                 <div class="text-sm font-black">Stock: ${p.stock || 0}${badgeHtml}</div>
-                <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)} • Costo $${costo.toFixed(2)}</div>
-                <div class="text-xs ${margenCls}">Margen $${margenVal.toFixed(2)}${margenPct !== null ? ` (${margenPct.toFixed(1)}%)` : ''}</div>
+                <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)}</div>
             </div>`;
+
+            //<div class="text-xs text-slate-600">Precio $${precio.toFixed(2)} • Costo $${costo.toFixed(2)}</div>
+            // <div class="text-xs ${margenCls}">Margen $${margenVal.toFixed(2)}${margenPct !== null ? ` (${margenPct.toFixed(1)}%)` : ''}</div>
 
         el.addEventListener('click', () => {
             // Click en la tarjeta → cargar datos en el formulario
@@ -383,7 +389,7 @@ try {
 q.addEventListener('input', () => { currentPage = 0; cargarProductos(); });
 const topFilterCategoria = document.getElementById('filterCategoria');
 const topFilterStock = document.getElementById('filterStock');
-if (topFilterCategoria) topFilterCategoria.addEventListener('input', () => { currentPage = 0; cargarProductos(); });
+if (topFilterCategoria) topFilterCategoria.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 if (topFilterStock) topFilterStock.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 if (filterDeposito) filterDeposito.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 
@@ -778,6 +784,40 @@ function showToast(text, type = 'info', ms = 3500) {
     t.addEventListener('click', remover);
 }
 
+// Panel Crear / Editar retraible
+function setEditorVisible(visible) {
+    if (!layoutInventario || !panelEditor) return;
+    if (visible) {
+        panelEditor.classList.remove('hidden');
+        layoutInventario.classList.remove('lg:grid-cols-1');
+        if (!layoutInventario.classList.contains('lg:grid-cols-3')) {
+            layoutInventario.classList.add('lg:grid-cols-3');
+        }
+        if (toggleEditorBtn) toggleEditorBtn.textContent = '<';
+    } else {
+        panelEditor.classList.add('hidden');
+        layoutInventario.classList.remove('lg:grid-cols-3');
+        if (!layoutInventario.classList.contains('lg:grid-cols-1')) {
+            layoutInventario.classList.add('lg:grid-cols-1');
+        }
+        if (toggleEditorBtn) toggleEditorBtn.textContent = '>';
+    }
+}
+
+if (toggleEditorBtn && layoutInventario && panelEditor) {
+    let visible = true;
+    try {
+        const saved = localStorage.getItem('inventario_editor_visible');
+        if (saved === '0') visible = false;
+    } catch {}
+    setEditorVisible(visible);
+    toggleEditorBtn.addEventListener('click', () => {
+        visible = !visible;
+        setEditorVisible(visible);
+        try { localStorage.setItem('inventario_editor_visible', visible ? '1' : '0'); } catch {}
+    });
+}
+
 // Inicializar
 cargarProductos();
 cargarAjustes();
@@ -808,6 +848,24 @@ async function cargarDepositos() {
 }
 
 cargarDepositos();
+
+// Cargar categorías para el filtro superior
+async function cargarCategorias() {
+    const select = document.getElementById('filterCategoria');
+    if (!select) return;
+    try {
+        const res = await fetch('/admin/productos/categorias', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Error categorías');
+        const data = await res.json();
+        const categorias = Array.isArray(data.items) ? data.items : [];
+        select.innerHTML = '<option value="">Todas las categorías</option>' +
+            categorias.map(c => `<option value="${c}">${c}</option>`).join('');
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+cargarCategorias();
 
 // Buscar producto para movimiento por código
 async function cargarProductoParaMovimiento() {

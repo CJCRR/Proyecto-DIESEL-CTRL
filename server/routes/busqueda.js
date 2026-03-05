@@ -20,7 +20,9 @@ router.get('/', requireAuth, (req, res) => {
       sql += ' AND empresa_id = ?';
       params.push(empresaId);
     }
-    sql += ' LIMIT 10';
+
+    // Mostrar todos los productos coincidentes, ordenados alfabéticamente
+    sql += ' ORDER BY lower(descripcion) ASC, codigo ASC';
 
     const resultados = db.prepare(sql).all(...params);
 

@@ -175,7 +175,6 @@ async function cargarVendedoresPOS() {
         const data = await apiFetchJson('/admin/usuarios/vendedores-list');
         vendedoresPOS = Array.isArray(data) ? data : [];
         if (!sel) return;
-
         const opciones = ['<option value="">Seleccionar vendedor</option>'];
         vendedoresPOS.forEach((u) => {
             const nombre = (u.nombre_completo || u.username || '').trim();
