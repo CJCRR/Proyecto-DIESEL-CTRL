@@ -233,14 +233,15 @@ function renderList(items) {
     const qv = q.value.trim().toLowerCase();
     const filtered = items.filter(p => {
         const codigo = (p.codigo || '').toLowerCase();
+        const desc = (p.descripcion || '').toLowerCase();
         const cat = (p.categoria || '').toLowerCase();
         const marca = (p.marca || '').toLowerCase();
-        return !qv || codigo.includes(qv) || cat.includes(qv) || marca.includes(qv);
+        return !qv || codigo.includes(qv) || desc.includes(qv) || cat.includes(qv) || marca.includes(qv);
     });
-    // Orden alfabético por categoria (y luego por código como desempate)
+    // Orden alfabético por descripción (y luego por código como desempate)
     filtered.sort((a, b) => {
-        const da = (a.categoria || '').toString().toLowerCase();
-        const db = (b.categoria || '').toString().toLowerCase();
+        const da = (a.descripcion || '').toString().toLowerCase();
+        const db = (b.descripcion || '').toString().toLowerCase();
         if (da < db) return -1;
         if (da > db) return 1;
         const ca = (a.codigo || '').toString().toLowerCase();
@@ -852,14 +853,20 @@ cargarDepositos();
 // Cargar categorías para el filtro superior
 async function cargarCategorias() {
     const select = document.getElementById('filterCategoria');
-    if (!select) return;
+    const dataList = document.getElementById('categoriaOptions');
+    if (!select && !dataList) return;
     try {
         const res = await fetch('/admin/productos/categorias', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Error categorías');
         const data = await res.json();
         const categorias = Array.isArray(data.items) ? data.items : [];
-        select.innerHTML = '<option value="">Todas las categorías</option>' +
-            categorias.map(c => `<option value="${c}">${c}</option>`).join('');
+        if (select) {
+            select.innerHTML = '<option value="">Todas las categorías</option>' +
+                categorias.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+        if (dataList) {
+            dataList.innerHTML = categorias.map(c => `<option value="${c}"></option>`).join('');
+        }
     } catch (err) {
         console.error(err);
     }

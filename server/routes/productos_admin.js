@@ -107,7 +107,11 @@ router.get('/', requireAuth, (req, res) => {
             where.push('p.empresa_id = ?');
             params.push(empresaId);
             if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%' + q + '%', '%' + q + '%'); }
-            if (categoria) { where.push('lower(p.categoria) LIKE ?'); params.push('%' + String(categoria).toLowerCase() + '%'); }
+            if (categoria) {
+                // Coincidencia exacta de categoría normalizada solo por espacios (soporta Ñ y otros acentos)
+                where.push('TRIM(p.categoria) = ?');
+                params.push(String(categoria).trim());
+            }
             if (!incompletos) {
                 if (stock_lt !== null) { where.push('p.stock < ?'); params.push(stock_lt); }
                 if (stock_gt !== null) { where.push('p.stock > ?'); params.push(stock_gt); }
@@ -175,7 +179,11 @@ router.get('/', requireAuth, (req, res) => {
         where.push('sd.deposito_id = ?');
         params.push(depositoId);
         if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%' + q + '%', '%' + q + '%'); }
-        if (categoria) { where.push('lower(p.categoria) LIKE ?'); params.push('%' + String(categoria).toLowerCase() + '%'); }
+        if (categoria) {
+            // Coincidencia exacta de categoría normalizada también cuando se filtra por depósito específico
+            where.push('TRIM(p.categoria) = ?');
+            params.push(String(categoria).trim());
+        }
         if (stock_lt !== null) { where.push('sd.cantidad < ?'); params.push(stock_lt); }
         if (stock_gt !== null) { where.push('sd.cantidad > ?'); params.push(stock_gt); }
         // Si no se pidió explícitamente un filtro de stock, solo mostrar productos con stock positivo en ese depósito
