@@ -16,8 +16,27 @@ export function setVentaSeleccionada(value) {
 
 function redondearA0o5(valor) {
 	const n = Number(valor) || 0;
-	// Redondear al múltiplo de 5 más cercano (0 o 5)
-	return Math.round(n / 5) * 5;
+	const signo = n < 0 ? -1 : 1;
+	// Trabajamos sobre el entero más cercano
+	let abs = Math.round(Math.abs(n));
+	const unidad = abs % 10;
+	const baseDecena = abs - unidad;
+	let resultado;
+
+	// Regla:
+	// 0-1  -> 0
+	// 2-4  -> 5
+	// 5-6  -> 5
+	// 7-9  -> 10
+	if (unidad <= 1) {
+		resultado = baseDecena;
+	} else if (unidad <= 6) {
+		resultado = baseDecena + 5;
+	} else {
+		resultado = baseDecena + 10;
+	}
+
+	return resultado * signo;
 }
 
 // Referencias a elementos de DOM que usa el carrito
@@ -57,6 +76,7 @@ export function agregarAlCarrito() {
 	try {
 		const niveles = Array.isArray(window.priceLevelsConfig) ? window.priceLevelsConfig : [];
 		const nivelActual = window.currentPriceLevelKey || 'base';
+		const roundThreshold = Number(window.priceLevelRoundThreshold || 0) || 0;
 		if (nivelActual !== 'base') {
 			const lvl = niveles.find(l => l.key === nivelActual);
 			if (lvl && typeof lvl.pct === 'number' && !Number.isNaN(lvl.pct)) {
@@ -64,7 +84,8 @@ export function agregarAlCarrito() {
 			}
 		}
 		// Aplicar redondeo solo para niveles distintos de base cuando esté activo
-		if (nivelActual !== 'base' && window.priceLevelRoundTo0or5) {
+		// y el precio base del producto sea mayor o igual al umbral configurado
+		if (nivelActual !== 'base' && window.priceLevelRoundTo0or5 && (!roundThreshold || precioBase >= roundThreshold)) {
 			precioVenta = redondearA0o5(precioVenta);
 		}
 	} catch {}
@@ -96,6 +117,7 @@ export function recalcularPreciosPorNivel() {
 	try {
 		niveles = Array.isArray(window.priceLevelsConfig) ? window.priceLevelsConfig : [];
 		nivelActual = window.currentPriceLevelKey || 'base';
+		var roundThreshold = Number(window.priceLevelRoundThreshold || 0) || 0;
 	} catch {}
 
 	carrito.forEach(item => {
@@ -111,7 +133,7 @@ export function recalcularPreciosPorNivel() {
 				precioVenta = base * (1 + (lvl.pct / 100));
 			}
 		}
-		if (nivelActual !== 'base' && window.priceLevelRoundTo0or5) {
+		if (nivelActual !== 'base' && window.priceLevelRoundTo0or5 && (!roundThreshold || base >= roundThreshold)) {
 			precioVenta = redondearA0o5(precioVenta);
 		}
 		item.precio_usd = precioVenta;

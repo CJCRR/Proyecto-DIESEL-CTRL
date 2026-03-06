@@ -12,6 +12,18 @@ let modalNuevoProducto;
 let modalNuevoProductoMsg;
 let depositosComprasCargados = false;
 
+async function cargarCategoriasCompras() {
+  const dataList = document.getElementById('npCategoriaOptions');
+  if (!dataList) return;
+  try {
+    const data = await apiFetchJson('/admin/productos/categorias');
+    const categorias = Array.isArray(data.items) ? data.items : [];
+    dataList.innerHTML = categorias.map(c => `<option value="${c}"></option>`).join('');
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 function formNumber(id, def = 0) {
   const v = parseFloat(document.getElementById(id).value || '');
   return Number.isNaN(v) ? def : v;
@@ -606,4 +618,5 @@ window.addEventListener('DOMContentLoaded', () => {
   limpiarFormularioCompra();
   cargarProveedoresParaSelect();
   cargarHistorialCompras();
+   cargarCategoriasCompras();
 });

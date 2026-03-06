@@ -602,6 +602,8 @@ const DEFAULT_EMPRESA = {
   color_acento: '#f97316',
   // Redondeo opcional de niveles de precio a múltiplos de 5
   precio_redondeo_0_5: false,
+  // Umbral mínimo de precio base (USD) para aplicar el redondeo
+  precio_redondeo_umbral: 0,
 };
 
 /** @type {import('../types').DescuentoVolumen[]} */
@@ -632,6 +634,8 @@ const DEFAULT_NOTA = {
   iva_pct: 0,
   resaltar_color: '#fff59d',
   layout: 'compact',
+  // Alto estándar del logo principal en la nota (px)
+  logo_height_px: 48,
 };
 
 /**
@@ -708,6 +712,7 @@ function guardarConfigGeneral(payload = {}, empresaId) {
     precio3_nombre: (empresa.precio3_nombre || '').toString().slice(0, 60),
     precio3_pct: Math.max(0, Math.min(1000, parseFloat(empresa.precio3_pct) || 0)),
     precio_redondeo_0_5: !!empresa.precio_redondeo_0_5,
+    precio_redondeo_umbral: Math.max(0, parseFloat(empresa.precio_redondeo_umbral) || 0),
   };
 
   const safeDescuentos = Array.isArray(descuentos_volumen)
@@ -744,6 +749,7 @@ function guardarConfigGeneral(payload = {}, empresaId) {
     iva_pct: Math.max(0, Math.min(100, parseFloat(nota.iva_pct) || 0)),
     resaltar_color: (nota.resaltar_color || DEFAULT_NOTA.resaltar_color).toString().slice(0, 20),
     layout: ['compact', 'standard'].includes(nota.layout) ? nota.layout : DEFAULT_NOTA.layout,
+    logo_height_px: Math.max(24, Math.min(96, parseFloat(nota.logo_height_px) || DEFAULT_NOTA.logo_height_px)),
   };
 
   const now = new Date().toISOString();

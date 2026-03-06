@@ -136,7 +136,8 @@
     let empresaMarcas = venta.empresa_marcas && venta.empresa_marcas.length ? venta.empresa_marcas : (notaCfg.brand_logos || []);
     const brandImgs = empresaMarcas.map(u => `<img src="${u}" style="height:30px;object-fit:contain;margin-left:6px;">`).join('');
     const headerLogoUrl = (empresa.logo_url || venta.empresa_logo_url || notaCfg.header_logo_url || (typeof window !== 'undefined' && window.configGeneral && window.configGeneral.empresa && window.configGeneral.empresa.logo_url ? window.configGeneral.empresa.logo_url : '')).toString();
-    const headerLogo = headerLogoUrl ? `<img src="${headerLogoUrl}" style="height:48px;object-fit:contain;">` : '';
+    const logoHeight = Number((notaCfg && notaCfg.logo_height_px) || 48) || 48;
+    const headerLogo = headerLogoUrl ? `<img src="${headerLogoUrl}" style="height:${logoHeight}px;object-fit:contain;">` : '';
     const html = `
       <html>
       <head>

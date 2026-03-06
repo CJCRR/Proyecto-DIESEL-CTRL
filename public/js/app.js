@@ -229,6 +229,7 @@ function aplicarEstrategiaPreciosUI() {
         window.priceLevelsConfig = levels;
         // Flag global para redondeo de niveles de precio a 0/5
         window.priceLevelRoundTo0or5 = !!empresa.precio_redondeo_0_5;
+        window.priceLevelRoundThreshold = Number(empresa.precio_redondeo_umbral || 0) || 0;
     } catch {}
 
     const wrapper = document.getElementById('pv-price-level-wrapper');
