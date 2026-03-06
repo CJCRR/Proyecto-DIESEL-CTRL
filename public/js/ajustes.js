@@ -100,8 +100,7 @@ function readForms() {
         pie: document.getElementById('n_pie')?.value.trim() || 'Total a Pagar:',
         pie_usd: document.getElementById('n_pie_usd')?.value.trim() || 'Total USD',
         pie_bs: document.getElementById('n_pie_bs')?.value.trim() || 'Total Bs',
-        iva_pct: parseFloat(document.getElementById('n_iva')?.value || '0') || 0,
-        logo_height_px: parseFloat(document.getElementById('n_logo_height')?.value || '0') || 0,
+        iva_pct: parseFloat(document.getElementById('n_iva')?.value || '0') || 0
     };
     return { empresa, descuentos_volumen, devolucion, nota };
 }
@@ -142,7 +141,6 @@ function setForms(cfg) {
     if (document.getElementById('n_pie_usd')) document.getElementById('n_pie_usd').value = nota.pie_usd || 'Total USD';
     if (document.getElementById('n_pie_bs')) document.getElementById('n_pie_bs').value = nota.pie_bs || 'Total Bs';
     if (document.getElementById('n_iva')) document.getElementById('n_iva').value = (nota.iva_pct ?? 0);
-    if (document.getElementById('n_logo_height')) document.getElementById('n_logo_height').value = (nota.logo_height_px ?? 48);
 }
 
 async function loadConfig() {
@@ -451,11 +449,10 @@ function renderPreview() {
         if (!prev) return;
         const { empresa = {}, nota = {} } = { empresa: configCache.empresa || {}, nota: readForms().nota };
         const brandImgs = (nota.brand_logos || []).map(u => `<img src="${u}" style="height:28px;margin:0 6px;object-fit:contain;"/>`).join('');
-        const logoHeight = Number(nota.logo_height_px || 42) || 42;
         prev.innerHTML = `
             <div style="padding:16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;gap:12px;">
                 <div style="display:flex;align-items:center;gap:12px;">
-                    ${nota.header_logo_url ? `<img src="${nota.header_logo_url}" style="height:${logoHeight}px;object-fit:contain;">` : ''}
+                    ${nota.header_logo_url ? `<img src="${nota.header_logo_url}" style="height:42px;object-fit:contain;">` : ''}
                     <div style="font-weight:800;letter-spacing:.5px;">${empresa.nombre || 'Empresa'}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;">${brandImgs}</div>

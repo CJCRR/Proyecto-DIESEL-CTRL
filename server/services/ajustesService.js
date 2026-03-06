@@ -634,8 +634,6 @@ const DEFAULT_NOTA = {
   iva_pct: 0,
   resaltar_color: '#fff59d',
   layout: 'compact',
-  // Alto estándar del logo principal en la nota (px)
-  logo_height_px: 48,
 };
 
 /**
@@ -749,7 +747,6 @@ function guardarConfigGeneral(payload = {}, empresaId) {
     iva_pct: Math.max(0, Math.min(100, parseFloat(nota.iva_pct) || 0)),
     resaltar_color: (nota.resaltar_color || DEFAULT_NOTA.resaltar_color).toString().slice(0, 20),
     layout: ['compact', 'standard'].includes(nota.layout) ? nota.layout : DEFAULT_NOTA.layout,
-    logo_height_px: Math.max(24, Math.min(96, parseFloat(nota.logo_height_px) || DEFAULT_NOTA.logo_height_px)),
   };
 
   const now = new Date().toISOString();
