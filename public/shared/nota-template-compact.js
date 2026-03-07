@@ -137,6 +137,17 @@
     const brandImgs = empresaMarcas.map(u => `<img src="${u}" style="height:30px;object-fit:contain;margin-left:6px;">`).join('');
     const headerLogoUrl = (empresa.logo_url || venta.empresa_logo_url || notaCfg.header_logo_url || (typeof window !== 'undefined' && window.configGeneral && window.configGeneral.empresa && window.configGeneral.empresa.logo_url ? window.configGeneral.empresa.logo_url : '')).toString();
     const headerLogo = headerLogoUrl ? `<img src="${headerLogoUrl}" style="height:48px;object-fit:contain;">` : '';
+
+    // Construir texto de método de pago + referencia para el bloque NOTA
+    const metodoPagoRaw = (venta.metodo_pago || '').toString().trim();
+    const referenciaPagoRaw = (venta.referencia || '').toString().trim();
+    let notaPagoHtml = '';
+    if (metodoPagoRaw || referenciaPagoRaw) {
+      const partes = [];
+      if (metodoPagoRaw) partes.push(metodoPagoRaw.toUpperCase());
+      if (referenciaPagoRaw) partes.push(`REF# ${referenciaPagoRaw}`);
+      notaPagoHtml = `<div>${partes.join('. ')}</div>`;
+    }
     const html = `
       <html>
       <head>
@@ -237,7 +248,10 @@
             </div>
 
             <div class="totales">
-              <div class="box" style="border:1px solid #000; min-height:48px; font-size:9px;">NOTA</div>
+              <div class="box" style="border:1px solid #000; min-height:48px; font-size:9px;">
+                <div style="font-weight:700; margin-bottom:2px;">NOTA</div>
+                ${notaPagoHtml}
+              </div>
               <div class="tot-box">
                 <div class="tot-row"><div>Sub-total Bs</div><div class="right">Bs ${totalBsBase.toFixed(2)}</div></div>
                 ${aplicadoDescUsd > 0 ? `<div class="tot-row"><div>Descuento</div><div class="right">$${aplicadoDescUsd.toFixed(2)} / Bs ${aplicadoDescBs.toFixed(2)}</div></div>` : ''}

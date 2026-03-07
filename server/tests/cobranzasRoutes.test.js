@@ -69,8 +69,14 @@ describe('Rutas HTTP /cobranzas', () => {
   });
 
   test('POST /cobranzas/:id/pago registra pago y reduce saldo', async () => {
-    const { token } = createTestUserAndToken();
+    const { token, userId } = createTestUserAndToken();
     const app = buildApp();
+
+    // Crear una venta ligada al usuario/empresa del token
+    const ventaInfo = db
+      .prepare(`INSERT INTO ventas (fecha, cliente, vendedor, metodo_pago, total_bs, tasa_bcv, usuario_id)
+                VALUES (datetime('now'), 'Cliente Pago', 'Vend Pago', 'EFECTIVO', 500, 10, ?)`)
+      .run(userId);
 
     // Crear cuenta base directamente via servicio HTTP
     const createRes = await request(app)
@@ -78,6 +84,8 @@ describe('Rutas HTTP /cobranzas', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({
         cliente_nombre: 'Cliente Pago',
+        cliente_doc: 'V-55555555',
+        venta_id: ventaInfo.lastInsertRowid,
         total_usd: 50,
         tasa_bcv: 10,
         fecha_vencimiento: '2030-01-01',

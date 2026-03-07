@@ -111,6 +111,7 @@ const schema = `
     cliente_nombre TEXT,
     cliente_doc TEXT,
     venta_id INTEGER,
+    empresa_id INTEGER,
     total_usd REAL DEFAULT 0,
     tasa_bcv REAL DEFAULT 1,
     saldo_usd REAL DEFAULT 0,
@@ -833,6 +834,44 @@ const migrations = [
         if (!columnExists('stock_por_deposito', 'actualizado_en')) {
           db.prepare("ALTER TABLE stock_por_deposito ADD COLUMN actualizado_en TEXT DEFAULT (datetime('now'))").run();
         }
+      });
+
+      tx();
+    }
+  }
+  ,
+  {
+    id: '027_cobranzas_empresa_id',
+    up: () => {
+      const tx = db.transaction(() => {
+        // Asegurar columna empresa_id en cuentas_cobrar
+        if (!columnExists('cuentas_cobrar', 'empresa_id')) {
+          db.prepare('ALTER TABLE cuentas_cobrar ADD COLUMN empresa_id INTEGER').run();
+        }
+
+        // Asegurar columna empresa_id en pagos_cc
+        if (!columnExists('pagos_cc', 'empresa_id')) {
+          db.prepare('ALTER TABLE pagos_cc ADD COLUMN empresa_id INTEGER').run();
+        }
+
+        // Backfill: derivar empresa_id a partir de la venta asociada cuando exista
+        const cuentas = db.prepare('SELECT id, venta_id FROM cuentas_cobrar WHERE empresa_id IS NULL').all();
+        const getVentaEmpresa = db.prepare(`
+          SELECT u.empresa_id
+          FROM ventas v
+          JOIN usuarios u ON u.id = v.usuario_id
+          WHERE v.id = ?
+        `);
+        const updateCuenta = db.prepare('UPDATE cuentas_cobrar SET empresa_id = ? WHERE id = ?');
+        const updatePagos = db.prepare('UPDATE pagos_cc SET empresa_id = ? WHERE cuenta_id = ?');
+
+        cuentas.forEach((c) => {
+          if (!c.venta_id) return; // dejamos NULL para cuentas antiguas sin venta
+          const row = getVentaEmpresa.get(c.venta_id);
+          if (!row || row.empresa_id == null) return;
+          updateCuenta.run(row.empresa_id, c.id);
+          updatePagos.run(row.empresa_id, c.id);
+        });
       });
 
       tx();

@@ -18,15 +18,16 @@ describe('ajustesService', () => {
 
   test('ajustarStock modifica el stock y registra ajuste', () => {
     const insertProducto = db.prepare(
-      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock) VALUES (?,?,?,?,?)'
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id) VALUES (?,?,?,?,?,?)'
     );
 
-    insertProducto.run('AJ-1', 'Producto Ajuste', 10, 5, 5);
+    insertProducto.run('AJ-1', 'Producto Ajuste', 10, 5, 5, 1);
 
     ajustesService.ajustarStock({
       codigo: 'AJ-1',
       diferencia: -2,
       motivo: 'Ajuste prueba',
+      empresa_id: 1,
     });
 
     const prod = db.prepare('SELECT * FROM productos WHERE codigo = ?').get('AJ-1');

@@ -35,8 +35,8 @@ describe('Rutas HTTP /devoluciones', () => {
 
     // Crear producto base
     db.prepare(
-      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock) VALUES (?,?,?,?,?)'
-    ).run('DEV-1', 'Producto Devolución', 10, 5, 0);
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id) VALUES (?,?,?,?,?,?)'
+    ).run('DEV-1', 'Producto Devolución', 10, 5, 0, 1);
 
     const payload = {
       cliente: 'Cliente HTTP Dev',

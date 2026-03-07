@@ -22,6 +22,7 @@ describe('cobranzasService cuentas por cobrar', () => {
       total_usd: 100,
       tasa_bcv: 10,
       notas: 'Prueba',
+      empresaId: null,
     });
 
     expect(cuenta).toBeDefined();
@@ -35,6 +36,7 @@ describe('cobranzasService cuentas por cobrar', () => {
       cliente_nombre: 'Cliente Test',
       total_usd: 50,
       tasa_bcv: 10,
+      empresaId: null,
     });
 
     const { cuenta: cuentaActualizada, pagos } = cobranzasService.registrarPago(
@@ -58,11 +60,13 @@ describe('cobranzasService cuentas por cobrar', () => {
       cliente_nombre: 'Juan Perez',
       total_usd: 10,
       tasa_bcv: 10,
+      empresaId: null,
     });
     cobranzasService.crearCuenta({
       cliente_nombre: 'Maria Lopez',
       total_usd: 20,
       tasa_bcv: 10,
+      empresaId: null,
     });
 
     const lista = cobranzasService.listCuentas({ cliente: 'juan' });

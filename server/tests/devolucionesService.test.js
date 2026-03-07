@@ -21,10 +21,10 @@ describe('devolucionesService.registrarDevolucion', () => {
 
   test('registra devolución simple sin venta original, suma stock y totales', () => {
     const insertProducto = db.prepare(
-      'INSERT INTO productos (codigo, descripcion, precio_usd, stock) VALUES (?,?,?,?)'
+      'INSERT INTO productos (codigo, descripcion, precio_usd, stock, empresa_id) VALUES (?,?,?,?,?)'
     );
 
-    const prodInfo = insertProducto.run('DEV-1', 'Producto Devolución', 10, 0);
+    const prodInfo = insertProducto.run('DEV-1', 'Producto Devolución', 10, 0, 1);
 
     const { devolucionId, total_bs, total_usd } =
       devolucionesService.registrarDevolucion({
@@ -35,6 +35,7 @@ describe('devolucionesService.registrarDevolucion', () => {
         tasa_bcv: 10,
         referencia: 'DEV-REF',
         motivo: 'Prueba',
+        empresa_id: 1,
       });
 
     expect(devolucionId).toBeDefined();

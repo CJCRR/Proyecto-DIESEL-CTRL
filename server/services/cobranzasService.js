@@ -68,7 +68,7 @@ function getResumenCuentas(empresaId) {
       FROM cuentas_cobrar cc
       LEFT JOIN ventas v ON v.id = cc.venta_id
       LEFT JOIN usuarios u ON u.id = v.usuario_id
-      WHERE (cc.venta_id IS NULL OR u.empresa_id = ?)
+      WHERE cc.venta_id IS NOT NULL AND u.empresa_id = ?
       GROUP BY cc.estado
     `).all(empresaId);
   return rows;
@@ -94,7 +94,7 @@ function listCuentas({ cliente, estado, mora_min, mora_max, empresaId } = {}) {
         FROM cuentas_cobrar cc
         LEFT JOIN ventas v ON v.id = cc.venta_id
         LEFT JOIN usuarios u ON u.id = v.usuario_id
-        WHERE (cc.venta_id IS NULL OR u.empresa_id = ?)
+        WHERE cc.venta_id IS NOT NULL AND u.empresa_id = ?
         ORDER BY date(cc.fecha_vencimiento) ASC
       `).all(empresaId);
   }
@@ -129,7 +129,10 @@ function getCuentaConPagos(id, empresaId) {
   const cuenta = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(id);
   if (!cuenta) return null;
 
-  if (empresaId != null && cuenta.venta_id) {
+  if (empresaId != null) {
+    if (!cuenta.venta_id) {
+      return null;
+    }
     const venta = db.prepare('SELECT v.usuario_id, u.empresa_id FROM ventas v JOIN usuarios u ON u.id = v.usuario_id WHERE v.id = ?').get(cuenta.venta_id);
     if (!venta || venta.empresa_id !== empresaId) {
       return null;
@@ -199,7 +202,10 @@ function registrarPago(id, empresaId, payload = {}) {
   const cuenta = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(id);
   if (!cuenta) return null;
 
-  if (empresaId != null && cuenta.venta_id) {
+  if (empresaId != null) {
+    if (!cuenta.venta_id) {
+      return null;
+    }
     const venta = db.prepare('SELECT v.usuario_id, u.empresa_id FROM ventas v JOIN usuarios u ON u.id = v.usuario_id WHERE v.id = ?').get(cuenta.venta_id);
     if (!venta || venta.empresa_id !== empresaId) {
       return null;
@@ -255,7 +261,10 @@ function actualizarCuenta(id, empresaId, payload = {}) {
   const cuenta = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(id);
   if (!cuenta) return null;
 
-  if (empresaId != null && cuenta.venta_id) {
+  if (empresaId != null) {
+    if (!cuenta.venta_id) {
+      return null;
+    }
     const venta = db.prepare('SELECT v.usuario_id, u.empresa_id FROM ventas v JOIN usuarios u ON u.id = v.usuario_id WHERE v.id = ?').get(cuenta.venta_id);
     if (!venta || venta.empresa_id !== empresaId) {
       return null;
