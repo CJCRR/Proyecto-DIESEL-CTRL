@@ -66,7 +66,9 @@ export function agregarAlCarrito() {
 
 	if (!productoSeleccionado) { showToast('Por favor, busque y seleccione un producto.', 'error'); return; }
 	if (isNaN(cantidad) || cantidad <= 0) { showToast('Ingrese una cantidad válida.', 'error'); return; }
-	if (cantidad > productoSeleccionado.stock) { showToast('No hay suficiente stock disponible.', 'error'); return; }
+	if (cantidad > productoSeleccionado.stock) {
+		showToast('Advertencia: la cantidad excede el stock físico. Úsalo solo para presupuestos o pedidos.', 'warning');
+	}
 
 	const index = carrito.findIndex(item => item.codigo === productoSeleccionado.codigo);
 
@@ -90,9 +92,10 @@ export function agregarAlCarrito() {
 		}
 	} catch {}
 
-	if (index !== -1) {
+	if (index >= 0) {
+		// Si el producto ya está en el carrito, aumentar cantidad
 		if ((carrito[index].cantidad + cantidad) > productoSeleccionado.stock) {
-			showToast('La cantidad total en el carrito supera el stock físico.', 'error'); return;
+			showToast('Advertencia: la cantidad total supera el stock físico. Úsalo solo para presupuestos o pedidos.', 'warning');
 		}
 		carrito[index].cantidad += cantidad;
 	} else {

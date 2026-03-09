@@ -32,19 +32,37 @@
   }
 
   async function getNotaConfig() {
+    // 1) Preferir siempre la config global cargada (por empresa)
+    try {
+      if (typeof window !== 'undefined' && window.configGeneral && window.configGeneral.nota) {
+        const empresa = window.configGeneral.empresa || {};
+        const notaBase = window.configGeneral.nota || {};
+        const nota = { ...notaBase };
+        if (empresa && typeof empresa.nombre === 'string' && empresa.nombre.trim() && !nota.empresa_nombre) {
+          nota.empresa_nombre = empresa.nombre.trim();
+        }
+        try { if (typeof localStorage !== 'undefined') localStorage.setItem('nota_config', JSON.stringify(nota)); } catch {}
+        return nota;
+      }
+    } catch {}
+
+    // 2) Cache local
     try {
       const cached = typeof localStorage !== 'undefined' ? localStorage.getItem('nota_config') : null;
       if (cached) return JSON.parse(cached);
     } catch {}
+
+    // 3) Backend
     if (typeof fetch !== 'undefined') {
       try {
         const res = await fetch('/admin/ajustes/config', { credentials: 'same-origin' });
         if (res.ok) {
           const j = await res.json();
-          let nota = j && j.nota ? j.nota : {};
-          // Copiar nombre de empresa si existe
-          if (j && j.empresa && j.empresa.nombre) {
-            nota.empresa_nombre = j.empresa.nombre;
+          const empresa = j && j.empresa ? j.empresa : {};
+          const notaBase = j && j.nota ? j.nota : {};
+          const nota = { ...notaBase };
+          if (empresa && typeof empresa.nombre === 'string' && empresa.nombre.trim() && !nota.empresa_nombre) {
+            nota.empresa_nombre = empresa.nombre.trim();
           }
           try { localStorage.setItem('nota_config', JSON.stringify(nota)); } catch {}
           return nota;
@@ -90,7 +108,10 @@
       ? fecha.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
       : fecha.toISOString().slice(0, 10);
     const tipo = (meta && meta.tipo) ? String(meta.tipo) : (venta.tipo || '').toUpperCase() === 'PRESUPUESTO' ? 'PRESUPUESTO' : 'NOTA DE ENTREGA';
-    const idTexto = venta.id_global ? venta.id_global : (venta.id ? `${tipo === 'PRESUPUESTO' ? 'PRES' : 'VENTA'}-0${venta.id}` : '');
+    const idTexto = venta.nro_nota
+      || venta.id_nota
+      || venta.numero_nota
+      || (venta.id_global ? venta.id_global : (venta.id ? `${tipo === 'PRESUPUESTO' ? 'PRES' : 'VENTA'}-0${venta.id}` : ''));
 
     // ...la nueva declaración de brandImgs y headerLogo ya está más abajo...
     const ivaPct = clampPct(venta.iva_pct != null ? venta.iva_pct : (notaCfg.iva_pct || 0));

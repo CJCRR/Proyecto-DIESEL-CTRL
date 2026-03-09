@@ -378,6 +378,22 @@ async function sincronizarVentasPendientes({ isRetry = false } = {}) {
                 const data = await apiPostJson('/ventas', payload);
                 console.log(`✅ Venta enviada al servidor: ${venta.id_global} -> ${data.ventaId || data.id || 'OK'}`);
 
+                // Notificar al frontend (POS) que la venta se registró en el backend,
+                // incluyendo el NRO correlativo calculado (por ejemplo, "VENTA-18").
+                try {
+                    if (typeof window !== 'undefined' && window.dispatchEvent) {
+                        window.dispatchEvent(new CustomEvent('venta-registrada-backend', {
+                            detail: {
+                                id_global_local: venta.id_global,
+                                ventaId: data.ventaId || data.id || null,
+                                nro_nota: data.idGlobal || null,
+                            }
+                        }));
+                    }
+                } catch (evtErr) {
+                    console.warn('No se pudo emitir evento venta-registrada-backend', evtErr);
+                }
+
                 // Tras registrar la venta en el backend, actualizar en Firebase
                 // el stock de los productos afectados (best-effort, no bloqueante).
                 try {

@@ -79,8 +79,8 @@ export function initSyncBackupUI() {
 
 function getFormCliente() {
 	return {
-		nombre: (document.getElementById('v_cliente')?.value || '').trim(),
-		cedula: (document.getElementById('v_cedula')?.value || '').trim(),
+		nombre: (document.getElementById('v_cliente')?.value || '').trim().toUpperCase(),
+		cedula: (document.getElementById('v_cedula')?.value || '').trim().toUpperCase(),
 		telefono: (document.getElementById('v_telefono')?.value || '').trim()
 	};
 }
@@ -107,7 +107,8 @@ function renderSugerenciasClientes(list = []) {
 			</div>
 		`;
 		li.addEventListener('click', () => {
-			if (inputNombreCliente) inputNombreCliente.value = nombre;
+			const nombreUpper = (nombre || '').toString().toUpperCase();
+			if (inputNombreCliente) inputNombreCliente.value = nombreUpper;
 			const ced = document.getElementById('v_cedula');
 			const tel = document.getElementById('v_telefono');
 			if (ced) ced.value = cedula;
@@ -251,5 +252,11 @@ export async function initClientesUI() {
 	}
 
 	if (btnGuardarCliente) btnGuardarCliente.addEventListener('click', upsertClienteDesdeFormulario);
+}
+
+// Exponer helper para que el POS pueda auto-guardar el cliente
+// al registrar una venta, incluso si el usuario no presionó el botón.
+if (typeof window !== 'undefined') {
+	window.upsertClienteDesdeFormularioPOS = upsertClienteDesdeFormulario;
 }
 

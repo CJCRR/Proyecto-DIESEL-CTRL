@@ -39,7 +39,7 @@ function renderTabla(filtro = '') {
 
 function fillForm(c) {
     seleccionado = c || null;
-    nombreInput.value = c?.nombre || '';
+    nombreInput.value = (c?.nombre || '').toString().toUpperCase();
     cedulaInput.value = c?.cedula || '';
     telefonoInput.value = c?.telefono || '';
     descuentoInput.value = c?.descuento || '';
@@ -79,8 +79,8 @@ async function loadClientes() {
 
 async function guardarCliente() {
     const cliente = {
-        nombre: nombreInput.value.trim(),
-        cedula: cedulaInput.value.trim(),
+        nombre: nombreInput.value.trim().toUpperCase(),
+        cedula: cedulaInput.value.trim().toUpperCase(),
         telefono: telefonoInput.value.trim(),
         descuento: parseFloat(descuentoInput.value) || 0,
         notas: notasInput.value.trim(),

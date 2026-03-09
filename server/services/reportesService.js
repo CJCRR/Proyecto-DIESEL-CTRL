@@ -143,8 +143,24 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
     const total_bs_iva = baseBsIva - dev.dev_bs;
     const total_usd_iva = baseUsdIva - dev.dev_usd;
 
+    // Calcular NRO correlativo por empresa igual que en /nota
+    let nroNota = null;
+    if (empresaId != null) {
+      const filaSeq = db.prepare(`
+        SELECT COUNT(*) AS n
+        FROM ventas v2
+        JOIN usuarios u2 ON u2.id = v2.usuario_id
+        WHERE u2.empresa_id = ? AND v2.id <= ?
+      `).get(empresaId, r.id);
+      const correlativo = filaSeq && filaSeq.n ? Number(filaSeq.n) : Number(r.id);
+      nroNota = `VENTA-${correlativo}`;
+    } else if (r.id != null) {
+      nroNota = `VENTA-${r.id}`;
+    }
+
     return {
       ...r,
+      nro_nota: nroNota,
       total_bs,
       total_usd,
       costo_bs,
@@ -541,16 +557,35 @@ function getInventario(empresaId) {
   }
 
   const productos = db.prepare(`
-      SELECT codigo, descripcion, precio_usd, stock, (stock * COALESCE(precio_usd,0)) as total_usd
+      SELECT codigo, descripcion, precio_usd, costo_usd, stock,
+             (stock * COALESCE(precio_usd,0)) as total_usd,
+             (stock * COALESCE(costo_usd,0)) as total_costo_usd
       FROM productos
       ${where}
       ORDER BY codigo
     `).all(...params);
 
-  const totalUsd = productos.reduce((s,p) => s + (p.total_usd || 0), 0);
-  const totalBs = totalUsd * tasa;
+  const totalUsd = productos.reduce((s, p) => s + (p.total_usd || 0), 0);
+  const totalUsdCosto = productos.reduce((s, p) => {
+    if (p.total_costo_usd != null) return s + (p.total_costo_usd || 0);
+    const stock = Number(p.stock || 0) || 0;
+    const costo = Number(p.costo_usd || 0) || 0;
+    return s + stock * costo;
+  }, 0);
 
-  return { items: productos, totals: { totalUsd, totalBs, tasa } };
+  const totalBs = totalUsd * tasa;
+  const totalBsCosto = totalUsdCosto * tasa;
+
+  return {
+    items: productos,
+    totals: {
+      totalUsd,
+      totalBs,
+      tasa,
+      costoUsd: totalUsdCosto,
+      costoBs: totalBsCosto,
+    }
+  };
 }
 
 /**
@@ -902,13 +937,14 @@ function getVendedoresComparativa({ desde, hasta, empresaId }) {
   const whereVentasSQL = whereVentas.length ? ('WHERE ' + whereVentas.join(' AND ')) : '';
 
   const ventasRows = db.prepare(`
-      SELECT COALESCE(v.vendedor, '—') AS vendedor,
+      SELECT COALESCE(u.nombre_completo, u.username, v.vendedor, '—') AS vendedor,
         COUNT(DISTINCT v.id) AS ventas,
         SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS total_bs,
         SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS total_usd
       FROM ventas v
       JOIN venta_detalle vd ON vd.venta_id = v.id
       JOIN productos p ON p.id = vd.producto_id
+      LEFT JOIN usuarios u ON u.id = v.usuario_id
       ${whereVentasSQL}
       GROUP BY vendedor
     `).all(...paramsVentas);
@@ -928,11 +964,12 @@ function getVendedoresComparativa({ desde, hasta, empresaId }) {
   const whereDevSQL = whereDevParts.length ? ('WHERE ' + whereDevParts.join(' AND ')) : '';
 
   const devRows = db.prepare(`
-      SELECT COALESCE(v_orig.vendedor, '—') AS vendedor,
+      SELECT COALESCE(u.nombre_completo, u.username, v_orig.vendedor, '—') AS vendedor,
              SUM(d.total_bs) AS dev_bs,
              SUM(CASE WHEN COALESCE(d.tasa_bcv,0) != 0 THEN d.total_bs / d.tasa_bcv ELSE d.total_bs END) AS dev_usd
       FROM devoluciones d
       JOIN ventas v_orig ON v_orig.id = d.venta_original_id
+      LEFT JOIN usuarios u ON u.id = v_orig.usuario_id
       ${whereDevSQL}
       GROUP BY vendedor
     `).all(...paramsDev);
@@ -973,7 +1010,7 @@ function getVendedoresRoi({ desde, hasta, empresaId }) {
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`
-      SELECT COALESCE(v.vendedor, '—') AS vendedor,
+      SELECT COALESCE(u.nombre_completo, u.username, v.vendedor, '—') AS vendedor,
         COUNT(DISTINCT v.id) AS ventas,
         SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) AS ingresos_bs,
         SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)) / COALESCE(NULLIF(v.tasa_bcv,0),1)) AS ingresos_usd,
@@ -984,6 +1021,7 @@ function getVendedoresRoi({ desde, hasta, empresaId }) {
       FROM ventas v
       JOIN venta_detalle vd ON vd.venta_id = v.id
       JOIN productos p ON p.id = vd.producto_id
+      LEFT JOIN usuarios u ON u.id = v.usuario_id
       ${whereSQL}
       GROUP BY vendedor
       ORDER BY ingresos_usd DESC
@@ -1119,7 +1157,7 @@ function getVendedoresRanking({ desde, hasta, empresaId }) {
   const whereVentasSQL = whereVentas.length ? ('WHERE ' + whereVentas.join(' AND ')) : '';
 
   const ventasRows = db.prepare(`
-      SELECT COALESCE(v.vendedor, '—') as vendedor,
+  SELECT COALESCE(u.nombre_completo, u.username, v.vendedor, '—') as vendedor,
              COUNT(DISTINCT v.id) as ventas,
              COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), 0) as total_bs,
              COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)))/NULLIF(v.tasa_bcv,0),
@@ -1129,6 +1167,7 @@ function getVendedoresRanking({ desde, hasta, empresaId }) {
       FROM ventas v
       JOIN venta_detalle vd ON vd.venta_id = v.id
       JOIN productos p ON p.id = vd.producto_id
+  LEFT JOIN usuarios u ON u.id = v.usuario_id
       ${whereVentasSQL}
       GROUP BY vendedor
     `).all(...paramsVentas);
@@ -1148,7 +1187,7 @@ function getVendedoresRanking({ desde, hasta, empresaId }) {
   const whereDevSQL = whereDevParts.length ? ('WHERE ' + whereDevParts.join(' AND ')) : '';
 
   const devRows = db.prepare(`
-        SELECT COALESCE(v_orig.vendedor, '—') as vendedor,
+        SELECT COALESCE(u.nombre_completo, u.username, v_orig.vendedor, '—') as vendedor,
           SUM(dd.subtotal_bs) as dev_bs,
           SUM(dd.subtotal_bs / COALESCE(NULLIF(d.tasa_bcv,0),1)) as dev_usd,
           SUM(COALESCE(vd_orig.costo_usd, p.costo_usd,0) * dd.cantidad * COALESCE(d.tasa_bcv,1)) as dev_costo_bs,
@@ -1158,6 +1197,7 @@ function getVendedoresRanking({ desde, hasta, empresaId }) {
         JOIN ventas v_orig ON v_orig.id = d.venta_original_id
         JOIN productos p ON p.id = dd.producto_id
         LEFT JOIN venta_detalle vd_orig ON vd_orig.venta_id = v_orig.id AND vd_orig.producto_id = dd.producto_id
+        LEFT JOIN usuarios u ON u.id = v_orig.usuario_id
       ${whereDevSQL}
       GROUP BY vendedor
     `).all(...paramsDev);

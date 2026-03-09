@@ -287,7 +287,10 @@ function renderList(items) {
                 badgeHtml = '<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 ml-2">Sobre stock</span>';
             }
         }
-        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs ">${p.descripcion || ''}</span></div><div class="text-xs text-slate-400">${p.categoria || ''}${p.marca ? ` · Marca: ${p.marca}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}</div>
+        const descUpper = (p.descripcion || '').toString().toUpperCase();
+        const catUpper = (p.categoria || '').toString().toUpperCase();
+        const marcaUpper = (p.marca || '').toString().toUpperCase();
+        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs ">${descUpper}</span></div><div class="text-xs text-slate-400">${catUpper}${marcaUpper ? ` · Marca: ${marcaUpper}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}</div>
             <div class="text-right space-y-0.5 min-w-[170px]">
                 <div class="text-sm font-black">Stock: ${p.stock || 0}${badgeHtml}</div>
                 <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)}</div>
@@ -616,8 +619,8 @@ btnImportCsv.addEventListener('click', async () => {
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     let body = {
-        codigo: f_codigo.value.trim(),
-        descripcion: f_desc.value.trim(),
+        codigo: f_codigo.value.trim().toUpperCase(),
+        descripcion: f_desc.value.trim().toUpperCase(),
         precio_usd: parseFloat(f_precio.value),
         costo_usd: parseFloat(f_costo.value) || 0,
         stock: parseInt(f_stock.value) || 0,
@@ -898,7 +901,8 @@ async function cargarProductoParaMovimiento() {
         const res = await fetch(`/productos/${encodeURIComponent(codigo)}`, { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Producto no encontrado');
         const p = await res.json();
-        movInfo.textContent = `${p.codigo || ''} — ${p.descripcion || ''} (Stock total: ${p.stock ?? 0})`;
+        const descUpper = (p.descripcion || '').toString().toUpperCase();
+        movInfo.textContent = `${p.codigo || ''} — ${descUpper} (Stock total: ${p.stock ?? 0})`;
         const exps = Array.isArray(p.existencias_por_deposito) ? p.existencias_por_deposito : [];
 
         if (movStockDetalle) {

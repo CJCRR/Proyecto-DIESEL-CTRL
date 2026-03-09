@@ -162,7 +162,7 @@ async function crearProductoDesdeCompras(event) {
 
   const body = {
     codigo: (npCodigo.value || '').trim().toUpperCase(),
-    descripcion: (npDescripcion.value || '').trim(),
+    descripcion: (npDescripcion.value || '').trim().toUpperCase(),
     precio_usd: parseFloat(npPrecio.value || '0'),
     costo_usd: parseFloat(npCosto.value || '0') || 0,
     stock: parseInt(npStock.value || '0', 10) || 0,
@@ -350,7 +350,7 @@ async function buscarProductos(q) {
       return;
     }
     lista.innerHTML = results.map(p => {
-      const desc = p.descripcion || '';
+      const desc = (p.descripcion || '').toString().toUpperCase();
       const marca = p.marca ? `Marca: ${escapeHtml(p.marca)} · ` : '';
       const stock = typeof p.stock === 'number' ? `Stock: ${p.stock}` : '';
       const precio = typeof p.precio_usd === 'number' ? ` · $${p.precio_usd.toFixed(2)}` : '';
@@ -518,7 +518,7 @@ async function toggleDetalleCompra(id) {
               return `
                 <tr>
                   <td class="p-2">${escapeHtml(d.codigo || '')}</td>
-                  <td class="p-2">${escapeHtml(d.descripcion || d.producto_descripcion_db || '')}</td>
+                  <td class="p-2">${escapeHtml((d.descripcion || d.producto_descripcion_db || '').toString().toUpperCase())}</td>
                   <td class="p-2">${escapeHtml(d.marca || d.producto_marca_db || '')}</td>
                   <td class="p-2 text-right">${d.cantidad || 0}</td>
                   <td class="p-2 text-right">$${(d.costo_usd || 0).toFixed(2)}</td>

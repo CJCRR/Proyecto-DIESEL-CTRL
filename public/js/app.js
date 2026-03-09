@@ -175,7 +175,7 @@ async function cargarVendedoresPOS() {
         const data = await apiFetchJson('/admin/usuarios/vendedores-list');
         vendedoresPOS = Array.isArray(data) ? data : [];
         if (!sel) return;
-        const opciones = ['<option value="">Seleccionar vendedor</option>'];
+        const opciones = [''];
         vendedoresPOS.forEach((u) => {
             const nombre = (u.nombre_completo || u.username || '').trim();
             const texto = nombre ? `${escapeHtml(nombre)}` : escapeHtml(u.username || '');
@@ -759,7 +759,7 @@ function finalizarVentaUI() {
 function crearProducto() {
     const body = {
         codigo: document.getElementById('i_codigo').value.trim(),
-        descripcion: document.getElementById('i_desc').value.trim(),
+		descripcion: document.getElementById('i_desc').value.trim().toUpperCase(),
         precio_usd: parseFloat(document.getElementById('i_precio').value),
         costo_usd: parseFloat(document.getElementById('i_costo').value) || 0,
         stock: parseInt(document.getElementById('i_stock').value) || 0

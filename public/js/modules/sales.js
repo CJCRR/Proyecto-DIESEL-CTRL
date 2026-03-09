@@ -24,6 +24,33 @@ function generarIDVenta() {
 	return `VEN-${fecha}-${randomPart}`;
 }
 
+// Validación online previa: si hay conexión, consultar stock real en el servidor
+// para evitar emitir ventas con productos sin stock físico.
+async function validarStockOnlineAntesDeVenta() {
+	if (!navigator.onLine) return; // en modo offline se permite registrar localmente
+	const items = Array.isArray(carrito) ? carrito : [];
+	if (!items.length) return;
+	// Agrupar cantidades por código por si hay duplicados en el carrito
+	const porCodigo = new Map();
+	for (const it of items) {
+		if (!it || !it.codigo) continue;
+		const codigo = String(it.codigo).trim();
+		const qty = Number(it.cantidad || 0) || 0;
+		if (!codigo || qty <= 0) continue;
+		porCodigo.set(codigo, (porCodigo.get(codigo) || 0) + qty);
+	}
+	for (const [codigo, qtyNecesaria] of porCodigo.entries()) {
+		const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
+		if (!prod || prod.error) {
+			throw new Error(`No se pudo verificar el stock del producto ${codigo}. Intente de nuevo.`);
+		}
+		const stockServidor = Number(prod.stock || 0) || 0;
+		if (stockServidor < qtyNecesaria) {
+			throw new Error(`No se puede registrar la venta: el producto ${codigo} tiene stock ${stockServidor} y se intenta vender ${qtyNecesaria}.`);
+		}
+	}
+}
+
 // --- HISTORIAL DE DEVOLUCIONES / VENTA SELECCIONADA ---
 export function renderVentaSeleccionada() {
 	const ventaSeleccionada = getVentaSeleccionada();
@@ -48,7 +75,7 @@ export function renderVentaSeleccionada() {
 
 	detalle.classList.remove('hidden');
 	detalle.innerHTML = carrito.map(d => `<div class="flex items-center justify-between border-b pb-1">
-		<div class="text-slate-700">${escapeHtml(d.codigo)} — ${escapeHtml(d.descripcion)}</div>
+		<div class="text-slate-700">${escapeHtml(d.codigo)} — ${escapeHtml((d.descripcion || '').toString().toUpperCase())}</div>
 		<div class="text-xs text-slate-500">Vendidos: ${escapeHtml(d.maxCantidad)}</div>
 	</div>`).join('');
 }
@@ -190,6 +217,24 @@ export async function registrarVenta() {
 
 	const metodoFinal = isCredito ? 'CREDITO' : metodo;
 
+	// Validar stock real en servidor antes de continuar (solo si hay conexión)
+	try {
+		await validarStockOnlineAntesDeVenta();
+	} catch (err) {
+		showToast(err.message || 'No se pudo validar el stock en el servidor.', 'error');
+		return;
+	}
+
+	// Intentar auto-guardar/actualizar el cliente antes de registrar la venta,
+	// usando la misma lógica del botón "Guardar cliente".
+	try {
+		if (typeof window.upsertClienteDesdeFormularioPOS === 'function') {
+			await window.upsertClienteDesdeFormularioPOS();
+		}
+	} catch (err) {
+		console.warn('No se pudo auto-guardar el cliente antes de la venta', err);
+	}
+
 	let ivaPct = 0;
 	try {
 		if (window.configGeneral && window.configGeneral.nota && window.configGeneral.nota.iva_pct != null) {
@@ -226,6 +271,28 @@ export async function registrarVenta() {
 	}
 
 	try {
+		let esperaNroNotaPromise = null;
+		if (navigator.onLine && typeof window !== 'undefined' && window.addEventListener) {
+			// Preparar listener para capturar el NRO correlativo que envía el backend
+			// cuando firebase-sync sincroniza la venta recién creada.
+			esperaNroNotaPromise = new Promise((resolve) => {
+				const timeout = setTimeout(() => {
+					window.removeEventListener('venta-registrada-backend', handler);
+					resolve(null);
+				}, 5000);
+				function handler(ev) {
+					const d = ev && ev.detail ? ev.detail : {};
+					if (!d || d.id_global_local !== ventaData.id_global) return;
+					try {
+						window.removeEventListener('venta-registrada-backend', handler);
+					} catch {}
+					clearTimeout(timeout);
+					resolve(d.nro_nota || null);
+				}
+				window.addEventListener('venta-registrada-backend', handler);
+			});
+		}
+
 		await guardarVentaLocal(ventaData);
 		await actualizarSyncPendientes();
 
@@ -253,6 +320,19 @@ export async function registrarVenta() {
 				await enviarVentaASync(ventaData);
 			} catch (err) {
 				console.warn('Error enviando venta a sync nube', err);
+			}
+		}
+
+		// Si el backend local devolvió un NRO correlativo (VENTA-xx),
+		// guardarlo en la venta para que la nota muestre ese número.
+		if (esperaNroNotaPromise) {
+			try {
+				const nroNota = await esperaNroNotaPromise;
+				if (nroNota) {
+					ventaData.nro_nota = nroNota;
+				}
+			} catch (errNro) {
+				console.warn('No se pudo obtener NRO de nota desde backend', errNro);
 			}
 		}
 

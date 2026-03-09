@@ -65,11 +65,12 @@ function renderReporte() {
         const badgeDev = r.tiene_devolucion
             ? '<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 uppercase tracking-wide">DEVOLUCIÓN</span>'
             : '';
+        const nro = r.nro_nota || '';
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 cursor-pointer';
         tr.dataset.id = String(r.id);
                 tr.innerHTML = `
-            <td class="p-2 whitespace-nowrap"><i id="venta-toggle-icon-${r.id}" class="fas fa-chevron-down mr-2 text-slate-500"></i>${new Date(r.fecha).toLocaleString()}${badgeDev}</td>
+            <td class="p-2 whitespace-nowrap"><i id="venta-toggle-icon-${r.id}" class="fas fa-chevron-down mr-2 text-slate-500"></i>${new Date(r.fecha).toLocaleString()}${nro ? ` · <span class="text-[11px] text-slate-500 font-semibold">${nro}</span>` : ''}${badgeDev}</td>
       <td class="p-2">${r.cliente || ''}</td>
             <td class="p-2 hidden sm:table-cell">${r.vendedor || ''}</td>
             <td class="p-2 hidden sm:table-cell">${r.metodo_pago || ''}</td>
@@ -142,8 +143,9 @@ function renderReporte() {
                         : (d.devuelto_parcial
                             ? `<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700 uppercase tracking-wide">DEVUELTO ${d.devuelto_cant || ''}</span>`
                             : '');
+                    const descUpper = (d.descripcion || '').toString().toUpperCase();
                     return `<div class="flex items-center justify-between border-b pb-1">
-                        <div class="truncate">${codePart}<span class="text-slate-600">${d.descripcion || ''}</span>${devTag}</div>
+                        <div class="truncate">${codePart}<span class="text-slate-600">${descUpper}</span>${devTag}</div>
                         <div class="text-right min-w-[160px]"><span class="text-xs text-slate-500">Cant ${d.cantidad}</span> • <span class="font-semibold">${monto}</span></div>
                     </div>`;
                 }).join('');
@@ -594,7 +596,7 @@ function renderDevoluciones() {
                 const monto = MONEDA === 'USD' ? fmt(montoUsd) + ' USD' : fmt(montoBs) + ' Bs';
                 const codePart = codigo ? `<span class="font-semibold">${codigo}</span> — ` : '';
                 return `<div class="flex items-center justify-between border-b pb-1">
-                    <div class="truncate">${codePart}<span class="text-slate-600">${d.descripcion || ''}</span></div>
+                    <div class="truncate">${codePart}<span class="text-slate-600">${(d.descripcion || '').toString().toUpperCase()}</span></div>
                     <div class="text-right min-w-[160px]"><span class="text-xs text-slate-500">Cant ${d.cantidad}</span> • <span class="font-semibold">${monto}</span></div>
                 </div>`;
             }).join('');

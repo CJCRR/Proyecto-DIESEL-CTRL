@@ -21,6 +21,10 @@
 /* Overrides suaves para usar la paleta configurada */
 nav.bg-slate-900 { background-color: var(--brand-secondary, #0f172a) !important; }
 .bg-blue-600 { background-color: var(--brand-primary, #2563eb) !important; }
+/* Inputs marcados para mostrar siempre el texto en mayúsculas */
+.input-upper {
+    text-transform: uppercase;
+}
 .bg-blue-700 { background-color: var(--brand-primary, #2563eb) !important; filter: brightness(0.92); }
 .text-blue-600 { color: var(--brand-primary, #2563eb) !important; }
 .border-blue-500 { border-color: var(--brand-primary, #3b82f6) !important; }

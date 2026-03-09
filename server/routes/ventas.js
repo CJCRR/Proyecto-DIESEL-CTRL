@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('./auth');
 const logger = require('../services/logger');
+const db = require('../db');
 const { registrarVenta } = require('../services/ventasService');
 
 // El superadmin no debe registrar ventas de ninguna empresa
@@ -26,7 +27,28 @@ router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
                 : (req.usuario ? req.usuario.empresa_id : null),
         };
         const { ventaId, cuentaCobrarId } = registrarVenta(payload);
-        res.json({ message: 'Venta registrada con éxito', ventaId, cuentaCobrarId });
+
+        // Calcular un número correlativo por empresa para el NRO de la nota
+        // usando la misma lógica que en la ruta de /nota.
+        const empresaId = payload.empresa_id != null
+            ? payload.empresa_id
+            : (req.usuario && req.usuario.empresa_id != null ? req.usuario.empresa_id : null);
+
+        let idGlobal = null;
+        if (empresaId != null && ventaId != null) {
+            const filaSeq = db.prepare(`
+        SELECT COUNT(*) AS n
+        FROM ventas v2
+        JOIN usuarios u2 ON u2.id = v2.usuario_id
+        WHERE u2.empresa_id = ? AND v2.id <= ?
+      `).get(empresaId, ventaId);
+            const correlativo = filaSeq && filaSeq.n ? Number(filaSeq.n) : Number(ventaId);
+            idGlobal = `VENTA-${correlativo}`;
+        } else if (ventaId != null) {
+            idGlobal = `VENTA-${ventaId}`;
+        }
+
+        res.json({ message: 'Venta registrada con éxito', ventaId, cuentaCobrarId, idGlobal });
     } catch (error) {
         // Log estructurado para diagnóstico, manteniendo respuesta 400 con el mensaje
         logger.error('Error procesando la venta', {

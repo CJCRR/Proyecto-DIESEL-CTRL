@@ -29,7 +29,8 @@ function renderTopProductos() {
         const costo = MONEDA === 'USD' ? t.costo_usd || 0 : t.costo_bs || 0;
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center p-2 border-b';
-        row.innerHTML = `<div><div class="font-bold">${t.codigo} — ${t.descripcion || ''}</div><div class="text-xs text-slate-400">Vendidos: ${t.total_qty}</div></div><div class="text-right"><div class="font-black">${Number(monto).toFixed(2)} ${MONEDA}</div><div class="text-xs text-green-700">Margen: ${Number(margen).toFixed(2)} ${MONEDA}</div><div class="text-[11px] text-slate-400">Costo: ${Number(costo).toFixed(2)} ${MONEDA}</div></div>`;
+        const descUpper = (t.descripcion || '').toString().toUpperCase();
+        row.innerHTML = `<div><div class="font-bold">${t.codigo} — ${descUpper}</div><div class="text-xs text-slate-400">Vendidos: ${t.total_qty}</div></div><div class="text-right"><div class="font-black">${Number(monto).toFixed(2)} ${MONEDA}</div><div class="text-xs text-green-700">Margen: ${Number(margen).toFixed(2)} ${MONEDA}</div><div class="text-[11px] text-slate-400">Costo: ${Number(costo).toFixed(2)} ${MONEDA}</div></div>`;
         topEl.appendChild(row);
     });
 }
@@ -117,9 +118,13 @@ async function cargarDashboard() {
             const invUsdEl = document.getElementById('inv-total-usd');
             const invBsEl = document.getElementById('inv-total-bs');
             const invTasaEl = document.getElementById('inv-tasa');
+            const invCostoUsdEl = document.getElementById('inv-total-costo-usd');
+            const invCostoBsEl = document.getElementById('inv-total-costo-bs');
             if (invUsdEl) invUsdEl.innerText = `${Number(inv.totals.totalUsd || 0).toFixed(2)} USD`;
             if (invBsEl) invBsEl.innerText = `${Number(inv.totals.totalBs || 0).toFixed(2)} Bs`;
             if (invTasaEl) invTasaEl.innerText = Number(inv.totals.tasa || 1).toFixed(2);
+            if (invCostoUsdEl) invCostoUsdEl.innerText = `${Number(inv.totals.costoUsd || 0).toFixed(2)} USD`;
+            if (invCostoBsEl) invCostoBsEl.innerText = `${Number(inv.totals.costoBs || 0).toFixed(2)} Bs`;
         } catch (e) { /* ignore */ }
 
         await loadTopProductos();
@@ -434,7 +439,7 @@ async function renderAlertasTareas() {
         if (pendEl) {
             const rowsStock = stock.map(s => ({
                 tipo: 'STOCK',
-                html: `<div class=\"py-1 border-b\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-amber-100 text-amber-700\">STOCK</span><span class=\"font-semibold\">${s.codigo}</span></div><span class=\"text-slate-500\">${s.stock}</span></div><div class=\"text-xs text-slate-500 truncate\">${s.descripcion || ''}</div></div>`
+                html: `<div class=\"py-1 border-b\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-amber-100 text-amber-700\">STOCK</span><span class=\"font-semibold\">${s.codigo}</span></div><span class=\"text-slate-500\">${s.stock}</span></div><div class=\"text-xs text-slate-500 truncate\">${(s.descripcion || '').toString().toUpperCase()}</div></div>`
             }));
             const rowsMor = morosos.map(m => ({
                 tipo: 'MOROSO',
