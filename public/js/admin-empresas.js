@@ -62,10 +62,9 @@ const rpMeses = document.getElementById('rp-meses');
 const rpCancelar = document.getElementById('rp-cancelar');
 let rpEmpresaId = null;
 
-// Modal ciclo de facturación
+// Modal días de gracia de la empresa
 const modalCiclo = document.getElementById('modal-ciclo-empresa');
 const formCiclo = document.getElementById('form-ciclo-empresa');
-const ecCorte = document.getElementById('ec-corte');
 const ecGracia = document.getElementById('ec-gracia');
 const ecCancelar = document.getElementById('ec-cancelar');
 let ecEmpresaId = null;
@@ -188,7 +187,7 @@ function renderEmpresas() {
   empresas.forEach(e => {
     const estadoLicencia = calcularEstadoLicencia(e);
     const planTexto = (e.plan || '—') + (e.monto_mensual ? ` / $${Number(e.monto_mensual).toFixed(2)}` : '');
-    const corteGracia = `Día ${e.fecha_corte || 1} · ${e.dias_gracia || 0} días`;
+    const textoGracia = `${e.dias_gracia || 0} días de gracia`;
     const proximo = e.proximo_cobro ? new Date(e.proximo_cobro).toLocaleDateString() : '—';
     const ultimoPago = e.ultimo_pago_en ? new Date(e.ultimo_pago_en).toLocaleDateString() : '—';
 
@@ -201,7 +200,7 @@ function renderEmpresas() {
     html += `<td class="p-3 align-top text-slate-600">${e.codigo || ''}</td>`;
     html += `<td class="p-3 align-top">${badgeEstado(estadoLicencia)}</td>`;
     html += `<td class="p-3 align-top text-slate-600">${planTexto}</td>`;
-    html += `<td class="p-3 align-top text-slate-600">${corteGracia}</td>`;
+    html += `<td class="p-3 align-top text-slate-600">${textoGracia}</td>`;
     html += `<td class="p-3 align-top text-slate-600">
       <div>Próximo: ${proximo}</div>
       <div class="text-xs text-slate-400 mt-1">Último pago: ${ultimoPago}</div>
@@ -221,7 +220,7 @@ function renderEmpresas() {
 
     html += `<button class="px-2 py-1 rounded-lg bg-sky-100 text-sky-700 hover:bg-sky-200" onclick="window.__editarPlan(${e.id})">Plan / Monto</button>`;
     html += `<button class="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200" onclick="window.__registrarPago(${e.id})">Registrar pago</button>`;
-    html += `<button class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="window.__editarCiclo(${e.id})">Corte / Gracia</button>`;
+    html += `<button class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="window.__editarCiclo(${e.id})">Días de gracia</button>`;
 
     // Botón para crear usuario admin de empresa
     if (e.id !== 1 && e.codigo !== 'LOCAL') {
@@ -395,15 +394,7 @@ window.__editarCiclo = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   if (!modalCiclo) {
-    const actualCorte = empresa.fecha_corte || 1;
     const actualGracia = empresa.dias_gracia || 7;
-    const nuevoCorteStr = window.prompt('Día de corte de facturación (1-28):', String(actualCorte));
-    if (nuevoCorteStr === null) return;
-    const nuevoCorte = parseInt(nuevoCorteStr, 10);
-    if (Number.isNaN(nuevoCorte) || nuevoCorte < 1 || nuevoCorte > 28) {
-      if (window.showToast) window.showToast('Valor de día de corte inválido (1-28).', 'error'); else alert('Valor de día de corte inválido (1-28).');
-      return;
-    }
     const nuevoGraciaStr = window.prompt('Días de gracia (0-60):', String(actualGracia));
     if (nuevoGraciaStr === null) return;
     const nuevoGracia = parseInt(nuevoGraciaStr, 10);
@@ -411,18 +402,16 @@ window.__editarCiclo = function (id) {
       if (window.showToast) window.showToast('Valor de días de gracia inválido (0-60).', 'error'); else alert('Valor de días de gracia inválido (0-60).');
       return;
     }
-    patchEmpresa(id, { fecha_corte: nuevoCorte, dias_gracia: nuevoGracia }, 'Ciclo de facturación actualizado');
+    patchEmpresa(id, { dias_gracia: nuevoGracia }, 'Días de gracia actualizados');
     return;
   }
 
   ecEmpresaId = id;
-  const actualCorte = empresa.fecha_corte || 1;
   const actualGracia = empresa.dias_gracia || 7;
-  ecCorte.value = String(actualCorte);
   ecGracia.value = String(actualGracia);
   modalCiclo.classList.remove('hidden');
   modalCiclo.classList.add('flex');
-  setTimeout(() => ecCorte.focus(), 50);
+  setTimeout(() => ecGracia.focus(), 50);
 };
 
 btnBuscar.addEventListener('click', () => {
@@ -708,15 +697,8 @@ if (formCiclo && modalCiclo) {
   formCiclo.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!ecEmpresaId) return;
-    const corteStr = (ecCorte.value || '').trim();
     const graciaStr = (ecGracia.value || '').trim();
-    const corte = parseInt(corteStr, 10);
     const gracia = parseInt(graciaStr, 10);
-    if (Number.isNaN(corte) || corte < 1 || corte > 28) {
-      if (window.showToast) window.showToast('Valor de día de corte inválido (1-28).', 'error'); else alert('Valor de día de corte inválido (1-28).');
-      ecCorte.focus();
-      return;
-    }
     if (Number.isNaN(gracia) || gracia < 0 || gracia > 60) {
       if (window.showToast) window.showToast('Valor de días de gracia inválido (0-60).', 'error'); else alert('Valor de días de gracia inválido (0-60).');
       ecGracia.focus();
@@ -724,7 +706,7 @@ if (formCiclo && modalCiclo) {
     }
     modalCiclo.classList.add('hidden');
     modalCiclo.classList.remove('flex');
-    patchEmpresa(ecEmpresaId, { fecha_corte: corte, dias_gracia: gracia }, 'Ciclo de facturación actualizado');
+    patchEmpresa(ecEmpresaId, { dias_gracia: gracia }, 'Días de gracia actualizados');
     ecEmpresaId = null;
   });
 }
