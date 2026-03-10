@@ -604,13 +604,6 @@ function setupUI() {
       cerrarModalNuevoProducto();
     });
   }
-  if (modalNuevoProducto) {
-    modalNuevoProducto.addEventListener('click', (e) => {
-      if (e.target === modalNuevoProducto) {
-        cerrarModalNuevoProducto();
-      }
-    });
-  }
   if (formNuevoProducto) {
     formNuevoProducto.addEventListener('submit', crearProductoDesdeCompras);
   }

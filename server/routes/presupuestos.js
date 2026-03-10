@@ -227,7 +227,17 @@ router.post('/', requireAuth, (req, res) => {
         const producto = db.prepare('SELECT id, codigo, descripcion, precio_usd FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
         if (!producto) throw new Error(`Producto ${codigo} no existe`);
 
-        const precio = Number(producto.precio_usd || 0);
+        // Si el frontend (POS) envía un precio_usd ya calculado según
+        // el nivel de precio seleccionado, usarlo como fuente de verdad.
+        // Si no viene o es inválido, caer al precio_usd base del producto
+        // para mantener compatibilidad hacia atrás.
+        let precio = Number(producto.precio_usd || 0);
+        if (item.precio_usd !== undefined && item.precio_usd !== null) {
+          const fromPayload = Number(item.precio_usd);
+          if (!Number.isNaN(fromPayload) && fromPayload >= 0 && fromPayload <= 1e9) {
+            precio = fromPayload;
+          }
+        }
         const subtotalUsd = precio * cantidad;
         const subtotalBs = subtotalUsd * tasa;
         totalUsd += subtotalUsd;

@@ -578,7 +578,13 @@ async function registrarPresupuesto() {
     if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
     if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa válida', 'error'); return; }
 
-    const items = carrito.map(item => ({ codigo: item.codigo, cantidad: item.cantidad }));
+    // Enviar también el precio_usd actual de cada ítem para que el presupuesto
+    // respete el nivel de precio seleccionado en el POS
+    const items = carrito.map(item => ({
+        codigo: item.codigo,
+        cantidad: item.cantidad,
+        precio_usd: typeof item.precio_usd === 'number' ? item.precio_usd : Number(item.precio_usd || 0) || 0
+    }));
 
     // Abrir ventana de nota inmediatamente para mantener el gesto del usuario
     try {
