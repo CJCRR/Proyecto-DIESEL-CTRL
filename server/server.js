@@ -81,6 +81,7 @@ const prettyRoutes = {
     '/cobranzas': 'cobranzas.html',
     '/ajustes': 'ajustes.html',
     '/usuarios': 'usuarios.html',
+    // Las vistas de proveedores y compras se sirven aquí, las APIs ahora viven bajo /api
     '/proveedores': 'proveedores.html',
     '/compras': 'compras.html',
     '/admin-empresas': 'admin-empresas.html'
@@ -99,9 +100,10 @@ app.use('/admin/productos', productosAdmin);
 app.use('/admin/ajustes', ajustesRoutes);
 app.use('/admin/usuarios', usuariosRoutes);
 app.use('/admin/empresas', empresasAdminRoutes);
-app.use('/proveedores', proveedoresRoutes);
+// Rutas API bajo prefijo /api para no colisionar con las vistas limpias
+app.use('/api/proveedores', proveedoresRoutes);
 app.use('/depositos', depositosRoutes);
-app.use('/compras', comprasRoutes);
+app.use('/api/compras', comprasRoutes);
 app.use('/productos', productosRoutes);
 app.use('/ventas', ventasRoutes);
 app.use('/nota', notasRoutes);

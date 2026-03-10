@@ -67,7 +67,7 @@ function renderTabla() {
 
 async function cargarProveedores() {
   try {
-    const data = await apiFetchJson('/proveedores');
+  const data = await apiFetchJson('/api/proveedores');
     proveedores = Array.isArray(data) ? data : [];
     renderTabla();
   } catch (err) {
@@ -90,13 +90,13 @@ async function guardarProveedor() {
   try {
     let saved;
     if (proveedorSeleccionadoId) {
-      saved = await apiFetchJson(`/proveedores/${proveedorSeleccionadoId}`, {
+	  saved = await apiFetchJson(`/api/proveedores/${proveedorSeleccionadoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
     } else {
-      saved = await apiFetchJson('/proveedores', {
+    saved = await apiFetchJson('/api/proveedores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

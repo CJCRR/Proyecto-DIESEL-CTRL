@@ -224,7 +224,7 @@ async function cargarDepositosCompras() {
 
 async function cargarProveedoresParaSelect() {
   try {
-    const data = await apiFetchJson('/proveedores?soloActivos=1');
+  const data = await apiFetchJson('/api/proveedores?soloActivos=1');
     proveedores = Array.isArray(data) ? data : [];
     const sel = document.getElementById('c_proveedor');
     const selFiltro = document.getElementById('c_filtro_proveedor');
@@ -299,7 +299,7 @@ async function guardarCompra() {
   };
 
   try {
-    const saved = await apiFetchJson('/compras', {
+  const saved = await apiFetchJson('/api/compras', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -407,7 +407,7 @@ async function cargarHistorialCompras() {
   try {
     const proveedorFiltro = document.getElementById('c_filtro_proveedor').value || '';
     const qs = proveedorFiltro ? `?proveedor_id=${encodeURIComponent(proveedorFiltro)}` : '';
-    const data = await apiFetchJson(`/compras${qs}`);
+	const data = await apiFetchJson(`/api/compras${qs}`);
     const tbody = document.getElementById('c_historial');
     const list = Array.isArray(data) ? data : [];
     comprasHistorial = list;
@@ -470,7 +470,7 @@ async function toggleDetalleCompra(id) {
   // Cargar detalles si no están en cache
   if (!comprasDetallesCache[id]) {
     try {
-      const data = await apiFetchJson(`/compras/${id}`);
+    const data = await apiFetchJson(`/api/compras/${id}`);
       comprasDetallesCache[id] = data;
     } catch (err) {
       console.error(err);
