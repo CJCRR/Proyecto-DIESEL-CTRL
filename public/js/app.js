@@ -164,6 +164,7 @@ async function cargarConfigGeneral() {
         } catch {}
         aplicarTemaEmpresa();
         aplicarEstrategiaPreciosUI();
+        aplicarImpuestosPOSUI();
     } catch (err) {
         console.warn('Config general no cargada', err.message);
     }
@@ -285,6 +286,104 @@ function aplicarEstrategiaPreciosUI() {
 
     // Aplicar select personalizado tipo POS
     initCustomSelect('pv_nivel_precio');
+}
+
+function aplicarImpuestosPOSUI() {
+    if (!configGeneral) return;
+    const nota = configGeneral.nota || {};
+    const ivaCfg = Math.max(0, Math.min(100, Number(nota.iva_pct || 0)));
+    const igtfCfg = Math.max(0, Math.min(100, Number(nota.igtf_pct || 0)));
+
+    const ivaToggle = document.getElementById('pv_iva_toggle');
+    const igtfToggle = document.getElementById('pv_igtf_toggle');
+    const igtfPctLabel = document.getElementById('pv_igtf_toggle_pct');
+
+    if (ivaToggle) {
+        ivaToggle.checked = ivaCfg > 0;
+        ivaToggle.addEventListener('change', async () => {
+            try {
+                await syncImpuestosDesdePOS({ ivaEnabled: ivaToggle.checked });
+                actualizarTabla();
+            } catch (e) {
+                console.warn('No se pudo sincronizar/recalcular IVA desde POS', e);
+            }
+        });
+    }
+
+    if (igtfToggle) {
+        igtfToggle.checked = igtfCfg > 0;
+        if (igtfPctLabel) {
+            const pctText = igtfCfg > 0 ? `(${igtfCfg.toFixed(0)}%)` : '';
+            igtfPctLabel.textContent = pctText;
+        }
+        igtfToggle.addEventListener('change', async () => {
+            try {
+                await syncImpuestosDesdePOS({ igtfEnabled: igtfToggle.checked });
+                actualizarTabla();
+            } catch (e) {
+                console.warn('No se pudo sincronizar/recalcular IGTF desde POS', e);
+            }
+        });
+    }
+}
+
+async function syncImpuestosDesdePOS({ ivaEnabled, igtfEnabled } = {}) {
+    // Cargar la configuración más reciente, modificar solo la sección de nota
+    const data = await apiFetchJson('/admin/ajustes/config');
+    const nota = { ...(data.nota || {}) };
+
+    // IVA
+    if (typeof ivaEnabled === 'boolean') {
+        if (!ivaEnabled) {
+            nota.iva_pct = 0;
+        } else {
+            const currentIva = Number(nota.iva_pct || 0);
+            nota.iva_pct = currentIva > 0 ? currentIva : 16; // valor por defecto razonable
+        }
+    }
+
+    // IGTF
+    if (typeof igtfEnabled === 'boolean') {
+        if (!igtfEnabled) {
+            nota.igtf_pct = 0;
+        } else {
+            const currentIgtf = Number(nota.igtf_pct || 0);
+            nota.igtf_pct = currentIgtf > 0 ? currentIgtf : 3; // típico 3%
+        }
+    }
+
+    const payload = {
+        empresa: data.empresa || {},
+        descuentos_volumen: data.descuentos_volumen || [],
+        devolucion: data.devolucion || {},
+        nota,
+    };
+
+    const saved = await apiFetchJson('/admin/ajustes/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+
+    // Refrescar configGeneral en esta pestaña con lo que devolvió el backend
+    configGeneral = {
+        empresa: saved.empresa || {},
+        descuentos_volumen: saved.descuentos_volumen || [],
+        devolucion: saved.devolucion || {},
+        nota: saved.nota || {},
+    };
+    try { window.configGeneral = configGeneral; } catch {}
+
+    // Actualizar etiqueta IGTF del toggle según el nuevo valor
+    try {
+        const igtfPctLabel = document.getElementById('pv_igtf_toggle_pct');
+        if (igtfPctLabel) {
+            const pct = Number(configGeneral.nota?.igtf_pct || 0);
+            igtfPctLabel.textContent = pct > 0 ? `(${pct.toFixed(0)}%)` : '';
+        }
+    } catch (e) {
+        console.warn('No se pudo refrescar label de IGTF', e);
+    }
 }
 
 function validarPoliticaDevolucionLocal(venta) {

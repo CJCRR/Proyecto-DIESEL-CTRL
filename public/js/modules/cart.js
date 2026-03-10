@@ -271,14 +271,24 @@ export function actualizarTabla() {
 	let ivaPct = 0;
 	let igtfPct = 0;
 	if (!modoDevolucion && cfg.nota) {
+		let ivaCfg = 0;
+		let igtfCfg = 0;
 		if (cfg.nota.iva_pct !== undefined && cfg.nota.iva_pct !== null) {
 			const rawIva = Number(cfg.nota.iva_pct) || 0;
-			ivaPct = Math.max(0, Math.min(100, rawIva));
+			ivaCfg = Math.max(0, Math.min(100, rawIva));
 		}
 		if (cfg.nota.igtf_pct !== undefined && cfg.nota.igtf_pct !== null) {
 			const rawIgtf = Number(cfg.nota.igtf_pct) || 0;
-			igtfPct = Math.max(0, Math.min(100, rawIgtf));
+			igtfCfg = Math.max(0, Math.min(100, rawIgtf));
 		}
+
+		const ivaToggle = document.getElementById('pv_iva_toggle');
+		const igtfToggle = document.getElementById('pv_igtf_toggle');
+		const useIva = !ivaToggle || ivaToggle.checked;
+		const useIgtf = !igtfToggle || igtfToggle.checked;
+
+		if (useIva && ivaCfg > 0) ivaPct = ivaCfg;
+		if (useIgtf && igtfCfg > 0) igtfPct = igtfCfg;
 	}
 
 	const baseUsd = totalAfterDiscount;
