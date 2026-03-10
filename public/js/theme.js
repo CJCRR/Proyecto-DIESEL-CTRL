@@ -52,7 +52,7 @@ import { apiFetchJson } from './app-api.js';
     }
 
     async function loadAndApplyEmpresaTheme() {
-        if (window.location.pathname.includes('/pages/login.html')) return;
+        if (window.location.pathname.startsWith('/login')) return;
         // Usa cache local si existe
         try {
             const cached = localStorage.getItem('empresa_config');

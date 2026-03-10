@@ -1,4 +1,6 @@
 import { upsertProductoFirebase, eliminarProductoFirebasePorCodigo } from './firebase-sync.js';
+import { showToast } from './app-utils.js';
+import { initCustomSelect } from './modules/ui.js';
 
 // Código principal de inventario (movido desde inventario.html)
 console.log('inventario.html v2.0 - con autenticación');
@@ -751,7 +753,7 @@ btnBorrar.addEventListener('click', () => {
             if (!res.ok) throw new Error(d.error || 'Error eliminar');
             msg.innerText = 'Producto eliminado.';
             f_codigo.value = f_desc.value = f_precio.value = f_stock.value = '';
-            showToast('Producto eliminado.', 'error');
+            showToast('Producto eliminado.', 'success');
             // Intentar eliminar también en Firebase (best-effort, no bloqueante)
             try {
                 await eliminarProductoFirebasePorCodigo(codigo);
@@ -776,22 +778,6 @@ btnBorrar.addEventListener('click', () => {
 prevPage.addEventListener('click', () => { if (currentPage > 0) { currentPage--; cargarProductos(); } });
 nextPage.addEventListener('click', () => { const limit = parseInt(pageSize.value); if ((currentPage + 1) * limit < currentTotal) { currentPage++; cargarProductos(); } });
 pageSize.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
-
-// Toast container + function
-const toastContainer = document.createElement('div');
-toastContainer.id = 'toast-container';
-document.body.appendChild(toastContainer);
-function showToast(text, type = 'info', ms = 3500) {
-    const t = document.createElement('div');
-    t.className = `toast ${type}`;
-    t.innerText = text;
-    toastContainer.appendChild(t);
-    // show
-    requestAnimationFrame(() => t.classList.add('show'));
-    const remover = () => { t.classList.remove('show'); setTimeout(() => t.remove(), 200); };
-    setTimeout(remover, ms);
-    t.addEventListener('click', remover);
-}
 
 // Panel Crear / Editar retraible
 function setEditorVisible(visible) {
@@ -1069,3 +1055,8 @@ if (btnRebuildStock) {
 
 // Cargar historial inicial de movimientos
 cargarMovimientosDeposito();
+
+// Selects con dropdown moderno tipo POS
+['pageSize', 'filterCategoria', 'filterDeposito', 'filterStock', 'f_deposito', 'mov_deposito_destino', 'importMode'].forEach((id) => {
+    try { initCustomSelect(id); } catch {}
+});

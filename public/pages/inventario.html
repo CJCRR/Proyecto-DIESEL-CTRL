@@ -84,7 +84,7 @@
             <div class="flex items-center gap-2">
                 <span
                     class="text-[10px] font-black uppercase tracking-widest opacity-50 hidden sm:block">Inventario</span>
-                <a href="/pages/ajustes.html" title="Ajustes"
+                <a href="/ajustes" title="Ajustes"
                     class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
                     <i class="fas fa-gear text-base"></i>
                 </a>
@@ -120,18 +120,18 @@
                     <h2 class="font-black">Productos</h2>
                     <div class="flex gap-2 items-center">
                         <input id="q" placeholder="Buscar..." class="p-2 border rounded w-60" />
-                        <select id="pageSize" class="p-2 border rounded">
+                        <select id="pageSize" class="select-pos text-sm w-20">
                             <option value="10">10</option>
                             <option value="25">25</option>
                             <option value="50" selected>50</option>
                         </select>
-                        <select id="filterCategoria" class="p-2 border rounded w-40">
+                        <select id="filterCategoria" class="select-pos text-sm min-w-[180px]">
                             <option value="">Todas las categorías</option>
                         </select>
-                        <select id="filterDeposito" class="p-2 border rounded">
+                        <select id="filterDeposito" class="select-pos text-sm min-w-[180px]">
                             <option value="">Todos los depósitos</option>
                         </select>
-                        <select id="filterStock" class="p-2 border rounded">
+                        <select id="filterStock" class="select-pos text-sm min-w-[140px]">
                             <option value="all">Todos</option>
                             <option value="out">Sin stock</option>
                             <option value="low">Bajo (&lt;5)</option>
@@ -174,7 +174,7 @@
                     <label class="text-xs">Marca</label>
                     <input id="f_marca" class="w-full p-2 border rounded mb-4" />
                     <label class="text-xs">Depósito</label>
-                    <select id="f_deposito" class="w-full p-2 border rounded mb-2"></select>
+                    <select id="f_deposito" class="w-full select-pos text-sm mb-2"></select>
 
                     <div class="flex gap-2">
                         <button type="submit" id="btnGuardar"

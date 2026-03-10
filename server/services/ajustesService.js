@@ -632,6 +632,7 @@ const DEFAULT_NOTA = {
   pie_usd: 'Total USD',
   pie_bs: 'Total Bs',
   iva_pct: 0,
+   igtf_pct: 0,
   resaltar_color: '#fff59d',
   layout: 'compact',
 };
@@ -745,6 +746,7 @@ function guardarConfigGeneral(payload = {}, empresaId) {
     pie_usd: (nota.pie_usd || DEFAULT_NOTA.pie_usd).toString().slice(0, 60),
     pie_bs: (nota.pie_bs || DEFAULT_NOTA.pie_bs).toString().slice(0, 60),
     iva_pct: Math.max(0, Math.min(100, parseFloat(nota.iva_pct) || 0)),
+    igtf_pct: Math.max(0, Math.min(100, parseFloat(nota.igtf_pct) || 0)),
     resaltar_color: (nota.resaltar_color || DEFAULT_NOTA.resaltar_color).toString().slice(0, 20),
     layout: ['compact', 'standard'].includes(nota.layout) ? nota.layout : DEFAULT_NOTA.layout,
   };

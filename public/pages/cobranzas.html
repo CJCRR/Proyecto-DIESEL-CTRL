@@ -23,7 +23,7 @@
             </div>
             <div class="flex items-center gap-3">
                 <div class="text-[10px] font-black uppercase tracking-widest opacity-60">Cobranzas</div>
-                <a href="/pages/ajustes.html" title="Ajustes"
+                <a href="/ajustes" title="Ajustes"
                     class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
                     <i class="fas fa-gear text-base"></i>
                 </a>
@@ -127,6 +127,14 @@
                         <span>Vencimiento</span><span id="detalle-venc">—</span>
                     </div>
                     <div class="text-xs text-slate-500" id="detalle-notas">—</div>
+                    <div class="pt-2 border-t">
+                        <button id="detalle-items-toggle" type="button"
+                            class="w-full flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                            <span>Productos vendidos</span>
+                            <i class="fas fa-chevron-down text-[9px]"></i>
+                        </button>
+                        <div id="detalle-items" class="space-y-1 max-h-40 overflow-y-auto text-xs text-slate-600 hidden"></div>
+                    </div>
                     <div>
                         <div class="text-[10px] font-black text-slate-400 uppercase mb-1">Pagos</div>
                         <div id="detalle-pagos" class="space-y-2 max-h-48 overflow-y-auto"></div>

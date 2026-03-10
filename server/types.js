@@ -35,6 +35,7 @@
  * @property {number} [total_bs_iva]
  * @property {number} [total_usd_iva]
  * @property {number} [iva_pct]
+ * @property {number} [igtf_pct]
  * @property {number|null} [usuario_id]
  */
 
@@ -56,6 +57,7 @@
  * @property {number|string} [dias_vencimiento]
  * @property {string|null} [fecha_vencimiento]
  * @property {number|string} [iva_pct]
+ * @property {number|string} [igtf_pct]
  */
 
 /**
@@ -144,6 +146,7 @@
  * @property {string} [pie_usd]
  * @property {string} [pie_bs]
  * @property {number} [iva_pct]
+ * @property {number} [igtf_pct]
  * @property {string} [resaltar_color]
  * @property {"compact"|"standard"} [layout]
  */

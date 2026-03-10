@@ -267,22 +267,37 @@ export function actualizarTabla() {
 	}
 	const sign = modoDevolucion ? -1 : 1;
 
-	// IVA desde configuración de nota (solo para ventas, no devoluciones)
+	// IVA e IGTF desde configuración de nota (solo para ventas, no devoluciones)
 	let ivaPct = 0;
-	if (!modoDevolucion && cfg.nota && cfg.nota.iva_pct !== undefined && cfg.nota.iva_pct !== null) {
-		const rawIva = Number(cfg.nota.iva_pct) || 0;
-		ivaPct = Math.max(0, Math.min(100, rawIva));
+	let igtfPct = 0;
+	if (!modoDevolucion && cfg.nota) {
+		if (cfg.nota.iva_pct !== undefined && cfg.nota.iva_pct !== null) {
+			const rawIva = Number(cfg.nota.iva_pct) || 0;
+			ivaPct = Math.max(0, Math.min(100, rawIva));
+		}
+		if (cfg.nota.igtf_pct !== undefined && cfg.nota.igtf_pct !== null) {
+			const rawIgtf = Number(cfg.nota.igtf_pct) || 0;
+			igtfPct = Math.max(0, Math.min(100, rawIgtf));
+		}
 	}
 
 	const baseUsd = totalAfterDiscount;
 	const baseBs = baseUsd * tasa;
 	let ivaBs = 0;
+	let igtfBs = 0;
 	let totalUsdFinal = baseUsd;
 	let totalBsFinal = baseBs;
-	if (ivaPct > 0 && baseUsd > 0 && !modoDevolucion) {
-		ivaBs = baseBs * (ivaPct / 100);
-		totalUsdFinal = baseUsd * (1 + ivaPct / 100);
-		totalBsFinal = baseBs * (1 + ivaPct / 100);
+	if (baseUsd > 0 && !modoDevolucion) {
+		if (ivaPct > 0) {
+			ivaBs = baseBs * (ivaPct / 100);
+			totalUsdFinal *= (1 + ivaPct / 100);
+			totalBsFinal *= (1 + ivaPct / 100);
+		}
+		if (igtfPct > 0) {
+			igtfBs = baseBs * (igtfPct / 100);
+			totalUsdFinal *= (1 + igtfPct / 100);
+			totalBsFinal *= (1 + igtfPct / 100);
+		}
 	}
 
 	const subtotalUsdEl = document.getElementById('subtotal-usd');
@@ -292,6 +307,9 @@ export function actualizarTabla() {
 	const ivaRow = document.getElementById('iva-row');
 	const ivaPctLabel = document.getElementById('iva-pct-label');
 	const ivaBsEl = document.getElementById('total-iva-bs');
+	const igtfRow = document.getElementById('igtf-row');
+	const igtfPctLabel = document.getElementById('igtf-pct-label');
+	const igtfBsEl = document.getElementById('total-igtf-bs');
 
 	if (subtotalUsdEl) subtotalUsdEl.innerText = (baseUsd * sign).toFixed(2);
 	if (subtotalBsEl) subtotalBsEl.innerText = (baseBs * sign).toLocaleString('es-VE', { minimumFractionDigits: 2 });
@@ -306,6 +324,17 @@ export function actualizarTabla() {
 			ivaRow.classList.add('hidden');
 			ivaPctLabel.textContent = '';
 			ivaBsEl.textContent = '0.00';
+		}
+	}
+	if (igtfRow && igtfPctLabel && igtfBsEl) {
+		if (igtfPct > 0 && baseUsd > 0 && !modoDevolucion) {
+			igtfRow.classList.remove('hidden');
+			igtfPctLabel.textContent = `${igtfPct.toFixed(0)}%`;
+			igtfBsEl.textContent = (igtfBs * sign).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+		} else {
+			igtfRow.classList.add('hidden');
+			igtfPctLabel.textContent = '';
+			igtfBsEl.textContent = '0.00';
 		}
 	}
 }

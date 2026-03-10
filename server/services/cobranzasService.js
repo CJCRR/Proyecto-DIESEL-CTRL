@@ -85,21 +85,37 @@ function listCuentas({ cliente, estado, mora_min, mora_max, empresaId } = {}) {
   let rows;
   if (empresaId == null) {
     rows = db.prepare(`
-        SELECT * FROM cuentas_cobrar
-        ORDER BY date(fecha_vencimiento) ASC
+        SELECT cc.*, 
+          CASE WHEN cc.venta_id IS NOT NULL THEN cc.venta_id ELSE NULL END AS nro_seq
+        FROM cuentas_cobrar cc
+        ORDER BY date(cc.fecha_vencimiento) ASC
       `).all();
   } else {
     rows = db.prepare(`
-        SELECT cc.*
+        SELECT cc.*, 
+          CASE WHEN cc.venta_id IS NOT NULL THEN (
+            SELECT COUNT(*) FROM ventas v2
+            JOIN usuarios u2 ON u2.id = v2.usuario_id
+            WHERE u2.empresa_id = ? AND v2.id <= cc.venta_id
+          ) ELSE NULL END AS nro_seq
         FROM cuentas_cobrar cc
         LEFT JOIN ventas v ON v.id = cc.venta_id
         LEFT JOIN usuarios u ON u.id = v.usuario_id
         WHERE cc.venta_id IS NOT NULL AND u.empresa_id = ?
         ORDER BY date(cc.fecha_vencimiento) ASC
-      `).all(empresaId);
+      `).all(empresaId, empresaId);
   }
 
-  rows = rows.map(mapCuenta);
+  // Normalizar estado calculado y número de nota amigable
+  rows = rows.map((row) => {
+    const mapped = mapCuenta(row);
+    if (row.nro_seq && Number(row.nro_seq) > 0) {
+      mapped.nro_nota = `VENTA-${Number(row.nro_seq)}`;
+    } else if (!empresaId && row.venta_id != null) {
+      mapped.nro_nota = `VENTA-${row.venta_id}`;
+    }
+    return mapped;
+  });
 
   if (cliente) {
     const lc = cliente.toLowerCase();
@@ -138,8 +154,24 @@ function getCuentaConPagos(id, empresaId) {
       return null;
     }
   }
+
   const pagos = db.prepare('SELECT * FROM pagos_cc WHERE cuenta_id = ? ORDER BY date(fecha) DESC, id DESC').all(id);
-  return { cuenta: mapCuenta(cuenta), pagos };
+
+  let items = [];
+  if (cuenta.venta_id) {
+    items = db.prepare(`
+     SELECT vd.id, vd.producto_id,
+       p.codigo AS codigo,
+       p.descripcion AS descripcion,
+       vd.cantidad, vd.precio_usd, vd.subtotal_bs
+        FROM venta_detalle vd
+        LEFT JOIN productos p ON p.id = vd.producto_id
+        WHERE vd.venta_id = ?
+        ORDER BY vd.id ASC
+      `).all(cuenta.venta_id);
+  }
+
+  return { cuenta: mapCuenta(cuenta), pagos, items };
 }
 
 /**

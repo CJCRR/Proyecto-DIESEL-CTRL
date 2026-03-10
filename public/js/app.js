@@ -15,7 +15,7 @@ import {
 } from './modules/sales.js';
 
 import { setupSearchModule } from './modules/search.js';
-import { initClientesUI, initOfflineUI, initSyncBackupUI } from './modules/ui.js';
+import { initClientesUI, initOfflineUI, initSyncBackupUI, initCustomSelect } from './modules/ui.js';
 
 let vendiendo = false;
 let TASA_BCV_POS = 1;
@@ -195,6 +195,8 @@ async function cargarVendedoresPOS() {
         if (sel) {
             sel.innerHTML = '<option value="">(Sin vendedores configurados)</option>';
         }
+    } finally {
+        if (sel) initCustomSelect('v_vendedor');
     }
 }
 
@@ -280,6 +282,9 @@ function aplicarEstrategiaPreciosUI() {
 
     sel.onchange = updateInfo;
     updateInfo();
+
+    // Aplicar select personalizado tipo POS
+    initCustomSelect('pv_nivel_precio');
 }
 
 function validarPoliticaDevolucionLocal(venta) {
@@ -660,7 +665,11 @@ document.addEventListener('DOMContentLoaded', () => {
             panelCredito.classList.toggle('hidden', !active);
         }
     };
-    if (selMetodo) selMetodo.addEventListener('change', syncCreditoUI);
+    if (selMetodo) {
+        selMetodo.addEventListener('change', syncCreditoUI);
+        // Select personalizado para método de pago
+        initCustomSelect('v_metodo');
+    }
     syncCreditoUI();
     window.syncCreditoUI = syncCreditoUI;
 
@@ -895,7 +904,7 @@ async function actualizarHistorial() {
             const div = document.createElement('div');
             const clickable = (isPres || (!isDev && mov.id));
             div.className = `group p-3 border rounded-xl flex justify-between items-center text-xs ${clickable ? 'hover:border-blue-200 hover:bg-blue-50 cursor-pointer' : 'cursor-default bg-white'}`;
-            if (clickable && isPres) div.onclick = () => window.location.href = `/pages/index.html?presupuesto=${mov.id}`;
+            if (clickable && isPres) div.onclick = () => window.location.href = `/pos?presupuesto=${mov.id}`;
             if (clickable && !isPres && !isDev) div.onclick = () => window.open(`/nota/${mov.id}`, '_blank');
             div.innerHTML = `
                 <div class="flex flex-col">

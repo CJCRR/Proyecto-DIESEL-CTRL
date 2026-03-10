@@ -260,3 +260,84 @@ if (typeof window !== 'undefined') {
 	window.upsertClienteDesdeFormularioPOS = upsertClienteDesdeFormulario;
 }
 
+// ---- SELECTS PERSONALIZADOS TIPO POS ----
+
+export function initCustomSelect(id) {
+	const select = document.getElementById(id);
+	if (!select || select.dataset.customized === '1') return;
+
+	const originalClasses = (select.className || '').split(/\s+/).filter(Boolean);
+	const layoutClasses = originalClasses.filter(c => {
+		return c.startsWith('col-span-') || c === 'w-full' || c.startsWith('w-') || c.startsWith('min-w-') || c.startsWith('max-w-');
+	});
+
+	const parent = select.parentElement;
+	if (!parent) return;
+
+	const wrapper = document.createElement('div');
+	wrapper.className = ['relative', ...layoutClasses].join(' ').trim();
+	parent.insertBefore(wrapper, select);
+	wrapper.appendChild(select);
+
+	select.dataset.customized = '1';
+	select.classList.add('hidden');
+
+	const getSelectedLabel = () => {
+		const opt = select.options[select.selectedIndex] || null;
+		return opt && opt.textContent ? opt.textContent.trim() : '';
+	};
+
+	const display = document.createElement('button');
+	display.type = 'button';
+	display.className = 'w-full select-pos text-left';
+	display.textContent = getSelectedLabel() || 'Seleccionar';
+	wrapper.insertBefore(display, select);
+
+	const list = document.createElement('ul');
+	list.className = 'absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm';
+	wrapper.appendChild(list);
+
+	const rebuild = () => {
+		list.innerHTML = '';
+		Array.from(select.options).forEach((opt) => {
+			const value = opt.value;
+			const label = opt.textContent || '';
+			if (label === '' && !value) return;
+			const li = document.createElement('li');
+			li.className = 'p-3 border-b last:border-b-0 hover:bg-slate-50 cursor-pointer text-sm';
+			li.textContent = label;
+			li.addEventListener('click', () => {
+				select.value = value;
+				display.textContent = label;
+				list.classList.add('hidden');
+				select.dispatchEvent(new Event('change', { bubbles: true }));
+			});
+			list.appendChild(li);
+		});
+	};
+
+	rebuild();
+
+	const toggle = () => {
+		if (list.classList.contains('hidden')) {
+			list.classList.remove('hidden');
+		} else {
+			list.classList.add('hidden');
+		}
+	};
+
+	display.addEventListener('click', (e) => {
+		e.preventDefault();
+		toggle();
+	});
+
+	document.addEventListener('click', (ev) => {
+		if (wrapper.contains(ev.target)) return;
+		list.classList.add('hidden');
+	});
+
+	select.addEventListener('change', () => {
+		display.textContent = getSelectedLabel() || 'Seleccionar';
+	});
+}
+

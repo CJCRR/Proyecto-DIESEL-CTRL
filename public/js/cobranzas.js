@@ -2,6 +2,7 @@ let cuentas = [];
 let cuentaSeleccionada = null;
 let tasaBCV = 1;
 import { apiFetchJson } from './app-api.js';
+import { initCustomSelect } from './modules/ui.js';
 
 // Intentar cargar utilidades centralizadas para páginas que no usan módulos
 (async () => {
@@ -62,6 +63,11 @@ function renderResumen(rows = []) {
 }
 
 function renderTabla(list = []) {
+    // Asegurarse de que siempre trabajamos con un arreglo
+    if (!Array.isArray(list)) {
+        console.warn('renderTabla esperaba un array, se recibió:', list);
+        list = [];
+    }
     const tbody = document.getElementById('tabla-cuentas');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -79,7 +85,7 @@ function renderTabla(list = []) {
                 const diasMora = typeof c.dias_mora === 'number' ? c.dias_mora : 0;
         tr.innerHTML = `
             <td class="p-3 font-semibold text-slate-800">${c.cliente_nombre || 'Cliente'}</td>
-            <td class="p-3 text-slate-500">${c.cliente_doc || ''}</td>
+            <td class="p-3 text-slate-500">${c.nro_nota ? ` ${c.nro_nota}` : (c.cliente_doc || '')}</td>
                         <td class="p-3 text-center text-sm">
                             ${c.fecha_vencimiento || ''}
                             ${estado === 'vencido' && diasMora > 0 ? `<div class="text-[10px] text-rose-600">${diasMora} días de mora</div>` : ''}
@@ -116,9 +122,44 @@ function renderPagos(pagos = []) {
     });
 }
 
+function renderItems(items = []) {
+    const cont = document.getElementById('detalle-items');
+    const toggle = document.getElementById('detalle-items-toggle');
+    if (!cont || !toggle) return;
+    cont.innerHTML = '';
+
+    if (!items.length) {
+        cont.innerHTML = '<div class="text-xs text-slate-400">Sin detalle de productos</div>';
+        toggle.disabled = true;
+        toggle.classList.add('opacity-50', 'cursor-default');
+    } else {
+        toggle.disabled = false;
+        toggle.classList.remove('opacity-50', 'cursor-default');
+        items.forEach(it => {
+            const div = document.createElement('div');
+            div.className = 'flex justify-between items-start gap-2';
+            const desc = (window.escapeHtml ? window.escapeHtml(it.descripcion || it.codigo || '') : (it.descripcion || it.codigo || ''));
+            div.innerHTML = `
+                <div class="text-xs text-slate-600">
+                    <div class="font-semibold">${it.cantidad || 0} x ${desc}</div>
+                    ${it.codigo ? `<div class="text-[11px] text-slate-400">${it.codigo}</div>` : ''}
+                </div>
+                <div class="text-xs text-slate-600 text-right">
+                    <div class="font-mono">$${Number(it.precio_usd || 0).toFixed(2)}</div>
+                </div>
+            `;
+            cont.appendChild(div);
+        });
+    }
+
+    // Al cargar una cuenta, mostrar el acordeón abierto
+    cont.classList.remove('hidden');
+}
+
 function renderDetalle(data) {
     const cuenta = data?.cuenta;
     const pagos = data?.pagos || [];
+    const items = data?.items || [];
     cuentaSeleccionada = cuenta;
     document.getElementById('detalle-cliente').textContent = cuenta ? (cuenta.cliente_nombre || 'Cliente') : 'Seleccione una cuenta';
     document.getElementById('detalle-estado').innerHTML = cuenta ? badgeEstado(cuenta.estado_calc || cuenta.estado) : '';
@@ -127,6 +168,7 @@ function renderDetalle(data) {
     document.getElementById('detalle-emision').textContent = cuenta ? (cuenta.fecha_emision || '') : '—';
     document.getElementById('detalle-venc').textContent = cuenta ? (cuenta.fecha_vencimiento || '') : '—';
     document.getElementById('detalle-notas').textContent = cuenta?.notas || '—';
+    renderItems(items);
     renderPagos(pagos);
 }
 
@@ -148,8 +190,16 @@ async function cargarCuentas() {
         if (q) params.append('cliente', q);
         if (est) params.append('estado', est);
         if (mora) params.append('mora_min', mora);
-        const j = await apiFetchJson(`/cobranzas?${params.toString()}`);
-        cuentas = j;
+        const j = await apiFetchJson(`/cobranzas/list?${params.toString()}`);
+        // Normalizar la respuesta en caso de que el backend devuelva un objeto envolviendo las filas
+        if (Array.isArray(j)) {
+            cuentas = j;
+        } else if (j && Array.isArray(j.rows)) {
+            cuentas = j.rows;
+        } else {
+            console.warn('Respuesta inesperada de /cobranzas:', j);
+            cuentas = [];
+        }
         renderTabla(cuentas);
         if (cuentaSeleccionada) {
             const found = cuentas.find(c => c.id === cuentaSeleccionada.id);
@@ -220,6 +270,16 @@ function setupEventos() {
     if (fMora) fMora.addEventListener('change', () => cargarCuentas());
     document.getElementById('f_refrescar').addEventListener('click', () => cargarCuentas());
     document.getElementById('form-pago').addEventListener('submit', registrarPago);
+
+    const toggle = document.getElementById('detalle-items-toggle');
+    const cont = document.getElementById('detalle-items');
+    if (toggle && cont) {
+        toggle.addEventListener('click', () => {
+            cont.classList.toggle('hidden');
+            const icon = toggle.querySelector('i');
+            if (icon) icon.classList.toggle('rotate-180');
+        });
+    }
 }
 
 (async function init() {
@@ -227,4 +287,9 @@ function setupEventos() {
     await prefijarTasa();
     await cargarResumen();
     await cargarCuentas();
+    try {
+        initCustomSelect('f_estado');
+        initCustomSelect('f_mora');
+        initCustomSelect('p_moneda');
+    } catch {}
 })();

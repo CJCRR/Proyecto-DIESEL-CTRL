@@ -40,9 +40,9 @@ async function verificarSesion() {
     if (data && data.valido) {
       if (data.usuario) localStorage.setItem('auth_user', JSON.stringify(data.usuario));
       if (data.usuario && data.usuario.rol === 'superadmin') {
-        window.location.href = '/pages/admin-empresas.html';
+        window.location.href = '/admin-empresas';
       } else {
-        window.location.href = '/pages/index.html';
+        window.location.href = '/pos';
       }
     } else {
       localStorage.removeItem('auth_user');
@@ -118,10 +118,10 @@ async function intentarLogin(body, opciones = {}) {
 
       // Redirigir según rol
       setTimeout(() => {
-        if (data.usuario && data.usuario.rol === 'superadmin') {
-          window.location.href = '/pages/admin-empresas.html';
+          if (data.usuario && data.usuario.rol === 'superadmin') {
+            window.location.href = '/admin-empresas';
         } else {
-          window.location.href = '/pages/index.html';
+            window.location.href = '/pos';
         }
       }, 800);
     } else {
@@ -133,7 +133,7 @@ async function intentarLogin(body, opciones = {}) {
       if (!desdeTwofaModal && esMensaje2FA) {
         // Primera respuesta indicando que se requiere 2FA para superadmin
         pendingLoginBody = body;
-        abrirModalTwofa();
+            window.location.href = '/pos';
       } else if (desdeTwofaModal && esMensaje2FA) {
         // Error al validar el código 2FA dentro del modal
         if (twofaError) {

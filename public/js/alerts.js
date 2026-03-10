@@ -98,7 +98,7 @@ async function pollMorosos() {
 
 function startAlerts() {
   // Evitar correr en login
-  if (window.location.pathname.includes('/pages/login.html')) return;
+  if (window.location.pathname.startsWith('/login')) return;
   pollStock();
   pollMorosos();
   setInterval(() => {

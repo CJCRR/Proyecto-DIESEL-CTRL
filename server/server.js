@@ -50,7 +50,12 @@ app.get('/', (req, res) => {
 });
 
 app.get('/index.html', (req, res) => {
-        res.redirect(301, '/');
+    res.redirect(301, '/');
+});
+
+// Redirección legada para la pantalla de login antigua
+app.get('/pages/login.html', (req, res) => {
+    res.redirect(301, '/login');
 });
 
 // Servir todas las páginas HTML de /pages con CSP
@@ -61,6 +66,28 @@ const htmlPages = [
 ];
 htmlPages.forEach(page => {
     app.get(`/pages/${page}`, (req, res) => {
+        res.sendFile(path.join(PAGES_DIR, page));
+    });
+});
+
+// Rutas amigables sin .html para las vistas principales
+const prettyRoutes = {
+    '/pos': 'index.html',
+    '/login': 'login.html',
+    '/dashboard': 'dashboard.html',
+    '/inventario': 'inventario.html',
+    '/clientes': 'clientes.html',
+    '/reportes': 'reportes.html',
+    '/cobranzas': 'cobranzas.html',
+    '/ajustes': 'ajustes.html',
+    '/usuarios': 'usuarios.html',
+    '/proveedores': 'proveedores.html',
+    '/compras': 'compras.html',
+    '/admin-empresas': 'admin-empresas.html'
+};
+
+Object.entries(prettyRoutes).forEach(([route, page]) => {
+    app.get(route, (req, res) => {
         res.sendFile(path.join(PAGES_DIR, page));
     });
 });

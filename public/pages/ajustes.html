@@ -23,7 +23,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <span class="text-[10px] font-black uppercase tracking-widest opacity-50 hidden sm:block">Ajustes</span>
-                <a href="/pages/ajustes.html" title="Ajustes"
+                <a href="/ajustes" title="Ajustes"
                     class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
                     <i class="fas fa-gear text-base"></i>
                 </a>
@@ -52,11 +52,32 @@
     </aside>
 
     <main class="container mx-auto p-6 space-y-6">
-        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <!-- Tabs de navegación de ajustes -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 px-5 pt-4 pb-0">
+            <nav class="flex flex-wrap gap-4 border-b border-slate-200 text-xs sm:text-sm font-semibold text-slate-500">
+                <button type="button" data-aj-tab="empresa" class="aj-tab aj-tab-default px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                    Empresa
+                </button>
+                <button type="button" data-aj-tab="inventario" class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                    Inventario
+                </button>
+                <button type="button" data-aj-tab="nota" class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                    Nota de entrega
+                </button>
+                <button type="button" data-aj-tab="Politica" class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                    Politica
+                </button>
+                <button type="button" data-aj-tab="seguridad" class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                    Seguridad y riesgo
+                </button>
+            </nav>
+        </div>
+
+        <section id="aj-sec-empresa" data-aj-section="empresa" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Empresa</p>
-                    <h2 class="text-lg font-black">Identidad y colores</h2>
+                    <h2 class="text-lg font-black">Identidad y datos fiscales</h2>
                 </div>
                 <button id="btnSaveEmpresa"
                     class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Guardar</button>
@@ -70,81 +91,27 @@
                     <label class="text-xs font-semibold text-slate-500">Logo (URL)</label>
                     <input id="e_logo" class="w-full p-3 border rounded-xl" placeholder="https://...">
                 </div>
-                <div class="flex items-center gap-3">
-                    <label class="text-xs font-semibold text-slate-500 w-24">Color primario</label>
-                    <input id="e_color_primario" type="color" class="h-10 w-16 border rounded" value="#2563eb">
-                </div>
-                <div class="flex items-center gap-3">
-                    <label class="text-xs font-semibold text-slate-500 w-24">Color secundario</label>
-                    <input id="e_color_secundario" type="color" class="h-10 w-16 border rounded" value="#0f172a">
-                </div>
-                <div class="flex items-center gap-3">
-                    <label class="text-xs font-semibold text-slate-500 w-24">Color acento</label>
-                    <input id="e_color_acento" type="color" class="h-10 w-16 border rounded" value="#f97316">
-                </div>
             </div>
-            <div class="mt-6 pt-4 border-t space-y-3">
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estrategia de precios</p>
-                    <p class="text-[11px] text-slate-500 mt-1">
-                        Configura hasta 3 niveles de precio adicionales basados en un porcentaje sobre el precio en USD
-                        de tus productos.
-                    </p>
+                    <label class="text-xs font-semibold text-slate-500">RIF</label>
+                    <input id="e_rif" class="w-full p-3 border rounded-xl" placeholder="J-00000000-0">
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div class="space-y-2">
-                        <div>
-                            <label class="text-xs font-semibold text-slate-500">Nombre nivel 1</label>
-                            <input id="e_precio1_nombre" class="w-full p-3 border rounded-xl" placeholder="Ej: Detal" />
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold text-slate-500">Incremento % nivel 1</label>
-                            <input id="e_precio1_pct" type="number" step="0.01" min="0" max="1000"
-                                class="w-full p-3 border rounded-xl" placeholder="Ej: 30" />
-                        </div>
-                    </div>
-                    <div class="space-y-2">
-                        <div>
-                            <label class="text-xs font-semibold text-slate-500">Nombre nivel 2</label>
-                            <input id="e_precio2_nombre" class="w-full p-3 border rounded-xl" placeholder="Ej: Mayor" />
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold text-slate-500">Incremento % nivel 2</label>
-                            <input id="e_precio2_pct" type="number" step="0.01" min="0" max="1000"
-                                class="w-full p-3 border rounded-xl" placeholder="Ej: 45" />
-                        </div>
-                    </div>
-                    <div class="space-y-2">
-                        <div>
-                            <label class="text-xs font-semibold text-slate-500">Nombre nivel 3</label>
-                            <input id="e_precio3_nombre" class="w-full p-3 border rounded-xl" placeholder="Ej: Especial" />
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold text-slate-500">Incremento % nivel 3</label>
-                            <input id="e_precio3_pct" type="number" step="0.01" min="0" max="1000"
-                                class="w-full p-3 border rounded-xl" placeholder="Ej: 60" />
-                        </div>
-                    </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500">Teléfonos</label>
+                    <input id="e_telefonos" class="w-full p-3 border rounded-xl" placeholder="0412-0000000 / 0414-0000000">
                 </div>
-                <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                            <label class="text-xs font-semibold text-slate-500">Umbral m&iacute;nimo para redondeo (USD)</label>
-                            <input id="e_precio_redondeo_umbral" type="number" step="0.01" min="0"
-                                class="w-full p-3 border rounded-xl" placeholder="Ej: 20.00" />
-                            <p class="text-[11px] text-slate-400 mt-1">Solo se redondear&aacute;n productos con precio base en USD mayor o igual a este valor.</p>
-                        </div>
-                    </div>
-                <div class="mt-3 flex items-center gap-2">
-                    <label class="inline-flex items-center gap-2 text-xs text-slate-600">
-                        <input id="e_precio_redondeo_0_5" type="checkbox" class="h-4 w-4">
-                        <span>Redondear niveles de precio a múltiplos de 0 o 5.</span>
-                    </label>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500">Ubicación</label>
+                    <input id="e_ubicacion" class="w-full p-3 border rounded-xl" placeholder="Ciudad, estado, dirección completa">
                 </div>
             </div>
+            
         </section>
 
         <!-- Depósitos de inventario -->
-        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <section id="aj-sec-inventario" data-aj-section="inventario" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inventario</p>
@@ -199,7 +166,7 @@
         </section>
 
         <!-- Nota de Entrega: Personalización -->
-        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <section id="aj-sec-nota" data-aj-section="nota" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota de entrega</p>
@@ -228,20 +195,6 @@
                             <option value="compact">Compacto (media carta)</option>
                             <option value="standard">Estándar</option>
                         </select>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-slate-500">RIF</label>
-                        <input id="n_rif" class="w-full p-3 border rounded-xl" placeholder="J-00000000-0">
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-slate-500">Teléfonos</label>
-                        <input id="n_telefonos" class="w-full p-3 border rounded-xl"
-                            placeholder="0412-0000000 / 0414-0000000">
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-slate-500">Ubicación</label>
-                        <input id="n_ubicacion" class="w-full p-3 border rounded-xl"
-                            placeholder="Ciudad, estado, dirección completa">
                     </div>
                     <div>
                         <label class="text-xs font-semibold text-slate-500">Dirección general (cliente)</label>
@@ -283,11 +236,6 @@ https://...logo2.png"></textarea>
                                 <input id="n_pie_bs" class="w-full p-3 border rounded-xl bg-white" placeholder="Total Bs">
                             </div>
                         </div>
-                        <div>
-                            <label class="text-xs font-semibold text-slate-500">IVA % aplicado en POS</label>
-                            <input id="n_iva" type="number" step="0.01" min="0" max="100"
-                                class="w-full p-3 border rounded-xl bg-white" placeholder="0">
-                        </div>
                     </div>
                 </div>
                 <!-- Columna derecha: texto legal -->
@@ -308,27 +256,119 @@ https://...logo2.png"></textarea>
             </div>
         </section>
 
-        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <section id="aj-sec-descuentos" data-aj-section="Politica" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descuentos</p>
-                    <h2 class="text-lg font-black">Automáticos por volumen</h2>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Políticas de precios</p>
+                    <h2 class="text-lg font-black">Estrategia y descuentos</h2>
                 </div>
                 <button id="btnSaveDescuentos"
                     class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Guardar</button>
             </div>
-            <div class="space-y-3">
-                <div class="flex justify-between items-center text-sm text-slate-600">
-                    <span>Define tramos de cantidad mínima y el descuento % que se aplicará automáticamente en
-                        POS.</span>
-                    <button id="btnAddTier" class="px-3 py-1 text-xs border rounded">Añadir tramo</button>
+            <div class="space-y-6">
+                <div class="p-4 border border-slate-200 rounded-2xl bg-slate-50/60 space-y-3">
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estrategia de precios</p>
+                        <p class="text-[11px] text-slate-500 mt-1">
+                            Configura hasta 3 niveles de precio adicionales basados en un porcentaje sobre el precio en USD
+                            de tus productos.
+                        </p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="space-y-2">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-500">Nombre nivel 1</label>
+                                <input id="e_precio1_nombre" class="w-full p-3 border rounded-xl" placeholder="Ej: Detal" />
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-500">Incremento % nivel 1</label>
+                                <input id="e_precio1_pct" type="number" step="0.01" min="0" max="1000"
+                                    class="w-full p-3 border rounded-xl" placeholder="Ej: 30" />
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-500">Nombre nivel 2</label>
+                                <input id="e_precio2_nombre" class="w-full p-3 border rounded-xl" placeholder="Ej: Mayor" />
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-500">Incremento % nivel 2</label>
+                                <input id="e_precio2_pct" type="number" step="0.01" min="0" max="1000"
+                                    class="w-full p-3 border rounded-xl" placeholder="Ej: 45" />
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-500">Nombre nivel 3</label>
+                                <input id="e_precio3_nombre" class="w-full p-3 border rounded-xl" placeholder="Ej: Especial" />
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-500">Incremento % nivel 3</label>
+                                <input id="e_precio3_pct" type="number" step="0.01" min="0" max="1000"
+                                    class="w-full p-3 border rounded-xl" placeholder="Ej: 60" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label class="text-xs font-semibold text-slate-500">Umbral m&iacute;nimo para redondeo (USD)</label>
+                            <input id="e_precio_redondeo_umbral" type="number" step="0.01" min="0"
+                                class="w-full p-3 border rounded-xl" placeholder="Ej: 20.00" />
+                            <p class="text-[11px] text-slate-400 mt-1">Solo se redondear&aacute;n productos con precio base en USD mayor o igual a este valor.</p>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex items-center gap-2">
+                        <label class="inline-flex items-center gap-2 text-xs text-slate-600">
+                            <input id="e_precio_redondeo_0_5" type="checkbox" class="h-4 w-4">
+                            <span>Redondear niveles de precio a m&uacute;ltiplos de 0 o 5.</span>
+                        </label>
+                    </div>
                 </div>
-                <div id="tiers" class="space-y-2"></div>
+
+                <div class="p-4 border border-slate-200 rounded-2xl bg-slate-50/60 space-y-3">
+                    <div class="flex justify-between items-center text-sm text-slate-600">
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descuentos</p>
+                            <p class="text-[11px] text-slate-500 mt-1">Define tramos de cantidad mínima y el descuento % que se aplicará automáticamente en POS.</p>
+                        </div>
+                        <button id="btnAddTier" class="px-3 py-1 text-xs border rounded">Añadir tramo</button>
+                    </div>
+                    <div id="tiers" class="space-y-2"></div>
+                </div>
+
+                <div class="p-4 border border-slate-200 rounded-2xl bg-slate-50/60 space-y-3">
+                    <div class="flex justify-between items-center text-sm text-slate-600">
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Impuestos</p>
+                            <p class="text-[11px] text-slate-500 mt-1">Configura los impuestos que se aplican en el POS.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center text-sm">
+                        <label class="flex items-center gap-2">
+                            <input id="n_iva_enabled" type="checkbox" class="h-4 w-4">
+                            <span>Usar IVA en POS</span>
+                        </label>
+                        <div>
+                            <label class="text-xs font-semibold text-slate-500">IVA % aplicado en POS</label>
+                            <input id="n_iva" type="number" step="0.01" min="0" max="100" class="w-full p-3 border rounded-xl bg-white" placeholder="0">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center text-sm">
+                        <label class="flex items-center gap-2">
+                            <input id="n_igtf_enabled" type="checkbox" class="h-4 w-4">
+                            <span>Usar IGTF (3%)</span>
+                        </label>
+                        <div>
+                            <label class="text-xs font-semibold text-slate-500">IGTF % aplicado en POS</label>
+                            <input id="n_igtf_pct" type="number" step="0.01" min="0" max="100" class="w-full p-3 border rounded-xl bg-white" placeholder="3">
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
 
-        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <section id="aj-sec-Politica" data-aj-section="Politica" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Devoluciones</p>
@@ -357,7 +397,7 @@ https://...logo2.png"></textarea>
         </section>
 
         <!-- Seguridad (2FA) -->
-        <section id="sec-2fa" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <section id="sec-2fa" data-aj-section="seguridad" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Seguridad</p>
@@ -412,7 +452,7 @@ https://...logo2.png"></textarea>
             </div>
         </section>
 
-        <section class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5">
+        <section id="aj-sec-riesgo" data-aj-section="seguridad" class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5">
             <div class="flex items-center justify-between mb-3">
                 <div>
                     <p class="text-[10px] font-black text-rose-400 uppercase tracking-widest">Zona de riesgo</p>
@@ -453,8 +493,6 @@ https://...logo2.png"></textarea>
             </div>
         </div>
     </div>
-
-    <div id="toast-container" class="fixed right-4 bottom-4 flex flex-col gap-2 z-50"></div>
 
     <footer class="border-t border-slate-200 mt-8 py-4 text-center text-xs text-slate-400">
         <p id="global-footer-branding">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>

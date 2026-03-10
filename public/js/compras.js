@@ -1,6 +1,7 @@
 import { apiFetchJson } from './app-api.js';
 import { showToast, escapeHtml } from './app-utils.js';
 import { upsertProductoFirebase } from './firebase-sync.js';
+import { initCustomSelect } from './modules/ui.js';
 
 let proveedores = [];
 let items = [];
@@ -229,6 +230,11 @@ async function cargarProveedoresParaSelect() {
     const selFiltro = document.getElementById('c_filtro_proveedor');
     sel.innerHTML = '<option value="">(Sin proveedor)</option>' + proveedores.map(p => `<option value="${p.id}">${escapeHtml(p.nombre || '')}</option>`).join('');
     selFiltro.innerHTML = '<option value="">Todos los proveedores</option>' + proveedores.map(p => `<option value="${p.id}">${escapeHtml(p.nombre || '')}</option>`).join('');
+
+    try {
+      initCustomSelect('c_proveedor');
+      initCustomSelect('c_filtro_proveedor');
+    } catch {}
   } catch (err) {
     console.error(err);
     showToast(err.message || 'Error cargando proveedores', 'error');
@@ -337,15 +343,15 @@ async function buscarProductos(q) {
   const lista = document.getElementById('c_sugerencias');
   if (!lista) return;
   if (!q || q.length < 2) {
-    lista.innerHTML = '';
-    lista.classList.add('hidden');
-    return;
+     lista.innerHTML = '';
+     lista.classList.add('hidden');
+     return;
   }
   try {
     const data = await apiFetchJson(`/buscar?q=${encodeURIComponent(q)}`);
     const results = Array.isArray(data) ? data : [];
     if (!results.length) {
-      lista.innerHTML = '<li class="px-3 py-2 text-[11px] text-slate-400">Sin coincidencias</li>';
+      lista.innerHTML = '<li class="p-3 text-[11px] text-slate-400">Sin coincidencias</li>';
       lista.classList.remove('hidden');
       return;
     }
@@ -355,7 +361,7 @@ async function buscarProductos(q) {
       const stock = typeof p.stock === 'number' ? `Stock: ${p.stock}` : '';
       const precio = typeof p.precio_usd === 'number' ? ` · $${p.precio_usd.toFixed(2)}` : '';
       return `
-        <li data-cod="${escapeHtml(p.codigo)}" class="px-3 py-2 border-b last:border-b-0 hover:bg-slate-50 cursor-pointer flex justify-between items-center">
+        <li data-cod="${escapeHtml(p.codigo)}" class="p-3 border-b last:border-b-0 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-sm">
           <div class="flex flex-col">
             <span class="font-semibold text-slate-700 text-xs">${escapeHtml(p.codigo)}</span>
             <span class="text-[11px] text-slate-400">${escapeHtml(desc)}</span>

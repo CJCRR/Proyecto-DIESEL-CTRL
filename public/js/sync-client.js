@@ -47,6 +47,7 @@ function buildVentaEvent(venta) {
       dias_vencimiento: venta.dias_vencimiento,
       fecha_vencimiento: venta.fecha_vencimiento,
       iva_pct: venta.iva_pct,
+      igtf_pct: venta.igtf_pct,
       total_bs: totales.total_bs,
       total_usd: totales.total_usd,
       items: venta.items || []

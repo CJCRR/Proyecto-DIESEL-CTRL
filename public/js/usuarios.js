@@ -1,5 +1,6 @@
 import { apiFetchJson } from './app-api.js';
 import { upsertUsuarioFirebase, deleteUsuarioFirebase } from './firebase-sync.js';
+import { initCustomSelect } from './modules/ui.js';
 
 // Intentar cargar utilidades centralizadas para toasts si no están disponibles
 (async () => {
@@ -42,6 +43,8 @@ const ucMessage = document.getElementById('uc-message');
 const ucCancelar = document.getElementById('uc-cancelar');
 const ucConfirmar = document.getElementById('uc-confirmar');
 let currentUsuarioConfirmAction = null;
+
+try { initCustomSelect('usuario-rol'); } catch {}
 
 // Cargar usuarios
 async function cargarUsuarios() {

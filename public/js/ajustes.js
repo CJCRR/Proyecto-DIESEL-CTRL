@@ -1,6 +1,7 @@
 import { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas, borrarProductosFirebaseTodos } from './firebase-sync.js';
 import { showToast } from './app-utils.js';
 import { apiFetchJson } from './app-api.js';
+import { initCustomSelect } from './modules/ui.js';
 
 let configCache = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
 
@@ -66,6 +67,9 @@ function readForms() {
     const empresa = {
         nombre: document.getElementById('e_nombre')?.value.trim() || '',
         logo_url: document.getElementById('e_logo')?.value.trim() || '',
+        rif: document.getElementById('e_rif')?.value.trim() || '',
+        telefonos: document.getElementById('e_telefonos')?.value.trim() || '',
+        ubicacion: document.getElementById('e_ubicacion')?.value.trim() || '',
         color_primario: document.getElementById('e_color_primario')?.value || '#2563eb',
         color_secundario: document.getElementById('e_color_secundario')?.value || '#0f172a',
         color_acento: document.getElementById('e_color_acento')?.value || '#f97316',
@@ -86,12 +90,21 @@ function readForms() {
         requiere_referencia: true
     };
     const marcasRaw = (document.getElementById('n_marcas')?.value || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    const ivaInput = document.getElementById('n_iva');
+    const ivaEnabled = !!document.getElementById('n_iva_enabled')?.checked;
+    const rawIva = parseFloat(ivaInput?.value || '0') || 0;
+    const iva_pct = ivaEnabled ? rawIva : 0;
+    const igtfInput = document.getElementById('n_igtf_pct');
+    const igtfEnabled = !!document.getElementById('n_igtf_enabled')?.checked;
+    const rawIgtf = parseFloat(igtfInput?.value || '0') || 0;
+    const igtf_pct = igtfEnabled ? rawIgtf : 0;
     const nota = {
         header_logo_url: document.getElementById('n_logo')?.value.trim() || '',
         layout: document.getElementById('n_layout')?.value || 'compact',
-        rif: document.getElementById('n_rif')?.value.trim() || '',
-        telefonos: document.getElementById('n_telefonos')?.value.trim() || '',
-        ubicacion: document.getElementById('n_ubicacion')?.value.trim() || '',
+        // RIF, teléfonos y ubicación se toman ahora de la empresa
+        rif: empresa.rif,
+        telefonos: empresa.telefonos,
+        ubicacion: empresa.ubicacion,
         direccion_general: document.getElementById('n_dir_general')?.value.trim() || '',
         encabezado_texto: document.getElementById('n_encabezado')?.value.trim() || '¡Tu Proveedor de Confianza!',
         resaltar_color: document.getElementById('n_resaltar')?.value || '#fff59d',
@@ -100,7 +113,8 @@ function readForms() {
         pie: document.getElementById('n_pie')?.value.trim() || 'Total a Pagar:',
         pie_usd: document.getElementById('n_pie_usd')?.value.trim() || 'Total USD',
         pie_bs: document.getElementById('n_pie_bs')?.value.trim() || 'Total Bs',
-        iva_pct: parseFloat(document.getElementById('n_iva')?.value || '0') || 0
+        iva_pct,
+        igtf_pct
     };
     return { empresa, descuentos_volumen, devolucion, nota };
 }
@@ -110,6 +124,9 @@ function setForms(cfg) {
     const { empresa = {}, descuentos_volumen = [], devolucion = {}, nota = {} } = cfg || {};
     if (document.getElementById('e_nombre')) document.getElementById('e_nombre').value = empresa.nombre || '';
     if (document.getElementById('e_logo')) document.getElementById('e_logo').value = empresa.logo_url || '';
+    if (document.getElementById('e_rif')) document.getElementById('e_rif').value = empresa.rif || '';
+    if (document.getElementById('e_telefonos')) document.getElementById('e_telefonos').value = empresa.telefonos || '';
+    if (document.getElementById('e_ubicacion')) document.getElementById('e_ubicacion').value = empresa.ubicacion || '';
     if (document.getElementById('e_color_primario')) document.getElementById('e_color_primario').value = empresa.color_primario || '#2563eb';
     if (document.getElementById('e_color_secundario')) document.getElementById('e_color_secundario').value = empresa.color_secundario || '#0f172a';
     if (document.getElementById('e_color_acento')) document.getElementById('e_color_acento').value = empresa.color_acento || '#f97316';
@@ -129,9 +146,8 @@ function setForms(cfg) {
     // Nota
     if (document.getElementById('n_logo')) document.getElementById('n_logo').value = nota.header_logo_url || '';
     if (document.getElementById('n_layout')) document.getElementById('n_layout').value = nota.layout || 'compact';
-    if (document.getElementById('n_rif')) document.getElementById('n_rif').value = nota.rif || '';
-    if (document.getElementById('n_telefonos')) document.getElementById('n_telefonos').value = nota.telefonos || '';
-    if (document.getElementById('n_ubicacion')) document.getElementById('n_ubicacion').value = nota.ubicacion || '';
+    // Los campos de RIF/Teléfonos/Ubicación ahora viven en Empresa, pero
+    // mantenemos los valores en nota por compatibilidad con la impresión local.
     if (document.getElementById('n_dir_general')) document.getElementById('n_dir_general').value = nota.direccion_general || '';
     if (document.getElementById('n_encabezado')) document.getElementById('n_encabezado').value = nota.encabezado_texto || '';
     if (document.getElementById('n_resaltar')) document.getElementById('n_resaltar').value = nota.resaltar_color || '#fff59d';
@@ -140,7 +156,25 @@ function setForms(cfg) {
     if (document.getElementById('n_pie')) document.getElementById('n_pie').value = nota.pie || 'Total a Pagar:';
     if (document.getElementById('n_pie_usd')) document.getElementById('n_pie_usd').value = nota.pie_usd || 'Total USD';
     if (document.getElementById('n_pie_bs')) document.getElementById('n_pie_bs').value = nota.pie_bs || 'Total Bs';
-    if (document.getElementById('n_iva')) document.getElementById('n_iva').value = (nota.iva_pct ?? 0);
+    const ivaInput = document.getElementById('n_iva');
+    const ivaToggle = document.getElementById('n_iva_enabled');
+    const ivaPct = nota.iva_pct ?? 0;
+    if (ivaInput) ivaInput.value = ivaPct;
+    if (ivaToggle && ivaInput) {
+        const enabled = ivaPct > 0;
+        ivaToggle.checked = enabled;
+        ivaInput.disabled = !enabled;
+    }
+
+    const igtfInput = document.getElementById('n_igtf_pct');
+    const igtfToggle = document.getElementById('n_igtf_enabled');
+    const rawIgtf = nota.igtf_pct ?? 0;
+    const hasIgtf = rawIgtf > 0;
+    if (igtfInput) igtfInput.value = hasIgtf ? rawIgtf : 3;
+    if (igtfToggle && igtfInput) {
+        igtfToggle.checked = hasIgtf;
+        igtfInput.disabled = !hasIgtf;
+    }
 }
 
 async function loadConfig() {
@@ -177,19 +211,84 @@ async function saveConfig(section) {
 
 // Función para inicializar la UI y cargar datos al DOM
 function setupUI() {
+    // Tabs de navegación entre secciones de ajustes
+    const tabs = document.querySelectorAll('[data-aj-tab]');
+    const sections = document.querySelectorAll('[data-aj-section]');
+    if (tabs.length && sections.length) {
+        const activate = (key) => {
+            sections.forEach((sec) => {
+                const match = sec.dataset.ajSection === key;
+                if (match) sec.classList.remove('hidden');
+                else sec.classList.add('hidden');
+            });
+            tabs.forEach((tab) => {
+                const isActive = tab.dataset.ajTab === key;
+                tab.classList.toggle('text-slate-900', isActive);
+                tab.classList.toggle('border-blue-500', isActive);
+                tab.classList.toggle('text-slate-500', !isActive);
+                tab.classList.toggle('border-transparent', !isActive);
+            });
+        };
+
+        tabs.forEach((tab) => {
+            tab.addEventListener('click', () => activate(tab.dataset.ajTab));
+        });
+
+        const initial = document.querySelector('[data-aj-tab].aj-tab-default');
+        activate(initial ? initial.dataset.ajTab : tabs[0].dataset.ajTab);
+    }
+
     document.getElementById('btnAddTier')?.addEventListener('click', () => {
         const current = getTiersFromDOM();
         current.push({ min_qty: 10, descuento_pct: 5 });
         renderTiers(current);
     });
     document.getElementById('btnSaveEmpresa')?.addEventListener('click', () => saveConfig('empresa'));
-    document.getElementById('btnSaveDescuentos')?.addEventListener('click', () => saveConfig('descuentos'));
-    document.getElementById('btnSaveDevolucion')?.addEventListener('click', () => saveConfig('devolucion'));
-        document.getElementById('btnSaveNota')?.addEventListener('click', () => saveConfig('nota'));
-        document.getElementById('btnPreviewNota')?.addEventListener('click', renderPreview);
-        document.getElementById('btnDemoNota')?.addEventListener('click', printDemoNota);
+    document.getElementById('btnSavePolitica')?.addEventListener('click', () => saveConfig('Politica'));
+    document.getElementById('btnSaveDescuentos')?.addEventListener('click', () => saveConfig('Politica'));
+    document.getElementById('btnSaveDevolucion')?.addEventListener('click', () => saveConfig('Politica'));
+    document.getElementById('btnSaveNota')?.addEventListener('click', () => saveConfig('nota'));
+    document.getElementById('btnPreviewNota')?.addEventListener('click', renderPreview);
+    document.getElementById('btnDemoNota')?.addEventListener('click', printDemoNota);
     document.getElementById('btnUploadLogo')?.addEventListener('click', () => uploadHelper('n_logo'));
     document.getElementById('btnUploadMarca')?.addEventListener('click', () => uploadMarcaHelper());
+
+    try {
+        initCustomSelect('n_layout');
+    } catch {}
+
+    // Toggle de IVA e IGTF en sección de Política
+    const ivaToggle = document.getElementById('n_iva_enabled');
+    const ivaInput = document.getElementById('n_iva');
+    if (ivaToggle && ivaInput) {
+        ivaToggle.addEventListener('change', () => {
+            if (ivaToggle.checked) {
+                ivaInput.disabled = false;
+                if (!ivaInput.value || Number(ivaInput.value) === 0) {
+                    ivaInput.value = String(configCache?.nota?.iva_pct || 0);
+                }
+            } else {
+                ivaInput.disabled = true;
+                ivaInput.value = '0';
+            }
+        });
+    }
+
+    const igtfToggle = document.getElementById('n_igtf_enabled');
+    const igtfInput = document.getElementById('n_igtf_pct');
+    if (igtfToggle && igtfInput) {
+        igtfToggle.addEventListener('change', () => {
+            if (igtfToggle.checked) {
+                igtfInput.disabled = false;
+                if (!igtfInput.value || Number(igtfInput.value) === 0) {
+                    igtfInput.value = '3';
+                }
+            } else {
+                igtfInput.disabled = true;
+                igtfInput.value = '0';
+            }
+        });
+    }
 
     // Inicializar modal de borrado total
     modalPurge = document.getElementById('modal-purge-all');

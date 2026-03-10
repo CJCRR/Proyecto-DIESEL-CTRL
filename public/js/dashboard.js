@@ -147,46 +147,52 @@ document.getElementById('sincronizar-manual').addEventListener('click', () => {
 });
 
 
-document.getElementById('btn-actualizar-tasa').addEventListener('click', async () => {
-    try {
-        const j = await apiFetchJson('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST' });
-        const tasa = Number(j.tasa_bcv || 0);
-        if (!Number.isNaN(tasa) && tasa > 0) {
-            TASA_BCV = tasa;
-            TASA_BCV_UPDATED = j.actualizado_en || new Date().toISOString();
-            document.getElementById('kpi-tasa').innerText = tasa.toFixed(2);
+const btnGuardarTasa = document.getElementById('btn-guardar-tasa');
+if (btnGuardarTasa) {
+    btnGuardarTasa.addEventListener('click', async () => {
+        try {
+            // 1) Intentar actualizar automáticamente desde la fuente pública
+            let tasaFinal = null;
             try {
-                localStorage.setItem('tasa_bcv', String(tasa));
-                localStorage.setItem('tasa_bcv_updated', String(tasa));
+                const j = await apiFetchJson('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST' });
+                const tasaAuto = Number(j.tasa_bcv || 0);
+                if (!Number.isNaN(tasaAuto) && tasaAuto > 0 && j.ok !== false) {
+                            tasaFinal = tasaAuto;
+                }
+            } catch (e) {
+                // Si falla la actualización automática, continuamos con el valor manual
+            }
+
+            // 2) Si no hubo tasa automática válida, usar el valor manual del input
+            if (tasaFinal === null) {
+                const val = parseFloat(document.getElementById('input-tasa').value);
+                if (!val || Number.isNaN(val) || val <= 0) return;
+                tasaFinal = val;
+            }
+
+            // 3) Guardar la tasa elegida en la configuración
+            await apiFetchJson('/admin/ajustes/tasa-bcv', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tasa_bcv: tasaFinal })
+            });
+
+            TASA_BCV = tasaFinal;
+            TASA_BCV_UPDATED = new Date().toISOString();
+            const kpiEl = document.getElementById('kpi-tasa');
+            if (kpiEl) kpiEl.innerText = tasaFinal.toFixed(2);
+            try {
+                localStorage.setItem('tasa_bcv', String(tasaFinal));
+                localStorage.setItem('tasa_bcv_updated', String(TASA_BCV_UPDATED));
             } catch (err) {
                 console.warn('No se pudo escribir en localStorage', err);
             }
             await cargarDashboard();
-        }
-    } catch (err) {
-        console.error('No se pudo actualizar tasa BCV', err);
-    }
-});
-
-document.getElementById('btn-guardar-tasa').addEventListener('click', async () => {
-    const val = parseFloat(document.getElementById('input-tasa').value);
-    if (!val || Number.isNaN(val) || val <= 0) return;
-    try {
-        await apiFetchJson('/admin/ajustes/tasa-bcv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tasa_bcv: val }) });
-        TASA_BCV = val;
-        TASA_BCV_UPDATED = new Date().toISOString();
-        document.getElementById('kpi-tasa').innerText = val.toFixed(2);
-        try {
-            localStorage.setItem('tasa_bcv', String(val));
-            localStorage.setItem('tasa_bcv_updated', String(val));
         } catch (err) {
-            console.warn('No se pudo escribir en localStorage', err);
+            console.error('No se pudo guardar/actualizar tasa BCV', err);
         }
-        await cargarDashboard();
-    } catch (err) {
-        console.error('No se pudo guardar tasa BCV', err);
-    }
-});
+    });
+}
 
 // Botón de guardar stock eliminado junto con el panel duplicado
 

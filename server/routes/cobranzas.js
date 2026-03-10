@@ -35,7 +35,8 @@ router.get('/resumen', requireAuth, forbidSuperadmin, (req, res) => {
   }
 });
 
-router.get('/', requireAuth, forbidSuperadmin, (req, res) => {
+// Listado de cuentas por cobrar (usado desde el frontend en /cobranzas/list)
+router.get('/list', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const rows = listCuentas({ ...(req.query || {}), empresaId: req.usuario.empresa_id || null });
     res.json(rows);

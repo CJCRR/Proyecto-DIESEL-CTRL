@@ -1,14 +1,14 @@
 // layout-nav.js - genera el drawer de navegación común
 
 const NAV_LINKS = [
-  { id: 'pos', href: '/pages/index.html', icon: 'fa-cash-register', iconColor: 'text-blue-600', label: 'Punto de Venta' },
-  { id: 'inventario', href: '/pages/inventario.html', icon: 'fa-boxes-stacked', iconColor: 'text-amber-600', label: 'Inventario' },
-  { id: 'dashboard', href: '/pages/dashboard.html', icon: 'fa-chart-line', iconColor: 'text-emerald-600', label: 'Dashboard', adminOnly: true },
-  { id: 'clientes', href: '/pages/clientes.html', icon: 'fa-users', iconColor: 'text-indigo-600', label: 'Clientes' },
-  { id: 'reportes', href: '/pages/reportes.html', icon: 'fa-file-invoice', iconColor: 'text-rose-600', label: 'Reportes' },
-  { id: 'cobranzas', href: '/pages/cobranzas.html', icon: 'fa-money-check-dollar', iconColor: 'text-emerald-600', label: 'Cobranzas' },
-  { id: 'proveedores', href: '/pages/proveedores.html', icon: 'fa-truck-field', iconColor: 'text-orange-600', label: 'Proveedores' },
-  { id: 'compras', href: '/pages/compras.html', icon: 'fa-file-invoice-dollar', iconColor: 'text-lime-600', label: 'Compras' }
+  { id: 'pos', href: '/pos', icon: 'fa-cash-register', iconColor: 'text-blue-600', label: 'Punto de Venta' },
+  { id: 'inventario', href: '/inventario', icon: 'fa-boxes-stacked', iconColor: 'text-amber-600', label: 'Inventario' },
+  { id: 'dashboard', href: '/dashboard', icon: 'fa-chart-line', iconColor: 'text-emerald-600', label: 'Dashboard', adminOnly: true },
+  { id: 'clientes', href: '/clientes', icon: 'fa-users', iconColor: 'text-indigo-600', label: 'Clientes' },
+  { id: 'reportes', href: '/reportes', icon: 'fa-file-invoice', iconColor: 'text-rose-600', label: 'Reportes' },
+  { id: 'cobranzas', href: '/cobranzas', icon: 'fa-money-check-dollar', iconColor: 'text-emerald-600', label: 'Cobranzas' },
+  { id: 'proveedores', href: '/proveedores', icon: 'fa-truck-field', iconColor: 'text-orange-600', label: 'Proveedores' },
+  { id: 'compras', href: '/compras', icon: 'fa-file-invoice-dollar', iconColor: 'text-lime-600', label: 'Compras' }
 ];
 
 function buildNavHtml(activeId) {

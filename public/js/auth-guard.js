@@ -21,7 +21,7 @@ import { apiFetchJson } from './app-api.js';
   };
 
   // Verificar si estamos en la página de login: ahí no aplicamos guardas
-  if (window.location.pathname.includes('/pages/login.html')) {
+  if (window.location.pathname.startsWith('/login')) {
     return;
   }
 
@@ -37,25 +37,25 @@ import { apiFetchJson } from './app-api.js';
 
     // Superadmin: solo panel master y ajustes (2FA)
     if (isSuperAdminRole(u.rol)) {
-      const esPanelEmpresas = path.includes('/pages/admin-empresas.html');
-      const esAjustes = path.includes('/pages/ajustes.html');
+      const esPanelEmpresas = path.startsWith('/admin-empresas');
+      const esAjustes = path.startsWith('/ajustes');
       if (!esPanelEmpresas && !esAjustes) {
-        window.location.href = '/pages/admin-empresas.html';
+        window.location.href = '/admin-empresas';
         return false;
       }
       return true;
     }
 
-    const esPanelEmpresas = path.includes('/pages/admin-empresas.html');
+    const esPanelEmpresas = path.startsWith('/admin-empresas');
     if (esPanelEmpresas) {
       // Panel master solo para superadmin
-      window.location.href = '/pages/index.html';
+      window.location.href = '/pos';
       return false;
     }
 
     // Dashboard solo para administradores de empresa
-    if (path.includes('/pages/dashboard.html') && !isEmpresaAdminRole(u.rol)) {
-      window.location.href = '/pages/index.html';
+    if (path.startsWith('/dashboard') && !isEmpresaAdminRole(u.rol)) {
+      window.location.href = '/pos';
       return false;
     }
 
@@ -73,7 +73,7 @@ import { apiFetchJson } from './app-api.js';
 
   function redirectLogin() {
     localStorage.removeItem('auth_user');
-    window.location.href = '/pages/login.html';
+    window.location.href = '/login';
   }
 
   if (storedUser) {
@@ -133,10 +133,10 @@ import { apiFetchJson } from './app-api.js';
       if (isEmpresaAdmin) {
         const nav = drawer.querySelector('nav');
         if (nav) {
-          const existingUsuariosLink = nav.querySelector('#nav-usuarios') || nav.querySelector('a[href="/pages/usuarios.html"]');
+          const existingUsuariosLink = nav.querySelector('#nav-usuarios') || nav.querySelector('a[href="/usuarios"]');
           if (!existingUsuariosLink) {
             const usuariosLink = document.createElement('a');
-            usuariosLink.href = '/pages/usuarios.html';
+            usuariosLink.href = '/usuarios';
             usuariosLink.className = 'flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition';
             usuariosLink.id = 'nav-usuarios';
             usuariosLink.innerHTML = '<i class="fas fa-user-shield text-purple-600"></i>Usuarios';
@@ -190,7 +190,7 @@ import { apiFetchJson } from './app-api.js';
 
           localStorage.removeItem('auth_token');
           localStorage.removeItem('auth_user');
-          window.location.href = '/pages/login.html';
+          window.location.href = '/login';
         });
       }
     }
@@ -220,11 +220,11 @@ import { apiFetchJson } from './app-api.js';
           .catch(() => { })
           .finally(() => {
             localStorage.removeItem('auth_user');
-            window.location.href = '/pages/login.html';
+            window.location.href = '/login';
           });
       } catch {
         localStorage.removeItem('auth_user');
-        window.location.href = '/pages/login.html';
+        window.location.href = '/login';
       }
     }
   };

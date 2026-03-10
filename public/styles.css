@@ -25,6 +25,28 @@ nav.bg-slate-900 { background-color: var(--brand-secondary, #0f172a) !important;
 .input-upper {
     text-transform: uppercase;
 }
+
+/* Selects del POS con estilo consistente */
+.select-pos {
+    border-radius: 0.75rem;
+    padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    background-color: #ffffff;
+    font-weight: 600;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24'%3E%3Cpath fill='%2394a3b8' d='M7 9l5 5 5-5H7z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem 1rem;
+}
+
+.select-pos:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.25);
+}
 .bg-blue-700 { background-color: var(--brand-primary, #2563eb) !important; filter: brightness(0.92); }
 .text-blue-600 { color: var(--brand-primary, #2563eb) !important; }
 .border-blue-500 { border-color: var(--brand-primary, #3b82f6) !important; }

@@ -1,5 +1,6 @@
 import { apiFetchJson } from './app-api.js';
 import { upsertEmpresaFirebase } from './firebase-sync.js';
+import { initCustomSelect } from './modules/ui.js';
 
 // Intentar cargar utilidades centralizadas para toasts si no están disponibles
 (async () => {
@@ -135,7 +136,7 @@ async function cargarEmpresas() {
       } else {
         alert('No tienes permisos para acceder a esta página (solo superadmin).');
       }
-      window.location.href = '/pages/login.html';
+      window.location.href = '/login';
       return;
     }
     tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-red-500">Error cargando empresas</td></tr>';
@@ -238,6 +239,11 @@ function renderEmpresas() {
 
   tbody.innerHTML = html;
 }
+
+// Modernizar selects básicos
+try {
+  initCustomSelect('filtro-estado');
+} catch {}
 
 async function patchEmpresa(id, payload, successMessage) {
   try {

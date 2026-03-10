@@ -253,6 +253,14 @@ const migrations = [
     }
   },
   {
+    id: '012_ventas_igtf',
+    up: () => {
+      if (!columnExists('ventas', 'igtf_pct')) {
+        db.prepare("ALTER TABLE ventas ADD COLUMN igtf_pct REAL DEFAULT 0").run();
+      }
+    }
+  },
+  {
     id: '003_venta_detalle_costo',
     up: () => {
       if (!columnExists('venta_detalle', 'costo_usd')) {

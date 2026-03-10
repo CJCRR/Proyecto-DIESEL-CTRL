@@ -1,5 +1,6 @@
 import { apiFetchJson } from './app-api.js';
 import { showToast, escapeHtml } from './app-utils.js';
+import { initCustomSelect } from './modules/ui.js';
 
 let proveedores = [];
 let proveedorSeleccionadoId = null;
@@ -131,4 +132,5 @@ window.addEventListener('DOMContentLoaded', () => {
   setupUI();
   limpiarFormulario();
   cargarProveedores();
+  try { initCustomSelect('p_activo'); } catch {}
 });

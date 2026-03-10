@@ -13,6 +13,7 @@
 console.log('reportes.js v2.0 cargado - con autenticación');
 import { apiFetchJson } from './app-api.js';
 import { formatNumber } from './format-utils.js';
+import { initCustomSelect } from './modules/ui.js';
 let MONEDA = 'USD';
 let cacheRows = [];
 const detallesCache = new Map();
@@ -25,6 +26,7 @@ let cacheRentCat = [];
 let cacheRentProv = [];
 let resumenRent = null;
 let cacheComisiones = [];
+let vendedoresCache = [];
 const escapeHtml = (window.escapeHtml) ? window.escapeHtml : (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -162,7 +164,9 @@ function renderReporte() {
 
 function renderClienteSugerencias(items) {
     const list = document.getElementById('rpt-clientes-list');
+    const input = document.getElementById('rpt-cliente');
     if (!list) return;
+    list.innerHTML = '';
     const uniques = new Map();
     (items || []).forEach((c) => {
         const nombre = c.cliente || '';
@@ -170,9 +174,63 @@ function renderClienteSugerencias(items) {
         const labelParts = [nombre];
         if (c.cedula) labelParts.push(`CI: ${c.cedula}`);
         if (c.telefono) labelParts.push(`Tel: ${c.telefono}`);
-        uniques.set(nombre, labelParts.join(' · '));
+        uniques.set(nombre, { nombre, label: labelParts.join(' · ') });
     });
-    list.innerHTML = Array.from(uniques.entries()).map(([val, label]) => `<option value="${val}">${label}</option>`).join('');
+
+    const entries = Array.from(uniques.values()).slice(0, 8);
+    if (!entries.length) {
+        list.classList.add('hidden');
+        return;
+    }
+
+    entries.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'p-3 border-b last:border-b-0 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-sm';
+        li.innerHTML = `<div><div class="font-semibold text-slate-700">${escapeHtml(item.nombre)}</div><div class="text-[11px] text-slate-500">${escapeHtml(item.label)}</div></div>`;
+        li.addEventListener('click', () => {
+            if (input) input.value = item.nombre;
+            list.classList.add('hidden');
+        });
+        list.appendChild(li);
+    });
+
+    list.classList.remove('hidden');
+}
+
+function renderVendedorSugerencias(items) {
+    const list = document.getElementById('rpt-vendedores-list');
+    const input = document.getElementById('rpt-vendedor');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const uniques = new Map();
+    (items || []).forEach((v) => {
+        const nombre = (v.nombre_completo || v.username || '').trim();
+        if (!nombre || uniques.has(nombre)) return;
+        const labelParts = [];
+        if (v.rol) labelParts.push(v.rol.toUpperCase());
+        if (v.username && v.username !== nombre) labelParts.push(`@${v.username}`);
+        uniques.set(nombre, { nombre, label: labelParts.join(' · ') });
+    });
+
+    const entries = Array.from(uniques.values()).slice(0, 8);
+    if (!entries.length) {
+        list.classList.add('hidden');
+        return;
+    }
+
+    entries.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'p-3 border-b last:border-b-0 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-sm';
+        li.innerHTML = `<div><div class="font-semibold text-slate-700">${escapeHtml(item.nombre)}`;
+        li.addEventListener('click', () => {
+            if (input) input.value = item.nombre;
+            list.classList.add('hidden');
+        });
+        list.appendChild(li);
+    });
+
+    list.classList.remove('hidden');
 }
 
 function renderPresupuestos() {
@@ -197,10 +255,10 @@ function renderPresupuestos() {
         }).join('');
 
         cont.querySelectorAll('[data-pres]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                        const id = btn.dataset.pres;
-                        window.location.href = `/pages/index.html?presupuesto=${encodeURIComponent(id)}`;
-                });
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.pres;
+                window.location.href = `/pos?presupuesto=${encodeURIComponent(id)}`;
+            });
         });
 }
 
@@ -209,6 +267,7 @@ async function sugerirClientes(q) {
     if (!list) return;
     if (!q || q.length < 2) {
         list.innerHTML = '';
+        list.classList.add('hidden');
         return;
     }
     try {
@@ -217,6 +276,26 @@ async function sugerirClientes(q) {
     } catch (err) {
         console.error('Error sugiriendo clientes', err);
     }
+}
+
+async function cargarVendedoresFiltro() {
+    try {
+        const data = await apiFetchJson('/admin/usuarios/vendedores-list');
+        vendedoresCache = Array.isArray(data) ? data : [];
+    } catch (err) {
+        console.warn('No se pudieron cargar vendedores para filtros de reporte', err);
+        vendedoresCache = [];
+    }
+}
+
+function filtrarVendedores(q) {
+    if (!vendedoresCache || !vendedoresCache.length) return [];
+    const term = (q || '').trim().toLowerCase();
+    if (!term) return vendedoresCache;
+    return vendedoresCache.filter((v) => {
+        const nombre = (v.nombre_completo || v.username || '').toLowerCase();
+        return nombre.includes(term);
+    });
 }
 
 function renderRentabilidad() {
@@ -418,6 +497,43 @@ if (clienteInput) {
         const q = e.target.value.trim();
         clearTimeout(clienteTimer);
         clienteTimer = setTimeout(() => sugerirClientes(q), 200);
+    });
+
+    // Cerrar sugerencias al hacer clic fuera
+    document.addEventListener('click', (ev) => {
+        const list = document.getElementById('rpt-clientes-list');
+        if (!list) return;
+        const dentro = list.contains(ev.target) || clienteInput.contains(ev.target);
+        if (!dentro) list.classList.add('hidden');
+    });
+}
+
+// Sugerencias de vendedores
+const vendedorInput = document.getElementById('rpt-vendedor');
+let vendedorTimer = null;
+if (vendedorInput) {
+    cargarVendedoresFiltro();
+
+    vendedorInput.addEventListener('focus', () => {
+        const q = vendedorInput.value.trim();
+        const items = filtrarVendedores(q);
+        renderVendedorSugerencias(items);
+    });
+
+    vendedorInput.addEventListener('input', (e) => {
+        const q = e.target.value.trim();
+        clearTimeout(vendedorTimer);
+        vendedorTimer = setTimeout(() => {
+            const items = filtrarVendedores(q);
+            renderVendedorSugerencias(items);
+        }, 150);
+    });
+
+    document.addEventListener('click', (ev) => {
+        const list = document.getElementById('rpt-vendedores-list');
+        if (!list) return;
+        const dentro = list.contains(ev.target) || vendedorInput.contains(ev.target);
+        if (!dentro) list.classList.add('hidden');
     });
 }
 
@@ -650,6 +766,10 @@ document.getElementById('preset-mes').addEventListener('click', () => { setPrese
 // Inicial - cargar cuando se cargue la página
 document.addEventListener('DOMContentLoaded', () => {
     setPreset('hoy');
+    try {
+        initCustomSelect('moneda-toggle');
+        initCustomSelect('rpt-metodo');
+    } catch {}
     // Dar tiempo para que auth-guard configure el token
     setTimeout(() => {
         cargarReporte();

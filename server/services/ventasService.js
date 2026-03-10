@@ -44,6 +44,7 @@ function registrarVenta(payload) {
         dias_vencimiento = 21,
         fecha_vencimiento = null,
         iva_pct = 0,
+        igtf_pct = 0,
         empresa_id = null,
     } = payload || {};
 
@@ -86,6 +87,7 @@ function registrarVenta(payload) {
     const clienteDocSafe = safeStr(cliente_doc, MAX_DOC);
 
     const ivaPctNum = Math.max(0, Math.min(100, parseFloat(iva_pct) || 0));
+    const igtfPctNum = Math.max(0, Math.min(100, parseFloat(igtf_pct) || 0));
 
     if (dias_vencimiento !== null && dias_vencimiento !== undefined) {
         const dias = parseInt(dias_vencimiento, 10);
@@ -120,8 +122,8 @@ function registrarVenta(payload) {
     const transaction = db.transaction(() => {
         // Crear la cabecera de la venta con total 0 inicialmente, guardando descuento y metodo_pago
         const ventaResult = db.prepare(`
-                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, iva_pct, total_bs_iva, total_usd_iva, usuario_id, comision_pct, comision_bs, comision_usd)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, 0, 0, 0)
+                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, iva_pct, igtf_pct, total_bs_iva, total_usd_iva, usuario_id, comision_pct, comision_bs, comision_usd)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, 0, 0, 0)
             `).run(fecha, clienteSafe, vendedorSafe, cedulaSafe, telefonoSafe, tasa_bcv, descuentoMontoUsd, metodoSafe, referenciaSafe, usuario_id);
 
         const ventaId = ventaResult.lastInsertRowid;
@@ -198,9 +200,9 @@ function registrarVenta(payload) {
                 const totalConDescuentoBs = totalGeneralBs - descBs;
                 const totalConDescuentoUsd = totalGeneralUsd - aplicadoUsd;
 
-                const factorIva = 1 + ivaPctNum / 100;
-                const totalBsIva = totalConDescuentoBs * factorIva;
-                const totalUsdIva = totalConDescuentoUsd * factorIva;
+                const factorImpuestos = 1 + (ivaPctNum / 100) + (igtfPctNum / 100);
+                const totalBsIva = totalConDescuentoBs * factorImpuestos;
+                const totalUsdIva = totalConDescuentoUsd * factorImpuestos;
 
                 // Calcular comisión del vendedor (si hay usuario_id asociado)
                 let comisionPct = 0;
@@ -217,9 +219,9 @@ function registrarVenta(payload) {
                     }
                 }
 
-                // Actualizar el total final sumado en la cabecera, incluyendo IVA y campos de comisión
-                db.prepare('UPDATE ventas SET total_bs = ?, iva_pct = ?, total_bs_iva = ?, total_usd_iva = ?, comision_pct = ?, comision_bs = ?, comision_usd = ? WHERE id = ?')
-                    .run(totalConDescuentoBs, ivaPctNum, totalBsIva, totalUsdIva, comisionPct, comisionBs, comisionUsd, ventaId);
+                // Actualizar el total final sumado en la cabecera, incluyendo impuestos y campos de comisión
+                db.prepare('UPDATE ventas SET total_bs = ?, iva_pct = ?, igtf_pct = ?, total_bs_iva = ?, total_usd_iva = ?, comision_pct = ?, comision_bs = ?, comision_usd = ? WHERE id = ?')
+                    .run(totalConDescuentoBs, ivaPctNum, igtfPctNum, totalBsIva, totalUsdIva, comisionPct, comisionBs, comisionUsd, ventaId);
 
         // Si la venta es a crédito, registrar cuenta por cobrar enlazada
         let cuentaCobrarId = null;

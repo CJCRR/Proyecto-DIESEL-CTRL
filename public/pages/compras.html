@@ -23,7 +23,7 @@
             </div>
             <div class="flex items-center gap-3">
                 <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Compras / Ingresos</div>
-                <a href="/pages/ajustes.html" title="Ajustes"
+                <a href="/ajustes" title="Ajustes"
                     class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
                     <i class="fas fa-gear text-base"></i>
                 </a>
@@ -65,7 +65,7 @@
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500">Proveedor</label>
                     <select id="c_proveedor"
-                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></select>
+						class="w-full select-pos text-sm"></select>
                 </div>
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500">Fecha</label>
@@ -94,7 +94,7 @@
                             class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Código o nombre" />
                         <ul id="c_sugerencias"
-                            class="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-auto text-xs hidden">
+							class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
                         </ul>
                     </div>
                     <div id="c_producto_info" class="mt-1 text-[11px] text-slate-500 min-h-[1.5rem]"></div>
@@ -158,9 +158,9 @@
         </section>
 
         <section class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
-            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center justify-between gap-2">
                 <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest">Historial de compras</h2>
-                <select id="c_filtro_proveedor" class="p-2 border rounded-lg text-sm min-w-[160px]"></select>
+				<select id="c_filtro_proveedor" class="select-pos text-sm min-w-[180px]"></select>
             </div>
             <div class="overflow-auto max-h-[70vh] border rounded-xl">
                 <table class="w-full text-sm">

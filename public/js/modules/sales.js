@@ -236,9 +236,15 @@ export async function registrarVenta() {
 	}
 
 	let ivaPct = 0;
+	let igtfPct = 0;
 	try {
-		if (window.configGeneral && window.configGeneral.nota && window.configGeneral.nota.iva_pct != null) {
-			ivaPct = Math.max(0, Math.min(100, parseFloat(window.configGeneral.nota.iva_pct) || 0));
+		if (window.configGeneral && window.configGeneral.nota) {
+			if (window.configGeneral.nota.iva_pct != null) {
+				ivaPct = Math.max(0, Math.min(100, parseFloat(window.configGeneral.nota.iva_pct) || 0));
+			}
+			if (window.configGeneral.nota.igtf_pct != null) {
+				igtfPct = Math.max(0, Math.min(100, parseFloat(window.configGeneral.nota.igtf_pct) || 0));
+			}
 		}
 	} catch {}
 
@@ -258,6 +264,7 @@ export async function registrarVenta() {
 		dias_vencimiento: diasVenc,
 		fecha_vencimiento: fechaVenc,
 		iva_pct: ivaPct,
+		igtf_pct: igtfPct,
 		fecha: new Date().toISOString(),
 		sync: false,
 		usuario_id: vendedorId || null

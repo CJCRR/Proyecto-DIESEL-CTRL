@@ -118,27 +118,35 @@
       || (venta.id_global ? venta.id_global : (venta.id ? `${tipo === 'PRESUPUESTO' ? 'PRES' : 'VENTA'}-0${venta.id}` : ''));
 
     const ivaPct = clampPct(venta.iva_pct != null ? venta.iva_pct : (notaCfg.iva_pct || 0));
+    const igtfPct = clampPct(venta.igtf_pct != null ? venta.igtf_pct : (notaCfg.igtf_pct || 0));
+
     let ivaUSD = baseUsdDesc * (ivaPct / 100);
     let ivaBs = baseBsDesc * (ivaPct / 100);
-    let totalUSDFinal = baseUsdDesc + ivaUSD;
-    let totalBsFinal = baseBsDesc + ivaBs;
+    let igtfUSD = baseUsdDesc * (igtfPct / 100);
+    let igtfBs = baseBsDesc * (igtfPct / 100);
+    let totalUSDFinal = baseUsdDesc + ivaUSD + igtfUSD;
+    let totalBsFinal = baseBsDesc + ivaBs + igtfBs;
 
-    // Si la venta ya trae totales con IVA desde el backend, usarlos como
-    // fuente de verdad para que nota y reportes coincidan exactamente.
-    const hasTotalesBackendUsd = venta.total_usd_iva != null && Number(venta.total_usd_iva) > 0;
-    const hasTotalesBackendBs = venta.total_bs_iva != null && Number(venta.total_bs_iva) > 0;
-    if (hasTotalesBackendUsd || hasTotalesBackendBs) {
-      const canonicalUsd = hasTotalesBackendUsd
-        ? Number(venta.total_usd_iva)
-        : (tasa ? Number(venta.total_bs_iva) / tasa : baseUsdDesc + ivaUSD);
-      const canonicalBs = hasTotalesBackendBs
-        ? Number(venta.total_bs_iva)
-        : canonicalUsd * tasa;
-      totalUSDFinal = canonicalUsd;
-      totalBsFinal = canonicalBs;
-      // Recalcular IVA como diferencia entre total y base con descuento
-      ivaUSD = Math.max(0, totalUSDFinal - baseUsdDesc);
-      ivaBs = Math.max(0, totalBsFinal - baseBsDesc);
+    // Si no hay IGTF configurado, seguir respetando totales del backend
+    // para que nota y reportes coincidan exactamente.
+    if (!igtfPct) {
+      const hasTotalesBackendUsd = venta.total_usd_iva != null && Number(venta.total_usd_iva) > 0;
+      const hasTotalesBackendBs = venta.total_bs_iva != null && Number(venta.total_bs_iva) > 0;
+      if (hasTotalesBackendUsd || hasTotalesBackendBs) {
+        const canonicalUsd = hasTotalesBackendUsd
+          ? Number(venta.total_usd_iva)
+          : (tasa ? Number(venta.total_bs_iva) / tasa : baseUsdDesc + ivaUSD);
+        const canonicalBs = hasTotalesBackendBs
+          ? Number(venta.total_bs_iva)
+          : canonicalUsd * tasa;
+        totalUSDFinal = canonicalUsd;
+        totalBsFinal = canonicalBs;
+        // Recalcular IVA como diferencia entre total y base con descuento
+        ivaUSD = Math.max(0, totalUSDFinal - baseUsdDesc);
+        ivaBs = Math.max(0, totalBsFinal - baseBsDesc);
+        igtfUSD = 0;
+        igtfBs = 0;
+      }
     }
 
     // Datos de la empresa iguales a la compacta
@@ -282,7 +290,8 @@
               <div class="tot-box">
                 <div class="tot-row"><div>Sub-total Bs</div><div class="right">Bs ${totalBsBase.toFixed(2)}</div></div>
                 ${aplicadoDescUsd > 0 ? `<div class="tot-row"><div>Descuento</div><div class="right">$${aplicadoDescUsd.toFixed(2)} / Bs ${aplicadoDescBs.toFixed(2)}</div></div>` : ''}
-                <div class="tot-row"><div>Impuesto / I.V.A (${ivaPct}%)</div><div class="right">$${ivaUSD.toFixed(2)} / Bs ${ivaBs.toFixed(2)}</div></div>
+                ${ivaPct ? `<div class="tot-row"><div>I.V.A (${ivaPct}%)</div><div class="right">$${ivaUSD.toFixed(2)} / Bs ${ivaBs.toFixed(2)}</div></div>` : ''}
+                ${igtfPct ? `<div class="tot-row"><div>IGTF (${igtfPct}%)</div><div class="right">$${igtfUSD.toFixed(2)} / Bs ${igtfBs.toFixed(2)}</div></div>` : ''}
                 <div class="tot-row" style="font-weight:800; grid-template-columns: 1fr 1fr;">
                   <div>${notaCfg.pie || 'Total a Pagar:'}</div>
                   <div class="right">$${totalUSDFinal.toFixed(2)} / Bs ${totalBsFinal.toFixed(2)}</div>
