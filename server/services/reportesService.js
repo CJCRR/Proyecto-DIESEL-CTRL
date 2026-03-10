@@ -995,8 +995,28 @@ function getVendedoresComparativa({ desde, hasta, empresaId }) {
     };
   }).filter(r => r.total_usd > 0 || r.total_bs > 0);
 
-  netRows.sort((a, b) => (b.total_usd || 0) - (a.total_usd || 0));
-  return netRows.slice(0, 50);
+  // Unificar posibles duplicados por el mismo nombre de vendedor
+  // (por ejemplo, diferencias de espacios o ventas antiguas sin usuario asignado)
+  const mergedMap = new Map();
+  for (const row of netRows) {
+    const key = (row.vendedor || '—').toString().trim().toLowerCase();
+    const existing = mergedMap.get(key);
+    if (!existing) {
+      mergedMap.set(key, { ...row });
+    } else {
+      existing.ventas += row.ventas || 0;
+      existing.total_bs += row.total_bs || 0;
+      existing.total_usd += row.total_usd || 0;
+      existing.margen_bs += row.margen_bs || 0;
+      existing.margen_usd += row.margen_usd || 0;
+    }
+  }
+
+  const mergedRows = Array.from(mergedMap.values())
+    .filter(r => r.total_usd > 0 || r.total_bs > 0);
+
+  mergedRows.sort((a, b) => (b.total_usd || 0) - (a.total_usd || 0));
+  return mergedRows.slice(0, 50);
 }
 
 function getVendedoresRoi({ desde, hasta, empresaId }) {
@@ -1028,7 +1048,25 @@ function getVendedoresRoi({ desde, hasta, empresaId }) {
       LIMIT 100
     `).all(...params);
 
-  return rows.map((r) => {
+  // Fusionar filas con el mismo nombre de vendedor (ignorando espacios/caso)
+  const mergedMap = new Map();
+  for (const r of rows) {
+    const key = (r.vendedor || '—').toString().trim().toLowerCase();
+    const existing = mergedMap.get(key);
+    if (!existing) {
+      mergedMap.set(key, { ...r });
+    } else {
+      existing.ventas += Number(r.ventas || 0);
+      existing.ingresos_bs += Number(r.ingresos_bs || 0);
+      existing.ingresos_usd += Number(r.ingresos_usd || 0);
+      existing.costos_bs += Number(r.costos_bs || 0);
+      existing.costos_usd += Number(r.costos_usd || 0);
+      existing.margen_bs += Number(r.margen_bs || 0);
+      existing.margen_usd += Number(r.margen_usd || 0);
+    }
+  }
+
+  return Array.from(mergedMap.values()).map((r) => {
     const ingresos = Number(r.ingresos_usd || 0);
     const margen = Number(r.margen_usd || 0);
     const costos = Number(r.costos_usd || 0);
@@ -1229,8 +1267,29 @@ function getVendedoresRanking({ desde, hasta, empresaId }) {
     };
   }).filter(r => r.total_usd > 0 || r.total_bs > 0);
 
-  netRows.sort((a, b) => (b.total_usd || 0) - (a.total_usd || 0));
-  return netRows.slice(0, 100);
+  // Fusionar posibles duplicados del mismo vendedor (espacios, ventas sin usuario, etc.)
+  const mergedMap = new Map();
+  for (const row of netRows) {
+    const key = (row.vendedor || '—').toString().trim().toLowerCase();
+    const existing = mergedMap.get(key);
+    if (!existing) {
+      mergedMap.set(key, { ...row });
+    } else {
+      existing.ventas += row.ventas || 0;
+      existing.total_bs += row.total_bs || 0;
+      existing.total_usd += row.total_usd || 0;
+      existing.costo_bs += row.costo_bs || 0;
+      existing.costo_usd += row.costo_usd || 0;
+      existing.margen_bs += row.margen_bs || 0;
+      existing.margen_usd += row.margen_usd || 0;
+    }
+  }
+
+  const mergedRows = Array.from(mergedMap.values())
+    .filter(r => r.total_usd > 0 || r.total_bs > 0);
+
+  mergedRows.sort((a, b) => (b.total_usd || 0) - (a.total_usd || 0));
+  return mergedRows.slice(0, 100);
 }
 
 function getComisionesVendedores({ desde, hasta, empresaId }) {
