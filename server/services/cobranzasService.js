@@ -17,8 +17,14 @@ function isValidDateString(val) {
   return !Number.isNaN(d.getTime());
 }
 
+// Umbral para considerar una cuenta como saldada aunque quede
+// una pequeña diferencia por redondeos (
+// por ejemplo pagos en Bs convertidos a USD).
+const SALDO_EPSILON = 0.01;
+
 function computeEstado(row) {
-  const saldo = Number(row.saldo_usd || 0);
+  let saldo = Number(row.saldo_usd || 0);
+  if (Math.abs(saldo) < SALDO_EPSILON) saldo = 0;
   const total = Number(row.total_usd || 0);
   const vencimiento = row.fecha_vencimiento ? new Date(row.fecha_vencimiento) : null;
   const hoy = new Date();
@@ -269,7 +275,14 @@ function registrarPago(id, empresaId, payload = {}) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(cuenta.id, fecha, monto_usd, moneda, tasa, m, metodoSafe || null, referenciaSafe || null, notasSafe || null, usuarioSafe || null);
 
-  const nuevoSaldo = Math.max(0, Number(cuenta.saldo_usd || 0) - monto_usd);
+  const saldoActual = Number(cuenta.saldo_usd || 0);
+  let nuevoSaldo = saldoActual - monto_usd;
+  // Ajustar por redondeos: si el saldo queda muy cercano a 0,
+  // considerarlo cancelado y guardar 0 exacto.
+  if (Math.abs(nuevoSaldo) < SALDO_EPSILON) {
+    nuevoSaldo = 0;
+  }
+  if (nuevoSaldo < 0) nuevoSaldo = 0;
   const estado = computeEstado({ ...cuenta, saldo_usd: nuevoSaldo });
   db.prepare('UPDATE cuentas_cobrar SET saldo_usd = ?, estado = ?, actualizado_en = ? WHERE id = ?')
     .run(nuevoSaldo, estado, fecha, cuenta.id);

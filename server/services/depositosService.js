@@ -19,7 +19,8 @@ function listDepositos(empresaId, { soloActivos } = {}) {
   const where = ['empresa_id = ?'];
   const params = [empresaId];
   if (soloActivos) {
-    where.push('activo = 1');
+    // Incluir también depósitos legacy donde "activo" quedó NULL (tratados como activos)
+    where.push('(activo IS NULL OR activo = 1)');
   }
   const sql = `
     SELECT *
@@ -27,7 +28,22 @@ function listDepositos(empresaId, { soloActivos } = {}) {
     WHERE ${where.join(' AND ')}
     ORDER BY es_principal DESC, nombre ASC
   `;
-  const rows = db.prepare(sql).all(...params);
+  let rows = db.prepare(sql).all(...params);
+
+  // Si la empresa no tiene ningún depósito, crear automáticamente un "Depósito Principal"
+  if (!rows.length) {
+    try {
+      const info = db.prepare(`
+        INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo)
+        VALUES (?, 'Depósito Principal', 'PRINCIPAL', 1, 1)
+      `).run(empresaId);
+      // Volver a cargar usando el mismo filtro (soloActivos respeta el nuevo registro)
+      rows = db.prepare(sql).all(...params);
+    } catch (e) {
+      console.error('Error creando depósito principal automático:', e.message);
+    }
+  }
+
   return rows.map(mapDeposito);
 }
 

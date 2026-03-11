@@ -1,0 +1,100 @@
+// Estilos específicos para la página de dashboard
+
+/* Personalización de la interfaz */
+.active-tab { 
+    background-color: white; 
+    border-bottom: 3px solid var(--brand-primary, #3b82f6); 
+    color: #1e293b; 
+}
+
+.active-tab {
+            background-color: white;
+            border-bottom: 3px solid #3b82f6;
+            color: #1e293b;
+            font-weight: 800;
+        }
+
+:root {
+    --brand-primary: #2563eb;
+    --brand-secondary: #0f172a;
+    --brand-accent: #f97316;
+}
+
+/* Overrides suaves para usar la paleta configurada */
+nav.bg-slate-900 { background-color: var(--brand-secondary, #0f172a) !important; }
+.bg-blue-600 { background-color: var(--brand-primary, #2563eb) !important; }
+/* Inputs marcados para mostrar siempre el texto en mayúsculas */
+.input-upper {
+    text-transform: uppercase;
+}
+
+/* Selects del POS con estilo consistente */
+.select-pos {
+    border-radius: 0.75rem;
+    padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    background-color: #ffffff;
+    font-weight: 600;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24'%3E%3Cpath fill='%2394a3b8' d='M7 9l5 5 5-5H7z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem 1rem;
+}
+
+.select-pos:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.25);
+}
+.bg-blue-700 { background-color: var(--brand-primary, #2563eb) !important; filter: brightness(0.92); }
+.text-blue-600 { color: var(--brand-primary, #2563eb) !important; }
+.border-blue-500 { border-color: var(--brand-primary, #3b82f6) !important; }
+.bg-amber-600 { background-color: var(--brand-accent, #f97316) !important; }
+.text-amber-600 { color: var(--brand-accent, #f97316) !important; }
+
+/* Botón primario hover */
+.hover\:bg-blue-700:hover { background-color: var(--brand-primary, #2563eb) !important; filter: brightness(0.92); }
+
+/* Badges y highlights */
+.bg-emerald-100.text-emerald-700 { color: var(--brand-primary, #2563eb) !important; border-color: var(--brand-primary, #2563eb) !important; }
+.bg-emerald-100 { background-color: color-mix(in srgb, var(--brand-primary, #2563eb) 20%, white) !important; }
+
+#ventas-hoy, #ventas-semana, #total-bs {
+    font-variant-numeric: tabular-nums;
+}
+
+#resultados li:last-child {
+    border-bottom: none;
+}
+
+/* Scrollbar personalizado para los resultados */
+#resultados::-webkit-scrollbar {
+    width: 6px;
+}
+#resultados::-webkit-scrollbar-track {
+    background: #f8fafc;
+}
+#resultados::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+#resultados::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Animaciones suaves */
+section {
+    transition: transform 0.2s ease-in-out;
+}
+
+#producto-info {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

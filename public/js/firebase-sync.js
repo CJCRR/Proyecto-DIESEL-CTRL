@@ -210,6 +210,21 @@ async function eliminarClienteFirebasePorCedula(cedula) {
     }
 }
 
+// Eliminar cliente usando directamente el ID del documento en Firebase.
+// Útil para clientes que no tienen cédula registrada.
+async function eliminarClienteFirebasePorId(id) {
+    try {
+        if (!id) return;
+        const { scope } = getEmpresaSubcollection('clientes');
+        const ref = doc(db, 'empresas', scope.empresa_codigo, 'clientes', String(id));
+        await deleteDoc(ref);
+        console.log('✅ Cliente eliminado por ID en Firebase:', scope.empresa_codigo, id);
+    } catch (err) {
+        console.error('❌ Error eliminando cliente por ID en Firebase:', err);
+        throw err;
+    }
+}
+
 async function borrarColeccionFirebase(nombre) {
     const { ref, scope } = getEmpresaSubcollection(nombre);
     const snapshot = await getDocs(ref);
@@ -487,7 +502,7 @@ export { enviarVentaAFirebase, obtenerVentasDeFirebase, sincronizarVentasPendien
 export { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas, borrarProductosFirebaseTodos };
 
 // API de clientes y productos
-export { upsertClienteFirebase, obtenerClientesFirebase, eliminarClienteFirebasePorCedula };
+export { upsertClienteFirebase, obtenerClientesFirebase, eliminarClienteFirebasePorCedula, eliminarClienteFirebasePorId };
 export { upsertProductoFirebase, obtenerProductosFirebase, eliminarProductoFirebasePorCodigo };
 export { upsertEmpresaFirebase, upsertUsuarioFirebase, deleteUsuarioFirebase };
 
@@ -498,6 +513,7 @@ if (typeof window !== 'undefined') {
     window.enviarVentaAFirebase = enviarVentaAFirebase;
     window.upsertClienteFirebase = upsertClienteFirebase;
     window.eliminarClienteFirebasePorCedula = eliminarClienteFirebasePorCedula;
+    window.eliminarClienteFirebasePorId = eliminarClienteFirebasePorId;
     window.obtenerClientesFirebase = obtenerClientesFirebase;
     window.upsertProductoFirebase = upsertProductoFirebase;
     window.obtenerProductosFirebase = obtenerProductosFirebase;

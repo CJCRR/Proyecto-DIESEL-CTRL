@@ -1,0 +1,13 @@
+@use './modules/toast';
+// Archivo principal de SCSS para importar los estilos de cada página
+@use './page/inventario';
+@use './page/ajustes';
+@use './page/clientes';
+@use './page/cobranzas';
+@use './page/compras';
+@use './page/dashboard';
+@use './page/login';
+@use './page/proveedores';
+@use './page/reportes';
+@use './page/usuarios';
+@use './page/admin-empresas';

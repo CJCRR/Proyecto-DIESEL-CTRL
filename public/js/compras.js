@@ -12,17 +12,48 @@ let compraExpandidaId = null;
 let modalNuevoProducto;
 let modalNuevoProductoMsg;
 let depositosComprasCargados = false;
+let categoriasCompras = [];
 
 async function cargarCategoriasCompras() {
   const dataList = document.getElementById('npCategoriaOptions');
-  if (!dataList) return;
+  const sugList = document.getElementById('npCategoriaSug');
+  if (!dataList && !sugList) return;
   try {
     const data = await apiFetchJson('/admin/productos/categorias');
     const categorias = Array.isArray(data.items) ? data.items : [];
-    dataList.innerHTML = categorias.map(c => `<option value="${c}"></option>`).join('');
+    categoriasCompras = categorias;
+    if (dataList) {
+      dataList.innerHTML = categorias.map(c => `<option value="${c}"></option>`).join('');
+    }
+    if (sugList) {
+      renderCategoriasComprasSug(categoriasCompras);
+      sugList.classList.add('hidden');
+    }
   } catch (err) {
     console.error(err);
   }
+}
+
+function renderCategoriasComprasSug(list = []) {
+  const sugList = document.getElementById('npCategoriaSug');
+  const input = document.getElementById('np_categoria');
+  if (!sugList || !input) return;
+  sugList.innerHTML = '';
+  const items = Array.isArray(list) ? list : [];
+  if (!items.length) {
+    sugList.classList.add('hidden');
+    return;
+  }
+  items.forEach((cat) => {
+    const li = document.createElement('li');
+    li.textContent = cat;
+    li.addEventListener('click', () => {
+      input.value = cat;
+      sugList.classList.add('hidden');
+    });
+    sugList.appendChild(li);
+  });
+  sugList.classList.remove('hidden');
 }
 
 function formNumber(id, def = 0) {
@@ -610,6 +641,33 @@ function setupUI() {
 
   // Cargar depósitos para el modal de nuevo producto
   cargarDepositosCompras();
+
+  // Dropdown de categorías en el modal de nuevo producto
+  const npCatInput = document.getElementById('np_categoria');
+  const npCatSug = document.getElementById('npCategoriaSug');
+  if (npCatInput && npCatSug) {
+    npCatInput.addEventListener('focus', () => {
+      if (!categoriasCompras.length) return;
+      renderCategoriasComprasSug(categoriasCompras);
+    });
+
+    npCatInput.addEventListener('input', (e) => {
+      const q = (e.target.value || '').toString().toLowerCase().trim();
+      if (!categoriasCompras.length) return;
+      if (!q) {
+        renderCategoriasComprasSug(categoriasCompras);
+        return;
+      }
+      const filtered = categoriasCompras.filter(c => c && c.toString().toLowerCase().includes(q));
+      renderCategoriasComprasSug(filtered);
+    });
+
+    document.addEventListener('click', (ev) => {
+      if (!npCatSug) return;
+      if (npCatSug.contains(ev.target) || npCatInput.contains(ev.target)) return;
+      npCatSug.classList.add('hidden');
+    });
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {

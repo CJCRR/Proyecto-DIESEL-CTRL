@@ -143,24 +143,39 @@
                         <div class="text-[10px] font-black text-slate-400 uppercase mb-2">Registrar pago</div>
                         <form id="form-pago" class="space-y-2">
                             <div class="grid grid-cols-2 gap-2">
-                                <input id="p_monto" type="number" step="0.01" min="0" class="p-2 border rounded-xl"
-                                    placeholder="Monto">
-                                <select id="p_moneda" class="p-2 border rounded-xl">
-                                    <option value="USD">USD</option>
-                                    <option value="BS">Bs</option>
-                                </select>
+                                <div class="inv-input-group">
+                                    <input id="p_monto" type="number" step="0.01" min="0" class="inv-input" placeholder=" " />
+                                    <label for="p_monto" class="inv-label">Monto</label>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-semibold text-slate-500"></label>
+                                    <select id="p_moneda" class="w-full select-pos text-sm">
+                                        <option value="USD">USD</option>
+                                        <option value="BS">Bs</option>
+                                    </select>
+                                </div>
                             </div>
                             <div class="grid grid-cols-2 gap-2">
-                                <input id="p_tasa" type="number" step="0.01" min="0" class="p-2 border rounded-xl"
-                                    placeholder="Tasa BCV">
-                                <input id="p_metodo" class="p-2 border rounded-xl" placeholder="Método">
+                                <div class="inv-input-group">
+                                    <input id="p_tasa" type="number" step="0.01" min="0" class="inv-input" placeholder=" " />
+                                    <label for="p_tasa" class="inv-label">Tasa BCV</label>
+                                </div>
+                                <div class="inv-input-group">
+                                    <input id="p_metodo" class="inv-input" placeholder=" " />
+                                    <label for="p_metodo" class="inv-label">Método</label>
+                                </div>
                             </div>
-                            <input id="p_ref" class="p-2 border rounded-xl w-full" placeholder="Referencia (opcional)">
-                            <textarea id="p_notas" class="p-2 border rounded-xl w-full text-sm" rows="2"
-                                placeholder="Notas"></textarea>
+                            <div class="inv-input-group">
+                                <input id="p_ref" class="inv-input" placeholder=" " />
+                                <label for="p_ref" class="inv-label">Referencia (opcional)</label>
+                            </div>
+                            <div class="inv-input-group">
+                                <textarea id="p_notas" class="inv-input text-sm" rows="2" placeholder=" "></textarea>
+                                <label for="p_notas" class="inv-label">Notas</label>
+                            </div>
                             <button type="submit"
-                                class="w-full bg-emerald-600 text-white py-2 rounded-xl font-semibold hover:bg-emerald-700 transition">Guardar
-                                pago</button>
+								class="w-full bg-emerald-600 text-white py-2 rounded-xl font-semibold hover:bg-emerald-700 transition">Guardar
+								pago</button>
                         </form>
                     </div>
                     <div id="pago-info" class="text-[11px] text-amber-600"></div>

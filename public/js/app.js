@@ -410,6 +410,7 @@ async function cargarPresupuestoEnPOS(presupuestoId) {
         const tasaInput = document.getElementById('v_tasa');
         const descInput = document.getElementById('v_desc');
         const refInput = document.getElementById('v_ref');
+        const nivelSelect = document.getElementById('pv_nivel_precio');
 
         if (cli) cli.value = presupuesto.cliente || '';
         if (ced) ced.value = presupuesto.cliente_doc || '';
@@ -420,13 +421,32 @@ async function cargarPresupuestoEnPOS(presupuestoId) {
 
         carrito.length = 0;
         (detalles || []).forEach(d => {
+            const base = (typeof d.precio_base_usd === 'number' && !Number.isNaN(d.precio_base_usd))
+                ? Number(d.precio_base_usd)
+                : Number(d.precio_usd || 0) || 0;
             carrito.push({
                 codigo: d.codigo,
                 descripcion: d.descripcion,
+                precio_base_usd: base,
                 precio_usd: Number(d.precio_usd || 0),
                 cantidad: Number(d.cantidad || 0)
             });
         });
+
+        // Ajustar el nivel de precio al usado cuando se emitió el presupuesto
+        const nivelGuardado = (presupuesto.nivel_precio || 'base').toString();
+        if (nivelSelect) {
+            if (Array.from(nivelSelect.options).some(opt => opt.value === nivelGuardado)) {
+                nivelSelect.value = nivelGuardado;
+            } else {
+                nivelSelect.value = 'base';
+            }
+            try {
+                window.currentPriceLevelKey = nivelSelect.value;
+            } catch {}
+            // Disparar cambio para recalcular precios coherentes con el nivel cargado
+            nivelSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
 
         setModoDevolucion(false);
         setVentaSeleccionada(null);
@@ -574,6 +594,10 @@ async function registrarPresupuesto() {
     const tasa = parseFloat(document.getElementById('v_tasa').value);
     const descuento = parseFloat(document.getElementById('v_desc') ? document.getElementById('v_desc').value : 0) || 0;
     const notas = document.getElementById('v_ref') ? document.getElementById('v_ref').value.trim() : '';
+    let nivelPrecio = 'base';
+    try {
+        if (window.currentPriceLevelKey) nivelPrecio = String(window.currentPriceLevelKey);
+    } catch {}
 
     if (!cliente) { showToast('Ingrese el nombre del cliente', 'error'); return; }
     if (!tasa || isNaN(tasa) || tasa <= 0) { showToast('Ingrese una tasa válida', 'error'); return; }
@@ -602,7 +626,7 @@ async function registrarPresupuesto() {
         const res = await apiFetchJson('/presupuestos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items, cliente, cedula, telefono, tasa_bcv: tasa, descuento, notas })
+            body: JSON.stringify({ items, cliente, cedula, telefono, tasa_bcv: tasa, descuento, notas, nivel_precio: nivelPrecio })
         });
         showToast('Presupuesto guardado', 'success');
         finalizarVentaUI();

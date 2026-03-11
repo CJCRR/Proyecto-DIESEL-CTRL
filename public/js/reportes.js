@@ -249,15 +249,56 @@ function renderPresupuestos() {
                     </div>
                     <div class="text-right">
                         <div class="font-black text-blue-600">$${Number(p.total_usd || 0).toFixed(2)}</div>
-                        <button class="mt-1 px-2 py-1 text-[10px] bg-blue-600 text-white rounded" data-pres="${p.id}">Usar en POS</button>
+                        <div class="mt-1 flex gap-1 justify-end">
+                            <button class="px-2 py-1 text-[10px] border border-slate-300 text-slate-700 rounded bg-white hover:bg-slate-50" data-pres-ver="${p.id}">Ver</button>
+                            <button class="px-2 py-1 text-[10px] bg-blue-600 text-white rounded" data-pres-pos="${p.id}">Usar en POS</button>
+                            <button class="px-2 py-1 text-[10px] bg-red-600 text-white rounded" data-pres-del="${p.id}">X</button>
+                        </div>
                     </div>
                 </div>`;
         }).join('');
 
-        cont.querySelectorAll('[data-pres]').forEach(btn => {
+        // Usar en POS
+        cont.querySelectorAll('[data-pres-pos]').forEach(btn => {
             btn.addEventListener('click', () => {
-                const id = btn.dataset.pres;
+                const id = btn.dataset.presPos || btn.getAttribute('data-pres-pos');
+                if (!id) return;
                 window.location.href = `/pos?presupuesto=${encodeURIComponent(id)}`;
+            });
+        });
+
+        // Ver presupuesto (nota imprimible)
+        cont.querySelectorAll('[data-pres-ver]').forEach(btn => {
+            btn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const id = btn.dataset.presVer || btn.getAttribute('data-pres-ver');
+                if (!id) return;
+                const url = `/presupuestos/nota/${encodeURIComponent(id)}`;
+                window.open(url, '_blank');
+            });
+        });
+
+        // Eliminar presupuesto
+        cont.querySelectorAll('[data-pres-del]').forEach(btn => {
+            btn.addEventListener('click', async (ev) => {
+                ev.stopPropagation();
+                const id = btn.dataset.presDel || btn.getAttribute('data-pres-del');
+                if (!id) return;
+                const ok = window.confirm('¿Eliminar este presupuesto? Esta acción no se puede deshacer.');
+                if (!ok) return;
+                try {
+                    await apiFetchJson(`/presupuestos/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                    cachePres = cachePres.filter(p => String(p.id) !== String(id));
+                    renderPresupuestos();
+                    if (window.showToast) {
+                        window.showToast('Presupuesto eliminado', 'success');
+                    }
+                } catch (err) {
+                    console.error('Error eliminando presupuesto', err);
+                    if (window.showToast) {
+                        window.showToast(err.message || 'Error eliminando presupuesto', 'error');
+                    }
+                }
             });
         });
 }

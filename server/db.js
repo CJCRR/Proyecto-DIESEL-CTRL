@@ -665,6 +665,15 @@ const migrations = [
     }
   },
   {
+    id: '028_presupuestos_nivel_precio',
+    up: () => {
+      // Guardar el nivel de precio usado al emitir el presupuesto ("base", "1", "2", etc.)
+      if (!columnExists('presupuestos', 'nivel_precio')) {
+        db.prepare("ALTER TABLE presupuestos ADD COLUMN nivel_precio TEXT").run();
+      }
+    }
+  },
+  {
     id: '019_indices_rendimiento_base',
     up: () => {
       // Índice compuesto para acelerar búsquedas de usuarios por empresa y username

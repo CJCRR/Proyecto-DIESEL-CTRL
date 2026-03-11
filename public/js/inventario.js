@@ -1,5 +1,5 @@
 import { upsertProductoFirebase, eliminarProductoFirebasePorCodigo } from './firebase-sync.js';
-import { showToast } from './app-utils.js';
+import { showToast, escapeHtml } from './app-utils.js';
 import { initCustomSelect } from './modules/ui.js';
 
 // Código principal de inventario (movido desde inventario.html)
@@ -39,6 +39,10 @@ const movMsg = document.getElementById('mov_msg');
 const movList = document.getElementById('movimientos-list');
 const btnMoverDeposito = document.getElementById('btnMoverDeposito');
 const movStockDetalle = document.getElementById('mov_stock_detalle');
+const f_categoria = document.getElementById('f_categoria');
+const categoriaSugList = document.getElementById('categoria_sugerencias');
+
+let categoriasInventario = [];
 
 // Determinar rol de usuario para habilitar o no edición de stock desde inventario
 let esEmpresaAdmin = false;
@@ -827,14 +831,17 @@ async function cargarDepositos() {
         if (f_deposito) {
             f_deposito.innerHTML = '<option value="">(Elegir Depósito)</option>' +
                 items.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
+            try { initCustomSelect('f_deposito'); } catch {}
         }
         if (filterDeposito) {
             filterDeposito.innerHTML = '<option value="">Todos los depósitos</option>' +
                 items.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
+            try { initCustomSelect('filterDeposito'); } catch {}
         }
         if (movDepDestino) {
             movDepDestino.innerHTML = '<option value="">Seleccione depósito destino</option>' +
                 items.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
+            try { initCustomSelect('mov_deposito_destino'); } catch {}
         }
     } catch (err) {
         console.error(err);
@@ -854,6 +861,7 @@ async function cargarCategorias() {
         if (!res.ok) throw new Error('Error categorías');
         const data = await res.json();
         const categorias = Array.isArray(data.items) ? data.items : [];
+        categoriasInventario = categorias;
         if (select) {
             select.innerHTML = '<option value="">Todas las categorías</option>' +
                 categorias.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -861,12 +869,60 @@ async function cargarCategorias() {
         if (dataList) {
             dataList.innerHTML = categorias.map(c => `<option value="${c}"></option>`).join('');
         }
+        if (f_categoria && categoriaSugList) {
+            renderCategoriaSugerencias(categoriasInventario);
+            categoriaSugList.classList.add('hidden');
+        }
     } catch (err) {
         console.error(err);
     }
 }
 
 cargarCategorias();
+
+function renderCategoriaSugerencias(list = []) {
+    if (!categoriaSugList) return;
+    categoriaSugList.innerHTML = '';
+    const items = Array.isArray(list) ? list : [];
+    if (!items.length) {
+        categoriaSugList.classList.add('hidden');
+        return;
+    }
+    items.forEach((cat) => {
+        const li = document.createElement('li');
+        li.textContent = cat;
+        li.addEventListener('click', () => {
+            if (f_categoria) f_categoria.value = cat;
+            categoriaSugList.classList.add('hidden');
+        });
+        categoriaSugList.appendChild(li);
+    });
+    categoriaSugList.classList.remove('hidden');
+}
+
+if (f_categoria && categoriaSugList) {
+    f_categoria.addEventListener('focus', () => {
+        if (!categoriasInventario.length) return;
+        renderCategoriaSugerencias(categoriasInventario);
+    });
+
+    f_categoria.addEventListener('input', (e) => {
+        const q = (e.target.value || '').toString().toLowerCase().trim();
+        if (!categoriasInventario.length) return;
+        if (!q) {
+            renderCategoriaSugerencias(categoriasInventario);
+            return;
+        }
+        const filtered = categoriasInventario.filter((c) => c && c.toString().toLowerCase().includes(q));
+        renderCategoriaSugerencias(filtered);
+    });
+
+    document.addEventListener('click', (ev) => {
+        if (!categoriaSugList) return;
+        if (categoriaSugList.contains(ev.target) || f_categoria.contains(ev.target)) return;
+        categoriaSugList.classList.add('hidden');
+    });
+}
 
 // Buscar producto para movimiento por código
 async function cargarProductoParaMovimiento() {
@@ -1057,6 +1113,6 @@ if (btnRebuildStock) {
 cargarMovimientosDeposito();
 
 // Selects con dropdown moderno tipo POS
-['pageSize', 'filterCategoria', 'filterDeposito', 'filterStock', 'f_deposito', 'mov_deposito_destino', 'importMode'].forEach((id) => {
+['pageSize', 'filterCategoria', 'filterStock', 'importMode'].forEach((id) => {
     try { initCustomSelect(id); } catch {}
 });

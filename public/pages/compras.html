@@ -63,65 +63,74 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                 <div>
-                    <label class="text-[11px] font-semibold text-slate-500">Proveedor</label>
+                    <label class="text-[11px] font-semibold text-slate-500"></label>
                     <select id="c_proveedor"
 						class="w-full select-pos text-sm"></select>
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-slate-500">Fecha</label>
-                    <input id="c_fecha" type="date"
-                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                    <label class="text-[11px] font-semibold text-slate-500"></label>
+                        <div class="inv-input-group">
+                            <input id="c_fecha" type="date" class="inv-input" placeholder=" " />
+                            <label for="c_fecha" class="inv-label">Fecha</label>
+                        </div>
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-slate-500">Número / Ref.</label>
-                    <input id="c_numero"
-                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="OC-0001" />
+                    <label class="text-[11px] font-semibold text-slate-500"></label>
+                        <div class="inv-input-group">
+                            <input id="c_numero" class="inv-input" placeholder=" " />
+                            <label for="c_numero" class="inv-label">Número / Ref.</label>
+                        </div>
                 </div>
             </div>
             <div class="grid grid-cols-1 gap-3 mb-4">
                 <div>
                     <div class="flex items-center justify-between">
-                        <label class="text-[11px] font-semibold text-slate-500">Código</label>
+                        <label class="text-[11px] font-semibold text-slate-500"></label>
                         <button id="btnNuevoProducto" type="button"
                             class="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
                             <i class="fas fa-plus-circle"></i>
                             <span>Nuevo producto</span>
                         </button>
                     </div>
-                    <div class="relative">
-                        <input id="c_codigo" autocomplete="off"
-                            class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Código o nombre" />
-                        <ul id="c_sugerencias"
-							class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
-                        </ul>
-                    </div>
+                        <div class="inv-input-group">
+                            <input id="c_codigo" autocomplete="off" class="inv-input" placeholder=" " />
+                            <label for="c_codigo" class="inv-label">Código o nombre</label>
+                            <ul id="c_sugerencias"
+    								class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
+                            </ul>
+                        </div>
                     <div id="c_producto_info" class="mt-1 text-[11px] text-slate-500 min-h-[1.5rem]"></div>
                 </div>
 
             </div>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
                 <div>
-                    <label class="text-[11px] font-semibold text-slate-500">Tasa BCV</label>
-                    <input id="c_tasa" type="number" step="0.01"
-                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                    <label class="text-[11px] font-semibold text-slate-500"></label>
+                        <div class="inv-input-group">
+                            <input id="c_tasa" type="number" step="0.01" class="inv-input" placeholder=" " />
+                            <label for="c_tasa" class="inv-label">Tasa BCV</label>
+                        </div>
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-slate-500">Cantidad</label>
-                    <input id="c_cantidad" type="number"
-                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                    <label class="text-[11px] font-semibold text-slate-500"></label>
+                        <div class="inv-input-group">
+                            <input id="c_cantidad" type="number" class="inv-input" placeholder=" " />
+                            <label for="c_cantidad" class="inv-label">Cantidad</label>
+                        </div>
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-slate-500">Costo USD</label>
-                    <input id="c_costo" type="number" step="0.01"
-                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+                    <label class="text-[11px] font-semibold text-slate-500"></label>
+                        <div class="inv-input-group">
+                            <input id="c_costo" type="number" step="0.01" class="inv-input" placeholder=" " />
+                            <label for="c_costo" class="inv-label">Costo USD</label>
+                        </div>
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-slate-500">Marca (opcional)</label>
-                    <input id="c_lote"
-                        class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Marca" />
+                    <label class="text-[11px] font-semibold text-slate-500"></label>
+                        <div class="inv-input-group">
+                            <input id="c_lote" class="inv-input" placeholder=" " />
+                            <label for="c_lote" class="inv-label">Marca (opcional)</label>
+                        </div>
                 </div>
             </div>
             <div class="flex justify-end mb-4">
@@ -192,52 +201,62 @@
             <form id="formNuevoProducto" class="space-y-3 text-sm">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <label class="text-[11px] font-semibold text-slate-500">Código</label>
-                        <input id="np_codigo" class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Código interno" required />
+                        <label class="text-[11px] font-semibold text-slate-500"></label>
+                            <div class="inv-input-group">
+                                <input id="np_codigo" class="inv-input" placeholder=" " required />
+                                <label for="np_codigo" class="inv-label">Código interno</label>
+                            </div>
                     </div>
                     <div>
-                        <label class="text-[11px] font-semibold text-slate-500">Marca</label>
-                        <input id="np_marca" class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Opcional" />
+                        <label class="text-[11px] font-semibold text-slate-500"></label>
+                            <div class="inv-input-group">
+                                <input id="np_marca" class="inv-input" placeholder=" " />
+                                <label for="np_marca" class="inv-label">Marca (opcional)</label>
+                            </div>
                     </div>
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-slate-500">Descripción</label>
-                    <input id="np_descripcion"
-                        class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Nombre del producto" required />
+                    <label class="text-[11px] font-semibold text-slate-500"></label>
+                        <div class="inv-input-group">
+                            <input id="np_descripcion" class="inv-input" placeholder=" " required />
+                            <label for="np_descripcion" class="inv-label">Nombre del producto</label>
+                        </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                        <label class="text-[11px] font-semibold text-slate-500">Precio USD</label>
-                        <input id="np_precio" type="number" step="0.01"
-                            class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="0.00" required />
+                        <label class="text-[11px] font-semibold text-slate-500"></label>
+                            <div class="inv-input-group">
+                                <input id="np_precio" type="number" step="0.01" class="inv-input" placeholder=" " required />
+                                <label for="np_precio" class="inv-label">Precio USD</label>
+                            </div>
                     </div>
                     <div>
-                        <label class="text-[11px] font-semibold text-slate-500">Costo USD</label>
-                        <input id="np_costo" type="number" step="0.01"
-                            class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="0.00" />
+                        <label class="text-[11px] font-semibold text-slate-500"></label>
+                            <div class="inv-input-group">
+                                <input id="np_costo" type="number" step="0.01" class="inv-input" placeholder=" " />
+                                <label for="np_costo" class="inv-label">Costo USD</label>
+                            </div>
                     </div>
                     <div>
-                        <label class="text-[11px] font-semibold text-slate-500">Stock inicial</label>
-                        <input id="np_stock" type="number"
-                            class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="0" value="0" />
+                        <label class="text-[11px] font-semibold text-slate-500"></label>
+                            <div class="inv-input-group">
+                                <input id="np_stock" type="number" class="inv-input" placeholder=" " value="0" />
+                                <label for="np_stock" class="inv-label">Stock inicial</label>
+                            </div>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[11px] font-semibold text-slate-500">Categoría</label>
-                        <input id="np_categoria" list="npCategoriaOptions"
-                            class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Opcional" />
+                    <div class="relative">
+                        <label class="text-[11px] font-semibold text-slate-500"></label>
+                            <div class="inv-input-group">
+                                <input id="np_categoria" class="inv-input" placeholder=" " autocomplete="off" />
+                                <label for="np_categoria" class="inv-label">Categoría (opcional)</label>
+                            </div>
+                        <ul id="npCategoriaSug" class="compras-cat-suggestions hidden"></ul>
                         <datalist id="npCategoriaOptions"></datalist>
                     </div>
                     <div>
-                        <label class="text-[11px] font-semibold text-slate-500">Depósito</label>
+                        <label class="text-[11px] font-semibold text-slate-500"></label>
                         <select id="np_deposito"
                             class="w-full p-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">(Elegir Depósito)</option>

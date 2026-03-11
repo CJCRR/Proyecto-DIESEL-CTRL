@@ -8,66 +8,6 @@
     <link rel="stylesheet" href="/styles.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* Toasts */
-        #toast-container {
-            position: fixed;
-            right: 1rem;
-            bottom: 1rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            z-index: 60;
-        }
-
-        .toast {
-            min-width: 200px;
-            padding: 0.6rem 1rem;
-            border-radius: 0.5rem;
-            color: white;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-            transform: translateY(10px);
-            opacity: 0;
-            transition: transform .18s ease, opacity .18s ease;
-        }
-
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .toast.success {
-            background: #16a34a;
-        }
-
-        .toast.error {
-            background: #dc2626;
-        }
-
-        .toast.info {
-            background: #0369a1;
-        }
-
-        /* Modal animations */
-        .modal-backdrop {
-            transition: opacity .2s ease;
-        }
-
-        .modal-panel {
-            transform: scale(.96);
-            opacity: 0;
-            transition: transform .18s ease, opacity .18s ease;
-        }
-
-        .modal-open .modal-panel {
-            transform: scale(1);
-            opacity: 1;
-        }
-
-        .modal-open .modal-backdrop {
-            opacity: 1;
-        }
-    </style>
 </head>
 
 <body class="bg-slate-50 text-slate-900 min-h-screen">
@@ -156,23 +96,40 @@
             <aside id="panel-editor" class="bg-white p-4 rounded shadow">
                 <h3 class="font-black mb-2">Crear / Editar</h3>
                 <form id="form">
-                    <label class="text-xs">Código</label>
-                    <input id="f_codigo" class="w-full p-2 border rounded mb-2" required />
-                    <label class="text-xs">Descripción</label>
-                    <input id="f_desc" class="w-full p-2 border rounded mb-2" required />
-                    <label class="text-xs">Precio USD</label>
-                    <input id="f_precio" type="number" step="0.01" class="w-full p-2 border rounded mb-2" required />
-                    <label class="text-xs">Costo USD</label>
-                    <input id="f_costo" type="number" step="0.01" class="w-full p-2 border rounded mb-2" />
-                    <label class="text-xs">Stock</label>
-                    <input id="f_stock" type="number" class="w-full p-2 border rounded mb-1" required />
-                    <label class="text-[10px] text-slate-500">Motivo ajuste (para historial)</label>
-                    <input id="f_motivo_ajuste" class="w-full p-2 border rounded mb-2" placeholder="Ej: Corrección de inventario" />
-                    <label class="text-xs">Categoría</label>
-                    <input id="f_categoria" list="categoriaOptions" class="w-full p-2 border rounded mb-2" />
+                    <div class="inv-input-group">
+                        <input id="f_codigo" class="inv-input" placeholder=" " required />
+                        <label for="f_codigo" class="inv-label">Código</label>
+                    </div>
+                    <div class="inv-input-group">
+                        <input id="f_desc" class="inv-input" placeholder=" " required />
+                        <label for="f_desc" class="inv-label">Descripción</label>
+                    </div>
+                    <div class="inv-input-group">
+                        <input id="f_precio" type="number" step="0.01" class="inv-input" placeholder=" " required />
+                        <label for="f_precio" class="inv-label">Precio USD</label>
+                    </div>
+                    <div class="inv-input-group">
+                        <input id="f_costo" type="number" step="0.01" class="inv-input" placeholder=" " />
+                        <label for="f_costo" class="inv-label">Costo USD</label>
+                    </div>
+                    <div class="inv-input-group">
+                        <input id="f_stock" type="number" class="inv-input" placeholder=" " required />
+                        <label for="f_stock" class="inv-label">Stock</label>
+                    </div>
+                    <div class="inv-input-group">
+                        <input id="f_motivo_ajuste" class="inv-input" placeholder="Ej: Corrección de inventario" />
+                        <label for="f_motivo_ajuste" class="inv-label text-[10px]">Motivo ajuste</label>
+                    </div>
+                    <div class="inv-input-group">
+                        <input id="f_categoria" class="inv-input" placeholder=" " />
+                        <label for="f_categoria" class="inv-label">Categoría</label>
+                        <ul id="categoria_sugerencias" class="inv-cat-suggestions hidden"></ul>
+                    </div>
                     <datalist id="categoriaOptions"></datalist>
-                    <label class="text-xs">Marca</label>
-                    <input id="f_marca" class="w-full p-2 border rounded mb-4" />
+                    <div class="inv-input-group mb-4">
+                        <input id="f_marca" class="inv-input" placeholder=" " />
+                        <label for="f_marca" class="inv-label">Marca</label>
+                    </div>
                     <label class="text-xs">Depósito</label>
                     <select id="f_deposito" class="w-full select-pos text-sm mb-2"></select>
 

@@ -59,7 +59,7 @@ router.get('/:id', requireAuth, (req, res) => {
       : db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
     if (!presupuesto) return res.status(404).json({ error: 'Presupuesto no encontrado' });
     const detalles = db.prepare(`
-      SELECT pd.*, p.stock
+      SELECT pd.*, p.stock, p.precio_usd AS precio_base_usd
       FROM presupuesto_detalle pd
       LEFT JOIN productos p ON p.id = pd.producto_id
       WHERE pd.presupuesto_id = ?
@@ -174,7 +174,8 @@ router.post('/', requireAuth, (req, res) => {
     telefono = '',
     tasa_bcv,
     descuento = 0,
-    notas = ''
+    notas = '',
+    nivel_precio
   } = req.body || {};
 
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -188,6 +189,7 @@ router.post('/', requireAuth, (req, res) => {
   const cedulaSafe = safeStr(cedula, MAX_DOC);
   const telefonoSafe = safeStr(telefono, MAX_DOC);
   const notasSafe = safeStr(notas, MAX_NOTAS);
+  const nivelPrecioSafe = safeStr(nivel_precio, 16) || 'base';
 
   const tasa = parseFloat(tasa_bcv);
   if (!tasa || Number.isNaN(tasa) || tasa <= 0) {
@@ -215,9 +217,9 @@ router.post('/', requireAuth, (req, res) => {
 
     const tx = db.transaction(() => {
       const info = db.prepare(`
-        INSERT INTO presupuestos (fecha, cliente, cliente_doc, telefono, tasa_bcv, descuento, total_bs, total_usd, valido_hasta, estado, notas, usuario_id, empresa_id)
-        VALUES (?, ?, ?, ?, ?, ?, 0, 0, NULL, 'activo', ?, ?, ?)
-      `).run(fecha, clienteSafe, cedulaSafe, telefonoSafe, tasa, descuentoNum, notasSafe, req.usuario?.id || null, empresaId);
+        INSERT INTO presupuestos (fecha, cliente, cliente_doc, telefono, tasa_bcv, descuento, total_bs, total_usd, valido_hasta, estado, notas, usuario_id, empresa_id, nivel_precio)
+        VALUES (?, ?, ?, ?, ?, ?, 0, 0, NULL, 'activo', ?, ?, ?, ?)
+      `).run(fecha, clienteSafe, cedulaSafe, telefonoSafe, tasa, descuentoNum, notasSafe, req.usuario?.id || null, empresaId, nivelPrecioSafe);
 
       const presupuestoId = info.lastInsertRowid;
 
@@ -264,6 +266,30 @@ router.post('/', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error creando presupuesto:', err.message);
     res.status(400).json({ error: err.message || 'Error creando presupuesto' });
+  }
+});
+
+// Eliminar un presupuesto (y su detalle) para la empresa actual
+router.delete('/:id', requireAuth, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    if (!empresaId) return res.status(400).json({ error: 'Usuario sin empresa asociada' });
+
+    const existente = db.prepare('SELECT id FROM presupuestos WHERE id = ? AND empresa_id = ?').get(id, empresaId);
+    if (!existente) return res.status(404).json({ error: 'Presupuesto no encontrado' });
+
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM presupuesto_detalle WHERE presupuesto_id = ?').run(id);
+      db.prepare('DELETE FROM presupuestos WHERE id = ?').run(id);
+    });
+
+    tx();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error eliminando presupuesto:', err.message);
+    res.status(500).json({ error: 'Error eliminando presupuesto' });
   }
 });
 

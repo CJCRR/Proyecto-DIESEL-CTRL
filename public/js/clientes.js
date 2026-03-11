@@ -1,4 +1,4 @@
-import { obtenerClientesFirebase, upsertClienteFirebase, eliminarClienteFirebasePorCedula } from './firebase-sync.js';
+import { obtenerClientesFirebase, upsertClienteFirebase, eliminarClienteFirebasePorCedula, eliminarClienteFirebasePorId } from './firebase-sync.js';
 import { showToast } from './app-utils.js';
 import { apiFetchJson } from './app-api.js';
 
@@ -27,7 +27,7 @@ function renderTabla(filtro = '') {
     tabla.innerHTML = data
         .map(
             (c) => `
-                <tr class="hover:bg-slate-50 cursor-pointer" data-cedula="${c.cedula || ''}">
+                <tr class="hover:bg-slate-50 cursor-pointer" data-id="${c.id || ''}" data-cedula="${c.cedula || ''}">
                     <td class="p-3 font-semibold text-slate-700">${c.nombre || ''} ${c.descuento ? `<span class='ml-2 text-[10px] text-green-700 font-bold'>-${c.descuento}%</span>` : ''}</td>
                     <td class="p-3 text-slate-600">${c.cedula || ''}</td>
                     <td class="p-3 text-slate-600">${c.telefono || ''}</td>
@@ -103,12 +103,17 @@ async function guardarCliente() {
 
 async function eliminarCliente() {
     const cedula = cedulaInput.value.trim();
-    if (!cedula) {
-        showToast('Cédula requerida para eliminar', 'error');
+    const sel = seleccionado;
+    if (!cedula && !(sel && sel.id)) {
+        showToast('Seleccione un cliente o ingrese cédula para eliminar', 'error');
         return;
     }
     try {
-        await eliminarClienteFirebasePorCedula(cedula);
+        if (cedula) {
+            await eliminarClienteFirebasePorCedula(cedula);
+        } else if (sel && sel.id) {
+            await eliminarClienteFirebasePorId(sel.id);
+        }
         showToast('Cliente eliminado', 'success');
         await loadClientes();
         fillForm(null);
@@ -122,7 +127,8 @@ tabla.addEventListener('click', (e) => {
     const tr = e.target.closest('tr');
     if (!tr) return;
     const cedula = tr.dataset.cedula || '';
-    const c = clientes.find((x) => (x.cedula || '') === cedula);
+    const id = tr.dataset.id || '';
+    const c = clientes.find((x) => (cedula && (x.cedula || '') === cedula) || (id && x.id === id));
     fillForm(c);
 });
 

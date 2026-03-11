@@ -5,6 +5,8 @@
   "main": "server/server.js",
   "scripts": {
     "build:css": "npx tailwindcss -c tailwind.config.js -i ./public/styles/tailwind.css -o ./public/styles/tailwind.generated.css --minify",
+    "build:scss": "sass public/styles/scss/main.scss public/styles.css",
+    "watch:scss": "sass --watch public/styles/scss/main.scss:public/styles.css",
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
     "test": "jest"
@@ -29,6 +31,7 @@
     "jest": "^29.7.0",
     "nodemon": "^3.0.0",
     "postcss": "^8.5.6",
+    "sass": "^1.97.3",
     "supertest": "^7.2.2",
     "tailwindcss": "^3.3.5"
   }
