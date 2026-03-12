@@ -264,7 +264,37 @@ if (typeof window !== 'undefined') {
 
 export function initCustomSelect(id) {
 	const select = document.getElementById(id);
-	if (!select || select.dataset.customized === '1') return;
+	if (!select) return;
+
+	// Si ya fue personalizado anteriormente, solo reconstruir la lista de opciones
+	// para reflejar cualquier cambio dinámico en el <select> original.
+	if (select.dataset.customized === '1') {
+		const wrapper = select.parentElement;
+		if (!wrapper) return;
+		const list = wrapper.querySelector('ul');
+		const display = wrapper.querySelector('button');
+		if (!list || !display) return;
+		list.innerHTML = '';
+		Array.from(select.options).forEach((opt) => {
+			const value = opt.value;
+			const label = opt.textContent || '';
+			if (label === '' && !value) return;
+			const li = document.createElement('li');
+			li.className = 'p-3 border-b last:border-b-0 hover:bg-slate-50 cursor-pointer text-sm';
+			li.textContent = label;
+			li.addEventListener('click', () => {
+				select.value = value;
+				display.textContent = label;
+				list.classList.add('hidden');
+				select.dispatchEvent(new Event('change', { bubbles: true }));
+			});
+			list.appendChild(li);
+		});
+		// Actualizar el texto visible según la opción seleccionada actual
+		const selected = select.options[select.selectedIndex] || null;
+		display.textContent = selected && selected.textContent ? selected.textContent.trim() : 'Seleccionar';
+		return;
+	}
 
 	const originalClasses = (select.className || '').split(/\s+/).filter(Boolean);
 	const layoutClasses = originalClasses.filter(c => {

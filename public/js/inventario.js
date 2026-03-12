@@ -787,14 +787,14 @@ pageSize.addEventListener('change', () => { currentPage = 0; cargarProductos(); 
 function setEditorVisible(visible) {
     if (!layoutInventario || !panelEditor) return;
     if (visible) {
-        panelEditor.classList.remove('hidden');
+        panelEditor.classList.remove('inv-editor-collapsed');
         layoutInventario.classList.remove('lg:grid-cols-1');
         if (!layoutInventario.classList.contains('lg:grid-cols-3')) {
             layoutInventario.classList.add('lg:grid-cols-3');
         }
         if (toggleEditorBtn) toggleEditorBtn.textContent = '>';
     } else {
-        panelEditor.classList.add('hidden');
+        panelEditor.classList.add('inv-editor-collapsed');
         layoutInventario.classList.remove('lg:grid-cols-3');
         if (!layoutInventario.classList.contains('lg:grid-cols-1')) {
             layoutInventario.classList.add('lg:grid-cols-1');
@@ -834,7 +834,7 @@ async function cargarDepositos() {
             try { initCustomSelect('f_deposito'); } catch {}
         }
         if (filterDeposito) {
-            filterDeposito.innerHTML = '<option value="">Todos los depósitos</option>' +
+            filterDeposito.innerHTML = '<option value="">Todos los depós.</option>' +
                 items.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
             try { initCustomSelect('filterDeposito'); } catch {}
         }
@@ -863,8 +863,9 @@ async function cargarCategorias() {
         const categorias = Array.isArray(data.items) ? data.items : [];
         categoriasInventario = categorias;
         if (select) {
-            select.innerHTML = '<option value="">Todas las categorías</option>' +
+            select.innerHTML = '<option value="">Todas las cat.</option>' +
                 categorias.map(c => `<option value="${c}">${c}</option>`).join('');
+            try { initCustomSelect('filterCategoria'); } catch {}
         }
         if (dataList) {
             dataList.innerHTML = categorias.map(c => `<option value="${c}"></option>`).join('');

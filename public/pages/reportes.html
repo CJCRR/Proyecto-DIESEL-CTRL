@@ -16,9 +16,15 @@
       <div class="flex items-center gap-3">
         <button id="btn-menu"
           class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
-          <i class="fas fa-bars text-lg"></i>
+          <label class="burger" for="nav-burger">
+            <input type="checkbox" id="nav-burger" />
+            <span></span>
+            <span></span>
+            <span></span>
+          </label>
         </button>
-        <h1 id="brand-main-title" class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span></h1>
+        <h1 id="brand-main-title" class="text-xl font-bold tracking-tighter italic">DIESEL <span
+            class="text-blue-500">CTRL</span></h1>
       </div>
       <div class="flex items-center gap-3">
         <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Reportes</div>
@@ -51,12 +57,68 @@
     </div>
   </aside>
 
-  <main class="container mx-auto p-6">
-    <section class="bg-white rounded-2xl p-4 border shadow-sm space-y-3">
+  <main class="container mx-auto p-6 space-y-6">
+
+  <!-- Tabs de navegación de reportes -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 px-5 pt-4 pb-0">
+    <nav class="flex flex-wrap gap-4 border-b border-slate-200 text-xs sm:text-sm font-semibold text-slate-500">
+      <button type="button" data-rpt-tab="ventas" class="rpt-tab rpt-tab-default px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+        Ventas
+      </button>
+      <button type="button" data-rpt-tab="devoluciones" class="rpt-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+        Devoluciones
+      </button>
+      <button type="button" data-rpt-tab="presupuestos" class="rpt-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+        Presupuestos
+      </button>
+      <button type="button" data-rpt-tab="comisiones" class="rpt-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+        Comisión
+      </button>
+    </nav>
+  </div>
+
+  <!-- Filtros generales (aplican a todas las secciones) -->
+  <div class="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+    <div class="flex flex-wrap md:flex-nowrap gap-2 text-sm items-center">
+      <input id="rpt-desde" type="date" class="p-2 border rounded flex-none w-full md:w-48" placeholder="Desde">
+      <input id="rpt-hasta" type="date" class="p-2 border rounded flex-none w-full md:w-48" placeholder="Hasta">
+      <div class="relative flex-none w-full md:w-48">
+        <input id="rpt-cliente" class="p-2 border rounded w-full" placeholder="Cliente" autocomplete="off">
+        <ul id="rpt-clientes-list"
+          class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
+        </ul>
+      </div>
+      <div class="relative flex-none w-full md:w-48">
+        <input id="rpt-vendedor" class="p-2 border rounded w-full" placeholder="Vendedor" autocomplete="off">
+        <ul id="rpt-vendedores-list"
+          class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
+        </ul>
+      </div>
+      <div class="flex-none w-full md:w-48">
+        <select id="rpt-metodo" class="select-pos text-sm w-full">
+          <option value="">Método (todos)</option>
+          <option value="efectivo">Efectivo</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="pago_movil">Pago Móvil</option>
+        </select>
+      </div>
+      <div class="flex flex-wrap gap-2 flex-none md:ml-auto">
+        <button id="preset-hoy" class="p-2 border rounded text-xs sm:text-sm">Hoy</button>
+        <button id="preset-semana" class="p-2 border rounded text-xs sm:text-sm">Semana</button>
+        <button id="preset-mes" class="p-2 border rounded text-xs sm:text-sm">Mes</button>
+        <button id="rpt-filtrar" class="flex-1 bg-blue-600 text-white rounded p-2 text-xs sm:text-sm">Filtrar</button>
+        <button id="rpt-export" class="p-2 border rounded text-xs sm:text-sm">Export CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <section id="rpt-sec-ventas" data-rpt-section="ventas" class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <h3 class="text-sm font-black text-slate-600">Reporte de ventas</h3>
-          <button id="ventas-toggle" class="text-[11px] px-2 py-1 border rounded text-slate-600 flex items-center gap-1">
+          <button id="ventas-toggle"
+            class="text-[11px] px-2 py-1 border rounded text-slate-600 flex items-center gap-1">
             <i class="fas fa-chevron-up text-[10px]"></i>
             <span>Ocultar</span>
           </button>
@@ -65,34 +127,6 @@
           <option value="USD">USD</option>
           <option value="BS">Bs</option>
         </select>
-      </div>
-      <div class="flex flex-wrap md:flex-nowrap gap-2 text-sm items-center">
-        <input id="rpt-desde" type="date" class="p-2 border rounded flex-none w-full md:w-48" placeholder="Desde">
-        <input id="rpt-hasta" type="date" class="p-2 border rounded flex-none w-full md:w-48" placeholder="Hasta">
-        <div class="relative flex-none w-full md:w-48">
-          <input id="rpt-cliente" class="p-2 border rounded w-full" placeholder="Cliente" autocomplete="off">
-          <ul id="rpt-clientes-list" class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm"></ul>
-        </div>
-        <div class="relative flex-none w-full md:w-48">
-          <input id="rpt-vendedor" class="p-2 border rounded w-full" placeholder="Vendedor" autocomplete="off">
-          <ul id="rpt-vendedores-list" class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm"></ul>
-        </div>
-        <div class="flex-none w-full md:w-48">
-          <select id="rpt-metodo" class="select-pos text-sm w-full">
-            <option value="">Método (todos)</option>
-            <option value="efectivo">Efectivo</option>
-            <option value="tarjeta">Tarjeta</option>
-            <option value="transferencia">Transferencia</option>
-            <option value="pago_movil">Pago Móvil</option>
-          </select>
-        </div>
-        <div class="flex flex-wrap gap-2 flex-none md:ml-auto">
-          <button id="preset-hoy" class="p-2 border rounded text-xs sm:text-sm">Hoy</button>
-          <button id="preset-semana" class="p-2 border rounded text-xs sm:text-sm">Semana</button>
-          <button id="preset-mes" class="p-2 border rounded text-xs sm:text-sm">Mes</button>
-          <button id="rpt-filtrar" class="flex-1 bg-blue-600 text-white rounded p-2 text-xs sm:text-sm">Filtrar</button>
-          <button id="rpt-export" class="p-2 border rounded text-xs sm:text-sm">Export CSV</button>
-        </div>
       </div>
       <div id="ventas-panel" class="space-y-2">
         <div id="rpt-resumen" class="text-xs text-slate-500">Seleccione rango para ver resultados.</div>
@@ -111,30 +145,6 @@
             </thead>
             <tbody id="rpt-tabla" class="divide-y"></tbody>
           </table>
-        </div>
-      </div>
-      <div class="mt-4 bg-white border rounded p-3">
-        <div class="flex items-center justify-between mb-2">
-          <div class="text-[10px] font-black text-slate-500 uppercase">Devoluciones</div>
-          <button id="dev-toggle" class="text-[11px] px-2 py-1 border rounded text-slate-600 flex items-center gap-1">
-            <i class="fas fa-chevron-up text-[10px]"></i>
-            <span>Ocultar</span>
-          </button>
-        </div>
-        <div id="dev-panel">
-          <div id="rpt-dev" class="text-xs text-slate-700 space-y-2"></div>
-        </div>
-      </div>
-      <div class="mt-4 bg-white border rounded p-3">
-        <div class="flex items-center justify-between mb-2">
-          <div class="text-[10px] font-black text-slate-500 uppercase">Presupuestos</div>
-          <button id="pres-toggle" class="text-[11px] px-2 py-1 border rounded text-slate-600 flex items-center gap-1">
-            <i class="fas fa-chevron-up text-[10px]"></i>
-            <span>Ocultar</span>
-          </button>
-        </div>
-        <div id="pres-panel">
-          <div id="rpt-pres" class="text-xs text-slate-700 space-y-2"></div>
         </div>
       </div>
 
@@ -163,17 +173,44 @@
         </div>
       </div>-->
 
-      <div class="mt-4 bg-white border rounded p-3">
-        <div class="flex items-center justify-between mb-2">
-          <div>
-            <div class="text-[10px] font-black text-slate-500 uppercase">Comisiones por vendedor</div>
-            <div class="text-[11px] text-slate-500">Usa el mismo rango de fechas del reporte de ventas.</div>
-          </div>
-          <button id="comisiones-cargar" class="px-3 py-1 bg-indigo-600 text-white rounded text-xs">Calcular</button>
+    </section>
+
+    <section id="rpt-sec-devoluciones" data-rpt-section="devoluciones" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mt-5">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Devoluciones</div>
+        <button id="dev-toggle" class="text-[11px] px-2 py-1 border rounded text-slate-600 flex items-center gap-1">
+          <i class="fas fa-chevron-up text-[10px]"></i>
+          <span>Ocultar</span>
+        </button>
+      </div>
+      <div id="dev-panel">
+        <div id="rpt-dev" class="text-xs text-slate-700 space-y-2"></div>
+      </div>
+    </section>
+
+    <section id="rpt-sec-presupuestos" data-rpt-section="presupuestos" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mt-5">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Presupuestos</div>
+        <button id="pres-toggle" class="text-[11px] px-2 py-1 border rounded text-slate-600 flex items-center gap-1">
+          <i class="fas fa-chevron-up text-[10px]"></i>
+          <span>Ocultar</span>
+        </button>
+      </div>
+      <div id="pres-panel">
+        <div id="rpt-pres" class="text-xs text-slate-700 space-y-2"></div>
+      </div>
+    </section>
+
+    <section id="rpt-sec-comisiones" data-rpt-section="comisiones" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mt-5">
+      <div class="flex items-center justify-between mb-2">
+        <div>
+          <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Comisiones por vendedor</div>
+          <div class="text-[11px] text-slate-500">Usa el mismo rango de fechas del reporte de ventas.</div>
         </div>
-        <div id="comisiones-contenedor" class="border rounded max-h-64 overflow-auto text-xs p-1">
-          <div class="p-2 text-[11px] text-slate-400">Sin datos. Selecciona un rango y pulsa Calcular.</div>
-        </div>
+        <button id="comisiones-cargar" class="px-3 py-1 bg-indigo-600 text-white rounded text-xs">Calcular</button>
+      </div>
+      <div id="comisiones-contenedor" class="border rounded max-h-64 overflow-auto text-xs p-1">
+        <div class="p-2 text-[11px] text-slate-400">Sin datos. Selecciona un rango y pulsa Calcular.</div>
       </div>
     </section>
   </main>

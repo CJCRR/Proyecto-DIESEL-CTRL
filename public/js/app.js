@@ -296,10 +296,15 @@ function aplicarImpuestosPOSUI() {
 
     const ivaToggle = document.getElementById('pv_iva_toggle');
     const igtfToggle = document.getElementById('pv_igtf_toggle');
+    const ivaPctLabel = document.getElementById('pv_iva_toggle_pct');
     const igtfPctLabel = document.getElementById('pv_igtf_toggle_pct');
 
     if (ivaToggle) {
         ivaToggle.checked = ivaCfg > 0;
+        if (ivaPctLabel) {
+            const pctText = ivaCfg > 0 ? `(${ivaCfg.toFixed(0)}%)` : '';
+            ivaPctLabel.textContent = pctText;
+        }
         ivaToggle.addEventListener('change', async () => {
             try {
                 await syncImpuestosDesdePOS({ ivaEnabled: ivaToggle.checked });
@@ -376,13 +381,18 @@ async function syncImpuestosDesdePOS({ ivaEnabled, igtfEnabled } = {}) {
 
     // Actualizar etiqueta IGTF del toggle según el nuevo valor
     try {
+        const ivaPctLabel = document.getElementById('pv_iva_toggle_pct');
         const igtfPctLabel = document.getElementById('pv_igtf_toggle_pct');
+        if (ivaPctLabel) {
+            const ivaPct = Number(configGeneral.nota?.iva_pct || 0);
+            ivaPctLabel.textContent = ivaPct > 0 ? `(${ivaPct.toFixed(0)}%)` : '';
+        }
         if (igtfPctLabel) {
-            const pct = Number(configGeneral.nota?.igtf_pct || 0);
-            igtfPctLabel.textContent = pct > 0 ? `(${pct.toFixed(0)}%)` : '';
+            const igtfPct = Number(configGeneral.nota?.igtf_pct || 0);
+            igtfPctLabel.textContent = igtfPct > 0 ? `(${igtfPct.toFixed(0)}%)` : '';
         }
     } catch (e) {
-        console.warn('No se pudo refrescar label de IGTF', e);
+        console.warn('No se pudo refrescar labels de IVA/IGTF', e);
     }
 }
 
@@ -876,6 +886,7 @@ function finalizarVentaUI() {
     if (document.getElementById('v_vendedor')) document.getElementById('v_vendedor').value = '';
     if (document.getElementById('v_cedula')) document.getElementById('v_cedula').value = '';
     if (document.getElementById('v_telefono')) document.getElementById('v_telefono').value = '';
+    if (document.getElementById('v_desc')) document.getElementById('v_desc').value = '';
     if (document.getElementById('v_ref')) document.getElementById('v_ref').value = '';
     if (document.getElementById('v_dias')) document.getElementById('v_dias').value = '21';
     if (document.getElementById('v_fecha_venc')) document.getElementById('v_fecha_venc').value = '';
@@ -887,6 +898,9 @@ function finalizarVentaUI() {
     renderVentaSeleccionada();
     setModoDevolucion(false);
     if (window.syncCreditoUI) window.syncCreditoUI();
+    if (typeof window !== 'undefined') {
+        window.lastAutoDescuentoVolumen = 0;
+    }
     vendiendo = false;
     btnVender.disabled = false;
     actualizarHistorial();

@@ -37,6 +37,124 @@
   background: #0369a1;
 }
 
+#btn-menu {
+  /* El botón de menú ahora es transparente porque el ícono de hamburguesa se maneja con CSS */
+  background: transparent;
+}
+
+.burger {
+  position: relative;
+  width: 32px;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+  display: block;
+}
+
+.burger input {
+  display: none;
+}
+
+.burger span {
+  display: block;
+  position: absolute;
+  height: 3px;
+  width: 100%;
+  background: #f9fafb;
+  /* blanco suave para el nav oscuro */
+  border-radius: 999px;
+  opacity: 1;
+  left: 0;
+  transform: rotate(0deg);
+  transition: 0.25s ease-in-out;
+}
+
+.burger span:nth-of-type(1) {
+  top: 0;
+  transform-origin: left center;
+}
+
+.burger span:nth-of-type(2) {
+  top: 50%;
+  transform: translateY(-50%);
+  transform-origin: left center;
+}
+
+.burger span:nth-of-type(3) {
+  top: 100%;
+  transform-origin: left center;
+  transform: translateY(-100%);
+}
+
+/* Estados animados cuando el checkbox está activo */
+.burger input:checked ~ span:nth-of-type(1) {
+  transform: rotate(45deg);
+  top: 1px;
+  left: 4px;
+}
+
+.burger input:checked ~ span:nth-of-type(2) {
+  width: 0;
+  opacity: 0;
+}
+
+.burger input:checked ~ span:nth-of-type(3) {
+  transform: rotate(-45deg);
+  top: 21px;
+  left: 4px;
+}
+
+/* Botón de eliminar compacto, rojo, con hover animado */
+.btn-trash {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 6px;
+  background: rgba(248, 113, 113, 0.08);
+  color: #ef4444;
+  border: none;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.btn-trash:hover {
+  transform: scale(1.07);
+}
+
+.btn-trash:active {
+  transform: scale(0.96);
+}
+
+.btn-trash svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Variante compacta para usar en tablas de acciones (usuarios, etc.) */
+.btn-trash--sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+}
+
+.btn-trash--sm svg {
+  width: 20px;
+  height: 20px;
+}
+
+.fa-gear:hover {
+  animation: spin 2s linear infinite;
+}
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 .modal-backdrop {
   transition: opacity 0.2s ease;
 }
@@ -130,6 +248,29 @@
 
 .inv-cat-suggestions li:hover {
   background-color: #f1f5f9;
+}
+
+.btn-ge-inv {
+  padding-top: 10px;
+}
+
+/* Transición suave para mostrar/ocultar el panel de formulario de inventario */
+#inventario-layout {
+  transition: grid-template-columns 0.5s ease;
+}
+
+#panel-editor {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  will-change: opacity, transform;
+}
+
+#panel-editor.inv-editor-collapsed {
+  opacity: 0;
+  transform: translateX(40px);
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .compras-cat-suggestions {
@@ -232,14 +373,6 @@ nav.bg-slate-900 {
   border-color: var(--brand-primary, #3b82f6) !important;
 }
 
-.bg-amber-600 {
-  background-color: var(--brand-accent, #f97316) !important;
-}
-
-.text-amber-600 {
-  color: var(--brand-accent, #f97316) !important;
-}
-
 /* Botón primario hover */
 .hover\:bg-blue-700:hover {
   background-color: var(--brand-primary, #2563eb) !important;
@@ -256,7 +389,34 @@ nav.bg-slate-900 {
   background-color: color-mix(in srgb, var(--brand-primary, #2563eb) 20%, white) !important;
 }
 
-#ventas-hoy, #ventas-semana, #total-bs {
+/* Tabs POS (Venta / Devolución) con transición suave */
+.pos-tab-btn {
+  transition: background-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
+}
+
+.pos-tab-group {
+  position: relative;
+}
+
+.pos-tab-indicator {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 50%;
+  height: 3px;
+  background: var(--brand-primary, #2563eb);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
+  transition: left 0.25s cubic-bezier(0.22, 0.61, 0.36, 1), transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.pos-tab-group--dev .pos-tab-indicator {
+  left: 50%;
+}
+
+#ventas-hoy,
+#ventas-semana,
+#total-bs {
   font-variant-numeric: tabular-nums;
 }
 
@@ -301,6 +461,300 @@ section {
     transform: translateY(0);
   }
 }
+/* index */
+#venta-items-cuerpo tr {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+#venta-items-cuerpo td {
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+
+/* Botón "Agregar" del POS con animación de icono */
+.btn-pos-add {
+  width: 150px;
+  height: 48px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  background: #2563eb;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 1px 1px 3px rgba(255, 255, 255, 0.15);
+}
+.btn-pos-add .text {
+  transform: translateX(35px);
+  color: #ffffff;
+  font-weight: bold;
+}
+.btn-pos-add .icon {
+  position: absolute;
+  border-left: 2px solid rgba(8, 116, 189, 0.5764705882);
+  transform: translateX(110px);
+  height: 35px;
+  width: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-pos-add,
+.btn-pos-add .icon {
+  transition: 200ms;
+}
+
+.btn-pos-add .text {
+  transition: none;
+}
+
+.btn-pos-add svg {
+  width: 25px;
+  height: 25px;
+  fill: #eeeeee;
+}
+
+.btn-pos-add:hover {
+  background: #2055c7;
+}
+
+.btn-pos-add:active {
+  background: #2563eb;
+}
+
+.btn-pos-add:hover .text {
+  color: transparent;
+  opacity: 0;
+  transition: 0.05s linear;
+}
+
+.btn-pos-add:hover .icon {
+  width: 150px;
+  border-left: none;
+  transform: translateX(0);
+}
+
+.btn-pos-add:focus {
+  outline: none;
+}
+
+.btn-pos-add:active .icon svg {
+  transform: scale(0.8);
+}
+
+/* Animación suave para paneles al cambiar entre Venta / Devolución */
+.tab-panel-animate {
+  animation: tabPanelFade 0.22s ease-out;
+}
+
+@keyframes tabPanelFade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Botón principal POS (Registrar venta / devolución) basado en cssbuttons-io-button */
+.cssbuttons-io-button {
+  background: #2563eb;
+  color: #ffffff;
+  font-family: inherit;
+  padding: 0.35em 3.3em 0.35em 1.2em;
+  font-size: 17px;
+  font-weight: 600;
+  border-radius: 0.9em;
+  border: none;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 1.6em -0.6em #2563eb;
+  overflow: hidden;
+  position: relative;
+  height: 2.8em;
+  cursor: pointer;
+  width: 100%;
+  transition: box-shadow 0.2s ease, transform 0.15s ease, filter 0.2s ease;
+}
+
+.cssbuttons-io-button .cssbtn-label {
+  position: relative;
+  z-index: 1;
+}
+
+.cssbuttons-io-button:hover .cssbtn-label {
+  color: transparent;
+  opacity: 0;
+  transition: opacity 0.15s linear, color 0.15s linear;
+}
+
+.cssbuttons-io-button .icon {
+  background: #ffffff;
+  margin-left: 1em;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.2em;
+  width: 2.2em;
+  border-radius: 0.7em;
+  box-shadow: 0.1em 0.1em 0.6em 0.2em #2563eb;
+  right: 0.3em;
+  transition: all 0.3s ease;
+}
+
+.cssbuttons-io-button .icon svg {
+  width: 1.1em;
+  height: 1.1em;
+  transition: transform 0.3s ease;
+  color: #2563eb;
+}
+
+.cssbuttons-io-button:hover .icon {
+  width: calc(100% - 0.6em);
+}
+
+.cssbuttons-io-button:hover .icon svg {
+  transform: translateX(0.1em);
+}
+
+.cssbuttons-io-button:active .icon {
+  transform: scale(0.95);
+}
+
+/* Variante "inversa" para modo devolución */
+.cssbuttons-io-button--dev {
+  background: #ec3232;
+  color: #ffffff;
+  box-shadow: inset 0 0 1.6em -0.6em rgba(123, 82, 185, 0.35);
+}
+
+.cssbuttons-io-button--dev .icon {
+  background: #ffffff;
+  box-shadow: 0.1em 0.1em 0.6em 0.2em rgba(123, 82, 185, 0.55);
+}
+
+.cssbuttons-io-button--dev .icon svg {
+  color: #ec3232;
+  transform: rotate(180deg);
+}
+
+.cssbuttons-io-button--dev:hover .icon svg {
+  transform: translateX(-0.1em) rotate(180deg);
+}
+
+/* Toggle switch personalizado para checkboxes (IVA, IGTF, ajustes) */
+.switch {
+  --switch-width: 46px;
+  --switch-height: 24px;
+  --switch-bg: rgb(148, 163, 184);
+  --switch-checked-bg: #2563eb;
+  --circle-diameter: 18px;
+  --circle-bg: #ffffff;
+  --circle-shadow: 1px 1px 2px rgba(146, 146, 146, 0.45);
+  --circle-checked-shadow: -1px 1px 2px rgba(163, 163, 163, 0.45);
+  --switch-offset: calc((var(--switch-height) - var(--circle-diameter)) / 2);
+  --switch-transition: all 0.2s cubic-bezier(0.27, 0.2, 0.25, 1.51);
+  --circle-transition: var(--switch-transition);
+  --icon-transition: all 0.2s cubic-bezier(0.27, 0.2, 0.25, 1.51);
+  --icon-cross-color: var(--switch-bg);
+  --icon-cross-size: 6px;
+  --icon-checkmark-color: var(--switch-checked-bg);
+  --icon-checkmark-size: 10px;
+  --effect-width: calc(var(--circle-diameter) / 2);
+  --effect-height: calc(var(--effect-width) / 2 - 1px);
+  --effect-bg: var(--circle-bg);
+  --effect-border-radius: 1px;
+  --effect-transition: all 0.2s ease-in-out;
+  display: inline-block;
+  position: relative;
+}
+
+.switch input {
+  display: none;
+}
+
+.switch svg {
+  transition: var(--icon-transition);
+  position: absolute;
+  height: auto;
+}
+
+.switch .checkmark {
+  width: var(--icon-checkmark-size);
+  color: var(--icon-checkmark-color);
+  transform: scale(0);
+}
+
+.switch .cross {
+  width: var(--icon-cross-size);
+  color: var(--icon-cross-color);
+}
+
+.switch .slider {
+  box-sizing: border-box;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  background: var(--switch-bg);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  position: relative;
+  transition: var(--switch-transition);
+  cursor: pointer;
+}
+
+.switch .circle {
+  width: var(--circle-diameter);
+  height: var(--circle-diameter);
+  background: var(--circle-bg);
+  border-radius: inherit;
+  box-shadow: var(--circle-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--circle-transition);
+  z-index: 1;
+  position: absolute;
+  left: var(--switch-offset);
+}
+
+.switch .slider::before {
+  content: "";
+  position: absolute;
+  width: var(--effect-width);
+  height: var(--effect-height);
+  left: calc(var(--switch-offset) + var(--effect-width) / 2);
+  background: var(--effect-bg);
+  border-radius: var(--effect-border-radius);
+  transition: var(--effect-transition);
+}
+
+.switch input:checked + .slider {
+  background: var(--switch-checked-bg);
+}
+
+.switch input:checked + .slider .checkmark {
+  transform: scale(1);
+}
+
+.switch input:checked + .slider .cross {
+  transform: scale(0);
+}
+
+.switch input:checked + .slider::before {
+  left: calc(100% - var(--effect-width) - var(--effect-width) / 2 - var(--switch-offset));
+}
+
+.switch input:checked + .slider .circle {
+  left: calc(100% - var(--circle-diameter) - var(--switch-offset));
+  box-shadow: var(--circle-checked-shadow);
+}
+
 .login-bg {
   background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
 }

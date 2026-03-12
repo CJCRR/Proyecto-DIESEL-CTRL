@@ -179,8 +179,10 @@ export function actualizarTabla() {
 			<td class="p-4 text-right text-slate-400 font-mono">$${item.precio_usd.toFixed(2)}</td>
 			<td class="p-4 text-right font-black ${modoDevolucion ? 'text-rose-600' : 'text-blue-600'} font-mono">$${subtotalUSD.toFixed(2)}</td>
 			<td class="p-4 text-center">
-				<button onclick="eliminarDelCarrito(${index})" class="w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-all">
-					<i class="fas fa-trash-alt"></i>
+				<button onclick="eliminarDelCarrito(${index})" class="btn-trash" title="Quitar del carrito">
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+						<path fill="currentColor" d="M8.78842 5.03866C8.86656 4.96052 8.97254 4.91663 9.08305 4.91663H11.4164C11.5269 4.91663 11.6329 4.96052 11.711 5.03866C11.7892 5.11681 11.833 5.22279 11.833 5.33329V5.74939H8.66638V5.33329C8.66638 5.22279 8.71028 5.11681 8.78842 5.03866ZM7.16638 5.74939V5.33329C7.16638 4.82496 7.36832 4.33745 7.72776 3.978C8.08721 3.61856 8.57472 3.41663 9.08305 3.41663H11.4164C11.9247 3.41663 12.4122 3.61856 12.7717 3.978C13.1311 4.33745 13.333 4.82496 13.333 5.33329V5.74939H15.5C15.9142 5.74939 16.25 6.08518 16.25 6.49939C16.25 6.9136 15.9142 7.24939 15.5 7.24939H15.0105L14.2492 14.7095C14.2382 15.2023 14.0377 15.6726 13.6883 16.0219C13.3289 16.3814 12.8414 16.5833 12.333 16.5833H8.16638C7.65805 16.5833 7.17054 16.3814 6.81109 16.0219C6.46176 15.6726 6.2612 15.2023 6.25019 14.7095L5.48896 7.24939H5C4.58579 7.24939 4.25 6.9136 4.25 6.49939C4.25 6.08518 4.58579 5.74939 5 5.74939H6.16667H7.16638ZM7.91638 7.24996H12.583H13.5026L12.7536 14.5905C12.751 14.6158 12.7497 14.6412 12.7497 14.6666C12.7497 14.7771 12.7058 14.8831 12.6277 14.9613C12.5495 15.0394 12.4436 15.0833 12.333 15.0833H8.16638C8.05588 15.0833 7.94989 15.0394 7.87175 14.9613C7.79361 14.8831 7.74972 14.7771 7.74972 14.6666C7.74972 14.6412 7.74842 14.6158 7.74584 14.5905L6.99681 7.24996H7.91638Z" clip-rule="evenodd" fill-rule="evenodd"></path>
+					</svg>
 				</button>
 			</td>
 		`;
@@ -354,6 +356,56 @@ export function eliminarDelCarrito(index) {
 	actualizarTabla();
 }
 
+export function vaciarCarritoYForm() {
+	// Vaciar carrito y actualizar totales
+	carrito = [];
+	actualizarTabla();
+	limpiarSeleccion();
+
+	// Limpiar campos del formulario de la derecha
+	const limpiarValor = (id, value = '') => {
+		const el = document.getElementById(id);
+		if (el) el.value = value;
+	};
+
+	limpiarValor('v_cliente');
+	limpiarValor('v_cedula');
+	limpiarValor('v_telefono');
+	limpiarValor('v_ref');
+	limpiarValor('v_desc', '0.00');
+
+	// Reset de sugerencias de clientes
+	const sugClientes = document.getElementById('v_sugerencias_clientes');
+	if (sugClientes) {
+		sugClientes.innerHTML = '';
+		sugClientes.classList.add('hidden');
+	}
+
+	// Reset método de pago al valor por defecto si existe
+	const metodo = document.getElementById('v_metodo');
+	if (metodo) {
+		metodo.value = 'efectivo_$';
+	}
+
+	// Reset vendedor (primer opción si existe)
+	const vendedor = document.getElementById('v_vendedor');
+	if (vendedor && vendedor.options.length) {
+		vendedor.selectedIndex = 0;
+	}
+
+	// Reset descuento automático por volumen
+	if (typeof window !== 'undefined') {
+		window.lastAutoDescuentoVolumen = 0;
+	}
+
+	// Sincronizar panel de crédito si hay lógica adicional
+	if (window.syncCreditoUI) {
+		try {
+			window.syncCreditoUI();
+		} catch {}
+	}
+}
+
 export function limpiarSeleccion() {
 	productoSeleccionado = null;
 	if (buscarInput) buscarInput.value = '';
@@ -367,6 +419,7 @@ export function setModoDevolucion(active) {
 	const label = document.getElementById('pv-modo-label');
 	const btnVenta = document.getElementById('btn-tab-venta');
 	const btnDev = document.getElementById('btn-tab-devolucion');
+	const tabGroup = document.querySelector('.pos-tab-group');
 	const panelDev = document.getElementById('panel-devolucion');
 	const panelCredito = document.getElementById('panel-credito');
 	const panelVentaControls = document.querySelectorAll('[data-panel-venta]');
@@ -377,6 +430,9 @@ export function setModoDevolucion(active) {
 		btnDev.classList.toggle('active-tab', modoDevolucion);
 		btnDev.classList.toggle('text-slate-500', !modoDevolucion);
 	}
+	if (tabGroup) {
+		tabGroup.classList.toggle('pos-tab-group--dev', modoDevolucion);
+	}
 	if (panelDev) panelDev.classList.toggle('hidden', !modoDevolucion);
 	if (panelVentaControls && panelVentaControls.length) {
 		panelVentaControls.forEach(el => {
@@ -386,10 +442,31 @@ export function setModoDevolucion(active) {
 			}
 		});
 	}
+
+	// Animación suave de entrada para el panel que se muestra
+	const panelsToAnimate = [];
+	if (modoDevolucion && panelDev && !panelDev.classList.contains('hidden')) {
+		panelsToAnimate.push(panelDev);
+	}
+	if (!modoDevolucion && panelVentaControls && panelVentaControls.length) {
+		panelVentaControls.forEach(el => {
+			if (!el.classList.contains('hidden')) panelsToAnimate.push(el);
+		});
+	}
+	panelsToAnimate.forEach(el => {
+		el.classList.remove('tab-panel-animate');
+		// forzar reflow para reiniciar la animación
+		void el.offsetWidth;
+		el.classList.add('tab-panel-animate');
+	});
 	if (btnVender) {
-		btnVender.textContent = modoDevolucion ? 'Registrar devolución' : 'Registrar venta';
-		btnVender.classList.toggle('bg-blue-500', !modoDevolucion);
-		btnVender.classList.toggle('bg-rose-500', modoDevolucion);
+		const label = btnVender.querySelector('.cssbtn-label');
+		if (label) {
+			label.textContent = modoDevolucion ? 'Registrar devolución' : 'Registrar venta';
+		} else {
+			btnVender.textContent = modoDevolucion ? 'Registrar devolución' : 'Registrar venta';
+		}
+		btnVender.classList.toggle('cssbuttons-io-button--dev', modoDevolucion);
 	}
 	if (buscarInput) buscarInput.disabled = modoDevolucion;
 	const qtyInput = document.getElementById('v_cantidad');
@@ -418,3 +495,4 @@ window.prepararParaAgregar = prepararParaAgregar;
 window.actualizarTabla = actualizarTabla;
 window.setModoDevolucion = setModoDevolucion;
 window.recalcularPreciosPorNivel = recalcularPreciosPorNivel;
+window.vaciarCarritoYForm = vaciarCarritoYForm;

@@ -96,3 +96,27 @@
 .inv-cat-suggestions li:hover {
 	background-color: #f1f5f9;
 }
+
+.btn-ge-inv {
+	padding-top: 10px;
+}
+
+/* Transición suave para mostrar/ocultar el panel de formulario de inventario */
+
+#inventario-layout {
+	transition: grid-template-columns 0.5s ease;
+}
+
+#panel-editor {
+	opacity: 1;
+	transform: translateX(0);
+	transition: opacity 0.5s ease, transform 0.5s ease;
+	will-change: opacity, transform;
+}
+
+#panel-editor.inv-editor-collapsed {
+	opacity: 0;
+	transform: translateX(40px);
+	overflow: hidden;
+	pointer-events: none;
+}

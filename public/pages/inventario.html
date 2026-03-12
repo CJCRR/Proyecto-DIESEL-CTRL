@@ -16,7 +16,12 @@
             <div class="flex items-center gap-3">
                 <button id="btn-menu"
                     class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
-                    <i class="fas fa-bars text-lg"></i>
+                    <label class="burger" for="nav-burger">
+                        <input type="checkbox" id="nav-burger" />
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </label>
                 </button>
                 <h1 id="brand-main-title" class="text-xl font-bold tracking-tighter italic">DIESEL <span class="text-blue-500">CTRL</span>
                 </h1>
@@ -66,10 +71,10 @@
                             <option value="50" selected>50</option>
                         </select>
                         <select id="filterCategoria" class="select-pos text-sm min-w-[180px]">
-                            <option value="">Todas las categorías</option>
+                            <option value="">Cat. todas</option>
                         </select>
                         <select id="filterDeposito" class="select-pos text-sm min-w-[180px]">
-                            <option value="">Todos los depósitos</option>
+                            <option value="">Dep. todos</option>
                         </select>
                         <select id="filterStock" class="select-pos text-sm min-w-[140px]">
                             <option value="all">Todos</option>
@@ -130,10 +135,10 @@
                         <input id="f_marca" class="inv-input" placeholder=" " />
                         <label for="f_marca" class="inv-label">Marca</label>
                     </div>
-                    <label class="text-xs">Depósito</label>
+                    <label class="text-xs"></label>
                     <select id="f_deposito" class="w-full select-pos text-sm mb-2"></select>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 btn-ge-inv">
                         <button type="submit" id="btnGuardar"
                             class="flex-1 bg-blue-600 text-white p-2 rounded">Guardar</button>
                         <button type="button" id="btnBorrar"

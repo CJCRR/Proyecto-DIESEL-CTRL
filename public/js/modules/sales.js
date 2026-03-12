@@ -274,7 +274,12 @@ export async function registrarVenta() {
 	vendiendo = true;
 	if (btnVender) {
 		btnVender.disabled = true;
-		btnVender.innerText = 'Procesando...';
+		const label = btnVender.querySelector('.cssbtn-label');
+		if (label) {
+			label.textContent = 'Procesando...';
+		} else {
+			btnVender.innerText = 'Procesando...';
+		}
 	}
 
 	try {
@@ -355,7 +360,12 @@ export async function registrarVenta() {
 		vendiendo = false;
 		if (btnVender) {
 			btnVender.disabled = false;
-			btnVender.textContent = 'Registrar venta';
+			const label = btnVender.querySelector('.cssbtn-label');
+			if (label) {
+				label.textContent = 'Registrar venta';
+			} else {
+				btnVender.textContent = 'Registrar venta';
+			}
 		}
 	}
 	if (typeof window.actualizarHistorial === 'function') {
