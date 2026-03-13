@@ -764,6 +764,10 @@ section {
   background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
 }
 
+.nota-metodo {
+  margin-top: 10px;
+}
+
 html,
 body {
   height: 100%;

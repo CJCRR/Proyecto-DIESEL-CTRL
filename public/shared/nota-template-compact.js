@@ -279,7 +279,7 @@
             <div class="totales">
               <div class="box" style="border:1px solid #000; min-height:48px; font-size:9px;">
                 <div style="font-weight:700; margin-bottom:2px;">NOTA</div>
-                ${notaPagoHtml}
+                <div class="nota-metodo" style="font-size:13px; margin-top:10px">${notaPagoHtml}</div>
               </div>
               <div class="tot-box">
                 <div class="tot-row"><div>Sub-total Bs</div><div class="right">Bs ${totalBsBase.toFixed(2)}</div></div>
