@@ -449,6 +449,75 @@ https://...logo2.png"></textarea>
             </div>
         </section>
 
+                <!-- Plan y pagos -->
+        <section id="aj-sec-plan" data-aj-section="seguridad" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Seguridad y riesgo</p>
+                    <h2 class="text-lg font-black">Plan y pagos</h2>
+                    <p class="text-[11px] text-slate-500 mt-1">Resumen del plan activo de tu empresa y próximos cobros.</p>
+                </div>
+                <div class="flex flex-col items-start sm:items-end gap-2 text-xs">
+                    <div class="flex items-center gap-2">
+                        <span id="plan_estado_badge" class="px-2 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Cargando plan...</span>
+                    </div>
+                
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
+                <div class="lg:col-span-2 space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/60">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Plan actual</p>
+                            <p id="plan_nombre" class="text-sm font-semibold text-slate-800 mt-1">—</p>
+                            <p id="plan_monto_mensual" class="text-[11px] text-slate-500 mt-0.5">—</p>
+                        </div>
+                        <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/60">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Próximo cobro</p>
+                            <p id="plan_proximo_pago" class="text-sm font-semibold text-slate-800 mt-1">—</p>
+                            <p id="plan_dias_restantes" class="text-[11px] text-slate-500 mt-0.5">Calculando...</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] text-slate-600">
+                        <div>
+                            <p class="font-semibold text-slate-700">Estado de la cuenta</p>
+                            <p id="plan_estado_text" class="mt-0.5">—</p>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-slate-700">Último pago registrado</p>
+                            <p id="plan_ultimo_pago" class="mt-0.5">—</p>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-slate-700">Día de corte y gracia</p>
+                            <p id="plan_corte_gracia" class="mt-0.5">—</p>
+                        </div>
+                    </div>
+
+                    <div id="plan_alert" class="mt-3 hidden text-xs rounded-xl border p-2 flex items-center gap-2">
+                        <i id="plan_alert_icon" class="fa-solid fa-triangle-exclamation text-[11px]"></i>
+                        <span id="plan_alert_text">&nbsp;</span>
+                    </div>
+                    <p id="plan_error" class="mt-2 text-[11px] text-rose-500 hidden"></p>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Historial reciente</p>
+                            <p class="text-[11px] text-slate-500">Pagos relacionados con tu plan.</p>
+                        </div>
+                    </div>
+                    <div class="mt-1 border border-slate-200 rounded-2xl bg-slate-50/60 max-h-40 overflow-y-auto" id="plan_historial_box">
+                        <div id="plan_historial_list" class="divide-y divide-slate-100 text-[11px]">
+                            <div class="px-3 py-2 text-slate-400">Cargando historial...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Seguridad (2FA) -->
         <section id="sec-2fa" data-aj-section="seguridad" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-4">
@@ -505,6 +574,8 @@ https://...logo2.png"></textarea>
             </div>
         </section>
 
+
+
         <section id="aj-sec-riesgo" data-aj-section="seguridad" class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5">
             <div class="flex items-center justify-between mb-3">
                 <div>
@@ -547,8 +618,15 @@ https://...logo2.png"></textarea>
         </div>
     </div>
 
-    <footer class="border-t border-slate-200 mt-8 py-4 text-center text-xs text-slate-400">
-        <p id="global-footer-branding">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>
+    <footer class="border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">
+        <div class="container mx-auto px-4 relative flex items-center justify-center">
+            <p id="global-footer-branding" class="text-center">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>
+            <p class="hidden sm:block absolute right-0 text-right">
+                <a href="/terminos" class="hover:underline">Términos y Condiciones</a>
+                <span class="mx-1">·</span>
+                <a href="/terminos" class="hover:underline">Política de Privacidad</a>
+            </p>
+        </div>
     </footer>
 
     <!-- Librería ligera para generar códigos QR en el navegador -->

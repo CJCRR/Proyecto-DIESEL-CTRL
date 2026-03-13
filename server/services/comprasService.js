@@ -134,12 +134,11 @@ function crearCompra(payload = {}, usuario) {
     for (const raw of items) {
       const codigo = safeStr(raw.codigo, 80);
       const cantidad = parseInt(raw.cantidad, 10) || 0;
-      const costo = parseFloat(raw.costo_usd) || 0;
       const lote = safeStr(raw.lote, 80);
       const obs = safeStr(raw.observaciones, MAX_TEXT);
 
-      if (!codigo || cantidad <= 0 || costo <= 0) {
-        const err = new Error('Cada item requiere código, cantidad > 0 y costo_usd > 0');
+      if (!codigo || cantidad <= 0) {
+        const err = new Error('Cada item requiere código y cantidad > 0');
         err.tipo = 'VALIDACION';
         throw err;
       }
@@ -147,6 +146,23 @@ function crearCompra(payload = {}, usuario) {
       const prod = selectProd.get(codigo, empresaId);
       if (!prod) {
         const err = new Error(`Producto no encontrado para código ${codigo}`);
+        err.tipo = 'VALIDACION';
+        throw err;
+      }
+
+      // Si el costo viene null/undefined/"", usamos el costo anterior del producto
+      const costoField = raw.costo_usd;
+      let costo;
+      if (costoField === null || costoField === undefined || costoField === '') {
+        const costoProd = typeof prod.costo_usd === 'number' ? prod.costo_usd : 0;
+        costo = costoProd || 0;
+      } else {
+        const costoParsed = parseFloat(costoField);
+        costo = Number.isNaN(costoParsed) ? 0 : costoParsed;
+      }
+
+      if (costo < 0) {
+        const err = new Error('Cada item requiere código, cantidad > 0 y costo_usd >= 0');
         err.tipo = 'VALIDACION';
         throw err;
       }
@@ -172,7 +188,11 @@ function crearCompra(payload = {}, usuario) {
 
       // Actualizar stock total del producto y existencias en el depósito asignado
       const nuevoStockTotal = (prod.stock || 0) + cantidad;
-      updateProdStock.run(nuevoStockTotal, costo, marca, prod.id);
+      // Si el usuario no envió costo explícito, mantenemos el costo actual del producto
+      const costoParaActualizar = (costoField === null || costoField === undefined || costoField === '')
+        ? (typeof prod.costo_usd === 'number' ? prod.costo_usd : costo)
+        : costo;
+      updateProdStock.run(nuevoStockTotal, costoParaActualizar, marca, prod.id);
 
       const depositoId = prod.deposito_id;
       if (depositoId) {

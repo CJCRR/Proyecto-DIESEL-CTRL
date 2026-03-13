@@ -191,8 +191,15 @@
 
     <div id="toast" class="fixed bottom-4 right-4 hidden px-4 py-3 rounded-xl shadow-lg text-white text-sm"></div>
 
-    <footer class="border-t border-slate-200 mt-8 py-4 text-center text-xs text-slate-400">
-        <p id="global-footer-branding">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>
+    <footer class="border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">
+        <div class="container mx-auto px-4 relative flex items-center justify-center">
+            <p id="global-footer-branding" class="text-center">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>
+            <p class="hidden sm:block absolute right-0 text-right">
+                <a href="/terminos" class="hover:underline">Términos y Condiciones</a>
+                <span class="mx-1">·</span>
+                <a href="/terminos" class="hover:underline">Política de Privacidad</a>
+            </p>
+        </div>
     </footer>
 
     <!-- Script de navegación movido a cobranzas.js -->

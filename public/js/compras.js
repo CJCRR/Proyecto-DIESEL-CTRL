@@ -279,11 +279,33 @@ async function cargarProveedoresParaSelect() {
 function agregarItemDesdeFormulario() {
   const codigo = document.getElementById('c_codigo').value.trim();
   const cantidad = formInt('c_cantidad', 0);
-  const costo = formNumber('c_costo', 0);
+  const costoInputEl = document.getElementById('c_costo');
+  const costoRaw = (costoInputEl && costoInputEl.value ? costoInputEl.value : '').trim();
+  let costo;
+  let usarCostoAnterior = false;
   const marcaInput = document.getElementById('c_lote').value.trim();
 
-  if (!codigo || cantidad <= 0 || costo <= 0) {
-    showToast('Código, cantidad y costo son requeridos', 'error');
+  if (!codigo) {
+    showToast('El código es requerido', 'error');
+    return;
+  }
+  if (cantidad <= 0) {
+    showToast('La cantidad debe ser mayor a 0', 'error');
+    return;
+  }
+  if (costoRaw === '') {
+    usarCostoAnterior = true;
+    if (productoSeleccionado && typeof productoSeleccionado.costo_usd === 'number') {
+      costo = productoSeleccionado.costo_usd;
+    } else {
+      costo = 0;
+    }
+  } else {
+    costo = formNumber('c_costo', 0);
+  }
+
+  if (costo < 0) {
+    showToast('El costo no puede ser negativo', 'error');
     return;
   }
 
@@ -297,7 +319,7 @@ function agregarItemDesdeFormulario() {
 
   const marca = marcaInput || marcaBase;
 
-  items.push({ codigo, descripcion: desc, marca, cantidad, costo, lote: '' });
+  items.push({ codigo, descripcion: desc, marca, cantidad, costo, usarCostoAnterior, lote: '' });
   document.getElementById('c_codigo').value = '';
   document.getElementById('c_cantidad').value = '';
   document.getElementById('c_costo').value = '';
@@ -327,7 +349,8 @@ async function guardarCompra() {
       descripcion: it.descripcion,
       marca: it.marca,
       cantidad: it.cantidad,
-      costo_usd: it.costo,
+      // Si el usuario dejó el costo en blanco, enviamos null para que el backend use el costo anterior
+      costo_usd: it.usarCostoAnterior ? null : it.costo,
       lote: '',
       observaciones: it.observaciones,
     })),

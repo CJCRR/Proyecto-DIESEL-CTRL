@@ -219,6 +219,56 @@ function getConfigJSON(clave, defObj = {}) {
   }
 }
 
+// ===== RESUMEN DE PLAN POR EMPRESA =====
+
+function obtenerResumenPlanEmpresa(empresaId) {
+  const eid = empresaId != null ? Number(empresaId) : null;
+  if (!Number.isFinite(eid) || eid <= 0) {
+    return { empresa: null, pagos: [] };
+  }
+
+  const empresa = db.prepare(`
+      SELECT id, nombre, codigo, estado, plan, monto_mensual, fecha_alta, fecha_corte, dias_gracia,
+             ultimo_pago_en, proximo_cobro
+      FROM empresas
+      WHERE id = ?
+    `).get(eid) || null;
+
+  const pagosRaw = db.prepare(`
+      SELECT id, empresa_id, fecha, monto_usd, moneda, referencia, descripcion, origen
+      FROM pagos_licencia
+      WHERE empresa_id = ?
+      ORDER BY date(fecha) DESC, id DESC
+      LIMIT 5
+    `).all(eid);
+
+  let pagos = pagosRaw;
+
+  // Fallback suave: si todavía no hay historial en pagos_licencia, sintetizar
+  // un registro básico usando ultimo_pago_en y monto_mensual para que el
+  // panel "Plan y pagos" nunca se vea vacío cuando ya existe al menos un pago.
+  if ((!pagos || pagos.length === 0) && empresa && empresa.ultimo_pago_en) {
+    const monto = Number(empresa.monto_mensual || 0) || 0;
+    pagos = [
+      {
+        id: null,
+        empresa_id: empresa.id,
+        fecha: empresa.ultimo_pago_en,
+        monto_usd: monto,
+        moneda: 'USD',
+        referencia: null,
+        descripcion: empresa.plan ? `Pago plan ${empresa.plan}` : 'Último pago registrado',
+        origen: 'empresa_meta',
+      },
+    ];
+  }
+
+  return {
+    empresa,
+    pagos,
+  };
+}
+
 // ===== BRANDING GLOBAL DEL PANEL (SUPERADMIN) =====
 
 const DEFAULT_APP_BRANDING = {
@@ -782,4 +832,5 @@ module.exports = {
   obtenerBrandingGlobal,
   guardarBrandingGlobal,
   purgeTransactionalData,
+  obtenerResumenPlanEmpresa,
 };

@@ -119,6 +119,15 @@ if (!puedeEditarStockDesdeInventario) {
         const lblStock = f_stock.previousElementSibling;
         if (lblStock && lblStock.tagName === 'LABEL') lblStock.classList.add('hidden');
         f_stock.classList.add('hidden');
+        // Evitar que la validación nativa bloquee el submit por un campo requerido no visible
+        try {
+            f_stock.required = false;
+            f_stock.removeAttribute('required');
+        } catch {}
+        // Forzar valor 0 por defecto para nuevos productos creados por vendedores
+        if (!f_stock.value) {
+            f_stock.value = '0';
+        }
     }
     if (f_motivoAjuste) {
         const lblMotivo = f_motivoAjuste.previousElementSibling;

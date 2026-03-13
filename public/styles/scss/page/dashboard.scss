@@ -111,6 +111,11 @@ nav.bg-slate-900 {
     left: 50%;
 }
 
+/* Variante para tabs del historial (Ventas / Presupuestos) */
+.hist-tab-group--pres .pos-tab-indicator {
+    left: 50%;
+}
+
 #ventas-hoy,
 #ventas-semana,
 #total-bs {

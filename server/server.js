@@ -62,7 +62,7 @@ app.get('/pages/login.html', (req, res) => {
 const htmlPages = [
     'ajustes.html', 'clientes.html', 'cobranzas.html', 'dashboard.html',
     'index.html', 'inventario.html', 'login.html', 'reportes.html', 'usuarios.html',
-    'admin-empresas.html'
+    'admin-empresas.html', '404.html', 'terminos.html'
 ];
 htmlPages.forEach(page => {
     app.get(`/pages/${page}`, (req, res) => {
@@ -84,7 +84,9 @@ const prettyRoutes = {
     // Las vistas de proveedores y compras se sirven aquí, las APIs ahora viven bajo /api
     '/proveedores': 'proveedores.html',
     '/compras': 'compras.html',
-    '/admin-empresas': 'admin-empresas.html'
+    '/admin-empresas': 'admin-empresas.html',
+    '/404': '404.html',
+    '/terminos': 'terminos.html'
 };
 
 Object.entries(prettyRoutes).forEach(([route, page]) => {
@@ -115,6 +117,21 @@ app.use('/cobranzas', cobranzasRoutes);
 app.use('/alertas', alertasRoutes);
 app.use('/presupuestos', presupuestosRoutes);
 app.use('/sync', syncRoutes);
+
+// Middleware 404: rutas no encontradas
+app.use((req, res, next) => {
+    // Si parece una petición de API (prefijo /api o cabecera JSON), responder JSON
+    const wantsJson = req.xhr
+        || req.path.startsWith('/api/')
+        || (req.headers.accept && req.headers.accept.includes('application/json'));
+
+    if (wantsJson) {
+        return res.status(404).json({ error: 'Recurso no encontrado', code: 'NOT_FOUND' });
+    }
+
+    // Para navegadores, servir la página 404 bonita
+    return res.status(404).sendFile(path.join(PAGES_DIR, '404.html'));
+});
 
 // Backup automático (configurable por variables de entorno)
 const isTestEnv = process.env.NODE_ENV === 'test';

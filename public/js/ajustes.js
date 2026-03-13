@@ -15,6 +15,28 @@ let purgeInput = null;
 let purgeCancelar = null;
 let purgeConfirmar = null;
 
+function formatFechaCorta(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10) || '—';
+    try {
+        return d.toLocaleDateString('es-VE', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+        return d.toISOString().slice(0, 10);
+    }
+}
+
+function diasHasta(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    const hoy = new Date();
+    d.setHours(0, 0, 0, 0);
+    hoy.setHours(0, 0, 0, 0);
+    const diffMs = d.getTime() - hoy.getTime();
+    return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
 // Renderizar niveles de descuento por volumen en el DOM
 function renderTiers(list = []) {
     const cont = document.getElementById('tiers');
@@ -187,6 +209,158 @@ async function loadConfig() {
     }
 }
 
+function renderPlanHistorial(pagos = []) {
+    const cont = document.getElementById('plan_historial_list');
+    if (!cont) return;
+    cont.innerHTML = '';
+    if (!pagos || !pagos.length) {
+        cont.innerHTML = '<div class="px-3 py-2 text-slate-400">No hay pagos registrados todavía.</div>';
+        return;
+    }
+    pagos.forEach((p) => {
+        const row = document.createElement('div');
+        row.className = 'px-3 py-2 flex items-center justify-between gap-2';
+        const fecha = formatFechaCorta(p.fecha);
+        const monto = typeof p.monto_mensual === 'number' && !Number.isNaN(p.monto_mensual)
+            ? `$${p.monto_mensual.toFixed(2)}`
+            : (p.monto || p.monto_usd || '—');
+        row.innerHTML = `
+            <div class="flex-1 min-w-0">
+                <div class="text-[11px] font-semibold text-slate-800 truncate">${p.descripcion || 'Pago de plan'}</div>
+                <div class="text-[10px] text-slate-500">${fecha}</div>
+            </div>
+            <div class="text-[11px] font-semibold text-slate-700 text-right">${monto}</div>
+        `;
+        cont.appendChild(row);
+    });
+}
+
+async function loadPlanResumen() {
+    const badge = document.getElementById('plan_estado_badge');
+    const nombreEl = document.getElementById('plan_nombre');
+    const montoEl = document.getElementById('plan_monto_mensual');
+    const proxEl = document.getElementById('plan_proximo_pago');
+    const diasEl = document.getElementById('plan_dias_restantes');
+    const estadoTextEl = document.getElementById('plan_estado_text');
+    const ultPagoEl = document.getElementById('plan_ultimo_pago');
+    const corteGraciaEl = document.getElementById('plan_corte_gracia');
+    const alertBox = document.getElementById('plan_alert');
+    const alertText = document.getElementById('plan_alert_text');
+    const alertIcon = document.getElementById('plan_alert_icon');
+    const errorEl = document.getElementById('plan_error');
+    const portalBtn = document.getElementById('plan_portal_btn');
+
+    if (!badge && !nombreEl && !portalBtn) return;
+
+    try {
+        const data = await apiFetchJson('/admin/ajustes/plan-resumen');
+        const empresa = data && data.empresa ? data.empresa : data;
+        if (!empresa) {
+            if (errorEl) {
+                errorEl.textContent = 'No se encontró información de plan para esta empresa.';
+                errorEl.classList.remove('hidden');
+            }
+            renderPlanHistorial([]);
+            return;
+        }
+
+        const planName = empresa.plan || 'Sin plan asignado';
+        const monto = typeof empresa.monto_mensual === 'number' && !Number.isNaN(empresa.monto_mensual)
+            ? `$${empresa.monto_mensual.toFixed(2)} / mes`
+            : 'Monto no configurado';
+        const proximo = empresa.proximo_cobro || null;
+        const ultimo = empresa.ultimo_pago_en || null;
+        const estado = (empresa.estado || 'activa').toString().toLowerCase();
+        const diaCorte = empresa.fecha_corte ? Number(empresa.fecha_corte) : null;
+        const diasGracia = empresa.dias_gracia != null ? Number(empresa.dias_gracia) : null;
+
+        if (nombreEl) nombreEl.textContent = planName;
+        if (montoEl) montoEl.textContent = monto;
+        if (proxEl) proxEl.textContent = proximo ? formatFechaCorta(proximo) : 'No definido';
+        if (ultPagoEl) ultPagoEl.textContent = ultimo ? formatFechaCorta(ultimo) : 'Sin pagos registrados';
+
+        if (corteGraciaEl) {
+            if (diaCorte || diasGracia !== null) {
+                const partes = [];
+                if (diaCorte) partes.push(`Día de corte ${diaCorte}`);
+                if (diasGracia !== null && !Number.isNaN(diasGracia)) partes.push(`${diasGracia} día(s) de gracia`);
+                corteGraciaEl.textContent = partes.join(' · ');
+            } else {
+                corteGraciaEl.textContent = 'No configurado';
+            }
+        }
+
+        if (estadoTextEl) {
+            estadoTextEl.textContent = estado === 'activa' ? 'Plan activo' : `Estado: ${estado}`;
+        }
+
+        if (badge) {
+            let badgeText = 'Plan activo';
+            let badgeClass = 'px-2 py-1 rounded-full text-xs font-semibold';
+            if (estado === 'activa') {
+                badgeClass += ' bg-emerald-100 text-emerald-700';
+            } else if (estado === 'suspendida' || estado === 'bloqueada') {
+                badgeClass += ' bg-rose-100 text-rose-700';
+                badgeText = 'Plan en revisión';
+            } else {
+                badgeClass += ' bg-slate-100 text-slate-600';
+                badgeText = `Estado: ${estado}`;
+            }
+            badge.textContent = badgeText;
+            badge.className = badgeClass;
+        }
+
+        if (diasEl) {
+            const dias = diasHasta(proximo || empresa.fecha_corte);
+            if (dias === null) {
+                diasEl.textContent = 'Sin fecha estimada.';
+            } else if (dias > 0) {
+                diasEl.textContent = `Faltan aproximadamente ${dias} día(s).`;
+            } else if (dias === 0) {
+                diasEl.textContent = 'Vence hoy.';
+            } else {
+                diasEl.textContent = `Vencido hace ${Math.abs(dias)} día(s).`;
+            }
+        }
+
+        if (alertBox && alertText && alertIcon) {
+            alertBox.classList.add('hidden');
+            const dias = diasHasta(proximo || empresa.fecha_corte);
+            if (dias !== null) {
+                if (dias < 0) {
+                    alertBox.className = 'mt-3 text-xs rounded-xl border p-2 flex items-center gap-2 bg-rose-50 text-rose-700 border-rose-200';
+                    alertIcon.className = 'fa-solid fa-circle-exclamation text-[11px]';
+                    alertText.textContent = `Tu plan aparece vencido hace ${Math.abs(dias)} día(s). Contacta soporte para evitar suspensión.`;
+                    alertBox.classList.remove('hidden');
+                } else if (dias <= 7) {
+                    alertBox.className = 'mt-3 text-xs rounded-xl border p-2 flex items-center gap-2 bg-amber-50 text-amber-700 border-amber-200';
+                    alertIcon.className = 'fa-solid fa-triangle-exclamation text-[11px]';
+                    alertText.textContent = `Tu próximo cobro es en ${dias} día(s). Asegúrate de tener el pago al día.`;
+                    alertBox.classList.remove('hidden');
+                }
+            }
+        }
+
+        // Historial (por ahora vacío, preparado para datos futuros)
+        renderPlanHistorial(Array.isArray(data.pagos) ? data.pagos : []);
+
+        if (portalBtn) {
+            portalBtn.addEventListener('click', () => {
+                const baseUrl = (window && window.location && window.location.origin) || '';
+                const empresaId = empresa.id || '';
+                const url = `${baseUrl}/admin-empresas?focus=${encodeURIComponent(String(empresaId))}`;
+                window.open(url, '_blank');
+            });
+        }
+    } catch (err) {
+        if (errorEl) {
+            errorEl.textContent = 'No se pudo cargar la información de plan por ahora. Intenta nuevamente más tarde.';
+            errorEl.classList.remove('hidden');
+        }
+        renderPlanHistorial([]);
+    }
+}
+
 async function saveConfig(section) {
     try {
         const payload = readForms();
@@ -350,6 +524,7 @@ function setupUI() {
 window.addEventListener('DOMContentLoaded', () => {
     setupUI();
     loadConfig();
+    loadPlanResumen();
 });
 
 // Función para agregar botón de logout al drawer y enlaces del menú según rol

@@ -674,6 +674,27 @@ const migrations = [
     }
   },
   {
+    id: '029_pagos_licencia_empresa',
+    up: () => {
+      // Historial de pagos de licencia/plan por empresa
+      db.prepare(`CREATE TABLE IF NOT EXISTS pagos_licencia (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        empresa_id INTEGER NOT NULL,
+        fecha TEXT NOT NULL,
+        monto_usd REAL DEFAULT 0,
+        moneda TEXT DEFAULT 'USD',
+        referencia TEXT,
+        descripcion TEXT,
+        origen TEXT,
+        creado_en TEXT DEFAULT (datetime('now'))
+      )`).run();
+
+      if (!indexExists('idx_pagos_licencia_empresa_fecha')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_pagos_licencia_empresa_fecha ON pagos_licencia (empresa_id, fecha DESC, id DESC)').run();
+      }
+    }
+  },
+  {
     id: '019_indices_rendimiento_base',
     up: () => {
       // Índice compuesto para acelerar búsquedas de usuarios por empresa y username

@@ -337,14 +337,15 @@
 
                 <div class="pt-4 border-t">
                     <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-tighter italic">Últimos
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-titter italic">Últimos
                             movimientos</h3>
-                        <div class="grid grid-cols-2 rounded-xl border overflow-hidden">
+                        <div class="pos-tab-group hist-tab-group grid grid-cols-2 rounded-xl border overflow-hidden relative">
                             <button data-hist="ventas"
-                                class="hist-btn p-3 text-sm font-black uppercase tracking-widest active-tab">Ventas y
+                                class="hist-btn pos-tab-btn p-3 text-sm font-black uppercase tracking-widest active-tab">Ventas y
                                 Devoluciones</button>
                             <button data-hist="presupuestos"
-                                class="hist-btn p-3 text-sm font-black uppercase tracking-widest text-slate-500">Presupuestos</button>
+                                class="hist-btn pos-tab-btn p-3 text-sm font-black uppercase tracking-widest text-slate-500">Presupuestos</button>
+                            <span class="pos-tab-indicator" aria-hidden="true"></span>
                         </div>
                     </div>
                     <div id="historial" class="space-y-2"></div>
@@ -353,8 +354,15 @@
         </div>
     </main>
 
-    <footer class="border-t border-slate-200 mt-8 py-4 text-center text-xs text-slate-400">
-        <p id="global-footer-branding">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>
+    <footer class="border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">
+        <div class="container mx-auto px-4 relative flex items-center justify-center">
+            <p id="global-footer-branding" class="text-center">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>
+            <p class="hidden sm:block absolute right-0 text-right">
+                <a href="/terminos" class="hover:underline">Términos y Condiciones</a>
+                <span class="mx-1">·</span>
+                <a href="/terminos" class="hover:underline">Política de Privacidad</a>
+            </p>
+        </div>
     </footer>
 
     <script type="module" src="/js/db-local.js"></script>

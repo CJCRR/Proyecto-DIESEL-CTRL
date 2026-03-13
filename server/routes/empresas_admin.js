@@ -150,7 +150,20 @@ router.post('/', requireAuth, requireRole('superadmin'), (req, res) => {
 // PATCH /admin/empresas/:id - Actualizar datos/licencia de una empresa (solo superadmin)
 router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
   const { id } = req.params;
-  const { estado, fecha_corte, dias_gracia, plan, monto_mensual, ultimo_pago_en, proximo_cobro, nota_interna } = req.body || {};
+  const {
+    estado,
+    fecha_corte,
+    dias_gracia,
+    plan,
+    monto_mensual,
+    ultimo_pago_en,
+    proximo_cobro,
+    nota_interna,
+    // Opcionales para registrar historial de pago de licencia
+    registrar_pago_licencia,
+    referencia_pago,
+    descripcion_pago,
+  } = req.body || {};
 
   try {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(id);
@@ -202,9 +215,11 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
       params.push(monto);
     }
 
+    const ultimoPagoExplicito = ultimo_pago_en !== undefined && ultimo_pago_en !== null && String(ultimo_pago_en).trim() !== '';
+
     if (ultimo_pago_en !== undefined) {
       updates.push('ultimo_pago_en = ?');
-      params.push(ultimo_pago_en || null);
+      params.push(ultimoPagoExplicito ? String(ultimo_pago_en) : null);
     }
 
     if (proximo_cobro !== undefined) {
@@ -235,6 +250,35 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
       FROM empresas
       WHERE id = ?
     `).get(id);
+
+    // Si se indicó registrar pago de licencia (explícitamente o implícito por actualizar ultimo_pago_en),
+    // crear una fila en pagos_licencia para que el historial de "Plan y pagos" se alimente solo.
+    try {
+      const debeRegistrarPago = !!registrar_pago_licencia || ultimoPagoExplicito;
+      if (debeRegistrarPago && empresaActualizada) {
+        const fechaPago = ultimoPagoExplicito
+          ? String(ultimo_pago_en)
+          : (empresaActualizada.ultimo_pago_en || new Date().toISOString());
+        const montoPago = typeof monto_mensual === 'number'
+          ? monto_mensual
+          : Number(empresaActualizada.monto_mensual || 0) || 0;
+
+        db.prepare(`
+          INSERT INTO pagos_licencia (empresa_id, fecha, monto_usd, moneda, referencia, descripcion, origen)
+          VALUES (?, ?, ?, 'USD', ?, ?, ?)
+        `).run(
+          empresaActualizada.id,
+          fechaPago,
+          montoPago,
+          referencia_pago || null,
+          descripcion_pago || (empresaActualizada.plan ? `Pago plan ${empresaActualizada.plan}` : 'Pago de plan'),
+          'panel-master'
+        );
+      }
+    } catch (errInsert) {
+      const logger = require('../services/logger');
+      logger.warn('No se pudo registrar pago_licencia asociado a empresa:', { message: errInsert.message });
+    }
     try {
       registrarAuditoria({
         usuario: req.usuario,

@@ -860,6 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setModoDevolucion(false);
     cargarVentasRecientes();
 
+    const histTabGroup = document.querySelector('.hist-tab-group');
     document.querySelectorAll('.hist-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             historialModo = btn.dataset.hist || 'ventas';
@@ -869,6 +870,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             btn.classList.add('active-tab');
             btn.classList.remove('text-slate-500');
+
+            if (histTabGroup) {
+                histTabGroup.classList.toggle('hist-tab-group--pres', historialModo === 'presupuestos');
+            }
+
             actualizarHistorial();
         });
     });

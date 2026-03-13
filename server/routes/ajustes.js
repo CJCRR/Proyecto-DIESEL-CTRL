@@ -16,6 +16,7 @@ const {
   obtenerBrandingGlobal,
   guardarBrandingGlobal,
   purgeTransactionalData,
+  obtenerResumenPlanEmpresa,
 } = require('../services/ajustesService');
 
 // POST /admin/ajustes - Ajustar Stock (Entrada/Salida manual)
@@ -158,6 +159,21 @@ router.post('/config', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error guardando config general', err.message);
     res.status(500).json({ error: 'No se pudo guardar configuración' });
+  }
+});
+
+// Resumen del plan y pagos para la empresa actual
+router.get('/plan-resumen', requireAuth, (req, res) => {
+  try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const info = obtenerResumenPlanEmpresa(empresaId);
+    if (!info || !info.empresa) {
+      return res.status(404).json({ error: 'No se encontró información de plan para esta empresa' });
+    }
+    res.json(info);
+  } catch (err) {
+    console.error('Error obteniendo resumen de plan', err.message);
+    res.status(500).json({ error: 'No se pudo obtener resumen de plan' });
   }
 });
 
