@@ -110,6 +110,7 @@
       ? fecha.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
       : fecha.toISOString().slice(0, 10);
     const tipo = (meta && meta.tipo) ? String(meta.tipo) : (venta.tipo || '').toUpperCase() === 'PRESUPUESTO' ? 'PRESUPUESTO' : 'NOTA DE ENTREGA';
+    const mostrarMarca = tipo === 'PRESUPUESTO';
     // Preferir siempre un número de nota amigable si existe (por ejemplo "VENTA-18"),
     // y caer de regreso al id_global técnico solo si no hay otro.
     const idTexto = venta.nro_nota
@@ -149,7 +150,7 @@
       }
     }
 
-    // Datos de la empresa iguales a la compacta
+    // Determinar los datos de la empresa correctamente (más robusto)
     const empresa = venta.empresa || {};
     let empresaNombre = '';
     if (empresa && typeof empresa.nombre === 'string' && empresa.nombre.trim()) {
@@ -254,10 +255,11 @@
                 <thead>
                   <tr>
                     <th style="width:16%">CODIGO</th>
-                    <th style="width:34%">DESCRIPCION</th>
-                    <th style="width:8%">CANT</th>
-                    <th style="width:10%">PRECIO $</th>
-                    <th style="width:10%">TOTAL $</th>
+                    <th style="width:${mostrarMarca ? '34%' : '44%'}">DESCRIPCION</th>
+                    ${mostrarMarca ? '<th style="width:10%">MARCA</th>' : ''}
+                    <th style="width:7%">CANT</th>
+                    <th style="width:7%">PRECIO $</th>
+                    <th style="width:7%">TOTAL $</th>
                     <th style="width:10%">PRECIO Bs.</th>
                     <th style="width:12%">TOTAL Bs.</th>
                   </tr>
@@ -271,6 +273,7 @@
                       <tr>
                         <td>${item.codigo}</td>
                         <td>${item.descripcion}</td>
+                        ${mostrarMarca ? `<td>${item.marca || ''}</td>` : ''}
                         <td class="right">${item.cantidad}</td>
                         <td class="right">${number(item.precio_usd).toFixed(2)}</td>
                         <td class="right">${lineUsd.toFixed(2)}</td>

@@ -219,6 +219,141 @@ function getConfigJSON(clave, defObj = {}) {
   }
 }
 
+// ===== PAGOS DE LICENCIA DESDE PORTAL DE EMPRESA =====
+
+function registrarSolicitudPagoLicencia(empresaId, usuario, payload = {}) {
+  const eid = empresaId != null ? Number(empresaId) : null;
+  if (!Number.isFinite(eid) || eid <= 0) {
+    const err = new Error('Empresa inválida para registrar pago');
+    err.tipo = 'VALIDACION';
+    throw err;
+  }
+
+  let { fecha_pago, monto_usd, referencia, tipo, comprobante_url, notas } = payload;
+
+  const fecha = safeStr(fecha_pago || new Date().toISOString(), 40) || new Date().toISOString();
+  const montoNum = Number(monto_usd);
+  if (!Number.isFinite(montoNum) || montoNum <= 0) {
+    const err = new Error('El monto del pago debe ser un número mayor a 0');
+    err.tipo = 'VALIDACION';
+    throw err;
+  }
+
+  referencia = safeStr(referencia, 120) || null;
+  tipo = safeStr(tipo, 40) || null;
+  comprobante_url = safeStr(comprobante_url, 400) || null;
+  notas = safeStr(notas, 400) || null;
+
+  const info = db.prepare(`
+      INSERT INTO pagos_licencia (empresa_id, fecha, monto_usd, moneda, referencia, descripcion, origen, estado, usuario_id, tipo, comprobante_url, notas)
+      VALUES (?, ?, ?, 'USD', ?, ?, ?, 'pendiente', ?, ?, ?, ?)
+    `).run(
+    eid,
+    fecha,
+    montoNum,
+    referencia,
+    'Pago enviado desde el portal de la empresa',
+    'portal-empresa',
+    usuario && usuario.id ? usuario.id : null,
+    tipo,
+    comprobante_url,
+    notas,
+  );
+
+  return db.prepare(`
+      SELECT id, empresa_id, fecha, monto_usd, moneda, referencia, descripcion, origen, estado, tipo, comprobante_url, notas, usuario_id
+      FROM pagos_licencia
+      WHERE id = ?
+    `).get(info.lastInsertRowid);
+}
+
+function listarPagosLicenciaEmpresa(empresaId, filtros = {}) {
+  const eid = empresaId != null ? Number(empresaId) : null;
+  if (!Number.isFinite(eid) || eid <= 0) {
+    return [];
+  }
+
+  const { estado } = filtros || {};
+  const params = [eid];
+  let where = 'WHERE empresa_id = ?';
+  if (estado && typeof estado === 'string') {
+    where += ' AND estado = ?';
+    params.push(estado);
+  }
+
+  return db.prepare(`
+      SELECT id, empresa_id, fecha, monto_usd, moneda, referencia, descripcion, origen, estado, tipo, comprobante_url, notas, usuario_id
+      FROM pagos_licencia
+      ${where}
+      ORDER BY date(fecha) DESC, id DESC
+    `).all(...params);
+}
+
+function actualizarEstadoPagoLicencia(empresaId, pagoId, nuevoEstado, opciones = {}) {
+  const eid = empresaId != null ? Number(empresaId) : null;
+  const pid = pagoId != null ? Number(pagoId) : null;
+  if (!Number.isFinite(eid) || eid <= 0 || !Number.isFinite(pid) || pid <= 0) {
+    const err = new Error('Identificadores inválidos para actualizar pago');
+    err.tipo = 'VALIDACION';
+    throw err;
+  }
+
+  const estado = String(nuevoEstado || '').trim().toLowerCase();
+  if (!estado || !['pendiente', 'aplicado', 'rechazado'].includes(estado)) {
+    const err = new Error('Estado de pago inválido');
+    err.tipo = 'VALIDACION';
+    throw err;
+  }
+
+  const { meses_pagados } = opciones || {};
+
+  return db.transaction(() => {
+    const pago = db.prepare(`
+        SELECT * FROM pagos_licencia
+        WHERE id = ? AND empresa_id = ?
+      `).get(pid, eid);
+    if (!pago) {
+      const err = new Error('Pago de licencia no encontrado para esta empresa');
+      err.tipo = 'VALIDACION';
+      throw err;
+    }
+
+    db.prepare('UPDATE pagos_licencia SET estado = ? WHERE id = ?').run(estado, pid);
+
+    // Si se marca como aplicado, opcionalmente actualizar ciclo de cobro de la empresa
+    if (estado === 'aplicado') {
+      const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(eid);
+      if (empresa) {
+        const meses = Number.isFinite(Number(meses_pagados)) && Number(meses_pagados) > 0
+          ? Number(meses_pagados)
+          : 1;
+        const fechaPago = pago.fecha || new Date().toISOString();
+        const baseDate = new Date(fechaPago);
+        if (!Number.isNaN(baseDate.getTime())) {
+          const proximo = new Date(baseDate.getTime());
+          proximo.setMonth(proximo.getMonth() + meses);
+          const y = proximo.getFullYear();
+          const m = String(proximo.getMonth() + 1).padStart(2, '0');
+          const d = String(proximo.getDate()).padStart(2, '0');
+          const proximoStr = `${y}-${m}-${d}`;
+
+          db.prepare(`
+              UPDATE empresas
+              SET ultimo_pago_en = ?, proximo_cobro = ?, estado = 'activa', actualizado_en = datetime('now')
+              WHERE id = ?
+            `).run(fechaPago, proximoStr, eid);
+        }
+      }
+    }
+
+    return db.prepare(`
+        SELECT id, empresa_id, fecha, monto_usd, moneda, referencia, descripcion, origen, estado, tipo, comprobante_url, notas, usuario_id
+        FROM pagos_licencia
+        WHERE id = ?
+      `).get(pid);
+  })();
+}
+
 // ===== RESUMEN DE PLAN POR EMPRESA =====
 
 function obtenerResumenPlanEmpresa(empresaId) {
@@ -235,7 +370,7 @@ function obtenerResumenPlanEmpresa(empresaId) {
     `).get(eid) || null;
 
   const pagosRaw = db.prepare(`
-      SELECT id, empresa_id, fecha, monto_usd, moneda, referencia, descripcion, origen
+      SELECT id, empresa_id, fecha, monto_usd, moneda, referencia, descripcion, origen, estado, tipo, comprobante_url, notas, usuario_id
       FROM pagos_licencia
       WHERE empresa_id = ?
       ORDER BY date(fecha) DESC, id DESC
@@ -259,6 +394,11 @@ function obtenerResumenPlanEmpresa(empresaId) {
         referencia: null,
         descripcion: empresa.plan ? `Pago plan ${empresa.plan}` : 'Último pago registrado',
         origen: 'empresa_meta',
+        estado: 'aplicado',
+        tipo: null,
+        comprobante_url: null,
+        notas: null,
+        usuario_id: null,
       },
     ];
   }
@@ -833,4 +973,7 @@ module.exports = {
   guardarBrandingGlobal,
   purgeTransactionalData,
   obtenerResumenPlanEmpresa,
+  registrarSolicitudPagoLicencia,
+  listarPagosLicenciaEmpresa,
+  actualizarEstadoPagoLicencia,
 };

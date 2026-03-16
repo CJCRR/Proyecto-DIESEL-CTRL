@@ -252,6 +252,21 @@
     </div>
   </div>
 
+  <!-- Modal ver pagos de licencia de la empresa -->
+  <div id="modal-pagos-licencia" class="fixed inset-0 hidden items-center justify-center z-50">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-2">Pagos de licencia de la empresa</h3>
+      <p id="pl-empresa-info" class="text-xs text-slate-500 mb-3"></p>
+      <div id="pl-list" class="divide-y divide-slate-100 text-sm">
+        <div class="py-2 text-slate-400">Cargando pagos...</div>
+      </div>
+      <div class="flex justify-end gap-2 mt-4">
+        <button type="button" id="pl-cerrar" class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal editar días de gracia de la empresa -->
   <div id="modal-ciclo-empresa" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40"></div>

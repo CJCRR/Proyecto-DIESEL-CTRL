@@ -17,6 +17,9 @@ const {
   guardarBrandingGlobal,
   purgeTransactionalData,
   obtenerResumenPlanEmpresa,
+  registrarSolicitudPagoLicencia,
+  listarPagosLicenciaEmpresa,
+  actualizarEstadoPagoLicencia,
 } = require('../services/ajustesService');
 
 // POST /admin/ajustes - Ajustar Stock (Entrada/Salida manual)
@@ -174,6 +177,21 @@ router.get('/plan-resumen', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error obteniendo resumen de plan', err.message);
     res.status(500).json({ error: 'No se pudo obtener resumen de plan' });
+  }
+});
+
+// Solicitud de pago de licencia desde el portal de la empresa actual
+router.post('/pagos-licencia/solicitud', requireAuth, (req, res) => {
+  try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const pago = registrarSolicitudPagoLicencia(empresaId, req.usuario, req.body || {});
+    res.status(201).json({ ok: true, pago });
+  } catch (err) {
+    console.error('Error registrando solicitud de pago de licencia', err.message);
+    if (err.tipo === 'VALIDACION') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'No se pudo registrar el pago' });
   }
 });
 

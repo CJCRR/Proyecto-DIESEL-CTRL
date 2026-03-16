@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('./auth');
+const { requireAuth, requireRole } = require('./auth');
 const logger = require('../services/logger');
 const db = require('../db');
-const { registrarVenta } = require('../services/ventasService');
+const { registrarVenta, cambiarVendedorVenta, anularVenta } = require('../services/ventasService');
+const { registrarAuditoria } = require('../services/auditLogService');
 
 // El superadmin no debe registrar ventas de ninguna empresa
 function forbidSuperadmin(req, res, next) {
@@ -63,6 +64,90 @@ router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
         res.status(400).json({
             error: error.message,
             code: error.code || 'VENTA_ERROR'
+        });
+    }
+});
+
+// DELETE /ventas/:id - Anular una venta (solo admins de empresa)
+router.delete('/:id', requireAuth, requireRole('admin', 'admin_empresa'), (req, res) => {
+    try {
+        const ventaId = parseInt(req.params.id, 10);
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+
+        if (!Number.isFinite(ventaId) || ventaId <= 0) {
+            return res.status(400).json({ error: 'ID de venta inválido' });
+        }
+        if (!empresaId) {
+            return res.status(400).json({ error: 'Usuario sin empresa asociada' });
+        }
+
+        const result = anularVenta({ ventaId, empresaId });
+
+        registrarAuditoria({
+            usuario: req.usuario,
+            accion: 'VENTA_ANULADA',
+            entidad: 'venta',
+            entidadId: ventaId,
+            detalle: { origen: 'reportes', motivo: 'anulacion_manual' },
+            ip: req.ip,
+            userAgent: req.get('user-agent') || null,
+        });
+
+        return res.json({ ok: true, ...result, message: 'Venta anulada y revertida correctamente.' });
+    } catch (error) {
+        logger.error('Error anulando venta', {
+            message: error.message,
+            stack: error.stack,
+            url: req.originalUrl,
+            method: req.method,
+            user: req.usuario ? req.usuario.id : null,
+            ventaId: req.params.id,
+        });
+        return res.status(400).json({
+            error: error.message || 'Error al anular la venta',
+            code: error.code || 'VENTA_ANULAR_ERROR',
+        });
+    }
+});
+
+// PATCH /ventas/:id/vendedor - Cambiar el vendedor/usuario asignado a una venta (solo admin de empresa)
+router.patch('/:id/vendedor', requireAuth, requireRole('admin', 'admin_empresa'), (req, res) => {
+    try {
+        const ventaId = parseInt(req.params.id, 10);
+        const nuevoUsuarioId = req.body && req.body.usuario_id != null ? Number(req.body.usuario_id) : null;
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+
+        if (!Number.isFinite(ventaId) || ventaId <= 0) {
+            return res.status(400).json({ error: 'ID de venta inválido' });
+        }
+
+        if (!nuevoUsuarioId || !Number.isFinite(nuevoUsuarioId) || nuevoUsuarioId <= 0) {
+            return res.status(400).json({ error: 'Debe indicar el ID del nuevo vendedor' });
+        }
+
+        if (!empresaId) {
+            return res.status(400).json({ error: 'Usuario sin empresa asociada' });
+        }
+
+        const ventaActualizada = cambiarVendedorVenta({
+            ventaId,
+            nuevoUsuarioId,
+            empresaId,
+        });
+
+        return res.json({ ok: true, venta: ventaActualizada });
+    } catch (error) {
+        logger.error('Error cambiando vendedor de venta', {
+            message: error.message,
+            stack: error.stack,
+            url: req.originalUrl,
+            method: req.method,
+            user: req.usuario ? req.usuario.id : null,
+            ventaId: req.params.id,
+        });
+        return res.status(400).json({
+            error: error.message || 'Error al cambiar el vendedor de la venta',
+            code: error.code || 'VENTA_CAMBIO_VENDEDOR_ERROR',
         });
     }
 });

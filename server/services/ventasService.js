@@ -243,6 +243,203 @@ function registrarVenta(payload) {
     return transaction();
 }
 
+/**
+ * Anula una venta existente, revirtiendo sus efectos sobre inventario
+ * y eliminando cualquier cuenta por cobrar/pagos asociados.
+ *
+ * No permite anular ventas que ya tengan devoluciones registradas.
+ *
+ * @param {{ventaId:number,empresaId:number|null}} params
+ * @returns {{ok:true}}
+ */
+function anularVenta(params) {
+    const ventaId = Number(params && params.ventaId);
+    const empresaId = params && params.empresaId != null ? Number(params.empresaId) : null;
+
+    if (!Number.isFinite(ventaId) || ventaId <= 0) {
+        throw new Error('ID de venta inválido');
+    }
+    if (!empresaId || !Number.isFinite(empresaId) || empresaId <= 0) {
+        throw new Error('Empresa del usuario no definida');
+    }
+
+    const venta = db.prepare(`
+        SELECT v.id, v.fecha, v.total_bs, v.tasa_bcv, v.usuario_id, u.empresa_id AS empresa_id
+        FROM ventas v
+        LEFT JOIN usuarios u ON u.id = v.usuario_id
+        WHERE v.id = ?
+    `).get(ventaId);
+
+    if (!venta) {
+        throw new Error('Venta no encontrada');
+    }
+
+    if (venta.empresa_id != null && Number(venta.empresa_id) !== empresaId) {
+        throw new Error('No puedes anular ventas de otra empresa');
+    }
+
+    const devRow = db.prepare('SELECT COUNT(*) AS c FROM devoluciones WHERE venta_original_id = ?').get(ventaId);
+    if (devRow && Number(devRow.c || 0) > 0) {
+        const err = new Error('No se puede anular una venta que ya tiene devoluciones registradas');
+        err.code = 'VENTA_CON_DEVOLUCIONES';
+        throw err;
+    }
+
+    const detalles = db.prepare(`
+        SELECT vd.id, vd.producto_id, vd.cantidad,
+               p.stock AS stock_actual,
+               p.deposito_id,
+               p.empresa_id AS prod_empresa_id
+        FROM venta_detalle vd
+        JOIN productos p ON p.id = vd.producto_id
+        WHERE vd.venta_id = ?
+    `).all(ventaId);
+
+    const selectStockDep = db.prepare(`
+        SELECT cantidad FROM stock_por_deposito
+        WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const updateStockDepSuma = db.prepare(`
+        UPDATE stock_por_deposito
+        SET cantidad = cantidad + ?, actualizado_en = datetime('now')
+        WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const insertStockDep = db.prepare(`
+        INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+        VALUES (?, ?, ?, ?)
+    `);
+    const updateProdStock = db.prepare('UPDATE productos SET stock = ? WHERE id = ?');
+
+    const deletePagosByCuenta = db.prepare('DELETE FROM pagos_cc WHERE cuenta_id = ?');
+    const selectCuentas = db.prepare('SELECT id FROM cuentas_cobrar WHERE venta_id = ?');
+    const deleteCuenta = db.prepare('DELETE FROM cuentas_cobrar WHERE id = ?');
+
+    const tx = db.transaction(() => {
+        // Revertir inventario: sumar nuevamente las cantidades vendidas
+        for (const det of detalles) {
+            const cantidad = Number(det.cantidad || 0) || 0;
+            if (!cantidad) continue;
+
+            const nuevoStock = Number(det.stock_actual || 0) + cantidad;
+            updateProdStock.run(nuevoStock, det.producto_id);
+
+            const depId = det.deposito_id;
+            if (depId) {
+                const rowDep = selectStockDep.get(det.producto_id, depId);
+                if (rowDep) {
+                    updateStockDepSuma.run(cantidad, det.producto_id, depId);
+                } else {
+                    insertStockDep.run(det.prod_empresa_id || empresaId || null, det.producto_id, depId, cantidad);
+                }
+            }
+        }
+
+        // Eliminar cuentas por cobrar y pagos asociados a esta venta (si existen)
+        const cuentas = selectCuentas.all(ventaId) || [];
+        for (const c of cuentas) {
+            deletePagosByCuenta.run(c.id);
+            deleteCuenta.run(c.id);
+        }
+
+        // Eliminar detalle de venta y cabecera
+        db.prepare('DELETE FROM venta_detalle WHERE venta_id = ?').run(ventaId);
+        db.prepare('DELETE FROM ventas WHERE id = ?').run(ventaId);
+
+        return { ok: true };
+    });
+
+    return tx();
+}
+
+/**
+ * Cambia el usuario/vendedor asociado a una venta, asegurando que
+ * tanto la venta como el nuevo vendedor pertenezcan a la misma empresa.
+ * Recalcula los campos de comisión en base al total de la venta.
+ *
+ * @param {{ventaId:number,nuevoUsuarioId:number,empresaId:number|null}} params
+ */
+function cambiarVendedorVenta(params) {
+    const ventaId = Number(params && params.ventaId);
+    const nuevoUsuarioId = Number(params && params.nuevoUsuarioId);
+    const empresaId = params && params.empresaId != null ? Number(params.empresaId) : null;
+
+    if (!Number.isFinite(ventaId) || ventaId <= 0) {
+        throw new Error('ID de venta inválido');
+    }
+    if (!Number.isFinite(nuevoUsuarioId) || nuevoUsuarioId <= 0) {
+        throw new Error('ID de vendedor inválido');
+    }
+    if (!empresaId || !Number.isFinite(empresaId) || empresaId <= 0) {
+        throw new Error('Empresa del usuario no definida');
+    }
+
+    const venta = db.prepare(`
+        SELECT v.id, v.usuario_id, v.vendedor, v.total_bs, v.tasa_bcv, u.empresa_id AS empresa_id
+        FROM ventas v
+        LEFT JOIN usuarios u ON u.id = v.usuario_id
+        WHERE v.id = ?
+    `).get(ventaId);
+
+    if (!venta) {
+        throw new Error('Venta no encontrada');
+    }
+
+    if (venta.empresa_id != null && Number(venta.empresa_id) !== empresaId) {
+        throw new Error('No puedes modificar ventas de otra empresa');
+    }
+
+    const nuevoUsuario = db.prepare(`
+        SELECT id, username, nombre_completo, rol, empresa_id, comision_pct, activo
+        FROM usuarios
+        WHERE id = ?
+    `).get(nuevoUsuarioId);
+
+    if (!nuevoUsuario) {
+        throw new Error('Vendedor destino no encontrado');
+    }
+
+    if (!nuevoUsuario.activo) {
+        throw new Error('El usuario seleccionado está inactivo');
+    }
+
+    if (Number(nuevoUsuario.empresa_id) !== empresaId) {
+        throw new Error('El vendedor seleccionado pertenece a otra empresa');
+    }
+
+    if (!['admin', 'admin_empresa', 'vendedor'].includes(nuevoUsuario.rol)) {
+        throw new Error('Solo usuarios con rol administrador o vendedor pueden ser asignados a una venta');
+    }
+
+    const nombreVendedor = (nuevoUsuario.nombre_completo || nuevoUsuario.username || '').toString().trim() || nuevoUsuario.username || '';
+
+    const totalBs = Number(venta.total_bs || 0) || 0;
+    const tasa = Number(venta.tasa_bcv || 0) || 0;
+    const totalUsdBase = tasa > 0 ? (totalBs / tasa) : totalBs;
+
+    const comisionPct = Math.max(0, Math.min(100, Number(nuevoUsuario.comision_pct || 0) || 0));
+    const factor = comisionPct / 100;
+    const comisionBs = totalBs * factor;
+    const comisionUsd = totalUsdBase * factor;
+
+    const tx = db.transaction(() => {
+        db.prepare(`
+            UPDATE ventas
+            SET usuario_id = ?, vendedor = ?, comision_pct = ?, comision_bs = ?, comision_usd = ?
+            WHERE id = ?
+        `).run(nuevoUsuario.id, nombreVendedor, comisionPct, comisionBs, comisionUsd, ventaId);
+
+        return db.prepare(`
+            SELECT id, fecha, cliente, vendedor, usuario_id, total_bs, tasa_bcv, comision_pct, comision_bs, comision_usd
+            FROM ventas
+            WHERE id = ?
+        `).get(ventaId);
+    });
+
+    return tx();
+}
+
 module.exports = {
     registrarVenta,
+    anularVenta,
+    cambiarVendedorVenta,
 };

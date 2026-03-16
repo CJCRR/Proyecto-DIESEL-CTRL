@@ -102,6 +102,7 @@ export function agregarAlCarrito() {
 		carrito.push({
 			codigo: productoSeleccionado.codigo,
 			descripcion: productoSeleccionado.descripcion,
+			marca: productoSeleccionado.marca || '',
 			precio_base_usd: precioBase,
 			precio_usd: precioVenta,
 			cantidad: cantidad

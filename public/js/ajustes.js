@@ -17,7 +17,14 @@ let purgeConfirmar = null;
 
 function formatFechaCorta(iso) {
     if (!iso) return '—';
-    const d = new Date(iso);
+    // Si viene en formato fecha simple YYYY-MM-DD, construir fecha local para evitar desfase por zona horaria
+    const simpleMatch = /^\d{4}-\d{2}-\d{2}$/.test(String(iso));
+    const d = simpleMatch
+        ? (() => {
+            const [y, m, day] = String(iso).split('-').map(Number);
+            return new Date(y, m - 1, day);
+        })()
+        : new Date(iso);
     if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10) || '—';
     try {
         return d.toLocaleDateString('es-VE', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -224,9 +231,13 @@ function renderPlanHistorial(pagos = []) {
         const monto = typeof p.monto_mensual === 'number' && !Number.isNaN(p.monto_mensual)
             ? `$${p.monto_mensual.toFixed(2)}`
             : (p.monto || p.monto_usd || '—');
+        const estado = (p.estado || '').toString().toLowerCase();
+        const estadoLabel = estado === 'pendiente'
+            ? '<span class="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-semibold">Pendiente</span>'
+            : '';
         row.innerHTML = `
             <div class="flex-1 min-w-0">
-                <div class="text-[11px] font-semibold text-slate-800 truncate">${p.descripcion || 'Pago de plan'}</div>
+                <div class="text-[11px] font-semibold text-slate-800 truncate">${p.descripcion || 'Pago de plan'}${estadoLabel}</div>
                 <div class="text-[10px] text-slate-500">${fecha}</div>
             </div>
             <div class="text-[11px] font-semibold text-slate-700 text-right">${monto}</div>
@@ -237,6 +248,7 @@ function renderPlanHistorial(pagos = []) {
 
 async function loadPlanResumen() {
     const badge = document.getElementById('plan_estado_badge');
+    const pendienteBadge = document.getElementById('plan_pendiente_badge');
     const nombreEl = document.getElementById('plan_nombre');
     const montoEl = document.getElementById('plan_monto_mensual');
     const proxEl = document.getElementById('plan_proximo_pago');
@@ -341,8 +353,19 @@ async function loadPlanResumen() {
             }
         }
 
-        // Historial (por ahora vacío, preparado para datos futuros)
-        renderPlanHistorial(Array.isArray(data.pagos) ? data.pagos : []);
+        const pagos = Array.isArray(data.pagos) ? data.pagos : [];
+        // Historial de pagos de licencia
+        renderPlanHistorial(pagos);
+
+        // Mostrar badge si hay algún pago pendiente por confirmar
+        if (pendienteBadge) {
+            const hayPendientes = pagos.some(p => (p && p.estado === 'pendiente'));
+            if (hayPendientes) {
+                pendienteBadge.classList.remove('hidden');
+            } else {
+                pendienteBadge.classList.add('hidden');
+            }
+        }
 
         if (portalBtn) {
             portalBtn.addEventListener('click', () => {
@@ -426,6 +449,72 @@ function setupUI() {
     document.getElementById('btnDemoNota')?.addEventListener('click', printDemoNota);
     document.getElementById('btnUploadLogo')?.addEventListener('click', () => uploadHelper('n_logo'));
     document.getElementById('btnUploadMarca')?.addEventListener('click', () => uploadMarcaHelper());
+    // Pagos de plan: abrir modal y manejar subida de captura
+    const planPagarBtn = document.getElementById('plan_pagar_btn');
+    const modalPlanPago = document.getElementById('modal-plan-pago');
+    const formPlanPago = document.getElementById('form-plan-pago');
+    const planPagoCancelar = document.getElementById('plan_pago_cancelar');
+    const planPagoSubir = document.getElementById('plan_pago_subir');
+    if (planPagarBtn && modalPlanPago) {
+        planPagarBtn.addEventListener('click', () => {
+            modalPlanPago.classList.remove('hidden');
+            modalPlanPago.classList.add('flex');
+        });
+    }
+    if (planPagoCancelar && modalPlanPago) {
+        planPagoCancelar.addEventListener('click', () => {
+            modalPlanPago.classList.add('hidden');
+            modalPlanPago.classList.remove('flex');
+        });
+    }
+    if (planPagoSubir) {
+        planPagoSubir.addEventListener('click', () => uploadHelper('plan_pago_comprobante'));
+    }
+    if (formPlanPago) {
+        formPlanPago.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fechaEl = document.getElementById('plan_pago_fecha');
+            const montoEl = document.getElementById('plan_pago_monto');
+            const refEl = document.getElementById('plan_pago_referencia');
+            const tipoEl = document.getElementById('plan_pago_tipo');
+            const compEl = document.getElementById('plan_pago_comprobante');
+            const notasEl = document.getElementById('plan_pago_notas');
+            const fecha = fechaEl && fechaEl.value ? fechaEl.value : '';
+            const monto = montoEl && montoEl.value ? parseFloat(montoEl.value) : 0;
+            if (!fecha) {
+                showToast('La fecha del pago es requerida', 'error');
+                if (fechaEl) fechaEl.focus();
+                return;
+            }
+            if (!monto || Number.isNaN(monto) || monto <= 0) {
+                showToast('El monto del pago debe ser mayor a 0', 'error');
+                if (montoEl) montoEl.focus();
+                return;
+            }
+            try {
+                await apiFetchJson('/admin/ajustes/pagos-licencia/solicitud', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fecha_pago: fecha,
+                        monto_usd: monto,
+                        referencia: refEl && refEl.value ? refEl.value.trim() : '',
+                        tipo: tipoEl && tipoEl.value ? tipoEl.value : 'otro',
+                        comprobante_url: compEl && compEl.value ? compEl.value.trim() : '',
+                        notas: notasEl && notasEl.value ? notasEl.value.trim() : '',
+                    }),
+                });
+                showToast('Pago enviado para revisión. Quedará como pendiente hasta ser confirmado.', 'success');
+                if (modalPlanPago) {
+                    modalPlanPago.classList.add('hidden');
+                    modalPlanPago.classList.remove('flex');
+                }
+                loadPlanResumen();
+            } catch (err) {
+                showToast(err.message || 'No se pudo registrar el pago', 'error');
+            }
+        });
+    }
 
     try {
         initCustomSelect('n_layout');

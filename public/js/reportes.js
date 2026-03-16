@@ -27,6 +27,8 @@ let cacheRentProv = [];
 let resumenRent = null;
 let cacheComisiones = [];
 let vendedoresCache = [];
+const ES_ADMIN_EMPRESA = (window.Auth && typeof window.Auth.isAdmin === 'function') ? !!window.Auth.isAdmin() : false;
+let cambioVendVentaId = null;
 const escapeHtml = (window.escapeHtml) ? window.escapeHtml : (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -112,14 +114,54 @@ function renderReporte() {
         const detRow = document.createElement('tr');
         detRow.className = 'hidden';
         detRow.id = `venta-det-${r.id}`;
+                const adminBtnsHtml = ES_ADMIN_EMPRESA
+                        ? `<button type="button" class="ml-2 px-2 py-1 text-[11px] border border-slate-300 rounded bg-white text-slate-700 hover:bg-slate-50" data-cambiar-vendedor="${r.id}"><i class="fas fa-user-edit mr-1"></i>Cambiar vendedor</button>
+                           <button type="button" class="ml-2 px-2 py-1 text-[11px] border border-rose-300 rounded bg-rose-50 text-rose-700 hover:bg-rose-100" data-anular-venta="${r.id}"><i class="fas fa-ban mr-1"></i>Anular venta</button>`
+                        : '';
         detRow.innerHTML = `<td colspan="7" class="p-2 bg-slate-50">
             <div class="flex items-center justify-between">
-              <div class="text-[10px] uppercase text-slate-400 font-black">Detalles de la venta</div>
-              <a href="/nota/${r.id}" target="_blank" class="text-xs px-2 py-1 bg-slate-200 rounded">Ver nota</a>
+                            <div class="text-[10px] uppercase text-slate-400 font-black">Detalles de la venta</div>
+                            <div class="flex items-center gap-2">
+                                <a href="/nota/${r.id}" target="_blank" class="text-xs px-2 py-1 bg-slate-200 rounded">Ver nota</a>
+                                ${adminBtnsHtml}
+                            </div>
             </div>
             <div class="text-xs text-slate-700 space-y-1" id="venta-det-list-${r.id}">Cargando...</div>
         </td>`;
         tbody.appendChild(detRow);
+
+                if (ES_ADMIN_EMPRESA) {
+                    const btnCambiar = detRow.querySelector('[data-cambiar-vendedor]');
+                    if (btnCambiar) {
+                        btnCambiar.addEventListener('click', (ev) => {
+                            ev.stopPropagation();
+                            abrirModalCambiarVendedor(r.id);
+                        });
+                    }
+
+                    const btnAnular = detRow.querySelector('[data-anular-venta]');
+                    if (btnAnular) {
+                        btnAnular.addEventListener('click', async (ev) => {
+                            ev.stopPropagation();
+                            const ok = window.confirm('¿Anular completamente esta venta? Esto revertirá el inventario y eliminará cualquier cuenta por cobrar asociada. Esta acción no se puede deshacer.');
+                            if (!ok) return;
+                            try {
+                                await apiFetchJson(`/ventas/${encodeURIComponent(r.id)}`, { method: 'DELETE' });
+                                if (window.showToast) {
+                                    window.showToast('Venta anulada y revertida.', 'success');
+                                }
+                                await cargarReporte();
+                            } catch (err) {
+                                console.error('Error anulando venta', err);
+                                if (window.showToast) {
+                                    window.showToast(err.message || 'Error al anular la venta.', 'error');
+                                } else {
+                                    alert(err.message || 'Error al anular la venta.');
+                                }
+                            }
+                        });
+                    }
+                }
 
         tr.addEventListener('click', async () => {
             // cerrar el que esté abierto
@@ -187,6 +229,58 @@ function renderReporte() {
     document.getElementById('rpt-resumen').innerText = `Ventas: ${cacheRows.length} | Total ${MONEDA}: ${total.toFixed(2)} | Margen ${MONEDA}: ${margen.toFixed(2)}`;
     document.getElementById('th-total-moneda').innerText = `Total ${MONEDA}`;
     document.getElementById('th-margen-moneda').innerText = `Margen ${MONEDA}`;
+}
+
+function abrirModalCambiarVendedor(ventaId) {
+    const modal = document.getElementById('modal-cambiar-vendedor');
+    if (!modal) return;
+    cambioVendVentaId = ventaId;
+
+    const info = document.getElementById('cv-venta-info');
+    if (info) {
+        const venta = cacheRows.find(v => String(v.id) === String(ventaId));
+        if (venta) {
+            const fechaTxt = new Date(venta.fecha).toLocaleString();
+            const vendedorNombre = venta.vendedor || '—';
+            info.innerHTML = `
+                <div class="text-[11px] text-slate-500 mb-1">Venta #${venta.id} • ${fechaTxt}</div>
+                <div class="text-sm font-semibold text-slate-700">${escapeHtml(venta.cliente || '')}</div>
+                <div class="text-[11px] text-slate-500 mt-1">Vendedor actual: <span class="font-semibold text-slate-700">${escapeHtml(vendedorNombre)}</span></div>
+            `;
+        } else {
+            info.textContent = 'Venta seleccionada';
+        }
+    }
+
+    const sel = document.getElementById('cv-vendedor');
+    if (sel) {
+        sel.innerHTML = '';
+        const optDefault = document.createElement('option');
+        optDefault.value = '';
+        optDefault.textContent = 'Selecciona un vendedor';
+        sel.appendChild(optDefault);
+
+        (vendedoresCache || []).forEach((u) => {
+            const nombre = (u.nombre_completo || u.username || '').trim() || u.username || String(u.id);
+            const opt = document.createElement('option');
+            opt.value = String(u.id);
+            opt.textContent = u.rol ? `${nombre} (${u.rol})` : nombre;
+            sel.appendChild(opt);
+        });
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function cerrarModalCambiarVendedor() {
+    const modal = document.getElementById('modal-cambiar-vendedor');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    cambioVendVentaId = null;
+    const sel = document.getElementById('cv-vendedor');
+    if (sel) sel.value = '';
 }
 
 function renderClienteSugerencias(items) {
@@ -675,6 +769,73 @@ if (btnRentaProv) {
 const btnComisiones = document.getElementById('comisiones-cargar');
 if (btnComisiones) {
     btnComisiones.addEventListener('click', cargarComisiones);
+}
+
+// Modal cambio de vendedor (solo admins de empresa)
+if (ES_ADMIN_EMPRESA) {
+    const modal = document.getElementById('modal-cambiar-vendedor');
+    const btnCerrar = document.getElementById('cv-cerrar');
+    const btnCancelar = document.getElementById('cv-cancelar');
+    const btnGuardar = document.getElementById('cv-guardar');
+
+    if (modal) {
+        modal.addEventListener('click', (ev) => {
+            if (ev.target === modal) {
+                cerrarModalCambiarVendedor();
+            }
+        });
+    }
+
+    if (btnCerrar) {
+        btnCerrar.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            cerrarModalCambiarVendedor();
+        });
+    }
+
+    if (btnCancelar) {
+        btnCancelar.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            cerrarModalCambiarVendedor();
+        });
+    }
+
+    if (btnGuardar) {
+        btnGuardar.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            if (!cambioVendVentaId) return;
+            const sel = document.getElementById('cv-vendedor');
+            if (!sel || !sel.value) {
+                if (window.showToast) {
+                    window.showToast('Selecciona un nuevo vendedor.', 'warning');
+                } else {
+                    alert('Selecciona un nuevo vendedor.');
+                }
+                return;
+            }
+
+            const nuevoId = Number(sel.value);
+            try {
+                await apiFetchJson(`/ventas/${encodeURIComponent(cambioVendVentaId)}/vendedor`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usuario_id: nuevoId }),
+                });
+                if (window.showToast) {
+                    window.showToast('Vendedor actualizado en la venta.', 'success');
+                }
+                cerrarModalCambiarVendedor();
+                await cargarReporte();
+            } catch (err) {
+                console.error('Error cambiando vendedor de venta', err);
+                if (window.showToast) {
+                    window.showToast(err.message || 'Error al cambiar el vendedor de la venta.', 'error');
+                } else {
+                    alert(err.message || 'Error al cambiar el vendedor de la venta.');
+                }
+            }
+        });
+    }
 }
 
 const presToggle = document.getElementById('pres-toggle');

@@ -82,8 +82,10 @@ router.get('/nota/:id', requireAuth, async (req, res) => {
       : db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
     if (!presupuesto) return res.status(404).send('Presupuesto no encontrado');
     const detalles = db.prepare(`
-      SELECT pd.cantidad, pd.precio_usd, pd.subtotal_bs, pd.descripcion, pd.codigo
+      SELECT pd.cantidad, pd.precio_usd, pd.subtotal_bs, pd.descripcion, pd.codigo,
+             p.marca AS marca
       FROM presupuesto_detalle pd
+      LEFT JOIN productos p ON p.id = pd.producto_id
       WHERE pd.presupuesto_id = ?
     `).all(id);
 

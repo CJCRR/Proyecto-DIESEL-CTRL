@@ -5,6 +5,7 @@ const { requireAuth, requireRole } = require('./auth');
 const bcrypt = require('bcryptjs');
 const { registrarEventoNegocio } = require('../services/eventosService');
 const { registrarAuditoria } = require('../services/auditLogService');
+const { listarPagosLicenciaEmpresa, actualizarEstadoPagoLicencia } = require('../services/ajustesService');
 const { purgeTransactionalData } = require('../services/ajustesService');
 
 // GET /admin/empresas - Listar empresas con filtros básicos (solo superadmin)
@@ -314,6 +315,37 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
     const logger = require('../services/logger');
     logger.error('Error actualizando empresa:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Error al actualizar empresa' });
+  }
+});
+
+// GET /admin/empresas/:id/pagos-licencia - Listar pagos de licencia de una empresa (solo superadmin)
+router.get('/:id/pagos-licencia', requireAuth, requireRole('superadmin'), (req, res) => {
+  const { id } = req.params;
+  const { estado } = req.query || {};
+  try {
+    const pagos = listarPagosLicenciaEmpresa(id, estado ? { estado } : {});
+    res.json(pagos);
+  } catch (err) {
+    const logger = require('../services/logger');
+    logger.error('Error listando pagos de licencia:', { message: err.message, stack: err.stack });
+    res.status(500).json({ error: 'Error al listar pagos de licencia' });
+  }
+});
+
+// PATCH /admin/empresas/:id/pagos-licencia/:pagoId/estado - Cambiar estado de un pago de licencia (solo superadmin)
+router.patch('/:id/pagos-licencia/:pagoId/estado', requireAuth, requireRole('superadmin'), (req, res) => {
+  const { id, pagoId } = req.params;
+  const { estado, meses_pagados } = req.body || {};
+  try {
+    const pago = actualizarEstadoPagoLicencia(id, pagoId, estado, { meses_pagados });
+    res.json({ ok: true, pago });
+  } catch (err) {
+    const logger = require('../services/logger');
+    logger.error('Error actualizando estado de pago de licencia:', { message: err.message, stack: err.stack });
+    if (err.tipo === 'VALIDACION') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Error al actualizar estado de pago' });
   }
 });
 

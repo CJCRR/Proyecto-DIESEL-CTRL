@@ -695,6 +695,27 @@ const migrations = [
     }
   },
   {
+    id: '030_pagos_licencia_detalle_estado',
+    up: () => {
+      // Campos adicionales para gestionar solicitudes de pago desde el portal de empresa
+      if (!columnExists('pagos_licencia', 'estado')) {
+        db.prepare("ALTER TABLE pagos_licencia ADD COLUMN estado TEXT DEFAULT 'aplicado'").run();
+      }
+      if (!columnExists('pagos_licencia', 'usuario_id')) {
+        db.prepare('ALTER TABLE pagos_licencia ADD COLUMN usuario_id INTEGER').run();
+      }
+      if (!columnExists('pagos_licencia', 'tipo')) {
+        db.prepare('ALTER TABLE pagos_licencia ADD COLUMN tipo TEXT').run();
+      }
+      if (!columnExists('pagos_licencia', 'comprobante_url')) {
+        db.prepare('ALTER TABLE pagos_licencia ADD COLUMN comprobante_url TEXT').run();
+      }
+      if (!columnExists('pagos_licencia', 'notas')) {
+        db.prepare('ALTER TABLE pagos_licencia ADD COLUMN notas TEXT').run();
+      }
+    }
+  },
+  {
     id: '019_indices_rendimiento_base',
     up: () => {
       // Índice compuesto para acelerar búsquedas de usuarios por empresa y username

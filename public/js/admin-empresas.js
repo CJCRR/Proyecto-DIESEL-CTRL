@@ -63,6 +63,13 @@ const rpMeses = document.getElementById('rp-meses');
 const rpCancelar = document.getElementById('rp-cancelar');
 let rpEmpresaId = null;
 
+// Modal pagos de licencia por empresa
+const modalPagosLic = document.getElementById('modal-pagos-licencia');
+const plEmpresaInfo = document.getElementById('pl-empresa-info');
+const plList = document.getElementById('pl-list');
+const plCerrar = document.getElementById('pl-cerrar');
+let plEmpresaId = null;
+
 // Modal días de gracia de la empresa
 const modalCiclo = document.getElementById('modal-ciclo-empresa');
 const formCiclo = document.getElementById('form-ciclo-empresa');
@@ -149,6 +156,23 @@ function addDays(date, days) {
   return d;
 }
 
+function formatFechaCortaLocal(iso) {
+  if (!iso) return '—';
+  const simpleMatch = /^\d{4}-\d{2}-\d{2}$/.test(String(iso));
+  const d = simpleMatch
+    ? (() => {
+        const [y, m, day] = String(iso).split('-').map(Number);
+        return new Date(y, m - 1, day);
+      })()
+    : new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10) || '—';
+  try {
+    return d.toLocaleDateString('es-VE');
+  } catch {
+    return String(iso).slice(0, 10) || '—';
+  }
+}
+
 function calcularEstadoLicencia(empresa) {
   const estadoBase = empresa.estado || 'activa';
 
@@ -221,6 +245,7 @@ function renderEmpresas() {
 
     html += `<button class="px-2 py-1 rounded-lg bg-sky-100 text-sky-700 hover:bg-sky-200" onclick="window.__editarPlan(${e.id})">Plan / Monto</button>`;
     html += `<button class="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200" onclick="window.__registrarPago(${e.id})">Registrar pago</button>`;
+    html += `<button class="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200" onclick="window.__verPagosLicencia(${e.id})">Pagos plan</button>`;
     html += `<button class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="window.__editarCiclo(${e.id})">Días de gracia</button>`;
 
     // Botón para crear usuario admin de empresa
@@ -266,6 +291,107 @@ async function patchEmpresa(id, payload, successMessage) {
       alert(err.message || 'Error al actualizar empresa');
     }
   }
+}
+
+async function cargarPagosLicenciaEmpresa(id) {
+  if (!plList) return;
+  plList.innerHTML = '<div class="py-2 text-slate-400">Cargando pagos...</div>';
+  try {
+    const pagos = await apiFetchJson(`/admin/empresas/${id}/pagos-licencia`);
+    if (!Array.isArray(pagos) || !pagos.length) {
+      plList.innerHTML = '<div class="py-2 text-slate-400">No hay pagos registrados para esta empresa.</div>';
+      return;
+    }
+    let html = '';
+    pagos.forEach((p) => {
+      const fecha = formatFechaCortaLocal(p.fecha);
+      const monto = typeof p.monto_usd === 'number' && !Number.isNaN(p.monto_usd) ? `$${p.monto_usd.toFixed(2)}` : '—';
+      const estado = (p.estado || '').toString().toLowerCase();
+      const estadoBadge = estado === 'pendiente'
+        ? '<span class="ml-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold">Pendiente</span>'
+        : estado === 'aplicado'
+          ? '<span class="ml-2 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold">Aplicado</span>'
+          : estado === 'rechazado'
+            ? '<span class="ml-2 px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-semibold">Rechazado</span>'
+            : '';
+      const tipo = p.tipo || '—';
+      const ref = p.referencia || '—';
+      const notas = p.notas || '';
+      const compLink = p.comprobante_url
+        ? `<a href="${p.comprobante_url}" target="_blank" rel="noopener" class="text-xs text-sky-600 hover:underline">Ver captura</a>`
+        : '<span class="text-xs text-slate-400">Sin captura</span>';
+
+      html += `<div class="py-2 flex flex-col gap-1">
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-slate-600">${fecha} · ${monto}${estadoBadge}</div>
+          <div class="text-xs text-slate-500">Tipo: ${tipo}</div>
+        </div>
+        <div class="text-xs text-slate-500">Ref: ${ref}</div>
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-[11px] text-slate-500 truncate">${p.descripcion || ''}</div>
+          <div>${compLink}</div>
+        </div>`;
+
+      if (notas) {
+        html += `<div class="text-[11px] text-slate-500">Notas: ${notas}</div>`;
+      }
+
+      if (estado === 'pendiente') {
+        html += `<div class="mt-1 flex flex-wrap gap-2">
+          <button class="px-2 py-1 rounded bg-emerald-600 text-white text-[11px]" data-pl-accion="aplicar" data-pl-id="${p.id}">Marcar recibido (+1 mes)</button>
+          <button class="px-2 py-1 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[11px]" data-pl-accion="rechazar" data-pl-id="${p.id}">Rechazar</button>
+        </div>`;
+      }
+
+      html += '</div>';
+    });
+
+    plList.innerHTML = html;
+
+    plList.querySelectorAll('[data-pl-accion]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const accion = btn.getAttribute('data-pl-accion');
+        const idPago = btn.getAttribute('data-pl-id');
+        if (!plEmpresaId || !idPago) return;
+        const nuevoEstado = accion === 'aplicar' ? 'aplicado' : 'rechazado';
+        const meses = accion === 'aplicar' ? 1 : 0;
+        try {
+          await apiFetchJson(`/admin/empresas/${plEmpresaId}/pagos-licencia/${idPago}/estado`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estado: nuevoEstado, meses_pagados: meses }),
+          });
+          if (window.showToast) window.showToast('Estado de pago actualizado', 'success');
+          await cargarPagosLicenciaEmpresa(plEmpresaId);
+          await cargarEmpresas();
+        } catch (err) {
+          console.error(err);
+          if (window.showToast) window.showToast(err.message || 'Error actualizando pago', 'error');
+        }
+      });
+    });
+  } catch (err) {
+    console.error(err);
+    plList.innerHTML = '<div class="py-2 text-rose-500">Error cargando pagos de licencia.</div>';
+  }
+}
+
+window.__verPagosLicencia = function (id) {
+  const empresa = empresas.find(e => e.id === id);
+  if (!empresa || !modalPagosLic || !plEmpresaInfo) return;
+  plEmpresaId = id;
+  plEmpresaInfo.textContent = `Empresa: ${empresa.nombre} (código ${empresa.codigo})`;
+  modalPagosLic.classList.remove('hidden');
+  modalPagosLic.classList.add('flex');
+  cargarPagosLicenciaEmpresa(id);
+};
+
+if (plCerrar && modalPagosLic) {
+  plCerrar.addEventListener('click', () => {
+    modalPagosLic.classList.add('hidden');
+    modalPagosLic.classList.remove('flex');
+    plEmpresaId = null;
+  });
 }
 
 window.__activarEmpresa = function (id) {

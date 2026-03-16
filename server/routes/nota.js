@@ -31,7 +31,7 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 
   const detalles = db.prepare(`
-    SELECT vd.cantidad, vd.precio_usd, vd.subtotal_bs, p.descripcion, p.codigo
+    SELECT vd.cantidad, vd.precio_usd, vd.subtotal_bs, p.descripcion, p.codigo, p.marca AS marca
     FROM venta_detalle vd
     JOIN productos p ON p.id = vd.producto_id
     WHERE vd.venta_id = ?
