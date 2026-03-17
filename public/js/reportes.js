@@ -235,6 +235,19 @@ function renderReporte() {
     document.getElementById('rpt-resumen').innerText = `Ventas: ${cacheRows.length} | Total ${MONEDA}: ${total.toFixed(2)} | Margen ${MONEDA}: ${margen.toFixed(2)}`;
     document.getElementById('th-total-moneda').innerText = `Total ${MONEDA}`;
     document.getElementById('th-margen-moneda').innerText = `Margen ${MONEDA}`;
+
+    // Si tenemos una venta marcada para enfocar (por ejemplo, desde Inventario),
+    // abrirla automáticamente una vez renderizado el reporte.
+    if (focusVentaId != null) {
+        const row = tbody.querySelector(`tr[data-id="${focusVentaId}"]`);
+        if (row) {
+            if (typeof row.scrollIntoView === 'function') {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            row.click();
+        }
+        focusVentaId = null;
+    }
 }
 
 function abrirModalCambiarVendedor(ventaId) {
@@ -841,18 +854,6 @@ if (ES_ADMIN_EMPRESA) {
                 }
             }
         });
-
-    // Si tenemos una venta marcada para enfocar, abrirla automáticamente
-    if (focusVentaId != null) {
-        const row = tbody.querySelector(`tr[data-id="${focusVentaId}"]`);
-        if (row) {
-            if (typeof row.scrollIntoView === 'function') {
-                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-            row.click();
-        }
-        focusVentaId = null;
-    }
     }
 }
 
