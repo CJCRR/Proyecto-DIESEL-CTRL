@@ -109,7 +109,7 @@ function crearCompra(payload = {}, usuario) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const selectProd = db.prepare('SELECT id, descripcion, marca, stock, deposito_id, empresa_id FROM productos WHERE codigo = ? AND empresa_id = ?');
+    const selectProd = db.prepare('SELECT id, descripcion, marca, stock, deposito_id, empresa_id, costo_usd, precio_usd FROM productos WHERE codigo = ? AND empresa_id = ?');
     const selectStockDep = db.prepare(`
       SELECT cantidad FROM stock_por_deposito
       WHERE producto_id = ? AND deposito_id = ?
@@ -127,7 +127,8 @@ function crearCompra(payload = {}, usuario) {
       UPDATE productos
       SET stock = ?,
           costo_usd = ?,
-          marca = COALESCE(NULLIF(?, ''), marca)
+          marca = COALESCE(NULLIF(?, ''), marca),
+          precio_usd = COALESCE(?, precio_usd)
       WHERE id = ?
     `);
 
@@ -167,6 +168,19 @@ function crearCompra(payload = {}, usuario) {
         throw err;
       }
 
+      // Precio de venta opcional: solo se actualiza si viene un valor
+      const precioVentaField = raw.precio_venta_usd;
+      let precioParaActualizar = null;
+      if (precioVentaField !== null && precioVentaField !== undefined && precioVentaField !== '') {
+        const precioParsed = parseFloat(precioVentaField);
+        if (Number.isNaN(precioParsed) || precioParsed < 0) {
+          const err = new Error('El precio de venta debe ser >= 0 cuando se envía');
+          err.tipo = 'VALIDACION';
+          throw err;
+        }
+        precioParaActualizar = precioParsed;
+      }
+
       const marca = safeStr(raw.marca || prod.marca, 80);
       const subtotalUsd = costo * cantidad;
       const subtotalBs = subtotalUsd * tasa;
@@ -192,7 +206,7 @@ function crearCompra(payload = {}, usuario) {
       const costoParaActualizar = (costoField === null || costoField === undefined || costoField === '')
         ? (typeof prod.costo_usd === 'number' ? prod.costo_usd : costo)
         : costo;
-      updateProdStock.run(nuevoStockTotal, costoParaActualizar, marca, prod.id);
+      updateProdStock.run(nuevoStockTotal, costoParaActualizar, marca, precioParaActualizar, prod.id);
 
       const depositoId = prod.deposito_id;
       if (depositoId) {

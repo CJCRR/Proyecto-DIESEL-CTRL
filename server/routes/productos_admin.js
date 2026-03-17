@@ -84,6 +84,60 @@ router.post('/', requireAuth, (req, res) => {
     }
 });
 
+// GET /admin/productos/actividad?codigo=XXX - Última compra y venta de un producto
+router.get('/actividad', requireAuth, (req, res) => {
+    try {
+        const codigoRaw = req.query.codigo ? String(req.query.codigo).trim() : '';
+        if (!codigoRaw) {
+            return res.status(400).json({ error: 'Debe indicar el código del producto.' });
+        }
+        const codigo = codigoRaw.toUpperCase();
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+
+        const prod = db.prepare(`
+            SELECT id, codigo, descripcion
+            FROM productos
+            WHERE codigo = ? AND empresa_id = ?
+        `).get(codigo, empresaId);
+
+        if (!prod) {
+            return res.status(404).json({ error: 'Producto no encontrado en esta empresa.' });
+        }
+
+        // Última venta del producto (por fecha de venta)
+        const ultimaVenta = db.prepare(`
+            SELECT v.id, v.fecha, vd.cantidad, v.cliente
+            FROM venta_detalle vd
+            JOIN ventas v ON v.id = vd.venta_id
+            JOIN usuarios u ON u.id = v.usuario_id
+            WHERE vd.producto_id = ? AND u.empresa_id = ?
+            ORDER BY datetime(v.fecha) DESC, v.id DESC
+            LIMIT 1
+        `).get(prod.id, empresaId) || null;
+
+        // Última compra del producto (por fecha de compra)
+        const ultimaCompra = db.prepare(`
+            SELECT c.id, c.fecha, cd.cantidad, p.nombre AS proveedor_nombre
+            FROM compra_detalle cd
+            JOIN compras c ON c.id = cd.compra_id
+            LEFT JOIN proveedores p ON p.id = c.proveedor_id
+            LEFT JOIN usuarios u ON u.id = c.usuario_id
+            WHERE cd.producto_id = ? AND (u.empresa_id = ? OR u.empresa_id IS NULL)
+            ORDER BY datetime(c.fecha) DESC, c.id DESC
+            LIMIT 1
+        `).get(prod.id, empresaId) || null;
+
+        res.json({
+            producto: prod,
+            ultima_compra: ultimaCompra,
+            ultima_venta: ultimaVenta,
+        });
+    } catch (err) {
+        console.error('Error obteniendo actividad de producto:', err);
+        res.status(500).json({ error: 'Error al obtener actividad del producto.' });
+    }
+});
+
 // GET /admin/productos - Listar productos (paginado opcional) con filtros
 router.get('/', requireAuth, (req, res) => {
     const limit = parseInt(req.query.limit) || 50;

@@ -63,8 +63,8 @@
             <section id="productos-section" class="lg:col-span-2 bg-white p-4 rounded shadow">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="font-black">Productos</h2>
-                    <div class="flex gap-2 items-center">
-                        <input id="q" placeholder="Buscar..." class="p-2 border rounded w-60" />
+                    <div class="flex flex-wrap gap-2 items-center justify-end">
+                        <input id="q" placeholder="Buscar..." class="p-2 border rounded w-48 md:w-60" />
                         <select id="pageSize" class="select-pos text-sm w-20">
                             <option value="10">10</option>
                             <option value="25">25</option>
@@ -83,7 +83,16 @@
                             <option value="medium">Medio (&lt;20)</option>
                             <option value="over">Sobre stock (&gt;100)</option>
                         </select>
-                        <button id="toggle-editor" type="button" class="p-2 border rounded text-xs text-slate-600 hover:bg-slate-100">
+                        <select id="filterIncompletosTipo" class="select-pos text-sm min-w-[150px] md:min-w-[190px]">
+                            <option value="">Datos incompletos: todos</option>
+                            <option value="sin_costo">Solo sin costo</option>
+                            <option value="sin_precio">Solo sin precio</option>
+                            <option value="sin_marca">Solo sin marca</option>
+                            <option value="sin_categoria">Solo sin categoría</option>
+                            <option value="sin_deposito">Solo sin depósito</option>
+                            <option value="sin_stock_def">Solo sin stock definido</option>
+                        </select>
+                        <button id="toggle-editor" type="button" class="p-2 border rounded text-xs text-slate-600 hover:bg-slate-100 shrink-0">
                             >
                         </button>
                     </div>
@@ -158,6 +167,9 @@
                 <h4 class="text-sm font-black mb-1">Historial de ajustes</h4>
                 <p class="text-[11px] text-slate-500 mb-1">Al seleccionar un producto se filtra este historial solo para ese código.</p>
                 <div id="ajustes-list" class="text-sm text-slate-600 max-h-40 overflow-auto">Cargando...</div>
+                <hr class="my-4">
+                <h4 class="text-sm font-black mb-1">Actividad del producto</h4>
+                <div id="actividad-producto" class="text-xs text-slate-600">Selecciona un producto para ver la última compra y la última venta.</div>
                 <hr class="my-4">
                 <h4 class="text-sm font-black mb-1">Herramientas de mantenimiento</h4>
                 <p class="text-[11px] text-slate-500 mb-2">Solo para administradores: recalcula el stock total a partir de los depósitos.</p>

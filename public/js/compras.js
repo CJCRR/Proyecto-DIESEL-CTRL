@@ -13,6 +13,7 @@ let modalNuevoProducto;
 let modalNuevoProductoMsg;
 let depositosComprasCargados = false;
 let categoriasCompras = [];
+let compraFocusId = null;
 
 async function cargarCategoriasCompras() {
   const dataList = document.getElementById('npCategoriaOptions');
@@ -73,6 +74,8 @@ function limpiarFormularioCompra() {
   document.getElementById('c_codigo').value = '';
   document.getElementById('c_cantidad').value = '';
   document.getElementById('c_costo').value = '';
+  const precioEl = document.getElementById('c_precio');
+  if (precioEl) precioEl.value = '';
   document.getElementById('c_lote').value = '';
   productoSeleccionado = null;
   renderProductoInfo();
@@ -94,6 +97,23 @@ function renderProductoInfo() {
   const precio = typeof p.precio_usd === 'number' ? ` | Precio ref: $${p.precio_usd.toFixed(2)}` : '';
   const marca = p.marca ? ` | Marca: ${p.marca}` : '';
   info.textContent = `Producto: ${p.codigo || ''}${desc}${stock}${precio}${marca}`;
+}
+
+function rellenarCamposProductoEnFormulario(prod) {
+  if (!prod) return;
+  const costoEl = document.getElementById('c_costo');
+  const precioEl = document.getElementById('c_precio');
+  const marcaEl = document.getElementById('c_lote');
+
+  if (costoEl && typeof prod.costo_usd === 'number') {
+    costoEl.value = prod.costo_usd > 0 ? prod.costo_usd.toFixed(2) : '';
+  }
+  if (precioEl && typeof prod.precio_usd === 'number') {
+    precioEl.value = prod.precio_usd > 0 ? prod.precio_usd.toFixed(2) : '';
+  }
+  if (marcaEl) {
+    marcaEl.value = prod.marca || '';
+  }
 }
 
 function renderItems() {
@@ -283,6 +303,10 @@ function agregarItemDesdeFormulario() {
   const costoRaw = (costoInputEl && costoInputEl.value ? costoInputEl.value : '').trim();
   let costo;
   let usarCostoAnterior = false;
+  const precioInputEl = document.getElementById('c_precio');
+  const precioRaw = (precioInputEl && precioInputEl.value ? precioInputEl.value : '').trim();
+  let precio = null;
+  let usarPrecioAnterior = true;
   const marcaInput = document.getElementById('c_lote').value.trim();
 
   if (!codigo) {
@@ -309,6 +333,16 @@ function agregarItemDesdeFormulario() {
     return;
   }
 
+  if (precioRaw !== '') {
+    const precioNum = parseFloat(precioRaw);
+    if (Number.isNaN(precioNum) || precioNum < 0) {
+      showToast('El precio no puede ser negativo', 'error');
+      return;
+    }
+    precio = precioNum;
+    usarPrecioAnterior = false;
+  }
+
   const desc = productoSeleccionado && productoSeleccionado.codigo === codigo
     ? (productoSeleccionado.descripcion || '')
     : '';
@@ -319,10 +353,11 @@ function agregarItemDesdeFormulario() {
 
   const marca = marcaInput || marcaBase;
 
-  items.push({ codigo, descripcion: desc, marca, cantidad, costo, usarCostoAnterior, lote: '' });
+  items.push({ codigo, descripcion: desc, marca, cantidad, costo, usarCostoAnterior, precio, usarPrecioAnterior, lote: '' });
   document.getElementById('c_codigo').value = '';
   document.getElementById('c_cantidad').value = '';
   document.getElementById('c_costo').value = '';
+  if (precioInputEl) precioInputEl.value = '';
   document.getElementById('c_lote').value = '';
   productoSeleccionado = null;
   renderProductoInfo();
@@ -351,6 +386,8 @@ async function guardarCompra() {
       cantidad: it.cantidad,
       // Si el usuario dejó el costo en blanco, enviamos null para que el backend use el costo anterior
       costo_usd: it.usarCostoAnterior ? null : it.costo,
+      // Si el usuario no cambió el precio, enviamos null para no tocar el precio de venta
+      precio_venta_usd: it.usarPrecioAnterior ? null : it.precio,
       lote: '',
       observaciones: it.observaciones,
     })),
@@ -440,6 +477,7 @@ async function buscarProductos(q) {
           const inp = document.getElementById('c_codigo');
           if (inp) inp.value = prod.codigo;
           renderProductoInfo();
+          rellenarCamposProductoEnFormulario(prod);
         }
         lista.classList.add('hidden');
       });
@@ -455,6 +493,9 @@ async function cargarProductoPorCodigo(codigo) {
     const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
     productoSeleccionado = prod || null;
     renderProductoInfo();
+    if (productoSeleccionado) {
+      rellenarCamposProductoEnFormulario(productoSeleccionado);
+    }
   } catch (err) {
     productoSeleccionado = null;
     renderProductoInfo();
@@ -502,6 +543,16 @@ async function cargarHistorialCompras() {
         }
       });
     });
+
+    // Si venimos con un ID específico en la URL, abrir directamente esa compra
+    if (compraFocusId != null) {
+      toggleDetalleCompra(compraFocusId);
+      const row = tbody.querySelector(`tr[data-compra-id="${compraFocusId}"]`);
+      if (row && typeof row.scrollIntoView === 'function') {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      compraFocusId = null;
+    }
   } catch (err) {
     console.error(err);
     showToast(err.message || 'Error cargando historial de compras', 'error');
@@ -698,6 +749,16 @@ function setupUI() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const params = new URLSearchParams(window.location.search || '');
+    const foco = params.get('compra_id');
+    if (foco) {
+      const idNum = parseInt(foco, 10);
+      if (!Number.isNaN(idNum) && idNum > 0) {
+        compraFocusId = idNum;
+      }
+    }
+  } catch {}
   setupUI();
   limpiarFormularioCompra();
   cargarProveedoresParaSelect();

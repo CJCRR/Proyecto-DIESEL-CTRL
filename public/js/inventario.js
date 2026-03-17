@@ -22,6 +22,7 @@ const prevPage = document.getElementById('prevPage');
 const nextPage = document.getElementById('nextPage');
 const pagInfo = document.getElementById('paginacion-info');
 const filterDeposito = document.getElementById('filterDeposito');
+const filterIncompletosTipo = document.getElementById('filterIncompletosTipo');
 const btnRebuildStock = document.getElementById('btnRebuildStock');
 const rebuildStockMsg = document.getElementById('rebuildStockMsg');
 const layoutInventario = document.getElementById('inventario-layout');
@@ -41,6 +42,7 @@ const btnMoverDeposito = document.getElementById('btnMoverDeposito');
 const movStockDetalle = document.getElementById('mov_stock_detalle');
 const f_categoria = document.getElementById('f_categoria');
 const categoriaSugList = document.getElementById('categoria_sugerencias');
+const actividadProductoEl = document.getElementById('actividad-producto');
 
 let categoriasInventario = [];
 
@@ -249,12 +251,37 @@ function updatePaginationInfo() {
 // Renderizar lista de productos con filtros aplicados y orden alfabético
 function renderList(items) {
     const qv = q.value.trim().toLowerCase();
+    const tipoInc = filterIncompletosTipo ? filterIncompletosTipo.value : '';
     const filtered = items.filter(p => {
         const codigo = (p.codigo || '').toLowerCase();
         const desc = (p.descripcion || '').toLowerCase();
         const cat = (p.categoria || '').toLowerCase();
         const marca = (p.marca || '').toLowerCase();
-        return !qv || codigo.includes(qv) || desc.includes(qv) || cat.includes(qv) || marca.includes(qv);
+
+        // Coincidencia por texto (código, descripción, categoría o marca)
+        const matchTexto = !qv || codigo.includes(qv) || desc.includes(qv) || cat.includes(qv) || marca.includes(qv);
+
+        // Calcular qué datos están incompletos para este producto
+        const sinCosto = p.costo_usd == null || Number(p.costo_usd) <= 0;
+        const sinPrecio = p.precio_usd == null || Number(p.precio_usd) <= 0;
+        const sinCategoria = !p.categoria || !String(p.categoria).trim();
+        const sinMarca = !p.marca || !String(p.marca).trim();
+        const sinDeposito = p.deposito_id == null;
+        const sinStockDef = p.stock == null;
+
+        // Filtro por tipo de dato incompleto: se aplica siempre que el usuario
+        // haya elegido una opción en el selector, aunque no venga desde dashboard.
+        let matchTipo = true;
+        if (tipoInc) {
+            if (tipoInc === 'sin_costo') matchTipo = sinCosto;
+            else if (tipoInc === 'sin_precio') matchTipo = sinPrecio;
+            else if (tipoInc === 'sin_marca') matchTipo = sinMarca;
+            else if (tipoInc === 'sin_categoria') matchTipo = sinCategoria;
+            else if (tipoInc === 'sin_deposito') matchTipo = sinDeposito;
+            else if (tipoInc === 'sin_stock_def') matchTipo = sinStockDef;
+        }
+
+        return matchTexto && matchTipo;
     });
     // Orden alfabético por descripción (y luego por código como desempate)
     filtered.sort((a, b) => {
@@ -302,10 +329,24 @@ function renderList(items) {
                 badgeHtml = '<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700 ml-2">Sobre stock</span>';
             }
         }
+
+        // Badges para mostrar rápidamente qué dato está incompleto
+        let incompletosBadges = '';
+        const tags = [];
+        if (p.costo_usd == null || Number(p.costo_usd) <= 0) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">Sin costo</span>');
+        if (p.precio_usd == null || Number(p.precio_usd) <= 0) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700">Sin precio</span>');
+        if (!p.categoria || !String(p.categoria).trim()) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700">Sin categoría</span>');
+        if (!p.marca || !String(p.marca).trim()) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">Sin marca</span>');
+        if (p.deposito_id == null) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">Sin depósito</span>');
+        if (p.stock == null) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700">Sin stock definido</span>');
+
+        if (tags.length) {
+            incompletosBadges = `<div class="mt-0.5 flex flex-wrap gap-1">${tags.join('')}</div>`;
+        }
         const descUpper = (p.descripcion || '').toString().toUpperCase();
         const catUpper = (p.categoria || '').toString().toUpperCase();
         const marcaUpper = (p.marca || '').toString().toUpperCase();
-        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs ">${descUpper}</span></div><div class="text-xs text-slate-400">${catUpper}${marcaUpper ? ` · Marca: ${marcaUpper}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}</div>
+        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs ">${descUpper}</span></div><div class="text-xs text-slate-400">${catUpper}${marcaUpper ? ` · Marca: ${marcaUpper}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}${incompletosBadges}</div>
             <div class="text-right space-y-0.5 min-w-[170px]">
                 <div class="text-sm font-black">Stock: ${p.stock || 0}${badgeHtml}</div>
                 <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)}</div>
@@ -356,6 +397,87 @@ function renderList(items) {
                 } catch (err) {
                     console.error(err);
                     elHist.innerHTML = '<div class="text-xs text-rose-500">Error cargando ajustes para este producto.</div>';
+                }
+            })();
+
+            // Cargar actividad de compras y ventas para este producto
+            (async () => {
+                if (!actividadProductoEl) return;
+                actividadProductoEl.innerHTML = '<div class="text-[11px] text-slate-400">Cargando actividad...</div>';
+                try {
+                    const res = await fetch(`/admin/productos/actividad?codigo=${encodeURIComponent(p.codigo)}`, { credentials: 'same-origin' });
+                    if (!res.ok) {
+                        actividadProductoEl.innerHTML = '<div class="text-[11px] text-rose-500">No se pudo cargar la actividad del producto.</div>';
+                        return;
+                    }
+                    const data = await res.json();
+                    const comp = data.ultima_compra || null;
+                    const vent = data.ultima_venta || null;
+                    if (!comp && !vent) {
+                        actividadProductoEl.innerHTML = '<div class="text-[11px] text-slate-400">Sin movimientos de compra o venta registrados para este producto.</div>';
+                        return;
+                    }
+
+                    const partes = [];
+                    if (comp) {
+                        const fechaC = comp.fecha ? new Date(comp.fecha).toLocaleString() : '';
+                        const cantC = comp.cantidad != null ? comp.cantidad : '';
+                        const prov = comp.proveedor_nombre || '';
+                        partes.push(`
+                            <div class="flex items-center justify-between gap-2">
+                                <div>
+                                    <div class="font-semibold text-[11px] text-slate-700">Última compra</div>
+                                    <div class="text-[11px] text-slate-500">${fechaC || '—'}${cantC !== '' ? ` · Cant: ${cantC}` : ''}${prov ? ` · Prov: ${prov}` : ''}</div>
+                                </div>
+                                <button type="button" class="px-2 py-1 text-[11px] rounded bg-slate-100 hover:bg-slate-200 text-slate-700" data-actividad-compra="${comp.id}">Ver compra</button>
+                            </div>
+                        `);
+                    }
+                    if (vent) {
+                        const fechaV = vent.fecha ? new Date(vent.fecha).toLocaleString() : '';
+                        const cantV = vent.cantidad != null ? vent.cantidad : '';
+                        const cli = vent.cliente || '';
+                        partes.push(`
+                            <div class="flex items-center justify-between gap-2 mt-2">
+                                <div>
+                                    <div class="font-semibold text-[11px] text-slate-700">Última venta</div>
+                                    <div class="text-[11px] text-slate-500">${fechaV || '—'}${cantV !== '' ? ` · Cant: ${cantV}` : ''}${cli ? ` · Cliente: ${cli}` : ''}</div>
+                                </div>
+                                <button type="button" class="px-2 py-1 text-[11px] rounded bg-blue-100 hover:bg-blue-200 text-blue-700" data-actividad-venta="${vent.id}" data-actividad-venta-fecha="${vent.fecha || ''}">Ver venta</button>
+                            </div>
+                        `);
+                    }
+
+                    actividadProductoEl.innerHTML = `<div class="space-y-1">${partes.join('')}</div>`;
+
+                    actividadProductoEl.querySelectorAll('[data-actividad-compra]').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const idStr = btn.getAttribute('data-actividad-compra');
+                            if (!idStr) return;
+                            const url = `/pages/compras.html?compra_id=${encodeURIComponent(idStr)}`;
+                            window.location.href = url;
+                        });
+                    });
+
+                    actividadProductoEl.querySelectorAll('[data-actividad-venta]').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const idStr = btn.getAttribute('data-actividad-venta');
+                            const fechaStr = btn.getAttribute('data-actividad-venta-fecha') || '';
+                            if (!idStr) return;
+                            let url = `/pages/reportes.html?venta_id=${encodeURIComponent(idStr)}`;
+                            if (fechaStr) {
+                                const d = new Date(fechaStr);
+                                if (!Number.isNaN(d.getTime())) {
+                                    const iso = d.toISOString().slice(0, 10);
+                                    url += `&venta_fecha=${encodeURIComponent(iso)}`;
+                                }
+                            }
+                            window.location.href = url;
+                        });
+                    });
+                } catch (err) {
+                    console.error(err);
+                    actividadProductoEl.innerHTML = '<div class="text-[11px] text-rose-500">Error cargando actividad del producto.</div>';
                 }
             })();
 
@@ -415,6 +537,7 @@ const topFilterStock = document.getElementById('filterStock');
 if (topFilterCategoria) topFilterCategoria.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 if (topFilterStock) topFilterStock.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 if (filterDeposito) filterDeposito.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
+if (filterIncompletosTipo) filterIncompletosTipo.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 
 // Import / Export CSV handlers
 const csvFile = document.getElementById('csvFile');

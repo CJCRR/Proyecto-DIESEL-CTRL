@@ -27,6 +27,8 @@ let cacheRentProv = [];
 let resumenRent = null;
 let cacheComisiones = [];
 let vendedoresCache = [];
+let focusVentaId = null;
+let focusVentaFecha = null;
 const ES_ADMIN_EMPRESA = (window.Auth && typeof window.Auth.isAdmin === 'function') ? !!window.Auth.isAdmin() : false;
 let cambioVendVentaId = null;
 const escapeHtml = (window.escapeHtml) ? window.escapeHtml : (value) => String(value ?? '')
@@ -839,6 +841,18 @@ if (ES_ADMIN_EMPRESA) {
                 }
             }
         });
+
+    // Si tenemos una venta marcada para enfocar, abrirla automáticamente
+    if (focusVentaId != null) {
+        const row = tbody.querySelector(`tr[data-id="${focusVentaId}"]`);
+        if (row) {
+            if (typeof row.scrollIntoView === 'function') {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            row.click();
+        }
+        focusVentaId = null;
+    }
     }
 }
 
@@ -1003,7 +1017,28 @@ document.getElementById('preset-mes').addEventListener('click', () => { setPrese
 // Inicial - cargar cuando se cargue la página
 document.addEventListener('DOMContentLoaded', () => {
     setupReportesTabs();
-    setPreset('hoy');
+    try {
+        const params = new URLSearchParams(window.location.search || '');
+        const ventaIdParam = params.get('venta_id');
+        const ventaFechaParam = params.get('venta_fecha');
+        if (ventaIdParam) {
+            const idNum = parseInt(ventaIdParam, 10);
+            if (!Number.isNaN(idNum) && idNum > 0) {
+                focusVentaId = idNum;
+            }
+        }
+        if (ventaFechaParam) {
+            focusVentaFecha = ventaFechaParam;
+        }
+    } catch {}
+
+    if (focusVentaFecha) {
+        // Si venimos con una fecha concreta, forzar el rango a ese día
+        document.getElementById('rpt-desde').value = focusVentaFecha;
+        document.getElementById('rpt-hasta').value = focusVentaFecha;
+    } else {
+        setPreset('hoy');
+    }
     try {
         initCustomSelect('moneda-toggle');
         initCustomSelect('rpt-metodo');
