@@ -18,8 +18,8 @@ import { apiFetchJson } from './app-api.js';
     }
 
     function applyBrandingDom(branding = {}) {
-        const titulo = (branding.titulo || 'DIESEL CTRL').toString().trim() || 'DIESEL CTRL';
-        const drawerNombre = (branding.drawer_nombre || branding.titulo || 'Diesel Ctrl').toString().trim() || titulo;
+        const titulo = (branding.titulo || 'Nexa CTRL').toString().trim() || 'Nexa CTRL';
+        const drawerNombre = (branding.drawer_nombre || branding.titulo || 'Nexa CTRL').toString().trim() || titulo;
 
         const mainTitleEl = document.getElementById('brand-main-title');
         if (mainTitleEl) {
@@ -85,5 +85,4 @@ import { apiFetchJson } from './app-api.js';
     }
 
     loadAndApplyEmpresaTheme();
-    loadAndApplyBranding();
 })();

@@ -6,9 +6,27 @@ const MAX_DOC = 40;
 const MAX_REF = 120;
 const MAX_MOTIVO = 240;
 
+// Umbral usado para considerar una cuenta por cobrar
+// como saldada aun cuando quede un pequeño residuo
+// por redondeos al trabajar con tasas.
+const SALDO_EPSILON = 0.01;
+
 function safeStr(v, max) {
   if (v === null || v === undefined) return '';
   return String(v).trim().slice(0, max);
+}
+
+function computeEstadoCuenta(row) {
+  let saldo = Number(row.saldo_usd || 0);
+  if (Math.abs(saldo) < SALDO_EPSILON) saldo = 0;
+  const total = Number(row.total_usd || 0);
+  const vencimiento = row.fecha_vencimiento ? new Date(row.fecha_vencimiento) : null;
+  const hoy = new Date();
+  let estado = 'pendiente';
+  if (saldo <= 0.00001) estado = 'cancelado';
+  else if (saldo < total) estado = 'parcial';
+  if (estado !== 'cancelado' && vencimiento && vencimiento < hoy) estado = 'vencido';
+  return estado;
 }
 
 function getDevolucionPolicy() {
@@ -109,6 +127,8 @@ function registrarDevolucion(payload = {}) {
     let originalDetalles = [];
     let devueltosPrevios = new Map();
     let ventaOriginal = null;
+    let devueltosPosteriores = null;
+    let esDevolucionTotal = false;
     if (venta_original_id) {
       ventaOriginal = db.prepare('SELECT id, fecha FROM ventas WHERE id = ?').get(venta_original_id);
       if (!ventaOriginal) {
@@ -126,6 +146,7 @@ function registrarDevolucion(payload = {}) {
       }
       originalDetalles = db.prepare('SELECT producto_id, cantidad, precio_usd, subtotal_bs FROM venta_detalle WHERE venta_id = ?').all(venta_original_id);
       devueltosPrevios = obtenerDevueltosPrevios(venta_original_id);
+      devueltosPosteriores = new Map(devueltosPrevios);
     }
 
     const selectProducto = db.prepare('SELECT id, precio_usd, stock, deposito_id, empresa_id FROM productos WHERE codigo = ? AND empresa_id = ?');
@@ -174,6 +195,9 @@ function registrarDevolucion(payload = {}) {
           error.tipo = 'VALIDACION';
           throw error;
         }
+        if (devueltosPosteriores) {
+          devueltosPosteriores.set(producto.id, yaDev + cantidad);
+        }
       }
 
       const detalleOriginal = venta_original_id
@@ -212,7 +236,59 @@ function registrarDevolucion(payload = {}) {
       }
     }
 
+    // Determinar si, luego de esta devolución, todos los productos
+    // de la venta quedaron completamente devueltos.
+    if (venta_original_id && devueltosPosteriores) {
+      if (originalDetalles.length > 0) {
+        esDevolucionTotal = originalDetalles.every((orig) => {
+          const devAcum = devueltosPosteriores.get(orig.producto_id) || 0;
+          return devAcum >= orig.cantidad;
+        });
+      }
+    }
+
     db.prepare('UPDATE devoluciones SET total_bs = ?, total_usd = ? WHERE id = ?').run(totalBs, totalUsd, devId);
+
+    // Si la devolución está asociada a una venta original que fue a crédito,
+    // ajustar la(s) cuenta(s) por cobrar correspondiente(s).
+    if (venta_original_id) {
+      const cuentas = db.prepare('SELECT * FROM cuentas_cobrar WHERE venta_id = ?').all(venta_original_id);
+      if (cuentas && cuentas.length) {
+        if (esDevolucionTotal) {
+          // Si la devolución cubre el 100% de los productos de la venta,
+          // eliminar completamente las cuentas por cobrar asociadas para
+          // que no aparezcan en el módulo de cobranzas.
+          const deletePagosByCuenta = db.prepare('DELETE FROM pagos_cc WHERE cuenta_id = ?');
+          const deleteCuenta = db.prepare('DELETE FROM cuentas_cobrar WHERE id = ?');
+          for (const c of cuentas) {
+            deletePagosByCuenta.run(c.id);
+            deleteCuenta.run(c.id);
+          }
+        } else {
+          // Devolución parcial: solo ajustar montos y estado.
+          for (const c of cuentas) {
+            const saldoActual = Number(c.saldo_usd || 0);
+            const totalActual = Number(c.total_usd || 0);
+
+            let nuevoSaldo = saldoActual - totalUsd;
+            let nuevoTotal = totalActual - totalUsd;
+
+            if (Math.abs(nuevoSaldo) < SALDO_EPSILON) nuevoSaldo = 0;
+            if (nuevoSaldo < 0) nuevoSaldo = 0;
+            if (nuevoTotal < 0) nuevoTotal = 0;
+
+            const estado = computeEstadoCuenta({
+              ...c,
+              saldo_usd: nuevoSaldo,
+              total_usd: nuevoTotal,
+            });
+
+            db.prepare('UPDATE cuentas_cobrar SET total_usd = ?, saldo_usd = ?, estado = ?, actualizado_en = ? WHERE id = ?')
+              .run(nuevoTotal, nuevoSaldo, estado, fecha, c.id);
+          }
+        }
+      }
+    }
     return devId;
   });
 

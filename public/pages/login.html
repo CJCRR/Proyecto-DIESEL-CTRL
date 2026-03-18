@@ -4,27 +4,51 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Login — Diesel CTRL</title>
+  <title>Login — Nexa CTRL</title>
+  <link rel="icon" href="/img/nexa3.ico" />
   <link rel="stylesheet" href="/styles.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @keyframes nexa-logo-float {
+      0% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+      100% { transform: translateY(0); }
+    }
+    .nexa-logo-float {
+      animation: nexa-logo-float 5s ease-in-out infinite;
+    }
+  </style>
 </head>
 
-<body class="login-bg min-h-screen flex items-center justify-center">
-  <div class="w-full max-w-md p-8">
+<body class="login-bg min-h-screen flex flex-col">
+  <main class="flex-1 flex items-center justify-center px-4">
+  <div class="w-full max-w-lg py-10">
     <!-- Logo y título -->
-    <div class="text-center mb-8">
-      <div class="inline-block p-4 bg-white/10 rounded-2xl mb-4">
-        <i class="fas fa-truck text-5xl text-blue-400"></i>
+    <div class="text-center mb-10">
+      <div class="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 via-sky-400/10 to-indigo-500/20 ring-1 ring-blue-400/40 shadow-xl shadow-slate-900/60 mb-4 nexa-logo-float">
+        <img src="/img/nexa3.ico" alt="Logo Nexa CTRL" class="w-32 h-32 md:w-20 md:h-20" loading="lazy">
       </div>
-      <h1 id="brand-main-title" class="text-3xl font-black text-white tracking-tight">DIESEL <span
-          class="text-blue-400">CTRL</span></h1>
-      <p class="text-slate-300 text-sm mt-2">Sistema de Control de Ventas</p>
+      <h1 id="brand-main-title" class="text-2xl font-extrabold tracking-tight text-white">
+        NEXA <span class="text-blue-400">CTRL</span>
+      </h1>
+      <p class="text-slate-200/80 text-sm mt-2">Sistema de control de ventas e inventario</p>
     </div>
 
     <!-- Formulario de login -->
-    <div class="bg-white rounded-2xl shadow-2xl p-8">
-      <h2 class="text-xl font-bold text-slate-800 mb-6">Iniciar Sesión</h2>
+    <div class="relative">
+      <div class="absolute -inset-0.5 bg-gradient-to-br from-blue-500/40 via-sky-400/30 to-indigo-500/40 rounded-3xl opacity-80 blur"></div>
+      <div class="relative bg-white/95 backdrop-blur-xl rounded-3xl shadow-[0_24px_80px_rgba(15,23,42,0.85)] border border-slate-100/80 p-8">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">Iniciar sesión</h2>
+            <p class="text-xs text-slate-500 mt-1">Ingresa tus credenciales para acceder a Nexa CTRL.</p>
+          </div>
+          <div class="hidden sm:flex flex-col items-end text-[10px] text-slate-400">
+            <span class="uppercase tracking-[0.18em] font-semibold">Ambiente</span>
+            <span class="mt-0.5 px-2 py-0.5 rounded-full bg-slate-900/5 border border-slate-200/80 text-slate-500">Producción</span>
+          </div>
+        </div>
 
       <form id="loginForm" class="space-y-4">
         <div>
@@ -34,7 +58,7 @@
               <i class="fas fa-user text-slate-400"></i>
             </div>
             <input id="username" type="text"
-              class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+              class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-2xl bg-slate-50/40 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-slate-900 text-sm transition"
               placeholder="Ingrese su usuario" autocomplete="username" required>
           </div>
         </div>
@@ -46,7 +70,7 @@
               <i class="fas fa-lock text-slate-400"></i>
             </div>
             <input id="password" type="password"
-              class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+              class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-2xl bg-slate-50/40 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-slate-900 text-sm transition"
               placeholder="Ingrese su contraseña" autocomplete="current-password" required>
           </div>
         </div>
@@ -57,9 +81,9 @@
         </div>
 
         <button type="submit" id="loginBtn"
-          class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all transform active:scale-95 shadow-lg">
-          <i class="fas fa-sign-in-alt mr-2"></i>
-          Ingresar
+          class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold py-3.5 rounded-2xl text-sm tracking-wide transition-all transform active:scale-95 shadow-lg shadow-blue-900/40 flex items-center justify-center gap-2">
+          <i class="fas fa-sign-in-alt"></i>
+          <span>Ingresar</span>
         </button>
       </form>
 
@@ -68,6 +92,7 @@
           <i class="fas fa-info-circle mr-1"></i>
           ¿Olvidaste tu contraseña? Contacta al administrador para restablecerla.
         </p>
+      </div>
       </div>
     </div>
 
@@ -112,19 +137,20 @@
         </div>
       </div>
     </div>
-
-    <!-- Footer -->
-    <footer class="border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">
-        <div class="container mx-auto px-4 relative flex items-center justify-center">
-          <p id="global-footer-branding" class="text-center">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>
-          <p class="hidden sm:block absolute right-0 text-right">
-            <a href="/terminos" class="hover:underline">Términos y Condiciones</a>
-            <span class="mx-1">·</span>
-            <a href="/terminos" class="hover:underline">Política de Privacidad</a>
-          </p>
-        </div>
-      </footer>
   </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-auto py-4 text-[11px] text-slate-400/90">
+    <div class="w-full text-center space-y-1">
+      <p id="global-footer-branding" class="">© 2026 Nexa CTRL. Sistema de gestión de ventas.</p>
+      <p>
+        <a href="/terminos" class="hover:underline">Términos y Condiciones</a>
+        <span class="mx-1">·</span>
+        <a href="/terminos" class="hover:underline">Política de Privacidad</a>
+      </p>
+    </div>
+  </footer>
 
   <script type="module" src="/js/theme.js"></script>
   <script type="module" src="/js/login.js"></script>

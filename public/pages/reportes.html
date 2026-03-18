@@ -4,18 +4,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Reportes — Diesel CTRL</title>
+  <title>Reportes — Nexa CTRL</title>
+  <link rel="icon" href="/img/nexa3.ico" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
 
 <body class="bg-slate-50 text-slate-900 min-h-screen">
-  <nav class="bg-slate-900 text-white p-4 shadow-xl">
-    <div class="container mx-auto flex justify-between items-center">
+  <nav class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/40 border-b border-slate-800/60">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center gap-4">
       <div class="flex items-center gap-3">
         <button id="btn-menu"
-          class="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
+          class="h-11 w-11 rounded-2xl bg-white/5 hover:bg-white/10 transition flex items-center justify-center text-white shadow-lg shadow-black/40 ring-1 ring-white/10">
           <label class="burger" for="nav-burger">
             <input type="checkbox" id="nav-burger" />
             <span></span>
@@ -23,14 +24,20 @@
             <span></span>
           </label>
         </button>
-        <h1 id="brand-main-title" class="text-xl font-bold tracking-tighter italic">DIESEL <span
-            class="text-blue-500">CTRL</span></h1>
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-2xl bg-blue-500/15 flex items-center justify-center ring-1 ring-blue-400/40 shadow-md shadow-blue-900/40">
+            <i class="fas fa-chart-line text-lg text-blue-400"></i>
+          </div>
+          <div>
+            <h1 id="brand-main-title" class="text-base sm:text-lg font-extrabold tracking-tight">NEXA <span class="text-blue-400">CTRL</span></h1>
+            <p class="hidden sm:block text-[11px] uppercase tracking-[0.2em] text-slate-300/80 font-semibold">Reportes</p>
+          </div>
+        </div>
       </div>
       <div class="flex items-center gap-3">
-        <div class="text-[10px] font-black uppercase tracking-widest opacity-50">Reportes</div>
         <a href="/ajustes" title="Ajustes"
-          class="admin-only-gear h-9 w-9 rounded-lg bg-white/10 hover:bg-white/15 transition flex items-center justify-center text-white shadow-lg shadow-black/20">
-          <i class="fas fa-gear text-base"></i>
+          class="admin-only-gear h-9 w-9 rounded-full bg-white/5 hover:bg-white/10 transition flex items-center justify-center text-white shadow-md shadow-black/40 border border-white/10">
+          <i class="fas fa-gear text-sm"></i>
         </a>
       </div>
     </div>
@@ -43,7 +50,7 @@
     <div class="p-5 flex items-center justify-between border-b border-slate-100">
       <div>
         <p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>
-        <p id="drawer-app-name" class="text-lg font-black text-slate-800">Diesel Ctrl</p>
+        <p id="drawer-app-name" class="text-lg font-black text-slate-800">Nexa CTRL</p>
       </div>
       <button id="drawer-close"
         class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
@@ -242,7 +249,7 @@
 
   <footer class="border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">
   <div class="container mx-auto px-4 relative flex items-center justify-center">
-    <p id="global-footer-branding" class="text-center">© 2026 Diesel CTRL. Sistema de gestión de ventas.</p>
+    <p id="global-footer-branding" class="text-center">© 2026 Nexa CTRL. Sistema de gestión de ventas.</p>
     <p class="hidden sm:block absolute right-0 text-right">
       <a href="/terminos" class="hover:underline">Términos y Condiciones</a>
       <span class="mx-1">·</span>
