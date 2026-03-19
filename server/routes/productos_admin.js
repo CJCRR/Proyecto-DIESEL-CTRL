@@ -2,12 +2,45 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth, requireRole } = require('./auth');
+const { body, query, validate } = require('../middleware/validation');
 
 const MAX_IMPORT_ROWS = 5000;
 const MAX_FIELD_LEN = 200;
 
 // POST /admin/productos - Crear nuevo producto
-router.post('/', requireAuth, (req, res) => {
+router.post(
+    '/',
+    requireAuth,
+    validate([
+        body('codigo')
+            .isString().withMessage('El código es obligatorio')
+            .trim()
+            .isLength({ min: 3, max: MAX_FIELD_LEN }).withMessage('El código debe tener entre 3 y 200 caracteres'),
+        body('descripcion')
+            .isString().withMessage('La descripción es obligatoria')
+            .trim()
+            .isLength({ min: 1, max: MAX_FIELD_LEN }).withMessage('La descripción es obligatoria'),
+        body('precio_usd')
+            .notEmpty().withMessage('El precio es obligatorio')
+            .bail()
+            .isFloat({ gt: 0 }).withMessage('El precio debe ser un número positivo'),
+        body('costo_usd')
+            .optional({ nullable: true })
+            .isFloat({ min: 0 }).withMessage('El costo debe ser un número mayor o igual a 0'),
+        body('stock')
+            .optional({ nullable: true })
+            .isInt({ min: 0 }).withMessage('El stock debe ser un entero mayor o igual a 0'),
+        body('categoria')
+            .optional({ nullable: true })
+            .isString().withMessage('La categoría debe ser texto'),
+        body('marca')
+            .optional({ nullable: true })
+            .isString().withMessage('La marca debe ser texto'),
+        body('deposito_id')
+            .optional({ nullable: true })
+            .isInt({ min: 1 }).withMessage('El depósito debe ser un ID válido'),
+    ]),
+    (req, res) => {
     // 1. Saneamiento de entrada
     let { codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, deposito_id } = req.body;
 
@@ -20,7 +53,6 @@ router.post('/', requireAuth, (req, res) => {
     categoria = categoria ? String(categoria).trim() : null;
     marca = marca ? String(marca).trim().slice(0, MAX_FIELD_LEN) : null;
     const depositoId = deposito_id ? parseInt(deposito_id, 10) || null : null;
-
     try {
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
 

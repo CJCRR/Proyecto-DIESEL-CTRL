@@ -29,6 +29,8 @@ const layoutInventario = document.getElementById('inventario-layout');
 const productosSection = document.getElementById('productos-section');
 const panelEditor = document.getElementById('panel-editor');
 const toggleEditorBtn = document.getElementById('toggle-editor');
+const filtrosInventario = document.getElementById('filtros-inventario');
+const btnMobileFiltros = document.getElementById('btn-mobile-filtros');
 // Movimiento entre depósitos
 const movCodigo = document.getElementById('mov_codigo');
 const movInfo = document.getElementById('mov_info');
@@ -539,6 +541,13 @@ if (topFilterStock) topFilterStock.addEventListener('change', () => { currentPag
 if (filterDeposito) filterDeposito.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 if (filterIncompletosTipo) filterIncompletosTipo.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 
+// Toggle de filtros en vista móvil (sin afectar escritorio)
+if (btnMobileFiltros && filtrosInventario) {
+    btnMobileFiltros.addEventListener('click', () => {
+        filtrosInventario.classList.toggle('hidden');
+    });
+}
+
 // Import / Export CSV handlers
 const csvFile = document.getElementById('csvFile');
 const btnImportCsv = document.getElementById('btnImportCsv');
@@ -917,25 +926,26 @@ pageSize.addEventListener('change', () => { currentPage = 0; cargarProductos(); 
 
 // Panel Crear / Editar retraible
 function setEditorVisible(visible) {
-    if (!layoutInventario || !panelEditor) return;
+    if (!layoutInventario || !panelEditor || !productosSection) return;
     if (visible) {
-        panelEditor.classList.remove('inv-editor-collapsed');
-        layoutInventario.classList.remove('lg:grid-cols-1');
-        if (!layoutInventario.classList.contains('lg:grid-cols-3')) {
-            layoutInventario.classList.add('lg:grid-cols-3');
+        panelEditor.classList.remove('inv-editor-collapsed', 'hidden');
+        productosSection.classList.remove('lg:col-span-3');
+        if (!productosSection.classList.contains('lg:col-span-2')) {
+            productosSection.classList.add('lg:col-span-2');
         }
         if (toggleEditorBtn) toggleEditorBtn.textContent = '>';
     } else {
         panelEditor.classList.add('inv-editor-collapsed');
-        layoutInventario.classList.remove('lg:grid-cols-3');
-        if (!layoutInventario.classList.contains('lg:grid-cols-1')) {
-            layoutInventario.classList.add('lg:grid-cols-1');
+        panelEditor.classList.add('hidden');
+        productosSection.classList.remove('lg:col-span-2');
+        if (!productosSection.classList.contains('lg:col-span-3')) {
+            productosSection.classList.add('lg:col-span-3');
         }
         if (toggleEditorBtn) toggleEditorBtn.textContent = '<';
     }
 }
 
-if (toggleEditorBtn && layoutInventario && panelEditor) {
+if (toggleEditorBtn && layoutInventario && panelEditor && productosSection) {
     let visible = true;
     try {
         const saved = localStorage.getItem('inventario_editor_visible');

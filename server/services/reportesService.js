@@ -1547,6 +1547,20 @@ function buildRentabilidadProveedoresCsv(params, empresaId) {
   return csv;
 }
 
+function buildComisionesVendedoresCsv(params, empresaId) {
+  const rows = getComisionesVendedores({ ...params, empresaId });
+  const header = ['usuario_id','username','nombre_completo','rol','comision_pct','ventas','total_bs','total_usd','comision_bs','comision_usd'];
+  const toCsv = (val) => {
+    if (val === null || val === undefined) return '';
+    const s = String(val);
+    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  };
+  const lines = rows.map(r => header.map(h => toCsv(r[h])).join(';'));
+  const csv = '\uFEFF' + header.join(';') + '\r\n' + lines.join('\r\n');
+  return csv;
+}
+
 module.exports = {
   getVentasSinDevolucion,
   getVentasRango,
@@ -1574,4 +1588,5 @@ module.exports = {
   getResumenFinanciero,
   buildRentabilidadCategoriasCsv,
   buildRentabilidadProveedoresCsv,
+  buildComisionesVendedoresCsv,
 };

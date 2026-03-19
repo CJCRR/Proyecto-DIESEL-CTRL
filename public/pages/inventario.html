@@ -11,66 +11,20 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
-<body class="bg-slate-50 text-slate-900 min-h-screen">
-    <nav class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/40 border-b border-slate-800/60">
-        <div class="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <button id="btn-menu"
-                    class="h-11 w-11 rounded-2xl bg-white/5 hover:bg-white/10 transition flex items-center justify-center text-white shadow-lg shadow-black/40 ring-1 ring-white/10">
-                    <label class="burger" for="nav-burger">
-                        <input type="checkbox" id="nav-burger" />
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </label>
-                </button>
-                <div class="flex items-center gap-3">
-                    <div class="h-10 w-10 rounded-2xl bg-blue-500/15 flex items-center justify-center ring-1 ring-blue-400/40 shadow-md shadow-blue-900/40">
-                        <i class="fas fa-boxes-stacked text-lg text-blue-400"></i>
-                    </div>
-                    <div>
-                        <h1 id="brand-main-title" class="text-base sm:text-lg font-extrabold tracking-tight">NEXA <span class="text-blue-400">CTRL</span></h1>
-                        <p class="hidden sm:block text-[11px] uppercase tracking-[0.2em] text-slate-300/80 font-semibold">Inventario</p>
-                    </div>
-                </div>
-            </div>
-            <div class="flex items-center gap-3">
-                <a href="/ajustes" title="Ajustes"
-                    class="admin-only-gear h-9 w-9 rounded-full bg-white/5 hover:bg-white/10 transition flex items-center justify-center text-white shadow-md shadow-black/40 border border-white/10">
-                    <i class="fas fa-gear text-sm"></i>
-                </a>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Drawer de navegación -->
-    <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-40"></div>
-    <aside id="drawer"
-        class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
-        <div class="p-5 flex items-center justify-between border-b border-slate-100">
-            <div>
-                <p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>
-                <p id="drawer-app-name" class="text-lg font-black text-slate-800">Nexa CTRL</p>
-            </div>
-            <button id="drawer-close"
-                class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
-                <i class="fas fa-xmark text-slate-500"></i>
-            </button>
-        </div>
-        <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700"><!-- nav generado por layout-nav.js --></nav>
-        <div class="p-4 border-t border-slate-100 text-xs text-slate-500">
-            <p class="font-semibold">Atajos rápidos</p>
-            <p class="mt-1">Presione ESC para cerrar.</p>
-        </div>
-    </aside>
-
-    <main class="container mx-auto p-6">
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+    <main class="flex-1 container mx-auto p-6">
         <div id="inventario-layout" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <section id="productos-section" class="lg:col-span-2 bg-white p-4 rounded shadow">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="font-black">Productos</h2>
-                    <div class="flex gap-2 items-center">
-                    <input id="q" placeholder="Buscar..." class="p-2 border rounded w-45" />
+                <div class="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-4">
+                    <div class="flex items-center justify-between gap-2">
+                        <h2 class="font-black">Productos</h2>
+                        <button id="btn-mobile-filtros" type="button" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-lg text-slate-600 bg-white shadow-sm sm:hidden">
+                            <i class="fas fa-sliders-h text-[11px]"></i>
+                            <span>Filtros</span>
+                        </button>
+                    </div>
+                    <div id="filtros-inventario" class="hidden flex-wrap gap-2 items-center sm:flex sm:justify-end">
+                        <input id="q" placeholder="Buscar..." class="p-2 border rounded w-45" />
                         <select id="pageSize" class="select-pos text-sm w-20">
                             <option value="10">10</option>
                             <option value="25">25</option>
@@ -184,8 +138,7 @@
                 </button>
                 <p id="rebuildStockMsg" class="text-[11px] text-slate-500"></p>
             </aside>
-        </div>
-            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mt-4">
+            <section class="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mt-4">
                 <div class="flex justify-between items-center mb-2">
                     <div>
                         <h2 class="text-sm font-bold text-slate-800">Movimientos entre depósitos</h2>
@@ -238,21 +191,13 @@
                     </div>
                 </div>
             </section>
+        </div>
     </main>
-        <footer class="border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">
-            <div class="container mx-auto px-4 relative flex items-center justify-center">
-                <p id="global-footer-branding" class="text-center">© 2026 Nexa CTRL. Sistema de gestión de ventas.</p>
-                <p class="hidden sm:block absolute right-0 text-right">
-                    <a href="/terminos" class="hover:underline">Términos y Condiciones</a>
-                    <span class="mx-1">·</span>
-                    <a href="/terminos" class="hover:underline">Política de Privacidad</a>
-                </p>
-            </div>
-        </footer>
 
     <script type="module" src="/js/inventario.js"></script>
     <script type="module" src="/js/auth-guard.js"></script>
     <script type="module" src="/js/theme.js"></script>
+    <script src="/js/layout-shell.js"></script>
     <script type="module" src="/js/alerts.js"></script>
     <script src="/js/layout-nav.js"></script>
     <script src="/js/drawer.js"></script>

@@ -49,6 +49,7 @@ describe('ventasService.registrarVenta', () => {
       usuario_id: null,
       credito: false,
       iva_pct: 0,
+      empresa_id: empresaId,
     });
 
     expect(ventaId).toBeDefined();
@@ -104,6 +105,7 @@ describe('ventasService.registrarVenta', () => {
       dias_vencimiento: 30,
       iva_pct: 0,
       cliente_doc: 'V-12345678',
+      empresa_id: empresaId,
     });
 
     expect(ventaId).toBeDefined();

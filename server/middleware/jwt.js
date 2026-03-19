@@ -1,6 +1,15 @@
 // Middleware para JWT opcional y utilidades
 const jwt = require('jsonwebtoken');
-const SECRET = process.env.JWT_SECRET || 'jwt_dev_secret';
+
+const isProd = process.env.NODE_ENV === 'production';
+const SECRET = process.env.JWT_SECRET || (!isProd ? 'jwt_dev_secret' : null);
+
+if (!SECRET) {
+  // Fallar rápido en producción si no hay secreto JWT configurado
+  // para evitar emitir/verificar tokens inseguros.
+  console.error('FATAL: JWT_SECRET no configurado en entorno de producción');
+  throw new Error('JWT_SECRET no configurado');
+}
 
 function signJwt(payload, options = {}) {
   return jwt.sign(payload, SECRET, { expiresIn: '8h', ...options });

@@ -30,6 +30,154 @@ import { apiFetchJson } from './app-api.js';
   const isEmpresaAdminRole = (rol) => rol === 'admin' || rol === 'admin_empresa';
   const isSuperAdminRole = (rol) => rol === 'superadmin';
 
+  function clearTrialSessionFlags() {
+    try {
+      const keys = [];
+      for (let i = 0; i < sessionStorage.length; i += 1) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith('trial_notice_shown_')) {
+          keys.push(k);
+        }
+      }
+      keys.forEach((k) => sessionStorage.removeItem(k));
+    } catch (_) {
+      // ignorar errores de sessionStorage
+    }
+  }
+
+  function mostrarModalTrial(user) {
+    if (!user || !user.empresa_trial || !user.empresa_trial.dias_restantes) return;
+
+    const empresaId = user.empresa_id || user.empresa_codigo || 'unknown';
+    const storageKey = `trial_notice_hidden_${empresaId}`;
+    const sessionKey = `trial_notice_shown_${empresaId}`;
+    try {
+      if (localStorage.getItem(storageKey) === '1') return;
+      if (sessionStorage.getItem(sessionKey) === '1') return;
+    } catch (_) {
+      // si localStorage falla, seguimos y mostramos una sola vez
+    }
+
+    if (document.getElementById('trial-modal-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'trial-modal-overlay';
+    overlay.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm px-4';
+
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'absolute top-3 right-3 text-slate-400 hover:text-slate-600';
+    closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+
+    const header = document.createElement('div');
+    header.className = 'flex items-start gap-3 mb-3';
+    header.innerHTML = `
+      <div class="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+        <i class="fas fa-gift"></i>
+      </div>
+      <div>
+        <h2 class="text-base font-semibold text-slate-800">Prueba gratis activa</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Aprovecha estos días para configurar tu empresa y probar Nexa CTRL.</p>
+      </div>
+    `;
+
+    const body = document.createElement('div');
+    body.className = 'text-sm text-slate-700 space-y-2';
+
+    const dias = Number(user.empresa_trial.dias_restantes || 0);
+    const diasTexto = dias === 1 ? '1 día restante' : `${dias} días restantes`;
+    const fechaFin = user.empresa_trial.termina_el
+      ? new Date(user.empresa_trial.termina_el).toLocaleDateString('es-VE')
+      : null;
+
+    const p1 = document.createElement('p');
+    p1.textContent = `Tu empresa está en período de prueba gratis. Tienes ${diasTexto}.`;
+
+    const p2 = document.createElement('p');
+    p2.className = 'text-xs text-slate-500';
+    p2.textContent = fechaFin
+      ? `Al finalizar la prueba podrás activar un plan de pago para seguir usando el sistema sin interrupciones. Fecha estimada de fin: ${fechaFin}.`
+      : 'Al finalizar la prueba podrás activar un plan de pago para seguir usando el sistema sin interrupciones.';
+
+    body.appendChild(p1);
+    body.appendChild(p2);
+
+    const footer = document.createElement('div');
+    footer.className = 'mt-4 flex items-center justify-between gap-3';
+
+    const checkboxLabel = document.createElement('label');
+    checkboxLabel.className = 'flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'rounded border-slate-300 text-blue-600 focus:ring-blue-500';
+    const spanChk = document.createElement('span');
+    spanChk.textContent = 'No mostrar más este mensaje para esta empresa';
+    checkboxLabel.appendChild(checkbox);
+    checkboxLabel.appendChild(spanChk);
+
+    const btnOk = document.createElement('button');
+    btnOk.type = 'button';
+    btnOk.className = 'px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm';
+    btnOk.textContent = 'Entendido';
+
+    footer.appendChild(checkboxLabel);
+    footer.appendChild(btnOk);
+
+    function cerrar() {
+      try {
+        if (checkbox.checked) {
+          localStorage.setItem(storageKey, '1');
+        }
+        // marcar que ya se mostró en esta sesión de navegador
+        sessionStorage.setItem(sessionKey, '1');
+      } catch (_) {}
+      overlay.remove();
+    }
+
+    closeBtn.addEventListener('click', cerrar);
+    btnOk.addEventListener('click', cerrar);
+
+    card.appendChild(closeBtn);
+    card.appendChild(header);
+    card.appendChild(body);
+    card.appendChild(footer);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+  }
+
+  function actualizarPillSesion(user, intento = 0) {
+    if (!user) return;
+    const pill = document.getElementById('app-session-status');
+    const textEl = document.getElementById('app-session-status-text');
+    const dotEl = document.getElementById('app-session-status-dot');
+
+    // Si el header aún no está montado (páginas con layout-shell), reintentar unas veces
+    if ((!pill || !textEl || !dotEl) && intento < 5) {
+      setTimeout(() => actualizarPillSesion(user, intento + 1), 120);
+      return;
+    }
+    if (!pill || !textEl || !dotEl) return;
+
+    let label = 'Sesión activa';
+    let color = '#22c55e'; // verde por defecto
+
+    if (user.empresa_estado === 'suspendida') {
+      label = 'Cuenta suspendida';
+      color = '#ef4444';
+    } else if (user.empresa_trial && Number(user.empresa_trial.dias_restantes || 0) > 0) {
+      label = 'Free trial';
+      color = '#fbbf24';
+    }
+
+    textEl.textContent = label;
+    dotEl.style.backgroundColor = color;
+    dotEl.style.boxShadow = `0 0 0 2px ${color}33`;
+    pill.classList.remove('hidden');
+  }
+
   function applyRoleGuards(u) {
     if (!u) return false;
 
@@ -73,15 +221,26 @@ import { apiFetchJson } from './app-api.js';
 
   function redirectLogin() {
     localStorage.removeItem('auth_user');
+    clearTrialSessionFlags();
     window.location.href = '/login';
   }
 
   if (storedUser) {
     if (!applyRoleGuards(storedUser)) return;
-    verificarSesion().catch(() => redirectLogin());
+    verificarSesion()
+      .then((u) => {
+        if (!applyRoleGuards(u)) return;
+        mostrarModalTrial(u);
+        actualizarPillSesion(u);
+      })
+      .catch(() => redirectLogin());
   } else {
     verificarSesion()
-      .then((u) => { if (!applyRoleGuards(u)) return; })
+      .then((u) => {
+        if (!applyRoleGuards(u)) return;
+        mostrarModalTrial(u);
+        actualizarPillSesion(u);
+      })
       .catch(() => redirectLogin());
   }
 
@@ -190,6 +349,7 @@ import { apiFetchJson } from './app-api.js';
 
           localStorage.removeItem('auth_token');
           localStorage.removeItem('auth_user');
+          clearTrialSessionFlags();
           window.location.href = '/login';
         });
       }
@@ -220,10 +380,12 @@ import { apiFetchJson } from './app-api.js';
           .catch(() => { })
           .finally(() => {
             localStorage.removeItem('auth_user');
+            clearTrialSessionFlags();
             window.location.href = '/login';
           });
       } catch {
         localStorage.removeItem('auth_user');
+        clearTrialSessionFlags();
         window.location.href = '/login';
       }
     }

@@ -38,6 +38,14 @@ const escapeHtml = (window.escapeHtml) ? window.escapeHtml : (value) => String(v
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+// Estado del rango actual para navegación de períodos
+let currentRangeKind = null; // 'day' | 'week' | 'month' | 'year' | 'custom'
+let currentAnchorStart = null; // Date del inicio del período actual
+
+function formatDateInput(d) {
+    return d.toISOString().slice(0, 10);
+}
+
 function setupReportesTabs() {
     const tabs = document.querySelectorAll('[data-rpt-tab]');
     const sections = document.querySelectorAll('[data-rpt-section]');
@@ -67,20 +75,64 @@ function setupReportesTabs() {
 
 function setPreset(rango) {
     const hoy = new Date();
-    const fmt = (d) => d.toISOString().slice(0, 10);
     if (rango === 'hoy') {
-        document.getElementById('rpt-desde').value = fmt(hoy);
-        document.getElementById('rpt-hasta').value = fmt(hoy);
+        const anchor = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        applyRange('day', anchor);
     } else if (rango === 'semana') {
-        const inicio = new Date(hoy);
-        inicio.setDate(hoy.getDate() - 6);
-        document.getElementById('rpt-desde').value = fmt(inicio);
-        document.getElementById('rpt-hasta').value = fmt(hoy);
-    } else if (rango === 'mes') {
+        const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        inicio.setDate(inicio.getDate() - 6);
+        applyRange('week', inicio);
+    } else if (rango === 'mes' || rango === 'mes_actual') {
         const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-        document.getElementById('rpt-desde').value = fmt(inicio);
-        document.getElementById('rpt-hasta').value = fmt(hoy);
+        applyRange('month', inicio);
+    } else if (rango === 'mes_anterior') {
+        const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+        applyRange('month', inicio);
+    } else if (rango === 'ano' || rango === 'ano_actual') {
+        const inicio = new Date(hoy.getFullYear(), 0, 1);
+        applyRange('year', inicio);
+    } else if (rango === 'ano_anterior') {
+        const inicio = new Date(hoy.getFullYear() - 1, 0, 1);
+        applyRange('year', inicio);
     }
+}
+
+function applyRange(kind, anchorStart) {
+    currentRangeKind = kind;
+    currentAnchorStart = new Date(anchorStart.getTime());
+
+    const hoy = new Date();
+    let desde;
+    let hasta;
+
+    if (kind === 'day') {
+        desde = new Date(anchorStart.getFullYear(), anchorStart.getMonth(), anchorStart.getDate());
+        hasta = new Date(desde.getTime());
+    } else if (kind === 'week') {
+        desde = new Date(anchorStart.getFullYear(), anchorStart.getMonth(), anchorStart.getDate());
+        hasta = new Date(desde.getTime());
+        hasta.setDate(hasta.getDate() + 6);
+    } else if (kind === 'month') {
+        desde = new Date(anchorStart.getFullYear(), anchorStart.getMonth(), 1);
+        hasta = new Date(anchorStart.getFullYear(), anchorStart.getMonth() + 1, 0);
+        // Si es el mes actual, recortar hasta hoy
+        if (desde.getFullYear() === hoy.getFullYear() && desde.getMonth() === hoy.getMonth() && hasta > hoy) {
+            hasta = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        }
+    } else if (kind === 'year') {
+        desde = new Date(anchorStart.getFullYear(), 0, 1);
+        hasta = new Date(anchorStart.getFullYear(), 11, 31);
+        // Si es el año actual, recortar hasta hoy
+        if (desde.getFullYear() === hoy.getFullYear() && hasta > hoy) {
+            hasta = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        }
+    } else {
+        // custom: no tocar
+        return;
+    }
+
+    document.getElementById('rpt-desde').value = formatDateInput(desde);
+    document.getElementById('rpt-hasta').value = formatDateInput(hasta);
 }
 
 function renderReporte() {
@@ -790,6 +842,18 @@ if (btnComisiones) {
     btnComisiones.addEventListener('click', cargarComisiones);
 }
 
+const btnComisionesExport = document.getElementById('comisiones-export');
+if (btnComisionesExport) {
+    btnComisionesExport.addEventListener('click', () => {
+        const desde = document.getElementById('rpt-desde').value;
+        const hasta = document.getElementById('rpt-hasta').value;
+        const params = new URLSearchParams();
+        if (desde) params.set('desde', desde);
+        if (hasta) params.set('hasta', hasta);
+        window.open(`/reportes/comisiones-vendedores/export/csv?${params.toString()}`, '_blank');
+    });
+}
+
 // Modal cambio de vendedor (solo admins de empresa)
 if (ES_ADMIN_EMPRESA) {
     const modal = document.getElementById('modal-cambiar-vendedor');
@@ -871,6 +935,33 @@ if (presToggle) {
         } else {
             if (icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
             if (label) label.textContent = 'Ocultar';
+        }
+    });
+}
+
+// Toggle de filtros generales en reportes
+const btnReportesFiltros = document.getElementById('btn-reportes-filtros');
+const reportesFiltrosBody = document.getElementById('reportes-filtros-body');
+const reportesFiltrosCard = document.getElementById('reportes-filtros');
+if (btnReportesFiltros && reportesFiltrosBody && reportesFiltrosCard) {
+    btnReportesFiltros.addEventListener('click', () => {
+        const oculto = reportesFiltrosBody.classList.toggle('hidden');
+        const icon = btnReportesFiltros.querySelector('i');
+        const label = btnReportesFiltros.querySelector('span');
+        if (oculto) {
+            if (icon) {
+                icon.classList.remove('fa-sliders-h');
+                icon.classList.add('fa-filter');
+            }
+            if (label) label.textContent = 'Mostrar';
+            reportesFiltrosCard.classList.add('bg-slate-50');
+        } else {
+            if (icon) {
+                icon.classList.remove('fa-filter');
+                icon.classList.add('fa-sliders-h');
+            }
+            if (label) label.textContent = 'Ocultar';
+            reportesFiltrosCard.classList.remove('bg-slate-50');
         }
     });
 }
@@ -1011,9 +1102,141 @@ function abrirVentaEnReporte(ventaId) {
     }
 }
 
-document.getElementById('preset-hoy').addEventListener('click', () => { setPreset('hoy'); cargarReporte(); });
-document.getElementById('preset-semana').addEventListener('click', () => { setPreset('semana'); cargarReporte(); });
-document.getElementById('preset-mes').addEventListener('click', () => { setPreset('mes'); cargarReporte(); });
+// Dropdown de rangos rápidos
+const btnRangoRapido = document.getElementById('btn-rango-rapido');
+const menuRangoRapido = document.getElementById('rango-rapido-menu');
+
+function actualizarRangoRapidoLabel(txt) {
+    const label = document.getElementById('rango-rapido-label');
+    if (label && txt) label.textContent = txt;
+}
+
+function cerrarMenuRangoRapido() {
+    if (!btnRangoRapido || !menuRangoRapido) return;
+    if (menuRangoRapido.classList.contains('hidden')) return;
+    menuRangoRapido.classList.add('hidden');
+    const icon = btnRangoRapido.querySelector('i:last-child');
+    if (icon) {
+        icon.classList.remove('fa-angle-up');
+        icon.classList.add('fa-angle-down');
+    }
+}
+
+if (btnRangoRapido && menuRangoRapido) {
+    btnRangoRapido.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const estabaOculto = menuRangoRapido.classList.contains('hidden');
+        menuRangoRapido.classList.toggle('hidden');
+        const icon = btnRangoRapido.querySelector('i:last-child');
+        if (estabaOculto) {
+            if (icon) {
+                icon.classList.remove('fa-angle-down');
+                icon.classList.add('fa-angle-up');
+            }
+        } else if (icon) {
+            icon.classList.remove('fa-angle-up');
+            icon.classList.add('fa-angle-down');
+        }
+    });
+
+    document.addEventListener('click', (ev) => {
+        if (!menuRangoRapido || !btnRangoRapido) return;
+        const dentro = menuRangoRapido.contains(ev.target) || btnRangoRapido.contains(ev.target);
+        if (!dentro) {
+            cerrarMenuRangoRapido();
+        }
+    });
+}
+
+const btnHoy = document.getElementById('preset-hoy');
+if (btnHoy) {
+    btnHoy.addEventListener('click', () => { setPreset('hoy'); cargarReporte(); actualizarRangoRapidoLabel('Hoy'); cerrarMenuRangoRapido(); });
+}
+const btnSemana = document.getElementById('preset-semana');
+if (btnSemana) {
+    btnSemana.addEventListener('click', () => { setPreset('semana'); cargarReporte(); actualizarRangoRapidoLabel('Semana'); cerrarMenuRangoRapido(); });
+}
+const btnMes = document.getElementById('preset-mes');
+if (btnMes) {
+    btnMes.addEventListener('click', () => { setPreset('mes'); cargarReporte(); actualizarRangoRapidoLabel('Mes actual'); cerrarMenuRangoRapido(); });
+}
+const btnMesAnterior = document.getElementById('preset-mes-anterior');
+if (btnMesAnterior) {
+    btnMesAnterior.addEventListener('click', () => { setPreset('mes_anterior'); cargarReporte(); actualizarRangoRapidoLabel('Mes anterior'); cerrarMenuRangoRapido(); });
+}
+const btnAnoActual = document.getElementById('preset-ano-actual');
+if (btnAnoActual) {
+    btnAnoActual.addEventListener('click', () => { setPreset('ano_actual'); cargarReporte(); actualizarRangoRapidoLabel('Año actual'); cerrarMenuRangoRapido(); });
+}
+const btnAnoAnterior = document.getElementById('preset-ano-anterior');
+if (btnAnoAnterior) {
+    btnAnoAnterior.addEventListener('click', () => { setPreset('ano_anterior'); cargarReporte(); actualizarRangoRapidoLabel('Año anterior'); cerrarMenuRangoRapido(); });
+}
+
+function moverPeriodo(direccion) {
+    const desdeStr = document.getElementById('rpt-desde').value;
+    const hastaStr = document.getElementById('rpt-hasta').value;
+    const parse = (s) => (s ? new Date(`${s}T00:00:00`) : null);
+    const desde = parse(desdeStr);
+    const hasta = parse(hastaStr);
+
+    if (!desde || !hasta) return;
+
+    // Si no hay tipo conocido, intentar inferirlo
+    if (!currentRangeKind) {
+        const diffMs = hasta.getTime() - desde.getTime();
+        const diffDias = Math.round(diffMs / (24 * 60 * 60 * 1000)) + 1;
+        if (diffDias === 1) currentRangeKind = 'day';
+        else if (diffDias === 7) currentRangeKind = 'week';
+        else currentRangeKind = 'custom';
+        currentAnchorStart = new Date(desde.getTime());
+    }
+
+    if (currentRangeKind === 'day') {
+        const anchor = new Date(desde.getTime());
+        anchor.setDate(anchor.getDate() + direccion * 1);
+        applyRange('day', anchor);
+    } else if (currentRangeKind === 'week') {
+        const anchor = new Date(desde.getTime());
+        anchor.setDate(anchor.getDate() + direccion * 7);
+        applyRange('week', anchor);
+    } else if (currentRangeKind === 'month') {
+        const anchor = currentAnchorStart ? new Date(currentAnchorStart.getTime()) : new Date(desde.getFullYear(), desde.getMonth(), 1);
+        anchor.setMonth(anchor.getMonth() + direccion);
+        applyRange('month', anchor);
+    } else if (currentRangeKind === 'year') {
+        const anchor = currentAnchorStart ? new Date(currentAnchorStart.getTime()) : new Date(desde.getFullYear(), 0, 1);
+        anchor.setFullYear(anchor.getFullYear() + direccion);
+        applyRange('year', anchor);
+    } else {
+        // custom: desplazar el rango completo el mismo número de días
+        const diffMs = hasta.getTime() - desde.getTime();
+        const diffDias = Math.round(diffMs / (24 * 60 * 60 * 1000)) + 1;
+        const nuevoDesde = new Date(desde.getTime());
+        nuevoDesde.setDate(nuevoDesde.getDate() + direccion * diffDias);
+        const nuevoHasta = new Date(hasta.getTime());
+        nuevoHasta.setDate(nuevoHasta.getDate() + direccion * diffDias);
+        document.getElementById('rpt-desde').value = formatDateInput(nuevoDesde);
+        document.getElementById('rpt-hasta').value = formatDateInput(nuevoHasta);
+        currentRangeKind = 'custom';
+        currentAnchorStart = new Date(nuevoDesde.getTime());
+    }
+}
+
+const btnPeriodoPrev = document.getElementById('rpt-periodo-prev');
+if (btnPeriodoPrev) {
+    btnPeriodoPrev.addEventListener('click', () => {
+        moverPeriodo(-1);
+        cargarReporte();
+    });
+}
+const btnPeriodoNext = document.getElementById('rpt-periodo-next');
+if (btnPeriodoNext) {
+    btnPeriodoNext.addEventListener('click', () => {
+        moverPeriodo(1);
+        cargarReporte();
+    });
+}
 
 // Inicial - cargar cuando se cargue la página
 document.addEventListener('DOMContentLoaded', () => {

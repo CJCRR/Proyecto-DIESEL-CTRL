@@ -4,12 +4,13 @@
   "description": "Sistema de Punto de Venta para Repuestos Diesel",
   "main": "server/server.js",
   "scripts": {
-    "build:css": "npx tailwindcss -c tailwind.config.js -i ./public/styles/tailwind.css -o ./public/styles/tailwind.generated.css --minify",
-    "build:scss": "sass public/styles/scss/main.scss public/styles.css",
-    "scss": "sass --watch public/styles/scss/main.scss:public/styles.css",
-    "start": "node server/server.js",
-    "dev": "nodemon server/server.js",
-    "test": "jest"
+     "start": "node server/server.js",
+     "dev": "nodemon server/server.js",
+     "test": "jest --runInBand",
+     "test:watch": "jest --watchAll",
+     "build:css": "npx tailwindcss -i ./public/styles/tailwind.css -o ./public/styles.css --minify",
+     "scss": "sass --watch public/styles/scss:public/styles",
+     "build:scss": "sass public/styles/scss:public/styles --no-source-map"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

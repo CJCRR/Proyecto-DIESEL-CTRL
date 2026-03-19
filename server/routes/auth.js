@@ -6,6 +6,8 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const speakeasy = require('speakeasy');
 const { signJwt } = require('../middleware/jwt');
+const { registrarEventoNegocio } = require('../services/eventosService');
+const { registrarAuditoria } = require('../services/auditLogService');
 
 // Generar token único
 function generarToken() {
@@ -18,6 +20,15 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiados intentos. Intente más tarde.' }
+});
+
+// Límite para auto-registro de empresas (evitar abuso del endpoint público)
+const registroEmpresaLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hora
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes de registro. Intente más tarde.' }
 });
 
 function limpiarSesionesExpiradas() {
@@ -73,7 +84,8 @@ router.post('/login', loginLimiter, (req, res) => {
                u.failed_attempts, u.locked_until, u.must_change_password, u.twofa_enabled, u.twofa_secret,
                u.empresa_id,
                e.codigo AS empresa_codigo, e.estado AS empresa_estado,
-               e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia
+               e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia,
+               e.plan AS empresa_plan
           FROM usuarios u
           LEFT JOIN empresas e ON e.id = u.empresa_id
           WHERE u.username = ? AND u.activo = 1 AND u.empresa_id = ?
@@ -83,7 +95,8 @@ router.post('/login', loginLimiter, (req, res) => {
                u.failed_attempts, u.locked_until, u.must_change_password, u.twofa_enabled, u.twofa_secret,
                u.empresa_id,
                e.codigo AS empresa_codigo, e.estado AS empresa_estado,
-               e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia
+               e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia,
+               e.plan AS empresa_plan
           FROM usuarios u
           LEFT JOIN empresas e ON e.id = u.empresa_id
           WHERE u.username = ? AND u.activo = 1
@@ -199,6 +212,24 @@ router.post('/login', loginLimiter, (req, res) => {
     `).run(usuario.id);
 
     // JWT: datos mínimos necesarios (incluyendo empresa)
+    let empresaTrialInfo = null;
+    if (usuario.empresa_plan && usuario.empresa_proximo_cobro) {
+      const planStr = String(usuario.empresa_plan || '').toUpperCase();
+      const finTrial = new Date(usuario.empresa_proximo_cobro);
+      if (!Number.isNaN(finTrial.getTime()) && planStr.startsWith('TRIAL')) {
+        const ahora = new Date();
+        if (ahora <= finTrial) {
+          const diffMs = finTrial.getTime() - ahora.getTime();
+          const diasRestantes = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+          empresaTrialInfo = {
+            dias_restantes: diasRestantes,
+            termina_el: finTrial.toISOString(),
+            plan: usuario.empresa_plan
+          };
+        }
+      }
+    }
+
     const jwtPayload = {
       id: usuario.id,
       username: usuario.username,
@@ -207,6 +238,8 @@ router.post('/login', loginLimiter, (req, res) => {
       empresa_id: usuario.empresa_id || null,
       empresa_codigo: usuario.empresa_codigo || null,
       empresa_estado: usuario.empresa_estado || null,
+       empresa_plan: usuario.empresa_plan || null,
+       empresa_trial: empresaTrialInfo,
       must_change_password: !!usuario.must_change_password,
       twofa_enabled: !!usuario.twofa_enabled
     };
@@ -415,6 +448,153 @@ router.post('/2fa/disable', requireAuth, (req, res) => {
     const logger = require('../services/logger');
     logger.error('Error en /auth/2fa/disable:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al deshabilitar 2FA' });
+  }
+});
+
+// POST /auth/registro-empresa - Auto-registro público de empresa + admin con prueba gratis
+router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
+  const {
+    empresa_nombre,
+    empresa_rif,
+    empresa_telefono,
+    empresa_email,
+    empresa_ubicacion,
+    admin_username,
+    admin_password,
+    admin_nombre,
+    admin_email
+  } = req.body || {};
+
+  const nombre = (empresa_nombre || '').toString().trim();
+  const rif = (empresa_rif || '').toString().trim();
+  const telefono = (empresa_telefono || '').toString().trim();
+  const direccion = (empresa_ubicacion || '').toString().trim();
+  const username = (admin_username || '').toString().trim();
+  const password = (admin_password || '').toString();
+  const nombreAdmin = (admin_nombre || '').toString().trim();
+
+  if (!nombre || nombre.length < 3) {
+    return res.status(400).json({ error: 'El nombre de la empresa debe tener al menos 3 caracteres.' });
+  }
+  if (!username || username.length < 3) {
+    return res.status(400).json({ error: 'El usuario administrador debe tener al menos 3 caracteres.' });
+  }
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'La contraseña del administrador debe tener al menos 6 caracteres.' });
+  }
+
+  try {
+    // Validar que el username no exista
+    const existente = db.prepare('SELECT id FROM usuarios WHERE username = ?').get(username);
+    if (existente) {
+      return res.status(409).json({ error: 'Ya existe un usuario con ese nombre. Por favor elija otro.' });
+    }
+
+    // Generar código de empresa único a partir del nombre o RIF
+    const baseCodigo = (rif || nombre).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'EMP';
+    let codigo = baseCodigo;
+    let intento = 0;
+    while (true) {
+      const existeCodigo = db.prepare('SELECT id FROM empresas WHERE codigo = ?').get(codigo);
+      if (!existeCodigo) break;
+      intento += 1;
+      if (intento > 5) {
+        return res.status(409).json({ error: 'No se pudo generar un código único para la empresa. Intente nuevamente más tarde.' });
+      }
+      const sufijo = String(Math.floor(100 + Math.random() * 900));
+      codigo = (baseCodigo + sufijo).slice(0, 10);
+    }
+
+    const tx = db.transaction(() => {
+      const ahora = new Date();
+      const trialDias = 5;
+      const finTrial = new Date(ahora.getTime() + trialDias * 24 * 60 * 60 * 1000);
+      const finTrialIso = finTrial.toISOString();
+      const diaCorte = ahora.getUTCDate();
+
+      const infoEmpresa = db.prepare(`
+        INSERT INTO empresas (nombre, codigo, estado, plan, monto_mensual, fecha_alta, fecha_corte, dias_gracia, nota_interna, rif, telefono, direccion, proximo_cobro)
+        VALUES (?, ?, 'activa', ?, 0, datetime('now'), ?, 0, ?, ?, ?, ?, ?)
+      `).run(
+        nombre,
+        codigo,
+        'TRIAL-5D',
+        diaCorte,
+        'Empresa creada vía auto-registro (prueba gratis 5 días).',
+        rif || null,
+        telefono || null,
+        direccion || null,
+        finTrialIso
+      );
+
+      const empresaId = infoEmpresa.lastInsertRowid;
+      const hash = bcrypt.hashSync(password, 10);
+
+      db.prepare(`
+        INSERT INTO usuarios (username, password, nombre_completo, rol, activo, must_change_password, empresa_id)
+        VALUES (?, ?, ?, 'admin', 1, 0, ?)
+      `).run(
+        username,
+        hash,
+        nombreAdmin || username,
+        empresaId
+      );
+
+      try {
+        registrarAuditoria({
+          usuario: null,
+          accion: 'EMPRESA_AUTOREGISTRO',
+          entidad: 'empresa',
+          entidadId: empresaId,
+          detalle: {
+            nombre,
+            codigo,
+            origen: 'login-auto-registro',
+            trial_dias: trialDias
+          },
+          ip: req.ip,
+          userAgent: req.headers['user-agent']
+        });
+      } catch (_) {}
+
+      try {
+        registrarEventoNegocio(empresaId, {
+          tipo: 'empresa_creada',
+          entidad: 'empresa',
+          entidadId: empresaId,
+          origen: 'auto-registro',
+          payload: {
+            nombre,
+            codigo,
+            plan: 'TRIAL-5D',
+            proximo_cobro: finTrialIso
+          }
+        });
+      } catch (_) {}
+
+      return { empresaId, codigo, finTrialIso };
+    });
+
+    const resultado = tx();
+
+    res.status(201).json({
+      success: true,
+      message: 'Empresa creada correctamente. Ya puedes iniciar sesión con el usuario administrador.',
+      empresa: {
+        id: resultado.empresaId,
+        nombre,
+        codigo: resultado.codigo,
+        plan: 'TRIAL-5D',
+        proximo_cobro: resultado.finTrialIso
+      },
+      admin: {
+        username
+      }
+    });
+  } catch (err) {
+    const logger = require('../services/logger');
+    logger.error('Error en auto-registro de empresa:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    res.status(500).json({ error: 'Error al registrar la empresa. Intente nuevamente.' });
   }
 });
 

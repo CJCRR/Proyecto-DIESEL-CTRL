@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/styles.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/tsparticles@2/tsparticles.bundle.min.js"></script>
   <style>
     @keyframes nexa-logo-float {
       0% { transform: translateY(0); }
@@ -17,6 +18,27 @@
     }
     .nexa-logo-float {
       animation: nexa-logo-float 5s ease-in-out infinite;
+    }
+
+    @keyframes registro-confetti-burst {
+      0% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(var(--x), var(--y)) rotate(var(--r));
+        opacity: 0;
+      }
+    }
+
+    .registro-confetti-piece {
+      position: absolute;
+      width: 4px;
+      height: 10px;
+      border-radius: 9999px;
+      opacity: 0;
+      animation: registro-confetti-burst 700ms ease-out forwards;
+      will-change: transform, opacity;
     }
   </style>
 </head>
@@ -75,9 +97,15 @@
           </div>
         </div>
 
-        <div id="error-message" class="hidden p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-          <i class="fas fa-exclamation-circle mr-2"></i>
-          <span id="error-text"></span>
+        <div class="space-y-2">
+          <div id="info-message" class="hidden p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-xs flex items-start">
+            <i class="fas fa-info-circle mr-2 mt-0.5"></i>
+            <span id="info-text"></span>
+          </div>
+          <div id="error-message" class="hidden p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-start">
+            <i class="fas fa-exclamation-circle mr-2 mt-0.5"></i>
+            <span id="error-text"></span>
+          </div>
         </div>
 
         <button type="submit" id="loginBtn"
@@ -87,11 +115,18 @@
         </button>
       </form>
 
-      <div class="mt-6 pt-6 border-t border-slate-200">
+      <div class="mt-6 pt-6 border-t border-slate-200 space-y-3">
         <p class="text-xs text-slate-500 text-center">
           <i class="fas fa-info-circle mr-1"></i>
           ¿Olvidaste tu contraseña? Contacta al administrador para restablecerla.
         </p>
+        <div class="text-center">
+          <button type="button" id="btn-open-registro-empresa"
+            class="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition">
+            <i class="fas fa-building mr-1.5"></i>
+            Crear empresa nueva (prueba gratis)
+          </button>
+        </div>
       </div>
       </div>
     </div>
@@ -137,20 +172,120 @@
         </div>
       </div>
     </div>
+  
+    <!-- Modal auto-registro de empresa -->
+    <div id="modal-registro-empresa" class="hidden fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h2 class="text-base font-semibold text-slate-800">Crear empresa nueva</h2>
+            <p class="text-xs text-slate-500 mt-1">Configura tu empresa y un usuario administrador. Incluye prueba gratis de 5 días.</p>
+          </div>
+          <button type="button" id="re-cerrar" class="text-slate-400 hover:text-slate-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <form id="form-registro-empresa" class="space-y-3 text-xs">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Nombre comercial de la empresa</label>
+            <input id="re-empresa-nombre" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">RIF / CI </label>
+              <input id="re-empresa-rif" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Teléfono </label>
+              <input id="re-empresa-telefono" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs">
+            </div>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Ubicación / Dirección </label>
+            <input id="re-empresa-ubicacion" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs">
+          </div>
+
+          <div class="pt-2 border-t border-slate-200 mt-2">
+            <p class="text-[11px] font-semibold text-slate-700 mb-2 flex items-center gap-2">
+              <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold">1</span>
+              Usuario administrador
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Usuario</label>
+                <input id="re-admin-username" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" required>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Contraseña</label>
+                <input id="re-admin-password" type="password" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" required>
+              </div>
+            </div>
+            <div class="mt-3">
+              <label class="block font-semibold text-slate-700 mb-1">Nombre ID de Ventas</label>
+              <input id="re-admin-nombre" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs">
+            </div>
+          </div>
+
+          <p id="re-error" class="hidden text-[11px] text-red-600 mt-1"></p>
+
+          <div class="flex justify-between items-center pt-3 mt-1 border-t border-slate-200">
+            <p class="text-[10px] text-slate-500 max-w-xs">
+              Al crear una empresa aceptas los términos y condiciones del servicio.
+            </p>
+            <div class="flex gap-2">
+              <button type="button" id="re-cancelar" class="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
+              <button type="submit" id="re-submit" class="px-4 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
+                <i class="fas fa-rocket text-[10px]"></i>
+                <span>Crear empresa</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal éxito de registro de empresa -->
+    <div id="modal-registro-exito" class="hidden fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 px-4">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 relative overflow-hidden">
+        <button type="button" id="re-exito-cerrar" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600">
+          <i class="fas fa-times"></i>
+        </button>
+        <div class="flex flex-col items-center text-center gap-3">
+          <div id="registro-exito-icon" class="relative h-16 w-16 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-inner animate-[success-pop_0.6s_ease-out] overflow-visible">
+            <i class="fas fa-check text-2xl"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-semibold text-slate-800">¡Empresa creada con éxito!</h2>
+            <p class="text-xs text-slate-500 mt-1">Hemos creado tu empresa y el usuario administrador. Ahora puedes iniciar sesión para comenzar tu prueba gratis de 5 días.</p>
+          </div>
+          <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 mt-1">
+            Usa el usuario que acabas de registrar en el formulario de inicio de sesión. La contraseña es la que definiste durante el registro.
+          </p>
+          <button type="button" id="re-exito-ok" class="mt-2 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm">
+            <i class="fas fa-arrow-right mr-2 text-[11px]"></i>
+            <span>Ir a iniciar sesión</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
   </main>
 
-  <!-- Footer -->
-  <footer class="mt-auto py-4 text-[11px] text-slate-400/90">
-    <div class="w-full text-center space-y-1">
-      <p id="global-footer-branding" class="">© 2026 Nexa CTRL. Sistema de gestión de ventas.</p>
-      <p>
+  <!-- Footer unificado -->
+  <footer class="mt-auto border-t border-slate-700/40 py-4 text-[11px] text-slate-300/90">
+    <div class="w-full max-w-3xl mx-auto px-4 relative flex items-center justify-center">
+      <p id="global-footer-branding" class="text-center">© 2026 Nexa CTRL. Sistema de gestión de ventas.</p>
+      <p class="hidden sm:block absolute right-0 text-right">
         <a href="/terminos" class="hover:underline">Términos y Condiciones</a>
         <span class="mx-1">·</span>
         <a href="/terminos" class="hover:underline">Política de Privacidad</a>
       </p>
     </div>
   </footer>
+
+  <!-- Contenedor para partículas de confeti -->
+  <div id="tsparticles"></div>
 
   <script type="module" src="/js/theme.js"></script>
   <script type="module" src="/js/login.js"></script>

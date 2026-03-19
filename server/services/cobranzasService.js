@@ -54,40 +54,56 @@ function mapCuenta(row) {
 
 /**
  * Devuelve un resumen agregado de cuentas por cobrar agrupadas por estado,
- * filtrado por empresa vía la venta asociada cuando aplica.
+ * filtrado por empresa vía la venta asociada cuando aplica y, opcionalmente,
+ * por rango de fecha de vencimiento.
  * @param {number|null} empresaId
+ * @param {{desde_venc?:string,hasta_venc?:string}} [filtros]
  * @returns {Array<{estado:string,cantidad:number,saldo_usd:number}>}
  */
-function getResumenCuentas(empresaId) {
+function getResumenCuentas(empresaId, { desde_venc, hasta_venc } = {}) {
+  const where = [];
+  const params = [];
+
   if (empresaId == null) {
     // Instalación mononegocio o sin multiempresa activo
+    if (desde_venc) { where.push('date(fecha_emision) >= date(?)'); params.push(desde_venc); }
+    if (hasta_venc) { where.push('date(fecha_emision) <= date(?)'); params.push(hasta_venc); }
+    const whereSQL = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const rows = db.prepare(`
         SELECT estado, COUNT(*) as cantidad, SUM(saldo_usd) as saldo_usd
         FROM cuentas_cobrar
+        ${whereSQL}
         GROUP BY estado
-      `).all();
+      `).all(...params);
     return rows;
   }
+
+  if (desde_venc) { where.push('date(cc.fecha_emision) >= date(?)'); params.push(desde_venc); }
+  if (hasta_venc) { where.push('date(cc.fecha_emision) <= date(?)'); params.push(hasta_venc); }
+  where.push('cc.venta_id IS NOT NULL');
+  where.push('u.empresa_id = ?');
+  params.push(empresaId);
+  const whereSQL = 'WHERE ' + where.join(' AND ');
 
   const rows = db.prepare(`
       SELECT cc.estado, COUNT(*) as cantidad, SUM(cc.saldo_usd) as saldo_usd
       FROM cuentas_cobrar cc
       LEFT JOIN ventas v ON v.id = cc.venta_id
       LEFT JOIN usuarios u ON u.id = v.usuario_id
-      WHERE cc.venta_id IS NOT NULL AND u.empresa_id = ?
+      ${whereSQL}
       GROUP BY cc.estado
-    `).all(empresaId);
+    `).all(...params);
   return rows;
 }
 
 /**
  * Lista cuentas por cobrar aplicando filtros opcionales por cliente,
- * estado y rango de días de mora.
+ * estado, rango de días de mora y rango de fecha de vencimiento.
  *
- * @param {{cliente?:string,estado?:string,mora_min?:number|string,mora_max?:number|string,empresaId?:number|null}} [filtros]
+ * @param {{cliente?:string,estado?:string,mora_min?:number|string,mora_max?:number|string,desde_venc?:string,hasta_venc?:string,empresaId?:number|null}} [filtros]
  * @returns {import('../types').CuentaPorCobrar[]}
  */
-function listCuentas({ cliente, estado, mora_min, mora_max, empresaId } = {}) {
+function listCuentas({ cliente, estado, mora_min, mora_max, desde_venc, hasta_venc, empresaId } = {}) {
   let rows;
   if (empresaId == null) {
     rows = db.prepare(`
@@ -129,6 +145,12 @@ function listCuentas({ cliente, estado, mora_min, mora_max, empresaId } = {}) {
   }
   if (estado) {
     rows = rows.filter(r => r.estado_calc === estado);
+  }
+  if (desde_venc) {
+    rows = rows.filter(r => r.fecha_emision && r.fecha_emision >= desde_venc);
+  }
+  if (hasta_venc) {
+    rows = rows.filter(r => r.fecha_emision && r.fecha_emision <= hasta_venc);
   }
   const min = mora_min !== undefined && mora_min !== '' ? Number(mora_min) : null;
   const max = mora_max !== undefined && mora_max !== '' ? Number(mora_max) : null;

@@ -1,6 +1,10 @@
 let cuentas = [];
 let cuentaSeleccionada = null;
 let tasaBCV = 1;
+let periodoAnchor = null; // inicio del mes actual mostrado
+let periodoDesde = null;  // YYYY-MM-DD
+let periodoHasta = null;  // YYYY-MM-DD
+let resumenGlobal = null; // resumen histórico sin filtro de período
 import { apiFetchJson } from './app-api.js';
 import { initCustomSelect } from './modules/ui.js';
 
@@ -48,9 +52,13 @@ function renderResumen(rows = []) {
     const cont = document.getElementById('resumen-cards');
     if (!cont) return;
     cont.innerHTML = '';
+    let totalCantPeriodo = 0;
+    let totalSaldoPeriodo = 0;
     const estados = ['pendiente', 'parcial', 'vencido', 'cancelado'];
     estados.forEach(e => {
         const found = rows.find(r => r.estado === e) || { cantidad: 0, saldo_usd: 0 };
+        totalCantPeriodo += Number(found.cantidad || 0);
+        totalSaldoPeriodo += Number(found.saldo_usd || 0);
         const card = document.createElement('div');
         card.className = 'p-3 border rounded-xl bg-slate-50';
         card.innerHTML = `
@@ -60,6 +68,26 @@ function renderResumen(rows = []) {
         `;
         cont.appendChild(card);
     });
+
+    const totalesEl = document.getElementById('resumen-totales');
+    if (totalesEl) {
+        let totalHist = 0;
+        if (Array.isArray(resumenGlobal)) {
+            resumenGlobal.forEach(r => {
+                totalHist += Number(r.saldo_usd || 0);
+            });
+        }
+        totalesEl.innerHTML = `
+            <div class="flex items-center justify-between">
+                <span class="font-semibold text-slate-700">Período actual</span>
+                <span class="font-mono text-[11px] text-slate-700">${totalCantPeriodo} cuentas · $${totalSaldoPeriodo.toFixed(2)}</span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-500">
+                <span>Histórico pendiente</span>
+                <span class="font-mono">$${totalHist.toFixed(2)}</span>
+            </div>
+        `;
+    }
 }
 
 function renderTabla(list = []) {
@@ -81,18 +109,18 @@ function renderTabla(list = []) {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 cursor-pointer';
         tr.onclick = () => cargarDetalle(c.id);
-                const estado = c.estado_calc || c.estado;
-                const diasMora = typeof c.dias_mora === 'number' ? c.dias_mora : 0;
+        const estado = c.estado_calc || c.estado;
+        const diasMora = typeof c.dias_mora === 'number' ? c.dias_mora : 0;
         tr.innerHTML = `
             <td class="p-3 font-semibold text-slate-800">${c.cliente_nombre || 'Cliente'}</td>
             <td class="p-3 text-slate-500">${c.nro_nota ? ` ${c.nro_nota}` : (c.cliente_doc || '')}</td>
-                        <td class="p-3 text-center text-sm">
-                            ${c.fecha_vencimiento || ''}
-                            ${estado === 'vencido' && diasMora > 0 ? `<div class="text-[10px] text-rose-600">${diasMora} días de mora</div>` : ''}
-                        </td>
+            <td class="p-3 text-center text-sm">
+                ${c.fecha_vencimiento || ''}
+                ${estado === 'vencido' && diasMora > 0 ? `<div class="text-[10px] text-rose-600">${diasMora} días de mora</div>` : ''}
+            </td>
             <td class="p-3 text-right font-mono text-slate-500">$${Number(c.total_usd || 0).toFixed(2)}</td>
             <td class="p-3 text-right font-mono font-bold text-blue-600">$${Number(c.saldo_usd || 0).toFixed(2)}</td>
-                        <td class="p-3 text-center">${badgeEstado(estado)}</td>
+            <td class="p-3 text-center">${badgeEstado(estado)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -174,7 +202,11 @@ function renderDetalle(data) {
 
 async function cargarResumen() {
     try {
-        const j = await apiFetchJson('/cobranzas/resumen');
+        const params = new URLSearchParams();
+        if (periodoDesde) params.append('desde_venc', periodoDesde);
+        if (periodoHasta) params.append('hasta_venc', periodoHasta);
+        const url = params.toString() ? `/cobranzas/resumen?${params.toString()}` : '/cobranzas/resumen';
+        const j = await apiFetchJson(url);
         renderResumen(j);
     } catch (err) {
         console.error(err);
@@ -190,6 +222,8 @@ async function cargarCuentas() {
         if (q) params.append('cliente', q);
         if (est) params.append('estado', est);
         if (mora) params.append('mora_min', mora);
+        if (periodoDesde) params.append('desde_venc', periodoDesde);
+        if (periodoHasta) params.append('hasta_venc', periodoHasta);
         const j = await apiFetchJson(`/cobranzas/list?${params.toString()}`);
         // Normalizar la respuesta en caso de que el backend devuelva un objeto envolviendo las filas
         if (Array.isArray(j)) {
@@ -211,6 +245,15 @@ async function cargarCuentas() {
     }
 }
 
+async function cargarResumenGlobal() {
+    try {
+        resumenGlobal = await apiFetchJson('/cobranzas/resumen');
+    } catch (err) {
+        console.error('Error cargando resumen histórico de cobranzas', err);
+        resumenGlobal = null;
+    }
+}
+
 async function cargarDetalle(id) {
     try {
         const j = await apiFetchJson(`/cobranzas/${id}`);
@@ -219,6 +262,42 @@ async function cargarDetalle(id) {
         console.error(err);
         showToast('Error cargando detalle', 'error');
     }
+}
+
+function formatDateInput(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function setPeriodoMes(anchorDate) {
+    if (!(anchorDate instanceof Date) || Number.isNaN(anchorDate.getTime())) {
+        anchorDate = new Date();
+    }
+    const start = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+    const end = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
+    periodoAnchor = start;
+    periodoDesde = formatDateInput(start);
+    periodoHasta = formatDateInput(end);
+
+    const label = document.getElementById('cob-periodo-label');
+    if (label) {
+        const opts = { month: 'long', year: 'numeric' };
+        const texto = start.toLocaleDateString('es-VE', opts);
+        // Capitalizar primera letra por estética
+        label.textContent = texto.charAt(0).toUpperCase() + texto.slice(1);
+    }
+}
+
+function moverPeriodoCobranza(direccion) {
+    if (!periodoAnchor) {
+        setPeriodoMes(new Date());
+    }
+    const next = new Date(periodoAnchor.getFullYear(), periodoAnchor.getMonth() + direccion, 1);
+    setPeriodoMes(next);
+    cargarCuentas();
+    cargarResumen();
 }
 
 async function prefijarTasa() {
@@ -257,6 +336,7 @@ async function registrarPago(evt) {
         renderDetalle(j);
         await cargarCuentas();
         await cargarResumen();
+        await cargarResumenGlobal();
     } catch (err) {
         console.error(err);
         showToast(err.message, 'error');
@@ -280,10 +360,17 @@ function setupEventos() {
             if (icon) icon.classList.toggle('rotate-180');
         });
     }
+
+    const btnPrev = document.getElementById('cob-periodo-prev');
+    const btnNext = document.getElementById('cob-periodo-next');
+    if (btnPrev) btnPrev.addEventListener('click', () => moverPeriodoCobranza(-1));
+    if (btnNext) btnNext.addEventListener('click', () => moverPeriodoCobranza(1));
 }
 
 (async function init() {
     setupEventos();
+    await cargarResumenGlobal();
+    setPeriodoMes(new Date());
     await prefijarTasa();
     await cargarResumen();
     await cargarCuentas();

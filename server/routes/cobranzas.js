@@ -21,7 +21,8 @@ function forbidSuperadmin(req, res, next) {
 
 router.get('/resumen', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const rows = getResumenCuentas(req.usuario.empresa_id || null);
+    const { desde_venc, hasta_venc } = req.query || {};
+    const rows = getResumenCuentas(req.usuario.empresa_id || null, { desde_venc, hasta_venc });
     res.json(rows);
   } catch (err) {
   logger.error('Error resumen cc', {

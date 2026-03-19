@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth, requireRole } = require('./auth');
+const { body, validate } = require('../middleware/validation');
 const logger = require('../services/logger');
 const db = require('../db');
 const { registrarVenta, cambiarVendedorVenta, anularVenta } = require('../services/ventasService');
@@ -14,7 +15,36 @@ function forbidSuperadmin(req, res, next) {
     next();
 }
 
-router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
+router.post(
+    '/',
+    requireAuth,
+    forbidSuperadmin,
+    validate([
+        body('items')
+            .isArray({ min: 1 })
+            .withMessage('Debe enviar al menos un ítem en la venta'),
+        body('items.*.cantidad')
+            .optional()
+            .isFloat({ gt: 0 })
+            .withMessage('Cantidad de ítem inválida'),
+        body('tasa_bcv')
+            .notEmpty()
+            .withMessage('La tasa BCV es obligatoria')
+            .bail()
+            .isFloat({ gt: 0 })
+            .withMessage('La tasa BCV debe ser un número mayor a 0'),
+        body('metodo_pago')
+            .optional()
+            .isString()
+            .isLength({ max: 100 })
+            .withMessage('Método de pago inválido'),
+        body('cliente')
+            .optional()
+            .isString()
+            .isLength({ max: 200 })
+            .withMessage('Nombre de cliente demasiado largo'),
+    ]),
+    (req, res) => {
     try {
         // Asegurar que siempre se pase usuario_id de la sesión si no viene en el payload
         const payload = {
@@ -49,7 +79,7 @@ router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
             idGlobal = `VENTA-${ventaId}`;
         }
 
-        res.json({ message: 'Venta registrada con éxito', ventaId, cuentaCobrarId, idGlobal });
+    res.json({ message: 'Venta registrada con éxito', ventaId, cuentaCobrarId, idGlobal });
     } catch (error) {
         // Log estructurado para diagnóstico, manteniendo respuesta 400 con el mensaje
         logger.error('Error procesando la venta', {

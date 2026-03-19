@@ -211,7 +211,9 @@ function renderEmpresas() {
 
   empresas.forEach(e => {
     const estadoLicencia = calcularEstadoLicencia(e);
-    const planTexto = (e.plan || '—') + (e.monto_mensual ? ` / $${Number(e.monto_mensual).toFixed(2)}` : '');
+    const esTrial = e.plan && String(e.plan).toUpperCase().startsWith('TRIAL');
+    const planBase = (e.plan || '—') + (e.monto_mensual ? ` / $${Number(e.monto_mensual).toFixed(2)}` : '');
+    const planTexto = esTrial ? `${planBase} · TRIAL` : planBase;
     const textoGracia = `${e.dias_gracia || 0} días de gracia`;
     const proximo = e.proximo_cobro ? new Date(e.proximo_cobro).toLocaleDateString() : '—';
     const ultimoPago = e.ultimo_pago_en ? new Date(e.ultimo_pago_en).toLocaleDateString() : '—';
@@ -227,7 +229,7 @@ function renderEmpresas() {
     html += `<td class="p-3 align-top text-slate-600">${planTexto}</td>`;
     html += `<td class="p-3 align-top text-slate-600">${textoGracia}</td>`;
     html += `<td class="p-3 align-top text-slate-600">
-      <div>Próximo: ${proximo}</div>
+      <div>Próximo: ${proximo}${esTrial ? ' (fin prueba)' : ''}</div>
       <div class="text-xs text-slate-400 mt-1">Último pago: ${ultimoPago}</div>
     </td>`;
 

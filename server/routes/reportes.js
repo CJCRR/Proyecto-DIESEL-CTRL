@@ -29,6 +29,7 @@ const {
   getResumenFinanciero,
   buildRentabilidadCategoriasCsv,
   buildRentabilidadProveedoresCsv,
+  buildComisionesVendedoresCsv,
 } = require('../services/reportesService');
 
 // Middleware para evitar que el superadmin vea datos de ventas de empresas
@@ -80,7 +81,34 @@ router.get('/ventas/export/csv', requireAuth, forbidSuperadmin, (req, res) => {
     const { desde, hasta, cliente, vendedor, metodo } = req.query;
     const csv = buildVentasRangoCsv({ desde, hasta, cliente, vendedor, metodo, limit: 5000 }, req.usuario.empresa_id || null);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="ventas_rango.csv"');
+
+    // Nombre de archivo descriptivo: incluye empresa y rango de fechas
+    const empresaCodigo = (req.usuario && req.usuario.empresa_codigo) || 'empresa';
+    const safeEmpresa = String(empresaCodigo)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'empresa';
+
+    let periodoPart = 'todo';
+    if (desde && hasta) {
+      if (desde === hasta) periodoPart = `dia-${desde}`;
+      else periodoPart = `rango-${desde}_a_${hasta}`;
+    } else if (desde) {
+      periodoPart = `desde-${desde}`;
+    } else if (hasta) {
+      periodoPart = `hasta-${hasta}`;
+    }
+
+    const ahora = new Date();
+    const y = ahora.getFullYear();
+    const m = String(ahora.getMonth() + 1).padStart(2, '0');
+    const d = String(ahora.getDate()).padStart(2, '0');
+    const hh = String(ahora.getHours()).padStart(2, '0');
+    const mm = String(ahora.getMinutes()).padStart(2, '0');
+    const timestamp = `${y}${m}${d}_${hh}${mm}`;
+
+    const filename = `rpt-ventas-${safeEmpresa}-${periodoPart}-${timestamp}.csv`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err) {
   logger.error('Error exportando CSV ventas-rango', {
@@ -273,12 +301,82 @@ router.get('/comisiones-vendedores', requireAuth, forbidSuperadmin, (req, res) =
   }
 });
 
+router.get('/comisiones-vendedores/export/csv', requireAuth, forbidSuperadmin, (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const csv = buildComisionesVendedoresCsv({ desde, hasta }, req.usuario.empresa_id || null);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+
+    const empresaCodigo = (req.usuario && req.usuario.empresa_codigo) || 'empresa';
+    const safeEmpresa = String(empresaCodigo)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'empresa';
+
+    let periodoPart = 'todo';
+    if (desde && hasta) {
+      if (desde === hasta) periodoPart = `dia-${desde}`;
+      else periodoPart = `rango-${desde}_a_${hasta}`;
+    } else if (desde) {
+      periodoPart = `desde-${desde}`;
+    } else if (hasta) {
+      periodoPart = `hasta-${hasta}`;
+    }
+
+    const ahora = new Date();
+    const y = ahora.getFullYear();
+    const m = String(ahora.getMonth() + 1).padStart(2, '0');
+    const d = String(ahora.getDate()).padStart(2, '0');
+    const hh = String(ahora.getHours()).padStart(2, '0');
+    const mm = String(ahora.getMinutes()).padStart(2, '0');
+    const timestamp = `${y}${m}${d}_${hh}${mm}`;
+
+    const filename = `rpt-comisiones-vendedores-${safeEmpresa}-${periodoPart}-${timestamp}.csv`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (err) {
+    logger.error('Error exportando CSV comisiones vendedores', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al exportar CSV de comisiones', code: 'REPORTE_COMISIONES_VENDEDORES_CSV_ERROR' });
+  }
+});
+
 router.get('/rentabilidad/categorias/export/csv', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta } = req.query;
     const csv = buildRentabilidadCategoriasCsv({ desde, hasta }, req.usuario.empresa_id || null);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="rentabilidad_categorias.csv"');
+    const empresaCodigo = (req.usuario && req.usuario.empresa_codigo) || 'empresa';
+    const safeEmpresa = String(empresaCodigo)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'empresa';
+
+    let periodoPart = 'todo';
+    if (desde && hasta) {
+      if (desde === hasta) periodoPart = `dia-${desde}`;
+      else periodoPart = `rango-${desde}_a_${hasta}`;
+    } else if (desde) {
+      periodoPart = `desde-${desde}`;
+    } else if (hasta) {
+      periodoPart = `hasta-${hasta}`;
+    }
+
+    const ahora = new Date();
+    const y = ahora.getFullYear();
+    const m = String(ahora.getMonth() + 1).padStart(2, '0');
+    const d = String(ahora.getDate()).padStart(2, '0');
+    const hh = String(ahora.getHours()).padStart(2, '0');
+    const mm = String(ahora.getMinutes()).padStart(2, '0');
+    const timestamp = `${y}${m}${d}_${hh}${mm}`;
+
+    const filename = `rpt-rentab-categorias-${safeEmpresa}-${periodoPart}-${timestamp}.csv`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err) {
   logger.error('Error exportando CSV categorias', {
@@ -297,7 +395,32 @@ router.get('/rentabilidad/proveedores/export/csv', requireAuth, forbidSuperadmin
     const { desde, hasta } = req.query;
     const csv = buildRentabilidadProveedoresCsv({ desde, hasta }, req.usuario.empresa_id || null);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="rentabilidad_proveedores.csv"');
+    const empresaCodigo = (req.usuario && req.usuario.empresa_codigo) || 'empresa';
+    const safeEmpresa = String(empresaCodigo)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'empresa';
+
+    let periodoPart = 'todo';
+    if (desde && hasta) {
+      if (desde === hasta) periodoPart = `dia-${desde}`;
+      else periodoPart = `rango-${desde}_a_${hasta}`;
+    } else if (desde) {
+      periodoPart = `desde-${desde}`;
+    } else if (hasta) {
+      periodoPart = `hasta-${hasta}`;
+    }
+
+    const ahora = new Date();
+    const y = ahora.getFullYear();
+    const m = String(ahora.getMonth() + 1).padStart(2, '0');
+    const d = String(ahora.getDate()).padStart(2, '0');
+    const hh = String(ahora.getHours()).padStart(2, '0');
+    const mm = String(ahora.getMinutes()).padStart(2, '0');
+    const timestamp = `${y}${m}${d}_${hh}${mm}`;
+
+    const filename = `rpt-rentab-proveedores-${safeEmpresa}-${periodoPart}-${timestamp}.csv`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err) {
   logger.error('Error exportando CSV proveedores', {

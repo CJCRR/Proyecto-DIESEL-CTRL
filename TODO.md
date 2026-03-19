@@ -204,6 +204,25 @@
 - [x] Añadir tests para la importación CSV con productos en uno y varios depósitos (modos reconteo vs ingreso adicional y legacy) verificando `stock_por_deposito` y `productos.stock`.
 - [x] Incluir pruebas que aseguren que los endpoints de inventario siempre respetan `empresa_id` y roles (admin, admin_empresa, vendedor) al menos en /depositos/mover, /depositos/movimientos y /admin/productos/import.
 
+## Fase 37: Auto‑registro de Empresas y Prueba Gratis ✅
+- [x] Añadir en la pantalla de login un botón/enlace "Crear empresa" que abra un flujo guiado de registro.
+- [x] Diseñar formulario único que capture datos básicos de la empresa (nombre comercial, RIF/CI, teléfono, correo, ubicación) y del usuario administrador (username, contraseña, nombre completo, correo).
+- [x] Implementar endpoint público (rate‑limited) para crear empresa + usuario admin en una sola transacción, inicializando `empresa.estado` y campos de licencia.
+- [x] Configurar automáticamente un período de prueba de 5 días: calcular `fecha_alta`, `fecha_corte` inicial y `dias_gracia` de forma que las operaciones sean libres de cobro durante ese lapso.
+- [x] Ajustar el flujo de login/licencias para que empresas en período de prueba vean un aviso claro (días restantes) sin bloquear funcionalidades.
+- [x] Mostrar en el panel master de empresas un indicador de empresas en trial y una forma sencilla de convertirlas a plan de pago (actualizar plan/monto/estado).
+- [ ] Documentar el flujo completo de alta de empresa (desde login) y las reglas de la prueba gratis en README y/o en una sección de ayuda.
+- [x] Todo esto sin alterar las empresas ya creadas.
+
+## Fase 38: Reportes y Exportaciones Avanzadas
+- [ ] Extender filtros de reportes para soportar rangos rápidos por período: mes actual, mes anterior, año actual, año anterior y período personalizado.
+- [ ] Permitir navegar fácilmente al período anterior/siguiente desde un reporte (por ejemplo, botones "◀ Período anterior" / "▶ Período siguiente").
+- [ ] Mejorar la exportación a CSV/Excel para que respete siempre el rango seleccionado y añada metadatos básicos (empresa, rango de fechas, moneda, fecha de generación).
+- [ ] Incluir opciones de exportar datos detallados y/o agregados por día, mes o año según el tipo de reporte (ventas, cobranzas, compras, rentabilidad, comisiones).
+- [ ] Estandarizar nombres de archivos de exporte (ej: `rpt-ventas-EMPRESA-YYYYMM-YYYYMMDD_HHMM.csv`) para facilitar archivado y búsqueda.
+- [ ] Revisar rendimiento de consultas de reportes al usar filtros por mes/año en bases con muchos registros, ajustando índices o paginación si es necesario.
+- [ ] Añadir tests básicos para asegurar que los filtros por período y las exportaciones generan conteos y totales coherentes con los datos mostrados en pantalla.
+
 ## Notas de Progreso
 
 - [idea] Espacio para anotar ideas rápidas antes de asignarlas a una fase.

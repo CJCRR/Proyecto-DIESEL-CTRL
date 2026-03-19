@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 
-<body class="bg-slate-50 text-slate-900 min-h-screen">
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
   <nav class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/40 border-b border-slate-800/60">
     <div class="container mx-auto px-4 py-3 flex justify-between items-center gap-4">
       <div class="flex items-center gap-3">
@@ -35,6 +35,10 @@
         </div>
       </div>
       <div class="flex items-center gap-3 text-[11px] text-slate-200/80">
+        <div id="app-session-status" class="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full border border-slate-600/60 bg-slate-900/60 text-[11px] font-medium text-slate-100">
+          <span id="app-session-status-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-inner"></span>
+          <span id="app-session-status-text">Sesión activa</span>
+        </div>
         <span class="hidden sm:inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10">Panel superadmin</span>
       </div>
     </div>
@@ -61,7 +65,7 @@
     </div>
   </aside>
 
-  <main class="container mx-auto p-6 max-w-6xl">
+  <main class="flex-1 container mx-auto p-6 max-w-6xl">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <h2 class="text-2xl font-bold text-slate-800">Empresas / Licencias</h2>
