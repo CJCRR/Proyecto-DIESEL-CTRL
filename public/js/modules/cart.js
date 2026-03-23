@@ -5,6 +5,7 @@ export let carrito = [];
 export let productoSeleccionado = null;
 export let modoDevolucion = false;
 let ventaSeleccionada = null;
+let priceTooltipEl = null;
 
 export function getVentaSeleccionada() {
 	return ventaSeleccionada;
@@ -12,6 +13,35 @@ export function getVentaSeleccionada() {
 
 export function setVentaSeleccionada(value) {
 	ventaSeleccionada = value;
+}
+
+function ensurePriceTooltip() {
+	if (priceTooltipEl) return priceTooltipEl;
+	priceTooltipEl = document.createElement('div');
+	priceTooltipEl.id = 'pos-price-tooltip';
+	priceTooltipEl.className = 'fixed z-50 px-3 py-1.5 text-sm rounded bg-slate-900 text-white shadow-lg border border-slate-700 pointer-events-none opacity-0 transition-opacity duration-150';
+	document.body.appendChild(priceTooltipEl);
+	return priceTooltipEl;
+}
+
+function showPriceTooltip(event) {
+	const el = event.currentTarget;
+	if (!el || !el.dataset || !el.dataset.tooltip) return;
+	const tip = ensurePriceTooltip();
+	tip.textContent = el.dataset.tooltip;
+	const rect = el.getBoundingClientRect();
+	const top = window.scrollY + rect.top - 8;
+	const left = window.scrollX + rect.left + rect.width / 2;
+	tip.style.top = `${top}px`;
+	tip.style.left = `${left}px`;
+	tip.style.transform = 'translateX(-50%) translateY(-100%)';
+	tip.style.opacity = '1';
+}
+
+function hidePriceTooltip() {
+	if (priceTooltipEl) {
+		priceTooltipEl.style.opacity = '0';
+	}
 }
 
 function redondearA0o5(valor) {
@@ -166,6 +196,8 @@ export function actualizarTabla() {
 
 	carrito.forEach((item, index) => {
 		const subtotalUSD = item.cantidad * item.precio_usd;
+		const precioBs = item.precio_usd * tasa;
+		const subtotalBs = subtotalUSD * tasa;
 		totalUSD += subtotalUSD;
 
 		const tr = document.createElement('tr');
@@ -177,8 +209,8 @@ export function actualizarTabla() {
 			<td class="p-4 font-bold text-slate-600">${escapeHtml(item.codigo)}</td>
 			<td class="p-4 text-slate-500">${escapeHtml(item.descripcion)}</td>
 			<td class="p-4 text-center font-bold">${qtyCell}</td>
-			<td class="p-4 text-right text-slate-400 font-mono">$${item.precio_usd.toFixed(2)}</td>
-			<td class="p-4 text-right font-black ${modoDevolucion ? 'text-rose-600' : 'text-blue-600'} font-mono">$${subtotalUSD.toFixed(2)}</td>
+			<td class="p-4 text-right text-slate-400 font-mono cursor-help" data-role="precio-usd" data-tooltip="$${item.precio_usd.toFixed(2)} • ≈ ${precioBs.toFixed(2)} Bs">$${item.precio_usd.toFixed(2)}</td>
+			<td class="p-4 text-right font-black ${modoDevolucion ? 'text-rose-600' : 'text-blue-600'} font-mono cursor-help" data-role="subtotal-usd" data-tooltip="$${subtotalUSD.toFixed(2)} • ≈ ${subtotalBs.toFixed(2)} Bs">$${subtotalUSD.toFixed(2)}</td>
 			<td class="p-4 text-center">
 				<button onclick="eliminarDelCarrito(${index})" class="btn-trash" title="Quitar del carrito">
 					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
@@ -188,6 +220,16 @@ export function actualizarTabla() {
 			</td>
 		`;
 		tablaCuerpo.appendChild(tr);
+		const precioCell = tr.querySelector('[data-role="precio-usd"]');
+		const subtotalCell = tr.querySelector('[data-role="subtotal-usd"]');
+		if (precioCell) {
+			precioCell.addEventListener('mouseenter', showPriceTooltip);
+			precioCell.addEventListener('mouseleave', hidePriceTooltip);
+		}
+		if (subtotalCell) {
+			subtotalCell.addEventListener('mouseenter', showPriceTooltip);
+			subtotalCell.addEventListener('mouseleave', hidePriceTooltip);
+		}
 	});
 
 	if (modoDevolucion) {

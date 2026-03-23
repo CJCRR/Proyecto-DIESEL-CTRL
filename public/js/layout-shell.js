@@ -103,6 +103,7 @@
             '</div>' +
             '</div>' +
             '<div class="flex items-center gap-3">' +
+            '<div id="dash-period-container" class="hidden sm:flex items-center gap-1 text-[11px] text-slate-100"></div>' +
             '<div id="app-session-status" class="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full border border-slate-600/60 bg-slate-900/60 text-[11px] font-medium text-slate-100">' +
             '<span id="app-session-status-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-inner"></span>' +
             '<span id="app-session-status-text">Sesión activa</span>' +

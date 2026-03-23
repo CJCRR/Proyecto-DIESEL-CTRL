@@ -608,6 +608,9 @@ function setupUI() {
 
     // Gestión de depósitos de inventario
     setupDepositosUI();
+
+    // Exportación de datos (seguridad y riesgo)
+    setupExportDatosUI();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -616,7 +619,7 @@ window.addEventListener('DOMContentLoaded', () => {
     loadPlanResumen();
 });
 
-// Función para agregar botón de logout al drawer y enlaces del menú según rol
+// Función para renderizar la lista de depósitos de inventario
 function renderDepositosList() {
     const cont = document.getElementById('depositos-lista');
     if (!cont) return;
@@ -879,7 +882,7 @@ function renderPreview() {
         }
 
 // Función para subir un DataURL al servidor y obtener la URL de la imagen alojada, con manejo de errores y notificaciones        
-        async function uploadDataUrl(dataUrl, name){
+    async function uploadDataUrl(dataUrl, name){
             try {
                 try {
                     const j = await apiFetchJson('/admin/ajustes/upload-image', {
@@ -898,6 +901,53 @@ function renderPreview() {
                 return null;
             }
         }
+
+// Inicializar UI de exportación de datos (xlsx)
+function setupExportDatosUI() {
+    const btn = document.getElementById('btnExportDatos');
+    if (!btn) return;
+    const msgEl = document.getElementById('exp_msg');
+
+    btn.addEventListener('click', () => {
+        const tipos = [];
+        if (document.getElementById('exp_ventas')?.checked) tipos.push('ventas');
+        if (document.getElementById('exp_compras')?.checked) tipos.push('compras');
+        if (document.getElementById('exp_creditos')?.checked) tipos.push('creditos');
+        if (document.getElementById('exp_clientes')?.checked) tipos.push('clientes');
+        if (document.getElementById('exp_proveedores')?.checked) tipos.push('proveedores');
+        if (document.getElementById('exp_inventario')?.checked) tipos.push('inventario');
+        if (document.getElementById('exp_rentabilidad')?.checked) tipos.push('rentabilidad');
+
+        if (!tipos.length) {
+            showToast('Debes seleccionar al menos un módulo para exportar', 'error');
+            return;
+        }
+
+        const desdeEl = document.getElementById('exp_desde');
+        const hastaEl = document.getElementById('exp_hasta');
+        const desde = desdeEl && desdeEl.value ? desdeEl.value : '';
+        const hasta = hastaEl && hastaEl.value ? hastaEl.value : '';
+
+        const params = new URLSearchParams();
+        params.set('tipos', tipos.join(','));
+        if (desde) params.set('desde', desde);
+        if (hasta) params.set('hasta', hasta);
+
+        const url = `/admin/ajustes/export-datos?${params.toString()}`;
+        if (msgEl) {
+            msgEl.textContent = 'Preparando archivo de exportación...';
+        }
+        try {
+            window.location.href = url;
+            setTimeout(() => {
+                if (msgEl) msgEl.textContent = '';
+            }, 3000);
+        } catch (err) {
+            if (msgEl) msgEl.textContent = '';
+            showToast(err.message || 'No se pudo iniciar la exportación', 'error');
+        }
+    });
+}
 
 // Función para asegurarse de que el template de nota esté cargado antes de intentar imprimir, con manejo de carga dinámica y errores
 async function ensureNotaTemplateLoaded(layout = 'compact'){

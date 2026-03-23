@@ -20,6 +20,7 @@ const {
   registrarSolicitudPagoLicencia,
   listarPagosLicenciaEmpresa,
   actualizarEstadoPagoLicencia,
+  exportarDatosEmpresa,
 } = require('../services/ajustesService');
 
 // POST /admin/ajustes - Ajustar Stock (Entrada/Salida manual)
@@ -249,6 +250,32 @@ router.post('/purge-data', requireAuth, requireRole('admin'), (req, res) => {
   } catch (err) {
     console.error('Error borrando datos:', err.message);
     res.status(500).json({ error: 'No se pudo borrar la base de datos' });
+  }
+});
+
+// GET /admin/ajustes/export-datos - Exportar datos a XLSX
+router.get('/export-datos', requireAuth, (req, res) => {
+  try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    if (!empresaId) {
+      return res.status(400).json({ error: 'No se pudo determinar la empresa del usuario' });
+    }
+
+    const { desde, hasta, tipos } = req.query || {};
+    const { buffer, filename } = exportarDatosEmpresa(empresaId, { desde, hasta, tipos });
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('Error exportando datos XLSX:', err.message);
+    if (err.tipo === 'VALIDACION') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'No se pudo generar la exportación' });
   }
 });
 

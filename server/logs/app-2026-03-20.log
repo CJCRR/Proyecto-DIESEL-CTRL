@@ -1,0 +1,45 @@
+2026-03-20T18:36:39.071Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T18:36:39.074Z [INFO] 📦 Backup automático creado: backup_2026-03-20T18-36-39-058Z.sqlite 
+2026-03-20T19:12:43.797Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T19:14:02.175Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T19:14:02.178Z [INFO] 📦 Backup automático creado: backup_2026-03-20T19-14-02-165Z.sqlite 
+2026-03-20T19:19:18.760Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T19:19:18.764Z [INFO] 📦 Backup automático creado: backup_2026-03-20T19-19-18-751Z.sqlite 
+2026-03-20T19:22:05.536Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T19:22:05.539Z [INFO] 📦 Backup automático creado: backup_2026-03-20T19-22-05-525Z.sqlite 
+2026-03-20T19:51:38.640Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T19:51:41.377Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T19:51:41.381Z [INFO] 📦 Backup automático creado: backup_2026-03-20T19-51-41-367Z.sqlite 
+2026-03-20T20:03:40.877Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T20:04:23.293Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:04:23.296Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-04-23-284Z.sqlite 
+2026-03-20T20:12:49.501Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T20:12:51.852Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:12:51.856Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-12-51-841Z.sqlite 
+2026-03-20T20:25:28.995Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:25:28.998Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-25-28-981Z.sqlite 
+2026-03-20T20:33:31.900Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T20:33:41.787Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:33:41.823Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-33-41-729Z.sqlite 
+2026-03-20T20:33:41.908Z [ERROR] Forzando cierre del proceso tras 10s. 
+2026-03-20T20:43:03.015Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T20:43:05.518Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:43:05.521Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-43-05-507Z.sqlite 
+2026-03-20T20:46:37.158Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T20:46:39.962Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:46:39.992Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-46-39-944Z.sqlite 
+2026-03-20T20:52:01.336Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T20:52:04.447Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:52:04.450Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-52-04-435Z.sqlite 
+2026-03-20T20:54:36.183Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T20:54:38.463Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:54:38.467Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-54-38-455Z.sqlite 
+2026-03-20T20:56:37.143Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T20:56:39.426Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:56:39.429Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-56-39-416Z.sqlite 
+2026-03-20T20:59:33.683Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T20:59:36.309Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T20:59:36.313Z [INFO] 📦 Backup automático creado: backup_2026-03-20T20-59-36-301Z.sqlite 
+2026-03-20T21:06:12.491Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-20T21:06:16.072Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-20T21:06:16.077Z [INFO] 📦 Backup automático creado: backup_2026-03-20T21-06-16-061Z.sqlite 

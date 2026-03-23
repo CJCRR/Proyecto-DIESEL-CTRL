@@ -1,5 +1,10 @@
 const db = require('../db');
 const { insertAlerta } = require('../routes/alertas');
+const XLSX = require('xlsx');
+const { getVentasRango, getTopClientes, getRentabilidadCategorias } = require('./reportesService');
+const { listCompras } = require('./comprasService');
+const { listCuentas } = require('./cobranzasService');
+const { listProveedores } = require('./proveedoresService');
 // @ts-check
 
 // ===== AJUSTES DE STOCK =====
@@ -958,6 +963,209 @@ function guardarConfigGeneral(payload = {}, empresaId) {
   };
 }
 
+// ===== EXPORTACIÓN DE DATOS A XLSX =====
+
+function buildSheetFromRows(rows, headerMap) {
+  const cols = Object.entries(headerMap);
+  const data = (rows || []).map((row) => {
+    const out = {};
+    for (const [key, def] of cols) {
+      const header = def && def.header ? def.header : key;
+      const transform = def && typeof def.transform === 'function' ? def.transform : null;
+      const val = row[key];
+      out[header] = transform ? transform(val, row) : val;
+    }
+    return out;
+  });
+  return XLSX.utils.json_to_sheet(data);
+}
+
+/**
+ * Genera un archivo XLSX con múltiples hojas según los tipos solicitados.
+ *
+ * Tipos soportados: ventas, compras, creditos, proveedores,
+ * clientes, inventario, rentabilidad.
+ *
+ * @param {number|null} empresaId
+ * @param {{desde?:string,hasta?:string,tipos?:string[]|string}} opts
+ * @returns {{buffer:Buffer, filename:string}}
+ */
+function exportarDatosEmpresa(empresaId, opts = {}) {
+  const eid = empresaId != null ? Number(empresaId) : null;
+  if (!Number.isFinite(eid) || eid <= 0) {
+    const err = new Error('Empresa inválida para exportación de datos');
+    err.tipo = 'VALIDACION';
+    throw err;
+  }
+
+  const { desde, hasta } = opts || {};
+  let tiposRaw = opts.tipos;
+  if (!tiposRaw) {
+    tiposRaw = [];
+  }
+  if (typeof tiposRaw === 'string') {
+    tiposRaw = tiposRaw.split(',');
+  }
+  const tiposSet = new Set(
+    Array.isArray(tiposRaw)
+      ? tiposRaw
+          .map((t) => String(t || '').toLowerCase().trim())
+          .filter(Boolean)
+      : [],
+  );
+
+  if (!tiposSet.size) {
+    const err = new Error('Debe seleccionar al menos un tipo de dato para exportar');
+    err.tipo = 'VALIDACION';
+    throw err;
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // Ventas por documento
+  if (tiposSet.has('ventas')) {
+    const ventas = getVentasRango({ desde, hasta, limit: 10000 }, eid) || [];
+    const sheet = buildSheetFromRows(ventas, {
+      fecha: { header: 'Fecha' },
+      nro_nota: { header: 'Documento' },
+      cliente: { header: 'Cliente' },
+      vendedor: { header: 'Vendedor' },
+      metodo_pago: { header: 'Método pago' },
+      referencia: { header: 'Referencia' },
+      tasa_bcv: { header: 'Tasa BCV' },
+      bruto_bs: { header: 'Bruto Bs' },
+      bruto_usd: { header: 'Bruto USD' },
+      costo_bs: { header: 'Costo Bs' },
+      costo_usd: { header: 'Costo USD' },
+      margen_bs: { header: 'Margen Bs' },
+      margen_usd: { header: 'Margen USD' },
+    });
+    XLSX.utils.book_append_sheet(wb, sheet, 'ventas');
+  }
+
+  // Compras por documento
+  if (tiposSet.has('compras')) {
+    const compras = listCompras({ limit: 10000, empresaId: eid }) || [];
+    const filas = compras.filter((c) => {
+      if (!desde && !hasta) return true;
+      const f = c.fecha ? String(c.fecha).slice(0, 10) : '';
+      if (desde && f < desde) return false;
+      if (hasta && f > hasta) return false;
+      return true;
+    });
+    const sheet = buildSheetFromRows(filas, {
+      fecha: { header: 'Fecha' },
+      numero: { header: 'Número' },
+      proveedor_nombre: { header: 'Proveedor' },
+      tasa_bcv: { header: 'Tasa BCV' },
+      total_bs: { header: 'Total Bs' },
+      total_usd: { header: 'Total USD' },
+      estado: { header: 'Estado' },
+      notas: { header: 'Notas' },
+    });
+    XLSX.utils.book_append_sheet(wb, sheet, 'compras');
+  }
+
+  // Créditos / Cuentas por cobrar
+  if (tiposSet.has('creditos')) {
+    const cuentas = listCuentas({ desde_venc: desde, hasta_venc: hasta, empresaId: eid }) || [];
+    const sheet = buildSheetFromRows(cuentas, {
+      fecha_emision: { header: 'Fecha emisión' },
+      fecha_vencimiento: { header: 'Fecha vencimiento' },
+      cliente_nombre: { header: 'Cliente' },
+      cliente_doc: { header: 'Documento cliente' },
+      nro_nota: { header: 'Documento venta' },
+      total_usd: { header: 'Total USD' },
+      saldo_usd: { header: 'Saldo USD' },
+      estado_calc: { header: 'Estado' },
+      dias_mora: { header: 'Días de mora' },
+      notas: { header: 'Notas' },
+    });
+    XLSX.utils.book_append_sheet(wb, sheet, 'creditos');
+  }
+
+  // Proveedores
+  if (tiposSet.has('proveedores')) {
+    const proveedores = listProveedores({ empresaId: eid, soloActivos: false }) || [];
+    const sheet = buildSheetFromRows(proveedores, {
+      nombre: { header: 'Nombre' },
+      rif: { header: 'RIF' },
+      telefono: { header: 'Teléfono' },
+      email: { header: 'Email' },
+      direccion: { header: 'Dirección' },
+      notas: { header: 'Notas' },
+      activo: {
+        header: 'Activo',
+        transform: (val) => (val ? 'Sí' : 'No'),
+      },
+    });
+    XLSX.utils.book_append_sheet(wb, sheet, 'proveedores');
+  }
+
+  // Clientes (top clientes en rango)
+  if (tiposSet.has('clientes')) {
+    const clientes = getTopClientes({ desde, hasta, limit: 10000, empresaId: eid }) || [];
+    const sheet = buildSheetFromRows(clientes, {
+      cliente: { header: 'Cliente' },
+      ventas: { header: 'Cantidad ventas' },
+      total_bs: { header: 'Total Bs' },
+      total_usd: { header: 'Total USD' },
+    });
+    XLSX.utils.book_append_sheet(wb, sheet, 'clientes');
+  }
+
+  // Inventario actual
+  if (tiposSet.has('inventario')) {
+    const productos = db
+      .prepare(
+        `SELECT codigo, descripcion, categoria, marca, stock, costo_usd, precio_usd
+         FROM productos
+         WHERE empresa_id = ?
+         ORDER BY descripcion ASC`,
+      )
+      .all(eid);
+    const sheet = buildSheetFromRows(productos, {
+      codigo: { header: 'Código' },
+      descripcion: { header: 'Descripción' },
+      categoria: { header: 'Categoría' },
+      marca: { header: 'Marca' },
+      stock: { header: 'Stock' },
+      costo_usd: { header: 'Costo USD' },
+      precio_usd: { header: 'Precio USD' },
+    });
+    XLSX.utils.book_append_sheet(wb, sheet, 'inventario');
+  }
+
+  // Rentabilidad por categoría
+  if (tiposSet.has('rentabilidad')) {
+    const rentab = getRentabilidadCategorias({ desde, hasta, empresaId: eid }) || [];
+    const sheet = buildSheetFromRows(rentab, {
+      categoria: { header: 'Categoría' },
+      total_qty: { header: 'Unidades vendidas' },
+      ingresos_bs: { header: 'Ingresos Bs' },
+      ingresos_usd: { header: 'Ingresos USD' },
+      costos_bs: { header: 'Costos Bs' },
+      costos_usd: { header: 'Costos USD' },
+      margen_bs: { header: 'Margen Bs' },
+      margen_usd: { header: 'Margen USD' },
+      margen_pct: {
+        header: 'Margen %',
+        transform: (val) => (val == null ? null : Number(val) * 100),
+      },
+    });
+    XLSX.utils.book_append_sheet(wb, sheet, 'rentabilidad');
+  }
+
+  const ahora = new Date();
+  const y = ahora.getFullYear();
+  const m = String(ahora.getMonth() + 1).padStart(2, '0');
+  const d = String(ahora.getDate()).padStart(2, '0');
+  const fechaLabel = `${y}${m}${d}`;
+  const filename = `export-datos-${eid}-${fechaLabel}.xlsx`;
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  return { buffer, filename };
+}
+
 module.exports = {
   ajustarStock,
   listarAjustes,
@@ -969,6 +1177,7 @@ module.exports = {
   guardarStockMinimo,
   obtenerConfigGeneral,
   guardarConfigGeneral,
+  exportarDatosEmpresa,
   obtenerBrandingGlobal,
   guardarBrandingGlobal,
   purgeTransactionalData,

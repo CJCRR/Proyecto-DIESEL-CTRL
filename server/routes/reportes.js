@@ -11,6 +11,7 @@ const {
   getMargenProductos,
   getAbcProductos,
   getInventario,
+  getInventarioHistorico,
   getVentaConDetalles,
   getBajoStock,
   getSeriesVentasDiarias,
@@ -140,11 +141,12 @@ router.get('/kpis', requireAuth, forbidSuperadmin, (req, res) => {
 });
 
 
-// GET /reportes/top-productos?limit= - Top productos por ventas (cantidad, montos, costo y margen)
+// GET /reportes/top-productos?limit=&desde=&hasta= - Top productos por ventas (cantidad, montos, costo y margen)
 router.get('/top-productos', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
-    const rows = getTopProductos(limit, req.usuario.empresa_id || null);
+    const { desde, hasta } = req.query;
+    const rows = getTopProductos(limit, req.usuario.empresa_id || null, { desde, hasta });
     res.json(rows);
   } catch (err) {
   logger.error('Error obteniendo top productos', {
@@ -198,7 +200,11 @@ router.get('/abc/productos', requireAuth, forbidSuperadmin, (req, res) => {
 // GET /reportes/inventario - reporte de inventario / kardex simple
 router.get('/inventario', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const inventario = getInventario(req.usuario.empresa_id || null);
+    const { corte } = req.query;
+    const empresaId = req.usuario.empresa_id || null;
+    const inventario = corte
+      ? getInventarioHistorico(empresaId, corte)
+      : getInventario(empresaId);
     res.json(inventario);
   } catch (err) {
   logger.error('Error obteniendo inventario', {

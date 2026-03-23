@@ -122,10 +122,14 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
 
   return rows.map((r) => {
     const tasa = Number(r.tasa_bcv || 0) || 0;
-    const baseTotalBs = Number(r.total_bs || 0);
-    const baseTotalUsd = r.total_usd != null
-      ? Number(r.total_usd)
-      : (tasa ? baseTotalBs / tasa : baseTotalBs);
+    const brutoBs = Number(r.bruto_bs || 0);
+    const brutoUsd = Number(r.bruto_usd || 0);
+    const descUsd = Math.max(0, Number(r.descuento || 0) || 0);
+    const descBs = tasa ? descUsd * tasa : 0;
+
+    // Totales NETOS después de descuento (pero antes de devoluciones)
+    const baseTotalBs = Math.max(0, brutoBs - descBs);
+    const baseTotalUsd = Math.max(0, brutoUsd - descUsd);
     const baseCostoBs = Number(r.costo_bs || 0);
     const baseCostoUsd = Number(r.costo_usd || 0);
     const dev = devMap.get(r.id) || { dev_bs: 0, dev_usd: 0, dev_costo_bs: 0, dev_costo_usd: 0 };
@@ -341,12 +345,17 @@ function getKpis(empresaId) {
 /**
  * Top de productos por cantidad vendida.
  * @param {number} limit
+ * @param {number|null} empresaId
+ * @param {{desde?:string,hasta?:string}} [opts]
  * @returns {Array<{codigo:string,descripcion:string,total_qty:number,total_bs:number,total_usd:number,costo_bs:number,costo_usd:number,margen_bs:number,margen_usd:number}>}
  */
-function getTopProductos(limit, empresaId) {
+function getTopProductos(limit, empresaId, opts = {}) {
+  const { desde, hasta } = opts || {};
   // Ventas brutas por producto
   const whereVentas = [];
   const paramsVentas = [];
+  if (desde) { whereVentas.push("date(v.fecha) >= date(?)"); paramsVentas.push(desde); }
+  if (hasta) { whereVentas.push("date(v.fecha) <= date(?)"); paramsVentas.push(hasta); }
   appendEmpresaFilter(whereVentas, paramsVentas, { alias: 'v', empresaId });
   const whereVentasSQL = whereVentas.length ? ('WHERE ' + whereVentas.join(' AND ')) : '';
 
@@ -589,6 +598,162 @@ function getInventario(empresaId) {
 }
 
 /**
+ * Calcula el valor del inventario a una fecha de corte histórica.
+ *
+ * Se parte del stock actual de productos y se "rebobinan" los
+ * movimientos de stock (ventas, compras, devoluciones, ajustes)
+ * ocurridos DESPUÉS de la fecha de corte. Esto permite aproximar
+ * el stock y valor que tenía el inventario al cierre de ese día.
+ *
+ * Nota: movimientos poco frecuentes como ajustes al eliminar
+ * depósitos no se consideran explícitamente, pero su impacto
+ * suele ser marginal.
+ *
+ * @param {number|null} empresaId
+ * @param {string} corte Fecha de corte YYYY-MM-DD
+ */
+function getInventarioHistorico(empresaId, corte) {
+  if (!corte) return getInventario(empresaId);
+
+  const key = buildTasaKey(empresaId);
+  let cfgRaw = getConfigValor(key, null);
+  if (cfgRaw == null && key !== 'tasa_bcv') {
+    cfgRaw = getConfigValor('tasa_bcv', null);
+  }
+  const cfgTasa = cfgRaw ? parseFloat(cfgRaw) : null;
+
+  let ventaTasaRow;
+  if (empresaId) {
+    ventaTasaRow = db.prepare(`
+      SELECT v.tasa_bcv
+      FROM ventas v
+      JOIN usuarios u ON u.id = v.usuario_id
+      WHERE v.tasa_bcv IS NOT NULL AND u.empresa_id = ?
+      ORDER BY v.fecha DESC
+      LIMIT 1
+    `).get(empresaId);
+  } else {
+    ventaTasaRow = db.prepare('SELECT tasa_bcv FROM ventas WHERE tasa_bcv IS NOT NULL ORDER BY fecha DESC LIMIT 1').get();
+  }
+  const ventaTasa = ventaTasaRow && ventaTasaRow.tasa_bcv ? ventaTasaRow.tasa_bcv : null;
+  const tasa = (!Number.isNaN(cfgTasa) && cfgTasa > 0)
+    ? cfgTasa
+    : (!Number.isNaN(ventaTasa) && ventaTasa > 0 ? ventaTasa : 1);
+
+  const paramsProd = [];
+  let whereProd = '';
+  if (empresaId) {
+    whereProd = 'WHERE empresa_id = ?';
+    paramsProd.push(empresaId);
+  }
+
+  const productos = db.prepare(`
+      SELECT id, codigo, descripcion, precio_usd, costo_usd, stock
+      FROM productos
+      ${whereProd}
+      ORDER BY codigo
+    `).all(...paramsProd);
+
+  const eid = empresaId != null ? Number(empresaId) : null;
+  const corteStr = String(corte);
+
+  const deltaMap = new Map(); // producto_id -> delta neta de stock DESPUÉS de corte
+  const addDelta = (productoId, delta) => {
+    if (!productoId) return;
+    const prev = deltaMap.get(productoId) || 0;
+    deltaMap.set(productoId, prev + delta);
+  };
+
+  // Ventas: reducen stock, así que delta = -cantidad
+  if (eid) {
+    const ventasRows = db.prepare(`
+      SELECT vd.producto_id, SUM(vd.cantidad) AS cant
+      FROM venta_detalle vd
+      JOIN ventas v ON v.id = vd.venta_id
+      JOIN usuarios u ON u.id = v.usuario_id
+      WHERE date(v.fecha) > date(?) AND u.empresa_id = ?
+      GROUP BY vd.producto_id
+    `).all(corteStr, eid);
+    ventasRows.forEach((r) => {
+      addDelta(r.producto_id, -Number(r.cant || 0));
+    });
+
+    // Compras: aumentan stock, delta = +cantidad
+    const comprasRows = db.prepare(`
+      SELECT cd.producto_id, SUM(cd.cantidad) AS cant
+      FROM compra_detalle cd
+      JOIN compras c ON c.id = cd.compra_id
+      WHERE date(c.fecha) > date(?) AND c.empresa_id = ?
+      GROUP BY cd.producto_id
+    `).all(corteStr, eid);
+    comprasRows.forEach((r) => {
+      addDelta(r.producto_id, Number(r.cant || 0));
+    });
+
+    // Devoluciones: regresan stock, delta = +cantidad
+    const devRows = db.prepare(`
+      SELECT dd.producto_id, SUM(dd.cantidad) AS cant
+      FROM devolucion_detalle dd
+      JOIN devoluciones d ON d.id = dd.devolucion_id
+      JOIN ventas v ON v.id = d.venta_original_id
+      JOIN usuarios u ON u.id = v.usuario_id
+      WHERE date(d.fecha) > date(?) AND u.empresa_id = ?
+      GROUP BY dd.producto_id
+    `).all(corteStr, eid);
+    devRows.forEach((r) => {
+      addDelta(r.producto_id, Number(r.cant || 0));
+    });
+
+    // Ajustes de stock manuales: diferencia puede ser +/-
+    const ajRows = db.prepare(`
+      SELECT a.producto_id, SUM(a.diferencia) AS diff
+      FROM ajustes_stock a
+      JOIN productos p ON p.id = a.producto_id
+      WHERE date(a.fecha) > date(?) AND p.empresa_id = ?
+      GROUP BY a.producto_id
+    `).all(corteStr, eid);
+    ajRows.forEach((r) => {
+      addDelta(r.producto_id, Number(r.diff || 0));
+    });
+  }
+
+  let totalUsd = 0;
+  let totalUsdCosto = 0;
+
+  const items = productos.map((p) => {
+    const stockActual = Number(p.stock || 0) || 0;
+    const delta = Number(deltaMap.get(p.id) || 0) || 0;
+    const stockCorte = Math.max(0, stockActual - delta);
+    const precio = Number(p.precio_usd || 0) || 0;
+    const costo = Number(p.costo_usd || 0) || 0;
+    const totalItemUsd = stockCorte * precio;
+    const totalItemCostoUsd = stockCorte * costo;
+    totalUsd += totalItemUsd;
+    totalUsdCosto += totalItemCostoUsd;
+    return {
+      ...p,
+      stock: stockCorte,
+      total_usd: totalItemUsd,
+      total_costo_usd: totalItemCostoUsd,
+    };
+  });
+
+  const totalBs = totalUsd * tasa;
+  const totalBsCosto = totalUsdCosto * tasa;
+
+  return {
+    items,
+    totals: {
+      totalUsd,
+      totalBs,
+      tasa,
+      costoUsd: totalUsdCosto,
+      costoBs: totalBsCosto,
+    },
+  };
+}
+
+/**
  * Devuelve una venta específica junto con su lista de detalles.
  * @param {number|string} id
  * @returns {{venta: import('../types').Venta, detalles: import('../types').VentaDetalle[]}|null}
@@ -683,6 +848,17 @@ function getSeriesVentasDiarias(dias, empresaId) {
       ORDER BY dia ASC
     `).all(...paramsVentas, `-${dias-1} days`);
 
+  // Descuentos por día (en Bs y USD) para ajustar ventas y margen
+  const descRows = db.prepare(`
+      SELECT date(v.fecha) AS dia,
+             SUM(COALESCE(v.descuento,0) * COALESCE(v.tasa_bcv,1)) AS desc_bs,
+             SUM(COALESCE(v.descuento,0)) AS desc_usd
+      FROM ventas v
+      ${whereVentasSQL}
+      GROUP BY dia
+      ORDER BY dia ASC
+    `).all(...paramsVentas, `-${dias-1} days`);
+
   // Devoluciones por día (fecha de la devolución)
   const paramsDev = [];
   const whereDevParts = ["date(d.fecha) >= date('now','localtime', ?)"];
@@ -718,16 +894,37 @@ function getSeriesVentasDiarias(dias, empresaId) {
     devMap.set(r.dia, r);
   }
 
+  const descMap = new Map();
+  for (const r of descRows) {
+    descMap.set(r.dia, r);
+  }
+
   return ventasRows.map(r => {
+    const desc = descMap.get(r.dia) || {};
+    const descBs = Number(desc.desc_bs || 0);
+    const descUsd = Number(desc.desc_usd || 0);
+
+    const brutoBs = Number(r.total_bs || 0);
+    const brutoUsd = Number(r.total_usd || 0);
+    const brutoMargenBs = Number(r.margen_bs || 0);
+    const brutoMargenUsd = Number(r.margen_usd || 0);
+
     const dev = devMap.get(r.dia) || {};
     const devBs = Number(dev.dev_bs || 0);
     const devUsd = Number(dev.dev_usd || 0);
     const devMargenBs = Number(dev.dev_margen_bs || 0);
     const devMargenUsd = Number(dev.dev_margen_usd || 0);
-    const total_bs = Number(r.total_bs || 0) - devBs;
-    const total_usd = Number(r.total_usd || 0) - devUsd;
-    const margen_bs = Number(r.margen_bs || 0) - devMargenBs;
-    const margen_usd = Number(r.margen_usd || 0) - devMargenUsd;
+
+    // Aplicar descuento primero y luego devoluciones
+    const baseTotalBs = brutoBs - descBs;
+    const baseTotalUsd = brutoUsd - descUsd;
+    const baseMargenBs = brutoMargenBs - descBs;
+    const baseMargenUsd = brutoMargenUsd - descUsd;
+
+    const total_bs = baseTotalBs - devBs;
+    const total_usd = baseTotalUsd - devUsd;
+    const margen_bs = baseMargenBs - devMargenBs;
+    const margen_usd = baseMargenUsd - devMargenUsd;
     return {
       dia: r.dia,
       total_bs,
@@ -755,6 +952,17 @@ function getSeriesVentasMensuales(meses, empresaId) {
       FROM ventas v
       JOIN venta_detalle vd ON vd.venta_id = v.id
       JOIN productos p ON p.id = vd.producto_id
+      ${whereVentasSQL}
+      GROUP BY mes
+      ORDER BY mes ASC
+    `).all(...paramsVentas, `-${meses*30} days`);
+
+  // Descuentos por mes (en Bs y USD) para ajustar ventas y margen
+  const descRows = db.prepare(`
+      SELECT strftime('%Y-%m', v.fecha) AS mes,
+             SUM(COALESCE(v.descuento,0) * COALESCE(v.tasa_bcv,1)) AS desc_bs,
+             SUM(COALESCE(v.descuento,0)) AS desc_usd
+      FROM ventas v
       ${whereVentasSQL}
       GROUP BY mes
       ORDER BY mes ASC
@@ -795,16 +1003,36 @@ function getSeriesVentasMensuales(meses, empresaId) {
     devMap.set(r.mes, r);
   }
 
+  const descMap = new Map();
+  for (const r of descRows) {
+    descMap.set(r.mes, r);
+  }
+
   return ventasRows.map(r => {
+    const desc = descMap.get(r.mes) || {};
+    const descBs = Number(desc.desc_bs || 0);
+    const descUsd = Number(desc.desc_usd || 0);
+
+    const brutoBs = Number(r.total_bs || 0);
+    const brutoUsd = Number(r.total_usd || 0);
+    const brutoMargenBs = Number(r.margen_bs || 0);
+    const brutoMargenUsd = Number(r.margen_usd || 0);
+
     const dev = devMap.get(r.mes) || {};
     const devBs = Number(dev.dev_bs || 0);
     const devUsd = Number(dev.dev_usd || 0);
     const devMargenBs = Number(dev.dev_margen_bs || 0);
     const devMargenUsd = Number(dev.dev_margen_usd || 0);
-    const total_bs = Number(r.total_bs || 0) - devBs;
-    const total_usd = Number(r.total_usd || 0) - devUsd;
-    const margen_bs = Number(r.margen_bs || 0) - devMargenBs;
-    const margen_usd = Number(r.margen_usd || 0) - devMargenUsd;
+
+    const baseTotalBs = brutoBs - descBs;
+    const baseTotalUsd = brutoUsd - descUsd;
+    const baseMargenBs = brutoMargenBs - descBs;
+    const baseMargenUsd = brutoMargenUsd - descUsd;
+
+    const total_bs = baseTotalBs - devBs;
+    const total_usd = baseTotalUsd - devUsd;
+    const margen_bs = baseMargenBs - devMargenBs;
+    const margen_usd = baseMargenUsd - devMargenUsd;
     return {
       mes: r.mes,
       total_bs,
@@ -1124,6 +1352,20 @@ function getMargenActual(empresaId) {
       ${whereDevHoySQL}
     `).get(...paramsDevHoy) || {};
 
+  // Descuentos de HOY
+  const whereDescHoy = ["date(v.fecha) = date('now','localtime')"];
+  const paramsDescHoy = [];
+  appendEmpresaFilter(whereDescHoy, paramsDescHoy, { alias: 'v', empresaId });
+  const whereDescHoySQL = 'WHERE ' + whereDescHoy.join(' AND ');
+
+  const descHoy = db.prepare(`
+      SELECT 
+        SUM(COALESCE(v.descuento,0) * COALESCE(v.tasa_bcv,1)) AS desc_bs,
+        SUM(COALESCE(v.descuento,0)) AS desc_usd
+      FROM ventas v
+      ${whereDescHoySQL}
+    `).get(...paramsDescHoy) || {};
+
   // Ventas del MES
   const whereMes = ["strftime('%Y-%m', v.fecha) = strftime('%Y-%m', 'now','localtime')"];
   const paramsMes = [];
@@ -1168,9 +1410,27 @@ function getMargenActual(empresaId) {
       ${whereDevMesSQL}
     `).get(...paramsDevMes) || {};
 
-  const calcNeto = (ventas, dev) => {
-    const ingresos_bs = Number(ventas.ingresos_bs || 0) - Number(dev.ingresos_bs || 0);
-    const ingresos_usd = Number(ventas.ingresos_usd || 0) - Number(dev.ingresos_usd || 0);
+  // Descuentos del MES
+  const whereDescMes = ["strftime('%Y-%m', v.fecha) = strftime('%Y-%m', 'now','localtime')"];
+  const paramsDescMes = [];
+  appendEmpresaFilter(whereDescMes, paramsDescMes, { alias: 'v', empresaId });
+  const whereDescMesSQL = 'WHERE ' + whereDescMes.join(' AND ');
+
+  const descMes = db.prepare(`
+      SELECT 
+        SUM(COALESCE(v.descuento,0) * COALESCE(v.tasa_bcv,1)) AS desc_bs,
+        SUM(COALESCE(v.descuento,0)) AS desc_usd
+      FROM ventas v
+      ${whereDescMesSQL}
+    `).get(...paramsDescMes) || {};
+
+  const calcNeto = (ventas, dev, desc) => {
+    const desc_bs = Number(desc.desc_bs || 0);
+    const desc_usd = Number(desc.desc_usd || 0);
+    const ingresos_brutos_bs = Number(ventas.ingresos_bs || 0) - Number(dev.ingresos_bs || 0);
+    const ingresos_brutos_usd = Number(ventas.ingresos_usd || 0) - Number(dev.ingresos_usd || 0);
+    const ingresos_bs = ingresos_brutos_bs - desc_bs;
+    const ingresos_usd = ingresos_brutos_usd - desc_usd;
     const costos_bs = Number(ventas.costos_bs || 0) - Number(dev.costos_bs || 0);
     const costos_usd = Number(ventas.costos_usd || 0) - Number(dev.costos_usd || 0);
     return {
@@ -1183,7 +1443,7 @@ function getMargenActual(empresaId) {
     };
   };
 
-  return { hoy: calcNeto(ventasHoy, devHoy), mes: calcNeto(ventasMes, devMes) };
+  return { hoy: calcNeto(ventasHoy, devHoy, descHoy), mes: calcNeto(ventasMes, devMes, descMes) };
 }
 
 function getVendedoresRanking({ desde, hasta, empresaId }) {
@@ -1206,6 +1466,17 @@ function getVendedoresRanking({ desde, hasta, empresaId }) {
       JOIN venta_detalle vd ON vd.venta_id = v.id
       JOIN productos p ON p.id = vd.producto_id
   LEFT JOIN usuarios u ON u.id = v.usuario_id
+      ${whereVentasSQL}
+      GROUP BY vendedor
+    `).all(...paramsVentas);
+
+  // Descuentos por vendedor
+  const descRows = db.prepare(`
+      SELECT COALESCE(u.nombre_completo, u.username, v.vendedor, '—') as vendedor,
+             SUM(COALESCE(v.descuento,0) * COALESCE(v.tasa_bcv,1)) as desc_bs,
+             SUM(COALESCE(v.descuento,0)) as desc_usd
+      FROM ventas v
+      LEFT JOIN usuarios u ON u.id = v.usuario_id
       ${whereVentasSQL}
       GROUP BY vendedor
     `).all(...paramsVentas);
@@ -1245,14 +1516,25 @@ function getVendedoresRanking({ desde, hasta, empresaId }) {
     devMap.set(r.vendedor, r);
   }
 
+  const descMap = new Map();
+  for (const r of descRows) {
+    descMap.set(r.vendedor, r);
+  }
+
   const netRows = ventasRows.map(r => {
+    const desc = descMap.get(r.vendedor) || {};
+    const descBs = Number(desc.desc_bs || 0);
+    const descUsd = Number(desc.desc_usd || 0);
+
     const dev = devMap.get(r.vendedor) || {};
     const devBs = Number(dev.dev_bs || 0);
     const devUsd = Number(dev.dev_usd || 0);
     const devCostoBs = Number(dev.dev_costo_bs || 0);
     const devCostoUsd = Number(dev.dev_costo_usd || 0);
-    const total_bs = Number(r.total_bs || 0) - devBs;
-    const total_usd = Number(r.total_usd || 0) - devUsd;
+    const brutoBs = Number(r.total_bs || 0);
+    const brutoUsd = Number(r.total_usd || 0);
+    const total_bs = brutoBs - descBs - devBs;
+    const total_usd = brutoUsd - descUsd - devUsd;
     const costo_bs = Number(r.costo_bs || 0) - devCostoBs;
     const costo_usd = Number(r.costo_usd || 0) - devCostoUsd;
     return {
@@ -1570,6 +1852,7 @@ module.exports = {
   getMargenProductos,
   getAbcProductos,
   getInventario,
+  getInventarioHistorico,
   getVentaConDetalles,
   getBajoStock,
   getSeriesVentasDiarias,

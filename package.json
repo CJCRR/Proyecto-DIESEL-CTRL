@@ -4,13 +4,13 @@
   "description": "Sistema de Punto de Venta para Repuestos Diesel",
   "main": "server/server.js",
   "scripts": {
-     "start": "node server/server.js",
-     "dev": "nodemon server/server.js",
-     "test": "jest --runInBand",
-     "test:watch": "jest --watchAll",
-     "build:css": "npx tailwindcss -i ./public/styles/tailwind.css -o ./public/styles.css --minify",
-     "scss": "sass --watch public/styles/scss:public/styles",
-     "build:scss": "sass public/styles/scss:public/styles --no-source-map"
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watchAll",
+    "build:css": "npx tailwindcss -i ./public/styles/tailwind.css -o ./public/styles.css --minify",
+    "scss": "sass --watch public/styles/scss:public/styles",
+    "build:scss": "sass public/styles/scss:public/styles --no-source-map"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -25,7 +25,8 @@
     "jsonwebtoken": "^9.0.3",
     "speakeasy": "^2.0.0",
     "winston": "^3.19.0",
-    "winston-daily-rotate-file": "^5.0.0"
+    "winston-daily-rotate-file": "^5.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.24",

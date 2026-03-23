@@ -15,6 +15,8 @@ let TASA_BCV_UPDATED = null;
 let TOP_LIMIT = parseInt(localStorage.getItem('top_limit') || '10', 10);
 let STOCK_UMBRAL = parseInt(localStorage.getItem('stock_umbral') || '1', 10);
 let AL_UMBRAL_TIMER = null;
+let FILTRO_MES = null; // 1-12
+let FILTRO_ANO = null; // >= 2026
 import { apiFetchJson } from './app-api.js';
 import { formatNumber } from './format-utils.js';
 
@@ -37,17 +39,177 @@ function renderTopProductos() {
 
 // (Se removió el render del reporte del dashboard)
 
+function getPeriodoRango() {
+    const mes = FILTRO_MES;
+    const ano = FILTRO_ANO;
+    if (!mes || !ano) return { desde: null, hasta: null };
+    const mm = String(mes).padStart(2, '0');
+    const desde = `${ano}-${mm}-01`;
+    const lastDay = new Date(ano, mes, 0).getDate();
+    const dd = String(lastDay).padStart(2, '0');
+    const hasta = `${ano}-${mm}-${dd}`;
+    return { desde, hasta };
+}
+
+function getPeriodoQueryString() {
+    const { desde, hasta } = getPeriodoRango();
+    const params = new URLSearchParams();
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    const s = params.toString();
+    return s || '';
+}
+
+async function loadInventarioDashboard() {
+    try {
+        const ahora = new Date();
+        const currentYear = ahora.getFullYear();
+        const currentMonth = ahora.getMonth() + 1;
+        const { desde, hasta } = getPeriodoRango();
+        const isPeriodoActual = !desde || !hasta || (FILTRO_MES === currentMonth && FILTRO_ANO === currentYear);
+        const url = isPeriodoActual
+            ? '/reportes/inventario'
+            : `/reportes/inventario?corte=${encodeURIComponent(hasta)}`;
+        const inv = await apiFetchJson(url);
+        const invUsdEl = document.getElementById('inv-total-usd');
+        const invBsEl = document.getElementById('inv-total-bs');
+        const invTasaEl = document.getElementById('inv-tasa');
+        const invCostoUsdEl = document.getElementById('inv-total-costo-usd');
+        const invCostoBsEl = document.getElementById('inv-total-costo-bs');
+        if (invUsdEl) invUsdEl.innerText = `${Number(inv.totals.totalUsd || 0).toFixed(2)} USD`;
+        if (invBsEl) invBsEl.innerText = `${Number(inv.totals.totalBs || 0).toFixed(2)} Bs`;
+        if (invTasaEl) invTasaEl.innerText = Number(inv.totals.tasa || 1).toFixed(2);
+        if (invCostoUsdEl) invCostoUsdEl.innerText = `${Number(inv.totals.costoUsd || 0).toFixed(2)} USD`;
+        if (invCostoBsEl) invCostoBsEl.innerText = `${Number(inv.totals.costoBs || 0).toFixed(2)} Bs`;
+    } catch (e) { /* ignore */ }
+}
+
 async function loadTopProductos() {
     try {
-        cacheTop = await apiFetchJson(`/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}`);
+        const periodoQs = getPeriodoQueryString();
+        const url = periodoQs
+            ? `/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}&${periodoQs}`
+            : `/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}`;
+        cacheTop = await apiFetchJson(url);
         renderTopProductos();
     } catch (err) {
         console.warn('No se pudo cargar top productos', err);
     }
 }
 
+function initPeriodoSelectors() {
+    const container = document.getElementById('dash-period-container');
+    if (!container) return;
+
+    const ahora = new Date();
+    const currentYear = ahora.getFullYear();
+    const currentMonth = ahora.getMonth() + 1;
+    // Siempre iniciar en el mes y año actuales al recargar el dashboard
+    const storedMes = currentMonth;
+    const storedAno = currentYear;
+
+    // Construir selects sólo una vez
+    if (!container.dataset.built) {
+        const selMes = document.createElement('select');
+        selMes.id = 'dash-mes';
+        selMes.className = 'px-2 py-1 rounded text-[11px] bg-slate-800/80 border border-slate-500/70 focus:outline-none focus:ring-1 focus:ring-blue-400';
+
+        const selAno = document.createElement('select');
+        selAno.id = 'dash-ano';
+        selAno.className = 'px-2 py-1 rounded text-[11px] bg-slate-800/80 border border-slate-500/70 focus:outline-none focus:ring-1 focus:ring-blue-400';
+
+        const nombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        nombres.forEach((n, idx) => {
+            const opt = document.createElement('option');
+            opt.value = String(idx + 1);
+            opt.textContent = n;
+            selMes.appendChild(opt);
+        });
+
+        for (let y = 2026; y <= currentYear; y += 1) {
+            const opt = document.createElement('option');
+            opt.value = String(y);
+            opt.textContent = String(y);
+            selAno.appendChild(opt);
+        }
+
+        container.appendChild(selMes);
+        container.appendChild(selAno);
+        container.classList.remove('hidden');
+        container.dataset.built = '1';
+    }
+
+    const selMes = document.getElementById('dash-mes');
+    const selAno = document.getElementById('dash-ano');
+    if (!selMes || !selAno) return;
+
+    FILTRO_MES = Math.min(Math.max(storedMes, 1), 12);
+    FILTRO_ANO = Math.max(storedAno, 2026);
+    selMes.value = String(FILTRO_MES);
+    selAno.value = String(FILTRO_ANO);
+
+    const updateMesOptions = () => {
+        const selectedYear = parseInt(selAno.value, 10) || currentYear;
+        const isCurrentYear = selectedYear === currentYear;
+        const maxMes = isCurrentYear ? currentMonth : 12;
+        Array.from(selMes.options).forEach((opt) => {
+            const m = parseInt(opt.value, 10);
+            const disable = Number.isFinite(m) && m > maxMes;
+            opt.disabled = disable;
+            opt.hidden = disable;
+        });
+        const currentSel = parseInt(selMes.value, 10) || 1;
+        if (currentSel > maxMes) {
+            selMes.value = String(maxMes);
+            FILTRO_MES = maxMes;
+        }
+    };
+
+    updateMesOptions();
+
+    const onChange = () => {
+        FILTRO_MES = parseInt(selMes.value, 10) || currentMonth;
+        FILTRO_ANO = parseInt(selAno.value, 10) || currentYear;
+        updateMesOptions();
+        aplicarFiltroPeriodo();
+    };
+
+    if (!selMes.dataset.bound) {
+        selMes.addEventListener('change', onChange);
+        selMes.dataset.bound = '1';
+    }
+    if (!selAno.dataset.bound) {
+        selAno.addEventListener('change', onChange);
+        selAno.dataset.bound = '1';
+    }
+}
+
+async function aplicarFiltroPeriodo() {
+    // Top productos y top clientes se filtran por mes/año
+    await loadTopProductos();
+    await renderTopClientes();
+
+    // Ranking de vendedores: sincronizar inputs desde/hasta y recargar
+    const { desde, hasta } = getPeriodoRango();
+    const vendDesde = document.getElementById('vend-desde');
+    const vendHasta = document.getElementById('vend-hasta');
+    if (vendDesde && desde) vendDesde.value = desde;
+    if (vendHasta && hasta) vendHasta.value = hasta;
+    await cargarVendedores();
+
+    // Actualizar también inventario, gráfico diario y margen según el nuevo periodo
+    await loadInventarioDashboard();
+    await renderVentasSeries('diarias');
+    await renderMargenActual();
+
+    // Tendencias mensuales siguen siendo globales (últimos 12 meses)
+}
+
 async function cargarDashboard() {
     try {
+        // Los selects de periodo se inicializan también en DOMContentLoaded,
+        // pero llamamos aquí por si el header ya está listo.
+        initPeriodoSelectors();
         const topSel = document.getElementById('top-limit');
         if (topSel) {
             if (![...topSel.options].some(o => o.value === String(TOP_LIMIT))) {
@@ -112,20 +274,7 @@ async function cargarDashboard() {
                 ultEl.appendChild(d);
             });
         } catch (e) { /* ignore */ }
-
-        try {
-            const inv = await apiFetchJson('/reportes/inventario');
-            const invUsdEl = document.getElementById('inv-total-usd');
-            const invBsEl = document.getElementById('inv-total-bs');
-            const invTasaEl = document.getElementById('inv-tasa');
-            const invCostoUsdEl = document.getElementById('inv-total-costo-usd');
-            const invCostoBsEl = document.getElementById('inv-total-costo-bs');
-            if (invUsdEl) invUsdEl.innerText = `${Number(inv.totals.totalUsd || 0).toFixed(2)} USD`;
-            if (invBsEl) invBsEl.innerText = `${Number(inv.totals.totalBs || 0).toFixed(2)} Bs`;
-            if (invTasaEl) invTasaEl.innerText = Number(inv.totals.tasa || 1).toFixed(2);
-            if (invCostoUsdEl) invCostoUsdEl.innerText = `${Number(inv.totals.costoUsd || 0).toFixed(2)} USD`;
-            if (invCostoBsEl) invCostoBsEl.innerText = `${Number(inv.totals.costoBs || 0).toFixed(2)} Bs`;
-        } catch (e) { /* ignore */ }
+            await loadInventarioDashboard();
 
         await loadTopProductos();
         await renderVentasSeries('diarias');
@@ -270,15 +419,31 @@ cargarVendedores();
 // refrescar alertas periódicamente
 setInterval(() => { renderAlertasTareas().catch(()=>{}); }, 60000);
 
+// Asegurar que los filtros de periodo se construyan después de que
+// layout-shell haya inyectado el header en DOMContentLoaded.
+document.addEventListener('DOMContentLoaded', () => {
+    initPeriodoSelectors();
+});
+
 // ===== Nuevas funciones de gráficos =====
 
 async function renderVentasSeries(tipo) {
     try {
-        const endpoint = tipo === 'mensuales' ? '/reportes/series/ventas-mensuales?meses=12' : '/reportes/series/ventas-diarias?dias=30';
+        const endpoint = tipo === 'mensuales' ? '/reportes/series/ventas-mensuales?meses=12' : '/reportes/series/ventas-diarias?dias=365';
         const rows = await apiFetchJson(endpoint);
-        const labels = rows.map(x => (tipo === 'mensuales' ? x.mes : x.dia));
-        const total = rows.map(x => Number((MONEDA === 'USD' ? x.total_usd : x.total_bs) || 0));
-        const margen = rows.map(x => Number((MONEDA === 'USD' ? x.margen_usd : x.margen_bs) || 0));
+        let filtered = rows;
+        // El filtro de mes/año solo aplica a la vista DIARIA.
+        // La vista MENSUAL muestra los últimos 12 meses completos como antes.
+        if (tipo === 'diarias' && FILTRO_MES && FILTRO_ANO) {
+            filtered = rows.filter(x => {
+                const d = new Date(x.dia);
+                return d.getFullYear() === FILTRO_ANO && (d.getMonth() + 1) === FILTRO_MES;
+            });
+        }
+
+        const labels = filtered.map(x => (tipo === 'mensuales' ? x.mes : x.dia));
+        const total = filtered.map(x => Number((MONEDA === 'USD' ? x.total_usd : x.total_bs) || 0));
+        const margen = filtered.map(x => Number((MONEDA === 'USD' ? x.margen_usd : x.margen_bs) || 0));
         const ctx = document.getElementById('chart-ventas');
         if (!ctx) return;
         const cfg = {
@@ -301,7 +466,11 @@ async function renderVentasSeries(tipo) {
 
 async function renderTopClientes() {
     try {
-        const rows = await apiFetchJson('/reportes/top-clientes?limit=5');
+        const periodoQs = getPeriodoQueryString();
+        const url = periodoQs
+            ? `/reportes/top-clientes?limit=5&${periodoQs}`
+            : '/reportes/top-clientes?limit=5';
+        const rows = await apiFetchJson(url);
         const labels = rows.map(x => x.cliente);
         const data = rows.map(x => Number((MONEDA === 'USD' ? x.total_usd : x.total_bs) || 0));
         const ctx = document.getElementById('chart-clientes');
@@ -322,14 +491,23 @@ async function renderMargenActual() {
     try {
         const j = await apiFetchJson('/reportes/margen/actual');
         const hoy = MONEDA === 'USD' ? j.hoy.margen_usd : j.hoy.margen_bs;
-        const mes = MONEDA === 'USD' ? j.mes.margen_usd : j.mes.margen_bs;
         document.getElementById('margen-hoy').innerText = `${Number(hoy || 0).toFixed(2)} ${MONEDA}`;
-        document.getElementById('margen-mes').innerText = `${Number(mes || 0).toFixed(2)} ${MONEDA}`;
 
-        // Sparkline con últimos 30 días de margen
-        const rows = await apiFetchJson('/reportes/series/ventas-diarias?dias=30');
-        const labels = rows.map(x => x.dia);
-        const data = rows.map(x => Number((MONEDA === 'USD' ? x.margen_usd : x.margen_bs) || 0));
+        // Calcular margen del mes según filtro usando series diarias
+        const rows = await apiFetchJson('/reportes/series/ventas-diarias?dias=365');
+        let filtered = rows;
+        if (FILTRO_MES && FILTRO_ANO) {
+            filtered = rows.filter(x => {
+                const d = new Date(x.dia);
+                return d.getFullYear() === FILTRO_ANO && (d.getMonth() + 1) === FILTRO_MES;
+            });
+        }
+        const mesTotal = filtered.reduce((acc, x) => acc + Number((MONEDA === 'USD' ? x.margen_usd : x.margen_bs) || 0), 0);
+        document.getElementById('margen-mes').innerText = `${Number(mesTotal || 0).toFixed(2)} ${MONEDA}`;
+
+        // Sparkline con últimos días (filtrados por mes si aplica)
+        const labels = filtered.map(x => x.dia);
+        const data = filtered.map(x => Number((MONEDA === 'USD' ? x.margen_usd : x.margen_bs) || 0));
         const ctx = document.getElementById('chart-margen');
         if (!ctx) return;
         const cfg = {
