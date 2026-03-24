@@ -201,26 +201,6 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
         return res.status(400).json({ error: 'La comisión debe ser un número entre 0 y 100' });
       }
     }
-
-    // Validar y preparar email si se envía
-    if (email !== undefined) {
-      const emailRaw = (email || '').toString().trim().toLowerCase();
-      let emailFinal = null;
-      if (emailRaw) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(emailRaw)) {
-          return res.status(400).json({ error: 'El correo no tiene un formato válido' });
-        }
-        const rolFinal = rol || usuario.rol;
-        if (rolFinal === 'admin') {
-          emailFinal = emailRaw;
-        }
-      }
-
-      updates.push('email = ?');
-      params.push(emailFinal);
-    }
-
     // Construir query de actualización
     const updates = [];
     const params = [];
@@ -246,6 +226,25 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
       const comisionNum = comision_pct !== null && comision_pct !== '' ? Number(comision_pct) : 0;
       updates.push('comision_pct = ?');
       params.push(comisionNum);
+    }
+
+    // Validar y preparar email si se envía
+    if (email !== undefined) {
+      const emailRaw = (email || '').toString().trim().toLowerCase();
+      let emailFinal = null;
+      if (emailRaw) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(emailRaw)) {
+          return res.status(400).json({ error: 'El correo no tiene un formato válido' });
+        }
+        const rolFinal = rol !== undefined ? rol : usuario.rol;
+        if (rolFinal === 'admin') {
+          emailFinal = emailRaw;
+        }
+      }
+
+      updates.push('email = ?');
+      params.push(emailFinal);
     }
 
     if (updates.length === 0) {

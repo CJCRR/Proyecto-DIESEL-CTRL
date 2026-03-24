@@ -1,3 +1,10 @@
 2026-03-24T15:05:03.317Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
 2026-03-24T15:05:03.320Z [INFO] 📦 Backup automático creado: backup_2026-03-24T15-05-03-305Z.sqlite 
 2026-03-24T15:36:07.309Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-24T15:37:20.427Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-24T15:37:20.430Z [INFO] 📦 Backup automático creado: backup_2026-03-24T15-37-20-418Z.sqlite 
+2026-03-24T15:40:17.117Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-24T15:40:19.924Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-24T15:40:19.927Z [INFO] 📦 Backup automático creado: backup_2026-03-24T15-40-19-916Z.sqlite 
+2026-03-24T15:40:42.315Z [WARN] SMTP no configurado. No se envió correo de recuperación. Enlace: {"resetUrl":"http://localhost:3000/pages/reset-password.html?token=ef6192aef8ea5865f7424fd899bb0e53435109fc0b456f00a3cde18f5c05751d","to":"cristohper.rr@gmail.com"}
+2026-03-24T15:50:41.028Z [INFO] Recibida señal SIGINT, cerrando servidor... 
