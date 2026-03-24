@@ -17,7 +17,7 @@ router.get('/', requireAuth, requireRole('admin'), (req, res) => {
       params.push(empresaId);
     }
     const usuarios = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, creado_en, ultimo_login, comision_pct
+      SELECT id, username, nombre_completo, rol, activo, creado_en, ultimo_login, comision_pct, email
       FROM usuarios
       ${where}
       ORDER BY creado_en DESC
@@ -55,7 +55,7 @@ router.get('/vendedores-list', requireAuth, (req, res) => {
 
 // POST /admin/usuarios - Crear nuevo usuario (solo admin)
 router.post('/', requireAuth, requireRole('admin'), (req, res) => {
-  const { username, password, nombre_completo, rol, comision_pct } = req.body;
+  const { username, password, nombre_completo, rol, comision_pct, email } = req.body;
 
   // Validaciones
   if (!username || !password) {
@@ -82,6 +82,21 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
     return res.status(400).json({ error: 'La comisión debe ser un número entre 0 y 100' });
   }
 
+  // Validar correo solo si viene y solo se usa para admins principales
+  const emailRaw = (email || '').toString().trim().toLowerCase();
+  let emailFinal = null;
+  if (emailRaw) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailRaw)) {
+      return res.status(400).json({ error: 'El correo no tiene un formato válido' });
+    }
+    // Solo guardar email cuando el rol es admin (admin principal)
+    const rolFinal = rol || 'vendedor';
+    if (rolFinal === 'admin') {
+      emailFinal = emailRaw;
+    }
+  }
+
   try {
     // Verificar que no exista el username
     const existe = db.prepare('SELECT id FROM usuarios WHERE username = ?').get(username);
@@ -96,12 +111,12 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
       return res.status(400).json({ error: 'Usuario sin empresa asociada' });
     }
     const result = db.prepare(`
-      INSERT INTO usuarios (username, password, nombre_completo, rol, empresa_id, comision_pct)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(username, hash, nombre_completo || username, rol || 'vendedor', empresaId, comisionNum);
+      INSERT INTO usuarios (username, password, nombre_completo, rol, empresa_id, comision_pct, email)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(username, hash, nombre_completo || username, rol || 'vendedor', empresaId, comisionNum, emailFinal);
 
     const nuevoUsuario = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, creado_en, comision_pct
+      SELECT id, username, nombre_completo, rol, activo, creado_en, comision_pct, email
       FROM usuarios WHERE id = ?
     `).get(result.lastInsertRowid);
     try {
@@ -153,11 +168,11 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
 // PUT /admin/usuarios/:id - Actualizar usuario (solo admin)
 router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
   const { id } = req.params;
-  const { nombre_completo, rol, password, comision_pct } = req.body;
+  const { nombre_completo, rol, password, comision_pct, email } = req.body;
 
   try {
     // Verificar que el usuario existe
-    const usuario = db.prepare('SELECT id, username FROM usuarios WHERE id = ?').get(id);
+    const usuario = db.prepare('SELECT id, username, rol FROM usuarios WHERE id = ?').get(id);
     if (!usuario) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
@@ -185,6 +200,25 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
       if (Number.isNaN(comisionNum) || comisionNum < 0 || comisionNum > 100) {
         return res.status(400).json({ error: 'La comisión debe ser un número entre 0 y 100' });
       }
+    }
+
+    // Validar y preparar email si se envía
+    if (email !== undefined) {
+      const emailRaw = (email || '').toString().trim().toLowerCase();
+      let emailFinal = null;
+      if (emailRaw) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(emailRaw)) {
+          return res.status(400).json({ error: 'El correo no tiene un formato válido' });
+        }
+        const rolFinal = rol || usuario.rol;
+        if (rolFinal === 'admin') {
+          emailFinal = emailRaw;
+        }
+      }
+
+      updates.push('email = ?');
+      params.push(emailFinal);
     }
 
     // Construir query de actualización
@@ -227,7 +261,7 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
     `).run(...params);
 
     const usuarioActualizado = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, creado_en, comision_pct
+      SELECT id, username, nombre_completo, rol, activo, creado_en, comision_pct, email
       FROM usuarios WHERE id = ?
     `).get(id);
 

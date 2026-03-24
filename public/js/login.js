@@ -25,9 +25,11 @@ const btnOpenRegistro = document.getElementById('btn-open-registro-empresa');
 const reEmpresaNombre = document.getElementById('re-empresa-nombre');
 const reEmpresaRif = document.getElementById('re-empresa-rif');
 const reEmpresaTelefono = document.getElementById('re-empresa-telefono');
+const reEmpresaEmail = document.getElementById('re-empresa-email');
 const reEmpresaUbicacion = document.getElementById('re-empresa-ubicacion');
 const reAdminUsername = document.getElementById('re-admin-username');
 const reAdminPassword = document.getElementById('re-admin-password');
+const reAdminEmail = document.getElementById('re-admin-email');
 const reAdminNombre = document.getElementById('re-admin-nombre');
 const reError = document.getElementById('re-error');
 const reForm = document.getElementById('form-registro-empresa');
@@ -39,6 +41,17 @@ const reSubmit = document.getElementById('re-submit');
 const modalRegistroExito = document.getElementById('modal-registro-exito');
 const reExitoCerrar = document.getElementById('re-exito-cerrar');
 const reExitoOk = document.getElementById('re-exito-ok');
+
+// Modal recuperación de contraseña
+const modalResetPassword = document.getElementById('modal-reset-password');
+const btnOpenResetPassword = document.getElementById('btn-open-reset-password');
+const rpForm = document.getElementById('form-reset-password');
+const rpEmail = document.getElementById('rp-email');
+const rpError = document.getElementById('rp-error');
+const rpSuccess = document.getElementById('rp-success');
+const rpCancelar = document.getElementById('rp-cancelar');
+const rpCerrar = document.getElementById('rp-cerrar');
+const rpSubmit = document.getElementById('rp-submit');
 
 let confettiActivo = false;
 let confetiIconoEjecutado = false;
@@ -110,6 +123,28 @@ function cerrarModalTwofa() {
   twofaError.textContent = '';
   twofaError.classList.add('hidden');
   pendingLoginBody = null;
+}
+
+function abrirModalResetPassword() {
+  if (!modalResetPassword || !rpEmail) return;
+  rpEmail.value = '';
+  if (rpError) {
+    rpError.textContent = '';
+    rpError.classList.add('hidden');
+  }
+  if (rpSuccess) {
+    rpSuccess.textContent = '';
+    rpSuccess.classList.add('hidden');
+  }
+  modalResetPassword.classList.remove('hidden');
+  setTimeout(() => {
+    rpEmail.focus();
+  }, 50);
+}
+
+function cerrarModalResetPassword() {
+  if (!modalResetPassword) return;
+  modalResetPassword.classList.add('hidden');
 }
 
 async function intentarLogin(body, opciones = {}) {
@@ -278,6 +313,57 @@ if (usernameInput) {
   usernameInput.focus();
 }
 
+async function enviarSolicitudResetPassword(e) {
+  if (e) e.preventDefault();
+  if (!rpEmail || !rpSubmit) return;
+
+  const email = rpEmail.value.trim();
+  if (!email) {
+    if (rpError) {
+      rpError.textContent = 'Por favor ingresa tu correo.';
+      rpError.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (rpError) {
+    rpError.textContent = '';
+    rpError.classList.add('hidden');
+  }
+  if (rpSuccess) {
+    rpSuccess.textContent = '';
+    rpSuccess.classList.add('hidden');
+  }
+
+  rpSubmit.disabled = true;
+  const originalHtml = rpSubmit.innerHTML;
+  rpSubmit.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Enviando...';
+
+  try {
+    const data = await apiFetchJson('/auth/password-reset-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    const msg = (data && data.message) || 'Si el correo existe como administrador principal, se enviará un enlace para restablecer la contraseña.';
+    if (rpSuccess) {
+      rpSuccess.textContent = msg;
+      rpSuccess.classList.remove('hidden');
+    }
+  } catch (err) {
+    console.error('Error solicitando reset de contraseña:', err);
+    const msg = err && err.message ? err.message : 'Error al procesar la solicitud. Intenta nuevamente.';
+    if (rpError) {
+      rpError.textContent = msg;
+      rpError.classList.remove('hidden');
+    }
+  } finally {
+    rpSubmit.disabled = false;
+    rpSubmit.innerHTML = originalHtml;
+  }
+}
+
 // --- Auto-registro de empresa (fase 37) ---
 
 function abrirModalRegistro() {
@@ -285,9 +371,11 @@ function abrirModalRegistro() {
   if (reEmpresaNombre) reEmpresaNombre.value = '';
   if (reEmpresaRif) reEmpresaRif.value = '';
   if (reEmpresaTelefono) reEmpresaTelefono.value = '';
+  if (reEmpresaEmail) reEmpresaEmail.value = '';
   if (reEmpresaUbicacion) reEmpresaUbicacion.value = '';
   if (reAdminUsername) reAdminUsername.value = '';
   if (reAdminPassword) reAdminPassword.value = '';
+  if (reAdminEmail) reAdminEmail.value = '';
   if (reAdminNombre) reAdminNombre.value = '';
   if (reError) {
     reError.textContent = '';
@@ -497,8 +585,10 @@ async function enviarRegistroEmpresa(e) {
   const password = reAdminPassword.value;
   const rif = reEmpresaRif ? reEmpresaRif.value.trim() : '';
   const telefono = reEmpresaTelefono ? reEmpresaTelefono.value.trim() : '';
+  const empresaEmail = reEmpresaEmail ? reEmpresaEmail.value.trim() : '';
   const ubicacion = reEmpresaUbicacion ? reEmpresaUbicacion.value.trim() : '';
   const adminNombre = reAdminNombre ? reAdminNombre.value.trim() : '';
+  const adminEmail = reAdminEmail ? reAdminEmail.value.trim() : '';
 
   if (!nombre || nombre.length < 3) {
     if (reError) {
@@ -534,10 +624,12 @@ async function enviarRegistroEmpresa(e) {
       empresa_nombre: nombre,
       empresa_rif: rif,
       empresa_telefono: telefono,
+      empresa_email: empresaEmail || null,
       empresa_ubicacion: ubicacion,
       admin_username: username,
       admin_password: password,
-      admin_nombre: adminNombre || username
+      admin_nombre: adminNombre || username,
+      admin_email: adminEmail || null
     };
 
     const data = await apiFetchJson('/auth/registro-empresa', {
@@ -623,4 +715,27 @@ if (reExitoOk) {
       usernameInput.focus();
     }
   });
+}
+
+// Eventos recuperación de contraseña
+if (btnOpenResetPassword) {
+  btnOpenResetPassword.addEventListener('click', () => {
+    abrirModalResetPassword();
+  });
+}
+
+if (rpCancelar) {
+  rpCancelar.addEventListener('click', () => {
+    cerrarModalResetPassword();
+  });
+}
+
+if (rpCerrar) {
+  rpCerrar.addEventListener('click', () => {
+    cerrarModalResetPassword();
+  });
+}
+
+if (rpForm) {
+  rpForm.addEventListener('submit', enviarSolicitudResetPassword);
 }

@@ -935,6 +935,26 @@ const migrations = [
 
       tx();
     }
+  },
+  {
+    id: '031_usuarios_email_y_reset',
+    up: () => {
+      // Email y campos básicos de recuperación de contraseña
+      if (!columnExists('usuarios', 'email')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN email TEXT").run();
+      }
+      if (!columnExists('usuarios', 'password_reset_token')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN password_reset_token TEXT").run();
+      }
+      if (!columnExists('usuarios', 'password_reset_expires')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN password_reset_expires TEXT").run();
+      }
+
+      // Email de contacto de la empresa
+      if (!columnExists('empresas', 'email')) {
+        db.prepare("ALTER TABLE empresas ADD COLUMN email TEXT").run();
+      }
+    }
   }
 ];
 

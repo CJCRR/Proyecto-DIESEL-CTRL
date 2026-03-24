@@ -118,7 +118,10 @@
       <div class="mt-6 pt-6 border-t border-slate-200 space-y-3">
         <p class="text-xs text-slate-500 text-center">
           <i class="fas fa-info-circle mr-1"></i>
-          ¿Olvidaste tu contraseña? Contacta al administrador para restablecerla.
+          ¿Olvidaste tu contraseña?
+          <button type="button" id="btn-open-reset-password" class="ml-1 text-blue-600 hover:underline font-semibold">
+            Recuperar contraseña
+          </button>
         </p>
         <div class="text-center">
           <button type="button" id="btn-open-registro-empresa"
@@ -128,6 +131,38 @@
           </button>
         </div>
       </div>
+      </div>
+    </div>
+
+    <!-- Modal recuperación de contraseña -->
+    <div id="modal-reset-password" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50">
+      <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <h2 class="text-base font-semibold text-slate-800">Recuperar contraseña</h2>
+            <p class="text-xs text-slate-500 mt-1">Ingresa el correo del usuario administrador principal de tu empresa para enviar un enlace de recuperación.</p>
+          </div>
+          <button type="button" id="rp-cerrar" class="text-slate-400 hover:text-slate-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <form id="form-reset-password" class="space-y-3 text-xs">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Correo del administrador</label>
+            <input id="rp-email" type="email" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" placeholder="admin@empresa.com" required>
+          </div>
+          <p id="rp-error" class="hidden text-[11px] text-red-600"></p>
+          <p id="rp-success" class="hidden text-[11px] text-emerald-600"></p>
+
+          <div class="flex justify-end gap-2 pt-2 border-t border-slate-200 mt-2">
+            <button type="button" id="rp-cancelar" class="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
+            <button type="submit" id="rp-submit" class="px-4 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2">
+              <i class="fas fa-paper-plane text-[10px]"></i>
+              <span>Enviar enlace</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -201,9 +236,15 @@
               <input id="re-empresa-telefono" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs">
             </div>
           </div>
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">Ubicación / Dirección </label>
-            <input id="re-empresa-ubicacion" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Correo de la empresa</label>
+              <input id="re-empresa-email" type="email" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" placeholder="empresa@ejemplo.com">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Ubicación / Dirección </label>
+              <input id="re-empresa-ubicacion" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs">
+            </div>
           </div>
 
           <div class="pt-2 border-t border-slate-200 mt-2">
@@ -221,9 +262,15 @@
                 <input id="re-admin-password" type="password" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" required>
               </div>
             </div>
-            <div class="mt-3">
-              <label class="block font-semibold text-slate-700 mb-1">Nombre ID de Ventas</label>
-              <input id="re-admin-nombre" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs">
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Correo del usuario administrador</label>
+                <input id="re-admin-email" type="email" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" placeholder="admin@empresa.com">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Nombre ID de Ventas</label>
+                <input id="re-admin-nombre" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs">
+              </div>
             </div>
           </div>
 

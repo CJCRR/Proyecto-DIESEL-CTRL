@@ -35,6 +35,8 @@ const inputNombre = document.getElementById('usuario-nombre');
 const inputRol = document.getElementById('usuario-rol');
 const inputComision = document.getElementById('usuario-comision');
 const passwordHint = document.getElementById('password-hint');
+const inputEmail = document.getElementById('usuario-email');
+const emailGroup = document.getElementById('usuario-email-group');
 
 // Modal de confirmación de acciones (activar / desactivar / eliminar)
 const modalConfirmUsuario = document.getElementById('modal-confirm-usuario');
@@ -45,6 +47,19 @@ const ucConfirmar = document.getElementById('uc-confirmar');
 let currentUsuarioConfirmAction = null;
 
 try { initCustomSelect('usuario-rol'); } catch {}
+
+function actualizarVisibilidadEmail() {
+  if (!emailGroup) return;
+  if (inputRol && inputRol.value === 'admin') {
+    emailGroup.classList.remove('hidden');
+  } else {
+    emailGroup.classList.add('hidden');
+  }
+}
+
+if (inputRol) {
+  inputRol.addEventListener('change', actualizarVisibilidadEmail);
+}
 
 // Cargar usuarios
 async function cargarUsuarios() {
@@ -136,6 +151,8 @@ function nuevoUsuario() {
   inputPassword.required = true;
   passwordHint.textContent = 'Mínimo 6 caracteres';
   if (inputComision) inputComision.value = '';
+   if (inputEmail) inputEmail.value = '';
+   actualizarVisibilidadEmail();
   abrirModal();
 }
 
@@ -155,10 +172,12 @@ function editarUsuario(id) {
   passwordHint.textContent = 'Dejar en blanco para mantener la contraseña actual';
   inputNombre.value = usuario.nombre_completo || '';
   inputRol.value = usuario.rol;
+  if (inputEmail) inputEmail.value = usuario.email || '';
   if (inputComision) inputComision.value = (usuario.comision_pct !== undefined && usuario.comision_pct !== null)
     ? String(usuario.comision_pct)
     : '';
 
+  actualizarVisibilidadEmail();
   abrirModal();
 }
 
@@ -173,6 +192,13 @@ async function guardarUsuario(e) {
     rol: inputRol.value,
     comision_pct: inputComision && inputComision.value !== '' ? parseFloat(inputComision.value) : 0
   };
+
+  if (inputRol && inputRol.value === 'admin' && inputEmail) {
+    const emailValor = (inputEmail.value || '').trim();
+    if (emailValor) {
+      datos.email = emailValor;
+    }
+  }
 
   // Si estamos editando y no se cambió la contraseña, no enviarla
   if (modoEdicion && !datos.password) {

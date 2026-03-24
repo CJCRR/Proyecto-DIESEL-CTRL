@@ -8,6 +8,7 @@ const speakeasy = require('speakeasy');
 const { signJwt } = require('../middleware/jwt');
 const { registrarEventoNegocio } = require('../services/eventosService');
 const { registrarAuditoria } = require('../services/auditLogService');
+const { sendPasswordResetEmail } = require('../services/emailService');
 
 // Generar token único
 function generarToken() {
@@ -20,6 +21,14 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiados intentos. Intente más tarde.' }
+});
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hora
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes de recuperación. Intente más tarde.' }
 });
 
 // Límite para auto-registro de empresas (evitar abuso del endpoint público)
@@ -468,10 +477,12 @@ router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
   const nombre = (empresa_nombre || '').toString().trim();
   const rif = (empresa_rif || '').toString().trim();
   const telefono = (empresa_telefono || '').toString().trim();
+  const emailEmpresa = (empresa_email || '').toString().trim().toLowerCase();
   const direccion = (empresa_ubicacion || '').toString().trim();
   const username = (admin_username || '').toString().trim();
   const password = (admin_password || '').toString();
   const nombreAdmin = (admin_nombre || '').toString().trim();
+  const emailAdmin = (admin_email || '').toString().trim().toLowerCase();
 
   if (!nombre || nombre.length < 3) {
     return res.status(400).json({ error: 'El nombre de la empresa debe tener al menos 3 caracteres.' });
@@ -481,6 +492,15 @@ router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
   }
   if (!password || password.length < 6) {
     return res.status(400).json({ error: 'La contraseña del administrador debe tener al menos 6 caracteres.' });
+  }
+
+  // Validaciones mínimas de formato de correo (solo si se envían)
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (emailEmpresa && !emailRegex.test(emailEmpresa)) {
+    return res.status(400).json({ error: 'El correo de la empresa no es válido.' });
+  }
+  if (emailAdmin && !emailRegex.test(emailAdmin)) {
+    return res.status(400).json({ error: 'El correo del usuario administrador no es válido.' });
   }
 
   try {
@@ -513,8 +533,8 @@ router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
       const diaCorte = ahora.getUTCDate();
 
       const infoEmpresa = db.prepare(`
-        INSERT INTO empresas (nombre, codigo, estado, plan, monto_mensual, fecha_alta, fecha_corte, dias_gracia, nota_interna, rif, telefono, direccion, proximo_cobro)
-        VALUES (?, ?, 'activa', ?, 0, datetime('now'), ?, 0, ?, ?, ?, ?, ?)
+        INSERT INTO empresas (nombre, codigo, estado, plan, monto_mensual, fecha_alta, fecha_corte, dias_gracia, nota_interna, rif, telefono, direccion, email, proximo_cobro)
+        VALUES (?, ?, 'activa', ?, 0, datetime('now'), ?, 0, ?, ?, ?, ?, ?, ?)
       `).run(
         nombre,
         codigo,
@@ -524,6 +544,7 @@ router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
         rif || null,
         telefono || null,
         direccion || null,
+        emailEmpresa || null,
         finTrialIso
       );
 
@@ -531,13 +552,14 @@ router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
       const hash = bcrypt.hashSync(password, 10);
 
       db.prepare(`
-        INSERT INTO usuarios (username, password, nombre_completo, rol, activo, must_change_password, empresa_id)
-        VALUES (?, ?, ?, 'admin', 1, 0, ?)
+        INSERT INTO usuarios (username, password, nombre_completo, rol, activo, must_change_password, empresa_id, email)
+        VALUES (?, ?, ?, 'admin', 1, 0, ?, ?)
       `).run(
         username,
         hash,
         nombreAdmin || username,
-        empresaId
+        empresaId,
+        emailAdmin || null
       );
 
       try {
@@ -595,6 +617,133 @@ router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
     const logger = require('../services/logger');
     logger.error('Error en auto-registro de empresa:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al registrar la empresa. Intente nuevamente.' });
+  }
+});
+
+// POST /auth/password-reset-request - Solicitar recuperación de contraseña (solo admins principales con email)
+router.post('/password-reset-request', forgotPasswordLimiter, (req, res) => {
+  const { email } = req.body || {};
+  const rawEmail = (email || '').toString().trim().toLowerCase();
+
+  if (!rawEmail) {
+    return res.status(400).json({ error: 'El correo es obligatorio.' });
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(rawEmail)) {
+    return res.status(400).json({ error: 'El correo no tiene un formato válido.' });
+  }
+
+  try {
+    // Buscar solo usuarios admin de empresa con ese correo (admins principales previstos en auto-registro)
+    const usuario = db.prepare(`
+      SELECT u.id, u.username, u.email, u.empresa_id, e.nombre AS empresa_nombre
+      FROM usuarios u
+      LEFT JOIN empresas e ON e.id = u.empresa_id
+      WHERE LOWER(u.email) = ? AND u.rol = 'admin' AND u.activo = 1
+    `).get(rawEmail);
+
+    // Siempre responder 200 para no filtrar si el correo existe o no
+    const genericResponse = () => res.json({
+      success: true,
+      message: 'Si el correo existe como usuario administrador principal, se enviará un enlace para restablecer la contraseña.'
+    });
+
+    if (!usuario) {
+      return genericResponse();
+    }
+
+    const token = generarToken();
+    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hora
+
+    db.prepare(`
+      UPDATE usuarios
+      SET password_reset_token = ?, password_reset_expires = ?
+      WHERE id = ?
+    `).run(token, expires, usuario.id);
+
+    const envBaseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || '';
+    const baseUrl = envBaseUrl || `${req.protocol}://${req.get('host') || ''}`;
+    const resetPath = '/pages/reset-password.html';
+    const resetUrl = `${baseUrl}${resetPath}?token=${encodeURIComponent(token)}`;
+
+    // Enviar correo (si SMTP está configurado)
+    sendPasswordResetEmail({
+      to: rawEmail,
+      resetUrl,
+      empresaNombre: usuario.empresa_nombre || null
+    }).then((result) => {
+      // En entornos sin SMTP configurado, exponer el enlace para pruebas locales
+      const isProd = process.env.NODE_ENV === 'production';
+      if (!isProd && result && result.resetUrl) {
+        return res.json({
+          success: true,
+          message: 'Solicitud procesada (modo desarrollo). Usa el enlace para restablecer la contraseña.',
+          resetUrl: result.resetUrl
+        });
+      }
+      return genericResponse();
+    }).catch(() => genericResponse());
+  } catch (err) {
+    const logger = require('../services/logger');
+    logger.error('Error en /auth/password-reset-request:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    return res.status(500).json({ error: 'Error al procesar la solicitud de recuperación.' });
+  }
+});
+
+// POST /auth/password-reset-confirm - Confirmar cambio de contraseña usando token
+router.post('/password-reset-confirm', (req, res) => {
+  const { token, password } = req.body || {};
+  const rawToken = (token || '').toString().trim();
+  const newPassword = (password || '').toString();
+
+  if (!rawToken || !newPassword) {
+    return res.status(400).json({ error: 'Token y nueva contraseña son obligatorios.' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+  }
+
+  try {
+    const usuario = db.prepare(`
+      SELECT id, password_reset_token, password_reset_expires
+      FROM usuarios
+      WHERE password_reset_token = ?
+    `).get(rawToken);
+
+    if (!usuario || !usuario.password_reset_expires) {
+      return res.status(400).json({ error: 'El enlace de recuperación no es válido o ya fue usado.' });
+    }
+
+    const exp = new Date(usuario.password_reset_expires);
+    if (Number.isNaN(exp.getTime()) || exp < new Date()) {
+      return res.status(400).json({ error: 'El enlace de recuperación ha expirado.' });
+    }
+
+    const hash = bcrypt.hashSync(newPassword, 10);
+    db.prepare(`
+      UPDATE usuarios
+      SET password = ?, password_reset_token = NULL, password_reset_expires = NULL, must_change_password = 0
+      WHERE id = ?
+    `).run(hash, usuario.id);
+
+    try {
+      registrarAuditoria({
+        usuario: null,
+        accion: 'USUARIO_RESET_PASSWORD',
+        entidad: 'usuario',
+        entidadId: usuario.id,
+        detalle: { origen: 'password-reset-email' },
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+    } catch (_) {}
+
+    return res.json({ success: true, message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión con tu nueva contraseña.' });
+  } catch (err) {
+    const logger = require('../services/logger');
+    logger.error('Error en /auth/password-reset-confirm:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    return res.status(500).json({ error: 'Error al actualizar la contraseña.' });
   }
 });
 
