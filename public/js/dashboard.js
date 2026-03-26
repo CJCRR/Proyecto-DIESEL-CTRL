@@ -32,7 +32,7 @@ function renderTopProductos() {
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center p-2 border-b';
         const descUpper = (t.descripcion || '').toString().toUpperCase();
-        row.innerHTML = `<div><div class="font-bold">${t.codigo} — ${descUpper}</div><div class="text-xs text-slate-400">Vendidos: ${t.total_qty}</div></div><div class="text-right"><div class="font-black">${Number(monto).toFixed(2)} ${MONEDA}</div><div class="text-xs text-green-700">Margen: ${Number(margen).toFixed(2)} ${MONEDA}</div><div class="text-[11px] text-slate-400">Costo: ${Number(costo).toFixed(2)} ${MONEDA}</div></div>`;
+        row.innerHTML = `<div><div class="font-bold">${t.codigo} — ${descUpper}</div><div class="text-xs text-slate-400">Vendidos: ${t.total_qty}</div></div><div class="text-right"><div class="font-black">${formatNumber(monto, 2)} ${MONEDA}</div><div class="text-xs text-green-700">Margen: ${formatNumber(margen, 2)} ${MONEDA}</div><div class="text-[11px] text-slate-400">Costo: ${formatNumber(costo, 2)} ${MONEDA}</div></div>`;
         topEl.appendChild(row);
     });
 }
@@ -76,11 +76,11 @@ async function loadInventarioDashboard() {
         const invTasaEl = document.getElementById('inv-tasa');
         const invCostoUsdEl = document.getElementById('inv-total-costo-usd');
         const invCostoBsEl = document.getElementById('inv-total-costo-bs');
-        if (invUsdEl) invUsdEl.innerText = `${Number(inv.totals.totalUsd || 0).toFixed(2)} USD`;
-        if (invBsEl) invBsEl.innerText = `${Number(inv.totals.totalBs || 0).toFixed(2)} Bs`;
-        if (invTasaEl) invTasaEl.innerText = Number(inv.totals.tasa || 1).toFixed(2);
-        if (invCostoUsdEl) invCostoUsdEl.innerText = `${Number(inv.totals.costoUsd || 0).toFixed(2)} USD`;
-        if (invCostoBsEl) invCostoBsEl.innerText = `${Number(inv.totals.costoBs || 0).toFixed(2)} Bs`;
+        if (invUsdEl) invUsdEl.innerText = `${formatNumber(inv.totals.totalUsd || 0, 2)} USD`;
+        if (invBsEl) invBsEl.innerText = `${formatNumber(inv.totals.totalBs || 0, 2)} Bs`;
+        if (invTasaEl) invTasaEl.innerText = formatNumber(inv.totals.tasa || 1, 2);
+        if (invCostoUsdEl) invCostoUsdEl.innerText = `${formatNumber(inv.totals.costoUsd || 0, 2)} USD`;
+        if (invCostoBsEl) invCostoBsEl.innerText = `${formatNumber(inv.totals.costoBs || 0, 2)} Bs`;
     } catch (e) { /* ignore */ }
 }
 
@@ -235,7 +235,7 @@ async function cargarDashboard() {
             const { tasa_bcv, actualizado_en } = tasaJ || {};
             TASA_BCV = Number(tasa_bcv || 1) || 1;
             TASA_BCV_UPDATED = actualizado_en || null;
-            const el = document.getElementById('kpi-tasa'); if (el) el.innerText = TASA_BCV.toFixed(2);
+            const el = document.getElementById('kpi-tasa'); if (el) el.innerText = formatNumber(TASA_BCV, 2);
             const alertEl = document.getElementById('tasa-alert');
             if (alertEl) {
                 const diffHrs = TASA_BCV_UPDATED ? (Date.now() - new Date(TASA_BCV_UPDATED).getTime()) / 36e5 : null;
@@ -252,8 +252,8 @@ async function cargarDashboard() {
             KPI_TOTAL_USD = Number(kpis.totalUsd || 0);
             const displayUsd = KPI_TOTAL_USD;
             const displayBs = KPI_TOTAL_USD * TASA_BCV;
-            const principal = MONEDA === 'USD' ? `${displayUsd.toFixed(2)} USD` : `${displayBs.toFixed(2)} Bs`;
-            const secundario = MONEDA === 'USD' ? `${displayBs.toFixed(2)} Bs` : `${displayUsd.toFixed(2)} USD`;
+            const principal = MONEDA === 'USD' ? `${formatNumber(displayUsd, 2)} USD` : `${formatNumber(displayBs, 2)} Bs`;
+            const secundario = MONEDA === 'USD' ? `${formatNumber(displayBs, 2)} Bs` : `${formatNumber(displayUsd, 2)} USD`;
             document.getElementById('total-bs').innerText = principal;
             document.getElementById('total-usd').innerText = secundario;
         } catch (e) { /* ignore */ }
@@ -267,8 +267,8 @@ async function cargarDashboard() {
                 const d = document.createElement('div');
                 d.className = 'p-2 border rounded flex items-center justify-between';
                 const left = `<div class="min-w-0"><div class="font-bold truncate">${u.cliente || '—'}</div><div class="text-[10px] text-slate-400">${new Date(u.fecha).toLocaleString()}</div></div>`;
-                const montoBs = u.total_bs != null ? `${Number(u.total_bs).toFixed(2)} Bs` : '-- Bs';
-                const montoUsd = u.tasa_bcv != null && u.tasa_bcv !== 0 ? `${Number(u.total_bs / u.tasa_bcv).toFixed(2)} USD` : '-- USD';
+                const montoBs = u.total_bs != null ? `${formatNumber(u.total_bs, 2)} Bs` : '-- Bs';
+                const montoUsd = u.tasa_bcv != null && u.tasa_bcv !== 0 ? `${formatNumber(u.total_bs / u.tasa_bcv, 2)} USD` : '-- USD';
                 const right = `<div class="text-right ml-4 w-36"><div class="text-sm font-black">${montoBs}</div><div class="text-xs text-slate-400">${montoUsd}</div></div>`;
                 d.innerHTML = left + right;
                 ultEl.appendChild(d);
@@ -329,7 +329,7 @@ if (btnGuardarTasa) {
             TASA_BCV = tasaFinal;
             TASA_BCV_UPDATED = new Date().toISOString();
             const kpiEl = document.getElementById('kpi-tasa');
-            if (kpiEl) kpiEl.innerText = tasaFinal.toFixed(2);
+            if (kpiEl) kpiEl.innerText = formatNumber(tasaFinal, 2);
             try {
                 localStorage.setItem('tasa_bcv', String(tasaFinal));
                 localStorage.setItem('tasa_bcv_updated', String(TASA_BCV_UPDATED));
@@ -366,7 +366,7 @@ async function cargarVendedores() {
         const margen = MONEDA === 'USD' ? v.margen_usd : v.margen_bs;
         const roi = v.roi != null ? `${(v.roi * 100).toFixed(1)}%` : '—';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="p-2">${v.vendedor}</td><td class="p-2 text-right">${v.ventas}</td><td class="p-2 text-right">${Number(total || 0).toFixed(2)}</td><td class="p-2 text-right">${Number(margen || 0).toFixed(2)}</td><td class="p-2 text-right ${v.roi != null && v.roi >= 0 ? 'text-emerald-700' : 'text-amber-700'}">${roi}</td>`;
+        tr.innerHTML = `<td class="p-2">${v.vendedor}</td><td class="p-2 text-right">${v.ventas}</td><td class="p-2 text-right">${formatNumber(total || 0, 2)}</td><td class="p-2 text-right">${formatNumber(margen || 0, 2)}</td><td class="p-2 text-right ${v.roi != null && v.roi >= 0 ? 'text-emerald-700' : 'text-amber-700'}">${roi}</td>`;
         tb.appendChild(tr);
     });
 
@@ -491,7 +491,7 @@ async function renderMargenActual() {
     try {
         const j = await apiFetchJson('/reportes/margen/actual');
         const hoy = MONEDA === 'USD' ? j.hoy.margen_usd : j.hoy.margen_bs;
-        document.getElementById('margen-hoy').innerText = `${Number(hoy || 0).toFixed(2)} ${MONEDA}`;
+        document.getElementById('margen-hoy').innerText = `${formatNumber(hoy || 0, 2)} ${MONEDA}`;
 
         // Calcular margen del mes según filtro usando series diarias
         const rows = await apiFetchJson('/reportes/series/ventas-diarias?dias=365');
@@ -503,7 +503,7 @@ async function renderMargenActual() {
             });
         }
         const mesTotal = filtered.reduce((acc, x) => acc + Number((MONEDA === 'USD' ? x.margen_usd : x.margen_bs) || 0), 0);
-        document.getElementById('margen-mes').innerText = `${Number(mesTotal || 0).toFixed(2)} ${MONEDA}`;
+        document.getElementById('margen-mes').innerText = `${formatNumber(mesTotal || 0, 2)} ${MONEDA}`;
 
         // Sparkline con últimos días (filtrados por mes si aplica)
         const labels = filtered.map(x => x.dia);
@@ -627,7 +627,7 @@ async function renderAlertasTareas() {
             }));
             const rowsMor = morosos.map(m => ({
                 tipo: 'MOROSO',
-                html: `<div class=\"py-1 border-b\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-rose-100 text-rose-700\">MOROSO</span><span class=\"font-semibold\">${m.cliente_nombre || 'Cliente'}</span></div><span class=\"text-slate-500\">vence ${m.fecha_vencimiento}</span></div><div class=\"text-xs text-slate-500 truncate\">Saldo: $${Number(m.saldo_usd || 0).toFixed(2)} (${m.estado_calc || m.estado || ''})</div></div>`
+                html: `<div class=\"py-1 border-b\"><div class=\"flex items-center justify-between\"><div><span class=\"text-[10px] px-1 mr-2 rounded bg-rose-100 text-rose-700\">MOROSO</span><span class=\"font-semibold\">${m.cliente_nombre || 'Cliente'}</span></div><span class=\"text-slate-500\">vence ${m.fecha_vencimiento}</span></div><div class=\"text-xs text-slate-500 truncate\">Saldo: $${formatNumber(m.saldo_usd || 0, 2)} (${m.estado_calc || m.estado || ''})</div></div>`
             }));
             const incTotal = Number(incompletos.total_incompletos || 0);
             const incParts = [];

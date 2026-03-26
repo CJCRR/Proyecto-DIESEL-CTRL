@@ -30,23 +30,37 @@ async function validarStockOnlineAntesDeVenta() {
 	if (!navigator.onLine) return; // en modo offline se permite registrar localmente
 	const items = Array.isArray(carrito) ? carrito : [];
 	if (!items.length) return;
-	// Agrupar cantidades por código por si hay duplicados en el carrito
-	const porCodigo = new Map();
+	// Agrupar cantidades por código y, si aplica, por depósito
+	const porClave = new Map();
 	for (const it of items) {
 		if (!it || !it.codigo) continue;
 		const codigo = String(it.codigo).trim();
 		const qty = Number(it.cantidad || 0) || 0;
 		if (!codigo || qty <= 0) continue;
-		porCodigo.set(codigo, (porCodigo.get(codigo) || 0) + qty);
+		const depId = it.deposito_id != null ? Number(it.deposito_id) : null;
+		const key = `${codigo}::${depId != null ? depId : 'null'}`;
+		const current = porClave.get(key) || { codigo, deposito_id: depId, cantidad: 0 };
+		current.cantidad += qty;
+		porClave.set(key, current);
 	}
-	for (const [codigo, qtyNecesaria] of porCodigo.entries()) {
+	for (const entry of porClave.values()) {
+		const { codigo, deposito_id, cantidad: qtyNecesaria } = entry;
 		const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
 		if (!prod || prod.error) {
 			throw new Error(`No se pudo verificar el stock del producto ${codigo}. Intente de nuevo.`);
 		}
-		const stockServidor = Number(prod.stock || 0) || 0;
-		if (stockServidor < qtyNecesaria) {
-			throw new Error(`No se puede registrar la venta: el producto ${codigo} tiene stock ${stockServidor} y se intenta vender ${qtyNecesaria}.`);
+		let stockDisponible;
+		if (deposito_id != null && Array.isArray(prod.existencias_por_deposito)) {
+			const row = prod.existencias_por_deposito.find((e) => Number(e.deposito_id) === Number(deposito_id));
+			stockDisponible = row ? Number(row.cantidad || 0) || 0 : 0;
+		} else {
+			stockDisponible = Number(prod.stock || 0) || 0;
+		}
+		if (stockDisponible < qtyNecesaria) {
+			if (deposito_id != null) {
+				throw new Error(`No se puede registrar la venta: el producto ${codigo} tiene stock ${stockDisponible} en el depósito seleccionado y se intenta vender ${qtyNecesaria}.`);
+			}
+			throw new Error(`No se puede registrar la venta: el producto ${codigo} tiene stock ${stockDisponible} y se intenta vender ${qtyNecesaria}.`);
 		}
 	}
 }

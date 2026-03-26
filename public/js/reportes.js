@@ -141,9 +141,14 @@ function renderReporte() {
     let total = 0;
     let margen = 0;
     cacheRows.forEach((r) => {
+        const totalUsdBase = Number(r.total_usd || 0);
+        const totalBsBase = Number(r.total_bs || 0);
+        const totalUsdIva = r.total_usd_iva != null ? Number(r.total_usd_iva) : null;
+        const totalBsIva = r.total_bs_iva != null ? Number(r.total_bs_iva) : null;
+
         const t = MONEDA === 'USD'
-            ? Number(r.total_usd || 0)
-            : Number(r.total_bs || 0);
+            ? (totalUsdIva !== null ? totalUsdIva : totalUsdBase)
+            : (totalBsIva !== null ? totalBsIva : totalBsBase);
         const m = MONEDA === 'USD' ? Number(r.margen_usd || 0) : Number(r.margen_bs || 0);
         total += Number(t);
         margen += Number(m);
@@ -260,7 +265,7 @@ function renderReporte() {
                     return;
                 }
                 const tasa = Number(venta?.tasa_bcv || r.tasa_bcv || 0) || 0;
-                const fmt = (v) => Number(v || 0).toFixed(2);
+                const fmt = (v) => formatNumber(v || 0, 2);
                 cont.innerHTML = detalles.map(d => {
                     const codigo = d.codigo || d.producto_codigo || d.codigo_producto || d.producto || d.producto_id || '';
                     const montoUsd = Number(d.precio_usd || 0) * Number(d.cantidad || 0);
@@ -284,7 +289,7 @@ function renderReporte() {
             }
         });
     });
-    document.getElementById('rpt-resumen').innerText = `Ventas: ${cacheRows.length} | Total ${MONEDA}: ${total.toFixed(2)} | Margen ${MONEDA}: ${margen.toFixed(2)}`;
+    document.getElementById('rpt-resumen').innerText = `Ventas: ${cacheRows.length} | Total ${MONEDA}: ${formatNumber(total, 2)} | Margen ${MONEDA}: ${formatNumber(margen, 2)}`;
     document.getElementById('th-total-moneda').innerText = `Total ${MONEDA}`;
     document.getElementById('th-margen-moneda').innerText = `Margen ${MONEDA}`;
 
@@ -433,6 +438,9 @@ function renderPresupuestos() {
                 return;
         }
         cont.innerHTML = cachePres.slice(0, 10).map(p => {
+                const totalUsdConImpuestos = (p.total_usd_iva != null && Number(p.total_usd_iva) > 0)
+                    ? Number(p.total_usd_iva)
+                    : Number(p.total_usd || 0);
                 return `
                 <div class="p-2 border rounded flex items-center justify-between">
                     <div>
@@ -440,7 +448,7 @@ function renderPresupuestos() {
                         <div class="text-[10px] text-slate-500">#${escapeHtml(p.id)} • ${escapeHtml(new Date(p.fecha).toLocaleString())}</div>
                     </div>
                     <div class="text-right">
-                        <div class="font-black text-blue-600">$${Number(p.total_usd || 0).toFixed(2)}</div>
+                        <div class="font-black text-blue-600">$${formatNumber(totalUsdConImpuestos || 0, 2)}</div>
                         <div class="mt-1 flex gap-1 justify-end items-center">
                             <button class="px-2 py-1 text-[10px] border border-slate-300 text-slate-700 rounded bg-white hover:bg-slate-50" data-pres-ver="${p.id}">Ver</button>
                             <button class="px-2 py-1 text-[10px] bg-blue-600 text-white rounded" data-pres-pos="${p.id}">Usar en POS</button>
@@ -541,7 +549,7 @@ function renderRentabilidad() {
     const resumenEl = document.getElementById('renta-resumen');
     if (!catCont || !provCont || !resumenEl) return;
 
-    const fmt = (v) => Number(v || 0).toFixed(2);
+    const fmt = (v) => formatNumber(v || 0, 2);
 
     if (resumenRent) {
         const mPct = resumenRent.margen_pct != null ? (resumenRent.margen_pct * 100).toFixed(1) + '%' : '—';
@@ -631,7 +639,7 @@ function renderComisiones() {
         return;
     }
 
-    const fmt = (v) => Number(v || 0).toFixed(2);
+    const fmt = (v) => formatNumber(v || 0, 2);
 
     cont.innerHTML = `<table class="w-full text-[11px]"><thead class="bg-slate-100 text-slate-500"><tr>
         <th class="p-1 text-left">Vendedor</th>
@@ -643,7 +651,7 @@ function renderComisiones() {
     </tr></thead><tbody class="divide-y">
     ${cacheComisiones.map(r => {
         const nombre = r.nombre_completo || r.username || '—';
-        const pct = r.comision_pct != null ? Number(r.comision_pct).toFixed(2) + '%' : '0%';
+        const pct = r.comision_pct != null ? formatNumber(r.comision_pct, 2) + '%' : '0%';
         return `<tr>
             <td class="p-1">${escapeHtml(nombre)}</td>
             <td class="p-1">${escapeHtml(r.rol || '')}</td>
@@ -1007,7 +1015,7 @@ function renderDevoluciones() {
               ${d.motivo ? `<div class="text-[11px] text-slate-500">${d.motivo}</div>` : ''}
             </div>
             <div class="text-right">
-              <div class="font-black text-rose-600">${Number(total).toFixed(2)} ${MONEDA}</div>
+              <div class="font-black text-rose-600">${formatNumber(total, 2)} ${MONEDA}</div>
               ${d.venta_original_id ? `<button class="mt-1 px-2 py-1 text-[10px] bg-blue-600 text-white rounded" data-ver-venta="${d.venta_original_id}">Ver venta</button>` : ''}
             </div>
           </div>
@@ -1041,7 +1049,7 @@ function renderDevoluciones() {
             const detalles = data.detalles || [];
             const devolucion = data.devolucion || {};
             const tasa = Number(devolucion.tasa_bcv || 0) || 0;
-            const fmt = (v) => Number(v || 0).toFixed(2);
+            const fmt = (v) => formatNumber(v || 0, 2);
 
             if (!detalles.length) {
                 panel.innerHTML = '<div class="text-slate-400">Sin productos devueltos.</div>';

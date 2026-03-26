@@ -22,19 +22,28 @@ router.get('/', requireAuth, (req, res) => {
   const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
   const params = [like, like];
   let sql = `
-   SELECT codigo, descripcion, stock, precio_usd, marca
-   FROM productos
+   SELECT 
+     p.codigo,
+     p.descripcion,
+     COALESCE((
+       SELECT SUM(sd.cantidad)
+       FROM stock_por_deposito sd
+       WHERE sd.producto_id = p.id
+     ), p.stock) AS stock,
+     p.precio_usd,
+     p.marca
+   FROM productos p
    WHERE (
-     REPLACE(REPLACE(REPLACE(REPLACE(lower(codigo),'ñ','n'),'Ñ','n'),'ü','u'),'Ü','u') LIKE ?
-     OR REPLACE(REPLACE(REPLACE(REPLACE(lower(descripcion),'ñ','n'),'Ñ','n'),'ü','u'),'Ü','u') LIKE ?
+     REPLACE(REPLACE(REPLACE(REPLACE(lower(p.codigo),'ñ','n'),'Ñ','n'),'ü','u'),'Ü','u') LIKE ?
+     OR REPLACE(REPLACE(REPLACE(REPLACE(lower(p.descripcion),'ñ','n'),'Ñ','n'),'ü','u'),'Ü','u') LIKE ?
    )`;
     if (empresaId) {
-      sql += ' AND empresa_id = ?';
+      sql += ' AND p.empresa_id = ?';
       params.push(empresaId);
     }
 
     // Mostrar todos los productos coincidentes, ordenados alfabéticamente
-    sql += ' ORDER BY lower(descripcion) ASC, codigo ASC';
+    sql += ' ORDER BY lower(p.descripcion) ASC, p.codigo ASC';
 
     const resultados = db.prepare(sql).all(...params);
 

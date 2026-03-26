@@ -6,6 +6,7 @@ let periodoDesde = null;  // YYYY-MM-DD
 let periodoHasta = null;  // YYYY-MM-DD
 let resumenGlobal = null; // resumen histórico sin filtro de período
 import { apiFetchJson } from './app-api.js';
+import { formatNumber } from './format-utils.js';
 import { initCustomSelect } from './modules/ui.js';
 
 // Intentar cargar utilidades centralizadas para páginas que no usan módulos
@@ -64,7 +65,7 @@ function renderResumen(rows = []) {
         card.innerHTML = `
             <div class="text-[10px] font-black text-slate-400 uppercase">${e}</div>
             <div class="text-2xl font-black text-slate-800">${Number(found.cantidad || 0)}</div>
-            <div class="text-xs text-slate-500">Saldo $${Number(found.saldo_usd || 0).toFixed(2)}</div>
+            <div class="text-xs text-slate-500">Saldo $${formatNumber(found.saldo_usd || 0, 2)}</div>
         `;
         cont.appendChild(card);
     });
@@ -80,11 +81,11 @@ function renderResumen(rows = []) {
         totalesEl.innerHTML = `
             <div class="flex items-center justify-between">
                 <span class="font-semibold text-slate-700">Período actual</span>
-                <span class="font-mono text-[11px] text-slate-700">${totalCantPeriodo} cuentas · $${totalSaldoPeriodo.toFixed(2)}</span>
+                <span class="font-mono text-[11px] text-slate-700">${totalCantPeriodo} cuentas · $${formatNumber(totalSaldoPeriodo, 2)}</span>
             </div>
             <div class="flex items-center justify-between text-[11px] text-slate-500">
                 <span>Histórico pendiente</span>
-                <span class="font-mono">$${totalHist.toFixed(2)}</span>
+                <span class="font-mono">$${formatNumber(totalHist, 2)}</span>
             </div>
         `;
     }
@@ -118,8 +119,8 @@ function renderTabla(list = []) {
                 ${c.fecha_vencimiento || ''}
                 ${estado === 'vencido' && diasMora > 0 ? `<div class="text-[10px] text-rose-600">${diasMora} días de mora</div>` : ''}
             </td>
-            <td class="p-3 text-right font-mono text-slate-500">$${Number(c.total_usd || 0).toFixed(2)}</td>
-            <td class="p-3 text-right font-mono font-bold text-blue-600">$${Number(c.saldo_usd || 0).toFixed(2)}</td>
+            <td class="p-3 text-right font-mono text-slate-500">$${formatNumber(c.total_usd || 0, 2)}</td>
+            <td class="p-3 text-right font-mono font-bold text-blue-600">$${formatNumber(c.saldo_usd || 0, 2)}</td>
             <td class="p-3 text-center">${badgeEstado(estado)}</td>
         `;
         tbody.appendChild(tr);
@@ -139,7 +140,7 @@ function renderPagos(pagos = []) {
         div.className = 'p-2 border rounded-xl bg-slate-50 flex justify-between items-center';
         div.innerHTML = `
             <div class="text-xs text-slate-600">
-                <div class="font-bold text-slate-800">$${Number(p.monto_usd || 0).toFixed(2)}${p.moneda === 'BS' ? ` (Bs ${Number(p.monto_moneda || 0).toFixed(2)})` : ''}</div>
+                <div class="font-bold text-slate-800">$${formatNumber(p.monto_usd || 0, 2)}${p.moneda === 'BS' ? ` (Bs ${formatNumber(p.monto_moneda || 0, 2)})` : ''}</div>
                 <div>${new Date(p.fecha).toLocaleString()}</div>
                 ${p.metodo ? `<div>${p.metodo}${p.referencia ? ' - ' + p.referencia : ''}</div>` : ''}
                 ${p.notas ? `<div class="text-slate-500">${p.notas}</div>` : ''}
@@ -173,7 +174,7 @@ function renderItems(items = []) {
                     ${it.codigo ? `<div class="text-[11px] text-slate-400">${it.codigo}</div>` : ''}
                 </div>
                 <div class="text-xs text-slate-600 text-right">
-                    <div class="font-mono">$${Number(it.precio_usd || 0).toFixed(2)}</div>
+                    <div class="font-mono">$${formatNumber(it.precio_usd || 0, 2)}</div>
                 </div>
             `;
             cont.appendChild(div);
@@ -191,8 +192,8 @@ function renderDetalle(data) {
     cuentaSeleccionada = cuenta;
     document.getElementById('detalle-cliente').textContent = cuenta ? (cuenta.cliente_nombre || 'Cliente') : 'Seleccione una cuenta';
     document.getElementById('detalle-estado').innerHTML = cuenta ? badgeEstado(cuenta.estado_calc || cuenta.estado) : '';
-    document.getElementById('detalle-total').textContent = cuenta ? `$${Number(cuenta.total_usd || 0).toFixed(2)}` : '—';
-    document.getElementById('detalle-saldo').textContent = cuenta ? `$${Number(cuenta.saldo_usd || 0).toFixed(2)}` : '—';
+    document.getElementById('detalle-total').textContent = cuenta ? `$${formatNumber(cuenta.total_usd || 0, 2)}` : '—';
+    document.getElementById('detalle-saldo').textContent = cuenta ? `$${formatNumber(cuenta.saldo_usd || 0, 2)}` : '—';
     document.getElementById('detalle-emision').textContent = cuenta ? (cuenta.fecha_emision || '') : '—';
     document.getElementById('detalle-venc').textContent = cuenta ? (cuenta.fecha_vencimiento || '') : '—';
     document.getElementById('detalle-notas').textContent = cuenta?.notas || '—';

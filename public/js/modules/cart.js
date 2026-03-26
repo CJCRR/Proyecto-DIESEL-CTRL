@@ -1,5 +1,7 @@
 // cart.js - Módulo de gestión del carrito y parte de la UI del POS
 
+import { formatNumber } from '../format-utils.js';
+
 // Estado compartido (se importa/exporta también desde otros módulos)
 export let carrito = [];
 export let productoSeleccionado = null;
@@ -100,7 +102,28 @@ export function agregarAlCarrito() {
 		showToast('Advertencia: la cantidad excede el stock físico. Úsalo solo para presupuestos o pedidos.', 'warning');
 	}
 
-	const index = carrito.findIndex(item => item.codigo === productoSeleccionado.codigo);
+	// Depósito seleccionado (si aplica)
+	const depSelect = document.getElementById('pv_deposito');
+	let depositoId = null;
+	let depositoNombre = '';
+	if (depSelect && depSelect.value) {
+		const parsed = parseInt(depSelect.value, 10);
+		if (!Number.isNaN(parsed)) {
+			depositoId = parsed;
+		}
+		const opt = depSelect.options[depSelect.selectedIndex];
+		if (opt && opt.textContent) {
+			// Tomar solo el nombre antes del paréntesis de cantidad
+			const raw = opt.textContent.trim();
+			const idxParen = raw.indexOf('(');
+			depositoNombre = (idxParen > 0 ? raw.slice(0, idxParen) : raw).trim();
+		}
+	}
+
+	const index = carrito.findIndex(item =>
+		item.codigo === productoSeleccionado.codigo &&
+		((item.deposito_id || null) === (depositoId || null))
+	);
 
 	// Determinar el precio de venta segun la estrategia de precios configurada
 	let precioBase = Number(productoSeleccionado.precio_usd || 0) || 0;
@@ -133,6 +156,8 @@ export function agregarAlCarrito() {
 			codigo: productoSeleccionado.codigo,
 			descripcion: productoSeleccionado.descripcion,
 			marca: productoSeleccionado.marca || '',
+			deposito_id: depositoId,
+			deposito_nombre: depositoNombre,
 			precio_base_usd: precioBase,
 			precio_usd: precioVenta,
 			cantidad: cantidad
@@ -202,15 +227,19 @@ export function actualizarTabla() {
 
 		const tr = document.createElement('tr');
 		tr.className = "border-b text-sm hover:bg-slate-50 transition-colors";
+		const depLabel = item.deposito_nombre ? `<div class=\"text-[11px] text-slate-400\">Depósito: ${escapeHtml(item.deposito_nombre)}</div>` : '';
 		const qtyCell = modoDevolucion
 			? `<input type="number" min="0" max="${item.maxCantidad || item.cantidad}" value="${item.cantidad}" class="w-16 text-center border rounded" data-idx="${index}" data-role="dev-qty">`
 			: `${item.cantidad}`;
 		tr.innerHTML = `
-			<td class="p-4 font-bold text-slate-600">${escapeHtml(item.codigo)}</td>
-			<td class="p-4 text-slate-500">${escapeHtml(item.descripcion)}</td>
-			<td class="p-4 text-center font-bold">${qtyCell}</td>
-			<td class="p-4 text-right text-slate-400 font-mono cursor-help" data-role="precio-usd" data-tooltip="$${item.precio_usd.toFixed(2)} • ≈ ${precioBs.toFixed(2)} Bs">$${item.precio_usd.toFixed(2)}</td>
-			<td class="p-4 text-right font-black ${modoDevolucion ? 'text-rose-600' : 'text-blue-600'} font-mono cursor-help" data-role="subtotal-usd" data-tooltip="$${subtotalUSD.toFixed(2)} • ≈ ${subtotalBs.toFixed(2)} Bs">$${subtotalUSD.toFixed(2)}</td>
+			<td class=\"p-4 font-bold text-slate-600\">${escapeHtml(item.codigo)}</td>
+			<td class=\"p-4 text-slate-500\">
+				<div>${escapeHtml(item.descripcion)}</div>
+				${depLabel}
+			</td>
+			<td class=\"p-4 text-center font-bold\">${qtyCell}</td>
+			<td class=\"p-4 text-right text-slate-400 font-mono cursor-help\" data-role=\"precio-usd\" data-tooltip=\"$${formatNumber(item.precio_usd, 2)} • ≈ ${formatNumber(precioBs, 2)} Bs\">$${formatNumber(item.precio_usd, 2)}</td>
+			<td class=\"p-4 text-right font-black ${modoDevolucion ? 'text-rose-600' : 'text-blue-600'} font-mono cursor-help\" data-role=\"subtotal-usd\" data-tooltip=\"$${formatNumber(subtotalUSD, 2)} • ≈ ${formatNumber(subtotalBs, 2)} Bs\">$${formatNumber(subtotalUSD, 2)}</td>
 			<td class="p-4 text-center">
 				<button onclick="eliminarDelCarrito(${index})" class="btn-trash" title="Quitar del carrito">
 					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
@@ -366,15 +395,15 @@ export function actualizarTabla() {
 	const igtfPctLabel = document.getElementById('igtf-pct-label');
 	const igtfBsEl = document.getElementById('total-igtf-bs');
 
-	if (subtotalUsdEl) subtotalUsdEl.innerText = (baseUsd * sign).toFixed(2);
-	if (subtotalBsEl) subtotalBsEl.innerText = (baseBs * sign).toLocaleString('es-VE', { minimumFractionDigits: 2 });
-	if (totalUsdEl) totalUsdEl.innerText = (totalUsdFinal * sign).toFixed(2);
-	if (totalBsEl) totalBsEl.innerText = (totalBsFinal * sign).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+	if (subtotalUsdEl) subtotalUsdEl.innerText = formatNumber(baseUsd * sign, 2);
+	if (subtotalBsEl) subtotalBsEl.innerText = formatNumber(totalBsFinal === 0 ? baseBs * sign : baseBs * sign, 2);
+	if (totalUsdEl) totalUsdEl.innerText = formatNumber(totalUsdFinal * sign, 2);
+	if (totalBsEl) totalBsEl.innerText = formatNumber(totalBsFinal * sign, 2);
 	if (ivaRow && ivaPctLabel && ivaBsEl) {
 		if (ivaPct > 0 && baseUsd > 0 && !modoDevolucion) {
 			ivaRow.classList.remove('hidden');
 			ivaPctLabel.textContent = `${ivaPct.toFixed(0)}%`;
-			ivaBsEl.textContent = (ivaBs * sign).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+			ivaBsEl.textContent = formatNumber(ivaBs * sign, 2);
 		} else {
 			ivaRow.classList.add('hidden');
 			ivaPctLabel.textContent = '';
@@ -385,7 +414,7 @@ export function actualizarTabla() {
 		if (igtfPct > 0 && baseUsd > 0 && !modoDevolucion) {
 			igtfRow.classList.remove('hidden');
 			igtfPctLabel.textContent = `${igtfPct.toFixed(0)}%`;
-			igtfBsEl.textContent = (igtfBs * sign).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+			igtfBsEl.textContent = formatNumber(igtfBs * sign, 2);
 		} else {
 			igtfRow.classList.add('hidden');
 			igtfPctLabel.textContent = '';
@@ -454,6 +483,15 @@ export function limpiarSeleccion() {
 	if (buscarInput) buscarInput.value = '';
 	const qty = document.getElementById('v_cantidad');
 	if (qty) qty.value = 1;
+	const infoEl = document.getElementById('pv-producto-info');
+	if (infoEl) infoEl.textContent = '';
+	const depWrapper = document.getElementById('pv-deposito-wrapper');
+	const depSelect = document.getElementById('pv_deposito');
+	if (depSelect) {
+		depSelect.innerHTML = '<option value="">Automático</option>';
+		depSelect.value = '';
+	}
+	if (depWrapper) depWrapper.classList.add('hidden');
 	if (buscarInput) buscarInput.focus();
 }
 

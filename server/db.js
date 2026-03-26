@@ -179,8 +179,12 @@ const schema = `
     telefono TEXT,
     tasa_bcv REAL,
     descuento REAL DEFAULT 0,
+    iva_pct REAL,
+    igtf_pct REAL,
     total_bs REAL DEFAULT 0,
     total_usd REAL DEFAULT 0,
+    total_bs_iva REAL,
+    total_usd_iva REAL,
     valido_hasta TEXT,
     estado TEXT DEFAULT 'activo',
     notas TEXT,
@@ -318,8 +322,12 @@ const migrations = [
         telefono TEXT,
         tasa_bcv REAL,
         descuento REAL DEFAULT 0,
+        iva_pct REAL,
+        igtf_pct REAL,
         total_bs REAL DEFAULT 0,
         total_usd REAL DEFAULT 0,
+        total_bs_iva REAL,
+        total_usd_iva REAL,
         valido_hasta TEXT,
         estado TEXT DEFAULT 'activo',
         notas TEXT,
@@ -341,6 +349,23 @@ const migrations = [
       if (!indexExists('idx_presupuestos_fecha')) db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuestos_fecha ON presupuestos (fecha)').run();
       if (!indexExists('idx_presupuesto_detalle_presupuesto_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuesto_detalle_presupuesto_id ON presupuesto_detalle (presupuesto_id)').run();
       if (!indexExists('idx_presupuesto_detalle_producto_id')) db.prepare('CREATE INDEX IF NOT EXISTS idx_presupuesto_detalle_producto_id ON presupuesto_detalle (producto_id)').run();
+    }
+  },
+  {
+    id: '016_presupuestos_iva_igtf_totales',
+    up: () => {
+      if (columnExists('presupuestos', 'iva_pct') === false) {
+        db.prepare('ALTER TABLE presupuestos ADD COLUMN iva_pct REAL').run();
+      }
+      if (columnExists('presupuestos', 'igtf_pct') === false) {
+        db.prepare('ALTER TABLE presupuestos ADD COLUMN igtf_pct REAL').run();
+      }
+      if (columnExists('presupuestos', 'total_bs_iva') === false) {
+        db.prepare('ALTER TABLE presupuestos ADD COLUMN total_bs_iva REAL').run();
+      }
+      if (columnExists('presupuestos', 'total_usd_iva') === false) {
+        db.prepare('ALTER TABLE presupuestos ADD COLUMN total_usd_iva REAL').run();
+      }
     }
   },
   {

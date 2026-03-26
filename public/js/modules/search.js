@@ -34,6 +34,79 @@ function ocultarResultados() {
 	_refs.resultadosUL.classList.add('hidden');
 }
 
+async function handleResultadoClick(p) {
+	if (_refs.resultadosUL) {
+		_refs.resultadosUL.classList.add('hidden');
+	}
+
+	let detalle = null;
+	if (_refs.apiFetchJson && p && p.codigo) {
+		try {
+			detalle = await _refs.apiFetchJson(`/productos/${encodeURIComponent(p.codigo)}`);
+		} catch (err) {
+			console.warn('No se pudo obtener detalle de producto para depósitos', err);
+		}
+	}
+
+	const productoInfoEl = document.getElementById('pv-producto-info');
+	const depWrapper = document.getElementById('pv-deposito-wrapper');
+	const depSelect = document.getElementById('pv_deposito');
+
+	let existencias = Array.isArray(detalle?.existencias_por_deposito)
+		? detalle.existencias_por_deposito
+		: [];
+	const existenciasConStock = existencias.filter(e => Number(e.cantidad || 0) > 0);
+
+	// Mostrar resumen de stock total + por depósito (si hay datos)
+	if (productoInfoEl) {
+		const stockTotal = typeof p.stock === 'number' ? p.stock : Number(p.stock || 0) || 0;
+		if (existenciasConStock.length > 0) {
+			const partes = existenciasConStock.map(e => {
+				const nombre = (e.deposito_nombre || '').toString();
+				const cant = Number(e.cantidad || 0) || 0;
+				return `${nombre}: ${cant}`;
+			});
+			productoInfoEl.textContent = `Stock total: ${stockTotal} 
+• Por depósito: ${partes.join(' • ')}`;
+		} else {
+			productoInfoEl.textContent = `Stock total: ${stockTotal}`;
+		}
+	}
+
+	// Poblar selector de depósito cuando haya stock en más de un depósito
+	if (depSelect && depWrapper) {
+		if (existenciasConStock.length <= 1) {
+			if (existenciasConStock.length === 1) {
+				// Autoseleccionar el único depósito con stock aunque el selector se mantenga oculto
+				const unico = existenciasConStock[0];
+				depSelect.innerHTML = `<option value="">Automático</option>` +
+					`<option value="${unico.deposito_id}">${unico.deposito_nombre} (${unico.cantidad})</option>`;
+				depSelect.value = String(unico.deposito_id);
+			} else {
+				depSelect.innerHTML = '<option value="">Automático</option>';
+				depSelect.value = '';
+			}
+			depWrapper.classList.add('hidden');
+		} else {
+			const options = ['<option value="">Automático</option>'];
+			existenciasConStock.forEach(e => {
+				const nombre = (e.deposito_nombre || '').toString();
+				const cant = Number(e.cantidad || 0) || 0;
+				options.push(`<option value="${e.deposito_id}">${nombre} (${cant})</option>`);
+			});
+			depSelect.innerHTML = options.join('');
+			depSelect.value = '';
+			depWrapper.classList.remove('hidden');
+		}
+	}
+
+	// Pasar producto (con detalle opcional) al módulo de carrito
+	const productoParaCarrito = detalle ? { ...p, ...detalle } : p;
+	if (_refs.prepararParaAgregar) {
+		_refs.prepararParaAgregar(productoParaCarrito);
+	}
+}
+
 function onDocumentClick(e) {
 	if (!_refs.buscarInput || !_refs.resultadosUL) return;
 	const target = e.target;
@@ -98,9 +171,9 @@ function renderResultados(data) {
 						<span class="block text-blue-600 font-black">Stock: ${_refs.escapeHtml ? _refs.escapeHtml(p.stock) : p.stock}</span>
 						<span class="block text-[13px] font-bold text-slate-400 uppercase">$${_refs.escapeHtml ? _refs.escapeHtml(p.precio_usd) : p.precio_usd}</span>
 					</div>`;
-			li.addEventListener('click', () => {
-				if (_refs.prepararParaAgregar) _refs.prepararParaAgregar(p);
-			});
+				li.addEventListener('click', () => {
+					handleResultadoClick(p);
+				});
 			_refs.resultadosUL.appendChild(li);
 		});
 	} else {

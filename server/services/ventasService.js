@@ -154,7 +154,11 @@ function registrarVenta(payload) {
                 throw new Error(`Stock insuficiente para el producto: ${item.codigo}`);
             }
 
-            const depositoVentaId = producto.deposito_id;
+            // Permitir que cada item indique explícitamente el depósito origen de la venta.
+            // Si no viene en el payload (clientes viejos/offline), se usa el deposito_id del producto
+            // como antes para mantener compatibilidad.
+            const itemDepositoId = item.deposito_id != null ? Number(item.deposito_id) : null;
+            const depositoVentaId = itemDepositoId || producto.deposito_id;
             if (!depositoVentaId) {
                 throw new Error(`El producto ${item.codigo} no tiene depósito asignado para la venta`);
             }

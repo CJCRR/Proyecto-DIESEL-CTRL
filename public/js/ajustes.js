@@ -1,5 +1,6 @@
 import { borrarClientesFirebaseTodos, borrarVentasFirebaseTodas, borrarProductosFirebaseTodos } from './firebase-sync.js';
 import { showToast } from './app-utils.js';
+import { formatNumber } from './format-utils.js';
 import { apiFetchJson } from './app-api.js';
 import { initCustomSelect } from './modules/ui.js';
 
@@ -229,7 +230,7 @@ function renderPlanHistorial(pagos = []) {
         row.className = 'px-3 py-2 flex items-center justify-between gap-2';
         const fecha = formatFechaCorta(p.fecha);
         const monto = typeof p.monto_mensual === 'number' && !Number.isNaN(p.monto_mensual)
-            ? `$${p.monto_mensual.toFixed(2)}`
+            ? `$${formatNumber(p.monto_mensual, 2)}`
             : (p.monto || p.monto_usd || '—');
         const estado = (p.estado || '').toString().toLowerCase();
         const estadoLabel = estado === 'pendiente'
@@ -278,7 +279,7 @@ async function loadPlanResumen() {
 
         const planName = empresa.plan || 'Sin plan asignado';
         const monto = typeof empresa.monto_mensual === 'number' && !Number.isNaN(empresa.monto_mensual)
-            ? `$${empresa.monto_mensual.toFixed(2)} / mes`
+            ? `$${formatNumber(empresa.monto_mensual, 2)} / mes`
             : 'Monto no configurado';
         const proximo = empresa.proximo_cobro || null;
         const ultimo = empresa.ultimo_pago_en || null;

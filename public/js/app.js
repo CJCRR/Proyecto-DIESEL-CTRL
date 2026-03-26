@@ -1,6 +1,7 @@
 import { sincronizarVentasPendientes } from './firebase-sync.js';
 import { authFetch, apiFetchJson } from './app-api.js';
 import { escapeHtml, showToast } from './app-utils.js';
+import { formatNumber } from './format-utils.js';
 import { guardarProductoLocal } from './db-local.js';
 
 import {
@@ -96,7 +97,7 @@ function setTasaUI(tasa, actualizadoEn) {
         actualizarTabla();
     }
     const kpi = document.getElementById('pv-kpi-tasa');
-    if (kpi) kpi.textContent = TASA_BCV_POS.toFixed(2);
+    if (kpi) kpi.textContent = formatNumber(TASA_BCV_POS, 2);
     const alertEl = document.getElementById('pv-tasa-alert');
     if (alertEl) {
         const diffHrs = TASA_BCV_UPDATED_POS ? (Date.now() - new Date(TASA_BCV_UPDATED_POS).getTime()) / 36e5 : null;
@@ -549,7 +550,7 @@ function renderVentasRecientes(filter = '') {
                 <div class="text-[11px] text-slate-500">Ref: ${escapeHtml(v.referencia || '—')} • ${escapeHtml(v.metodo_pago || '')}</div>
             </div>
             <div class="text-right">
-                <div class="font-black text-blue-600">$${Number(totalUsd || 0).toFixed(2)}</div>
+                <div class="font-black text-blue-600">$${formatNumber(totalUsd || 0, 2)}</div>
                 <button class="mt-1 px-2 py-1 text-xs bg-rose-500 text-white rounded" data-dev-sel="${v.id}">Seleccionar</button>
             </div>
         </div>`;
@@ -1064,11 +1065,11 @@ async function actualizarHistorial() {
                     ${(cedula || telefono) ? `<span class="text-[9px] text-slate-400 font-mono">${cedula ? `ID: ${cedula}` : ''}${cedula && telefono ? ' | ' : ''}${telefono ? `Tel: ${telefono}` : ''}</span>` : ''}
                     <span class="text-[9px] text-slate-400 font-mono">${fechaTxt}</span>
                     ${vendedor ? `<span class="text-[9px] text-slate-400 font-mono">Vend: ${vendedor}</span>` : ''}
-                    <span class="text-[9px] text-slate-400 font-mono mt-1">${isDev ? '' : isPres ? '' : `Tasa: ${Number(tasa || 0).toFixed(2)} | `}Método: ${metodo}${referencia ? ` | Ref: ${referencia}` : ''}</span>
+                    <span class="text-[9px] text-slate-400 font-mono mt-1">${isDev ? '' : isPres ? '' : `Tasa: ${formatNumber(tasa || 0, 2)} | `}Método: ${metodo}${referencia ? ` | Ref: ${referencia}` : ''}</span>
                 </div>
                 <div class="text-right">
-                    <span class="font-black ${isDev ? 'text-rose-600' : 'text-blue-600'} block">${totalUsd < 0 ? '-' : ''}$${Math.abs(totalUsd).toFixed(2)}</span>
-                    <span class="text-[10px] text-slate-500 block">${totalBs < 0 ? '-' : ''}${Math.abs(totalBs).toFixed(2)} Bs</span>
+                    <span class="font-black ${isDev ? 'text-rose-600' : 'text-blue-600'} block">${totalUsd < 0 ? '-' : ''}$${formatNumber(Math.abs(totalUsd), 2)}</span>
+                    <span class="text-[10px] text-slate-500 block">${totalBs < 0 ? '-' : ''}${formatNumber(Math.abs(totalBs), 2)} Bs</span>
                     <span class="text-[8px] text-slate-400 font-bold uppercase">${isPres ? 'Usar en POS' : isDev ? 'Devolución registrada' : 'Ver Nota'}${!isDev && !isPres ? ' <i class="fas fa-external-link-alt ml-1"></i>' : ''}</span>
                 </div>
             `;

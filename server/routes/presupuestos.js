@@ -217,11 +217,17 @@ router.post('/', requireAuth, (req, res) => {
     let totalBs = 0;
     let totalUsd = 0;
 
+    // Configuración de nota por empresa para fijar IVA/IGTF al momento de crear el presupuesto
+    const cfgGeneral = obtenerConfigGeneral(empresaId);
+    const notaCfg = (cfgGeneral && cfgGeneral.nota) || {};
+    const ivaPctNum = Math.max(0, Math.min(100, parseFloat(notaCfg.iva_pct) || 0));
+    const igtfPctNum = Math.max(0, Math.min(100, parseFloat(notaCfg.igtf_pct) || 0));
+
     const tx = db.transaction(() => {
       const info = db.prepare(`
-        INSERT INTO presupuestos (fecha, cliente, cliente_doc, telefono, tasa_bcv, descuento, total_bs, total_usd, valido_hasta, estado, notas, usuario_id, empresa_id, nivel_precio)
-        VALUES (?, ?, ?, ?, ?, ?, 0, 0, NULL, 'activo', ?, ?, ?, ?)
-      `).run(fecha, clienteSafe, cedulaSafe, telefonoSafe, tasa, descuentoNum, notasSafe, req.usuario?.id || null, empresaId, nivelPrecioSafe);
+        INSERT INTO presupuestos (fecha, cliente, cliente_doc, telefono, tasa_bcv, descuento, iva_pct, igtf_pct, total_bs, total_usd, total_bs_iva, total_usd_iva, valido_hasta, estado, notas, usuario_id, empresa_id, nivel_precio)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, NULL, 'activo', ?, ?, ?, ?)
+      `).run(fecha, clienteSafe, cedulaSafe, telefonoSafe, tasa, descuentoNum, ivaPctNum, igtfPctNum, notasSafe, req.usuario?.id || null, empresaId, nivelPrecioSafe);
 
       const presupuestoId = info.lastInsertRowid;
 
@@ -257,8 +263,12 @@ router.post('/', requireAuth, (req, res) => {
       const totalBsFinal = totalBs * multiplicador;
       const totalUsdFinal = totalUsd * multiplicador;
 
-      db.prepare('UPDATE presupuestos SET total_bs = ?, total_usd = ? WHERE id = ?')
-        .run(totalBsFinal, totalUsdFinal, presupuestoId);
+      const factorImpuestos = 1 + (ivaPctNum / 100) + (igtfPctNum / 100);
+      const totalBsIva = totalBsFinal * factorImpuestos;
+      const totalUsdIva = totalUsdFinal * factorImpuestos;
+
+      db.prepare('UPDATE presupuestos SET total_bs = ?, total_usd = ?, iva_pct = ?, igtf_pct = ?, total_bs_iva = ?, total_usd_iva = ? WHERE id = ?')
+        .run(totalBsFinal, totalUsdFinal, ivaPctNum, igtfPctNum, totalBsIva, totalUsdIva, presupuestoId);
 
       return presupuestoId;
     });

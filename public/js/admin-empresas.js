@@ -1,4 +1,5 @@
 import { apiFetchJson } from './app-api.js';
+import { formatNumber } from './format-utils.js';
 import { upsertEmpresaFirebase } from './firebase-sync.js';
 import { initCustomSelect } from './modules/ui.js';
 
@@ -212,7 +213,7 @@ function renderEmpresas() {
   empresas.forEach(e => {
     const estadoLicencia = calcularEstadoLicencia(e);
     const esTrial = e.plan && String(e.plan).toUpperCase().startsWith('TRIAL');
-    const planBase = (e.plan || '—') + (e.monto_mensual ? ` / $${Number(e.monto_mensual).toFixed(2)}` : '');
+    const planBase = (e.plan || '—') + (e.monto_mensual ? ` / $${formatNumber(e.monto_mensual, 2)}` : '');
     const planTexto = esTrial ? `${planBase} · TRIAL` : planBase;
     const textoGracia = `${e.dias_gracia || 0} días de gracia`;
     const proximo = e.proximo_cobro ? new Date(e.proximo_cobro).toLocaleDateString() : '—';
@@ -307,7 +308,7 @@ async function cargarPagosLicenciaEmpresa(id) {
     let html = '';
     pagos.forEach((p) => {
       const fecha = formatFechaCortaLocal(p.fecha);
-      const monto = typeof p.monto_usd === 'number' && !Number.isNaN(p.monto_usd) ? `$${p.monto_usd.toFixed(2)}` : '—';
+      const monto = typeof p.monto_usd === 'number' && !Number.isNaN(p.monto_usd) ? `$${formatNumber(p.monto_usd, 2)}` : '—';
       const estado = (p.estado || '').toString().toLowerCase();
       const estadoBadge = estado === 'pendiente'
         ? '<span class="ml-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold">Pendiente</span>'

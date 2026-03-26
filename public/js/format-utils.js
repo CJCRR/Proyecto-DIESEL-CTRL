@@ -7,9 +7,16 @@ export function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Formatea un número con decimales fijos (por defecto, 2). */
+/**
+ * Formatea un número con separador de miles "." y separador decimal ",".
+ * Ej: 12345.6 -> "12.345,60" (por defecto, 2 decimales).
+ */
 export function formatNumber(value, decimals = 2) {
-  return toNumber(value).toFixed(decimals);
+  const n = toNumber(value);
+  const fixed = n.toFixed(decimals);
+  const [intPart, decPart] = fixed.split('.');
+  const intWithSep = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decPart != null && decPart !== '' ? `${intWithSep},${decPart}` : intWithSep;
 }
 
 /** Formatea un monto en dólares como "$123.45". */

@@ -1,6 +1,7 @@
 import { obtenerClientesFirebase, upsertClienteFirebase, eliminarClienteFirebasePorCedula, eliminarClienteFirebasePorId } from './firebase-sync.js';
 import { showToast } from './app-utils.js';
 import { apiFetchJson } from './app-api.js';
+import { formatNumber } from './format-utils.js';
 
 console.log('clientes.js v2.0 cargado - con autenticación');
 
@@ -59,7 +60,7 @@ async function cargarHistorial() {
         const rows = await apiFetchJson(`/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=20`);
         body.innerHTML = rows
             .map(
-                (r) => `<tr><td class="p-2">${new Date(r.fecha).toLocaleString()}</td><td class="p-2">${r.vendedor || ''}</td><td class="p-2 text-right">${Number(r.total_usd || 0).toFixed(2)}</td></tr>`,
+                (r) => `<tr><td class=\"p-2\">${new Date(r.fecha).toLocaleString()}</td><td class=\"p-2\">${r.vendedor || ''}</td><td class=\"p-2 text-right\">${formatNumber(r.total_usd || 0, 2)}</td></tr>`,
             )
             .join('');
     } catch (err) {

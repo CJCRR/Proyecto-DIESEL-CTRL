@@ -208,7 +208,11 @@ function crearCompra(payload = {}, usuario) {
         : costo;
       updateProdStock.run(nuevoStockTotal, costoParaActualizar, marca, precioParaActualizar, prod.id);
 
-      const depositoId = prod.deposito_id;
+      // Permitir que cada item de compra indique explícitamente el depósito destino.
+      // Si no viene depósito en el payload, conservar el comportamiento anterior
+      // usando el deposito_id del producto.
+      const itemDepositoId = raw.deposito_id != null ? parseInt(raw.deposito_id, 10) || null : null;
+      const depositoId = itemDepositoId || prod.deposito_id;
       if (depositoId) {
         const rowDep = selectStockDep.get(prod.id, depositoId);
         if (rowDep) {

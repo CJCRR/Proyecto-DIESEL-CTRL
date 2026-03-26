@@ -2,6 +2,7 @@ import { apiFetchJson } from './app-api.js';
 import { showToast, escapeHtml } from './app-utils.js';
 import { upsertProductoFirebase } from './firebase-sync.js';
 import { initCustomSelect } from './modules/ui.js';
+import { formatNumber } from './format-utils.js';
 
 let proveedores = [];
 let items = [];
@@ -94,7 +95,7 @@ function renderProductoInfo() {
   const p = productoSeleccionado;
   const desc = p.descripcion ? ` - ${p.descripcion}` : '';
   const stock = typeof p.stock === 'number' ? ` | Stock: ${p.stock}` : '';
-  const precio = typeof p.precio_usd === 'number' ? ` | Precio ref: $${p.precio_usd.toFixed(2)}` : '';
+	const precio = typeof p.precio_usd === 'number' ? ` | Precio ref: $${formatNumber(p.precio_usd, 2)}` : '';
   const marca = p.marca ? ` | Marca: ${p.marca}` : '';
   info.textContent = `Producto: ${p.codigo || ''}${desc}${stock}${precio}${marca}`;
 }
@@ -133,9 +134,9 @@ function renderItems() {
           <td class="p-2 text-xs text-slate-600">${escapeHtml(it.descripcion || '')}</td>
           <td class="p-2 text-xs text-slate-600">${escapeHtml(it.marca || '')}</td>
           <td class="p-2 text-xs text-right">${it.cantidad}</td>
-          <td class="p-2 text-xs text-right">$${it.costo.toFixed(2)}</td>
-          <td class="p-2 text-xs text-right">$${subUsd.toFixed(2)}</td>
-          <td class="p-2 text-xs text-right">${subBs.toFixed(2)}</td>
+          <td class="p-2 text-xs text-right">$${formatNumber(it.costo, 2)}</td>
+          <td class="p-2 text-xs text-right">$${formatNumber(subUsd, 2)}</td>
+          <td class="p-2 text-xs text-right">${formatNumber(subBs, 2)}</td>
           <td class="p-2 text-xs text-slate-500">${escapeHtml(it.lote || '')}</td>
             <td class="p-2 text-xs text-right">
             <button data-idx="${idx}" class="btn-trash" title="Quitar item">
@@ -168,7 +169,7 @@ function renderResumen() {
   });
   const totalBs = totalUsd * tasa;
   const el = document.getElementById('c_resumen');
-  el.textContent = `Items: ${items.length} • Total USD: $${totalUsd.toFixed(2)} • Total Bs: ${totalBs.toFixed(2)}`;
+  el.textContent = `Items: ${items.length} • Total USD: $${formatNumber(totalUsd, 2)} • Total Bs: ${formatNumber(totalBs, 2)}`;
 }
 
 function abrirModalNuevoProducto() {
@@ -264,16 +265,23 @@ async function crearProductoDesdeCompras(event) {
 async function cargarDepositosCompras() {
   if (depositosComprasCargados) return;
   const npDeposito = document.getElementById('np_deposito');
-  if (!npDeposito) return;
+  const cDeposito = document.getElementById('c_deposito');
+  if (!npDeposito && !cDeposito) return;
   try {
     const res = await apiFetchJson('/depositos?soloActivos=1');
     const items = Array.isArray(res) ? res : [];
-    npDeposito.innerHTML = '<option value="">(Depósito principal)</option>' +
-      items.map(d => `<option value="${d.id}">${escapeHtml(d.nombre || '')}</option>`).join('');
+    const optionsHtml = items.map(d => `<option value="${d.id}">${escapeHtml(d.nombre || '')}</option>`).join('');
+    if (npDeposito) {
+      npDeposito.innerHTML = '<option value="">(Depósito principal)</option>' + optionsHtml;
+    }
+    if (cDeposito) {
+      cDeposito.innerHTML = '<option value="">Depósito destino (opcional)</option>' + optionsHtml;
+    }
     depositosComprasCargados = true;
   } catch (err) {
     console.error(err);
-    npDeposito.innerHTML = '<option value="">(Depósito principal)</option>';
+    if (npDeposito) npDeposito.innerHTML = '<option value="">(Depósito principal)</option>';
+    if (cDeposito) cDeposito.innerHTML = '<option value="">Depósito destino (opcional)</option>';
   }
 }
 
@@ -353,7 +361,25 @@ function agregarItemDesdeFormulario() {
 
   const marca = marcaInput || marcaBase;
 
-  items.push({ codigo, descripcion: desc, marca, cantidad, costo, usarCostoAnterior, precio, usarPrecioAnterior, lote: '' });
+  const depSelect = document.getElementById('c_deposito');
+  const depositoId = depSelect && depSelect.value ? (parseInt(depSelect.value, 10) || null) : null;
+  const depositoNombre = depSelect && depSelect.value
+    ? (depSelect.options[depSelect.selectedIndex]?.textContent || '').trim()
+    : '';
+
+  items.push({
+    codigo,
+    descripcion: desc,
+    marca,
+    cantidad,
+    costo,
+    usarCostoAnterior,
+    precio,
+    usarPrecioAnterior,
+    lote: '',
+    deposito_id: depositoId,
+    deposito_nombre: depositoNombre,
+  });
   document.getElementById('c_codigo').value = '';
   document.getElementById('c_cantidad').value = '';
   document.getElementById('c_costo').value = '';
@@ -390,6 +416,7 @@ async function guardarCompra() {
       precio_venta_usd: it.usarPrecioAnterior ? null : it.precio,
       lote: '',
       observaciones: it.observaciones,
+      deposito_id: it.deposito_id != null ? it.deposito_id : null,
     })),
   };
 
@@ -454,7 +481,7 @@ async function buscarProductos(q) {
       const desc = (p.descripcion || '').toString().toUpperCase();
       const marca = p.marca ? `Marca: ${escapeHtml(p.marca)} · ` : '';
       const stock = typeof p.stock === 'number' ? `Stock: ${p.stock}` : '';
-      const precio = typeof p.precio_usd === 'number' ? ` · $${p.precio_usd.toFixed(2)}` : '';
+      const precio = typeof p.precio_usd === 'number' ? ` · $${formatNumber(p.precio_usd, 2)}` : '';
       return `
         <li data-cod="${escapeHtml(p.codigo)}" class="p-3 border-b last:border-b-0 hover:bg-slate-50 cursor-pointer flex justify-between items-center text-sm">
           <div class="flex flex-col">
@@ -523,8 +550,8 @@ async function cargarHistorialCompras() {
         <tr class="cursor-pointer hover:bg-slate-50" data-compra-id="${id}">
           <td class="p-2 text-xs">${escapeHtml(fechaStr)}</td>
           <td class="p-2 text-xs">${escapeHtml(c.proveedor_nombre || '')}</td>
-          <td class="p-2 text-xs text-right">$${totalUsd.toFixed(2)}</td>
-          <td class="p-2 text-xs text-right">${totalBs.toFixed(2)}</td>
+          <td class="p-2 text-xs text-right">$${formatNumber(totalUsd, 2)}</td>
+          <td class="p-2 text-xs text-right">${formatNumber(totalBs, 2)}</td>
         </tr>
         <tr class="bg-slate-50 hidden" data-compra-detalle-id="${id}">
           <td colspan="4" class="p-2">
@@ -600,9 +627,9 @@ async function toggleDetalleCompra(id) {
         <div class="font-semibold text-slate-700">Compra #${compra.id || ''} ${compra.numero ? `- ${escapeHtml(compra.numero)}` : ''}</div>
         <div class="text-[11px] text-slate-500">Tasa BCV: ${compra.tasa_bcv || 1} ${compra.notas ? `| Notas: ${escapeHtml(compra.notas)}` : ''}</div>
       </div>
-      <div class="text-[11px] text-slate-500 text-right">
-        <div>Total USD: $${(compra.total_usd || 0).toFixed(2)}</div>
-        <div>Total Bs: ${(compra.total_bs || 0).toFixed(2)}</div>
+        <div class="text-[11px] text-slate-500 text-right">
+        <div>Total USD: $${formatNumber(compra.total_usd || 0, 2)}</div>
+        <div>Total Bs: ${formatNumber(compra.total_bs || 0, 2)}</div>
       </div>
     </div>
   `;
@@ -636,9 +663,9 @@ async function toggleDetalleCompra(id) {
                   <td class="p-2">${escapeHtml((d.descripcion || d.producto_descripcion_db || '').toString().toUpperCase())}</td>
                   <td class="p-2">${escapeHtml(d.marca || d.producto_marca_db || '')}</td>
                   <td class="p-2 text-right">${d.cantidad || 0}</td>
-                  <td class="p-2 text-right">$${(d.costo_usd || 0).toFixed(2)}</td>
-                  <td class="p-2 text-right">$${subUsd.toFixed(2)}</td>
-                  <td class="p-2 text-right">${subBs.toFixed(2)}</td>
+                  <td class="p-2 text-right">$${formatNumber(d.costo_usd || 0, 2)}</td>
+                  <td class="p-2 text-right">$${formatNumber(subUsd, 2)}</td>
+                  <td class="p-2 text-right">${formatNumber(subBs, 2)}</td>
                   <td class="p-2">${escapeHtml(d.lote || '')}</td>
                 </tr>
               `;

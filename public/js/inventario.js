@@ -1,6 +1,8 @@
 import { upsertProductoFirebase, eliminarProductoFirebasePorCodigo } from './firebase-sync.js';
 import { showToast, escapeHtml } from './app-utils.js';
 import { initCustomSelect } from './modules/ui.js';
+import { apiFetchJson } from './app-api.js';
+import { formatNumber } from './format-utils.js';
 
 // Código principal de inventario (movido desde inventario.html)
 console.log('inventario.html v2.0 - con autenticación');
@@ -351,7 +353,7 @@ function renderList(items) {
         el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs ">${descUpper}</span></div><div class="text-xs text-slate-400">${catUpper}${marcaUpper ? ` · Marca: ${marcaUpper}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}${incompletosBadges}</div>
             <div class="text-right space-y-0.5 min-w-[170px]">
                 <div class="text-sm font-black">Stock: ${p.stock || 0}${badgeHtml}</div>
-                <div class="text-xs text-slate-600">Precio $${precio.toFixed(2)}</div>
+                <div class="text-xs text-slate-600">Precio $${formatNumber(precio, 2)}</div>
             </div>`;
              
             // por si quieres que saga el margen y costo también en la lista, aunque puede quedar muy cargada visualmente

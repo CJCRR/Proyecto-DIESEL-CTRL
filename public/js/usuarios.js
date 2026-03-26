@@ -1,4 +1,5 @@
 import { apiFetchJson } from './app-api.js';
+import { formatNumber } from './format-utils.js';
 import { upsertUsuarioFirebase, deleteUsuarioFirebase } from './firebase-sync.js';
 import { initCustomSelect } from './modules/ui.js';
 
@@ -107,8 +108,8 @@ function renderUsuarios() {
       : '<span class="text-slate-400">Nunca</span>';
 
     const comisionTexto = (u.comision_pct !== undefined && u.comision_pct !== null)
-      ? (Number(u.comision_pct) ? (Number(u.comision_pct).toFixed(2).replace(/\.00$/, '') + '%') : '0%')
-      : '0%';
+    ? (Number(u.comision_pct) ? (formatNumber(u.comision_pct, 2).replace(/,00$/, '') + '%') : '0%')
+    : '0%';
 
     const esMismoUsuario = u.id === usuarioActual.id;
 
