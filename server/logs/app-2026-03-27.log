@@ -23,3 +23,9 @@
 2026-03-27T19:45:03.876Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
 2026-03-27T19:45:03.879Z [INFO] 📦 Backup automático creado: backup_2026-03-27T19-45-03-867Z.sqlite 
 2026-03-27T19:45:56.269Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-27T19:50:27.642Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-27T19:50:27.645Z [INFO] 📦 Backup automático creado: backup_2026-03-27T19-50-27-634Z.sqlite 
+2026-03-27T19:59:29.643Z [INFO] Recibida señal SIGINT, cerrando servidor... 
+2026-03-27T19:59:32.292Z [INFO] Servidor Diesel Ctrl ejecutándose en http://localhost:3000 
+2026-03-27T19:59:32.296Z [INFO] 📦 Backup automático creado: backup_2026-03-27T19-59-32-279Z.sqlite 
+2026-03-27T20:00:44.078Z [INFO] Recibida señal SIGINT, cerrando servidor... 

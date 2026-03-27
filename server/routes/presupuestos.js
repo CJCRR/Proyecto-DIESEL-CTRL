@@ -59,9 +59,11 @@ router.get('/:id', requireAuth, (req, res) => {
       : db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
     if (!presupuesto) return res.status(404).json({ error: 'Presupuesto no encontrado' });
     const detalles = db.prepare(`
-      SELECT pd.*, p.stock, p.precio_usd AS precio_base_usd
+      SELECT pd.*, p.stock, p.precio_usd AS precio_base_usd,
+             p.deposito_id, d.nombre AS deposito_nombre
       FROM presupuesto_detalle pd
       LEFT JOIN productos p ON p.id = pd.producto_id
+      LEFT JOIN depositos d ON d.id = p.deposito_id
       WHERE pd.presupuesto_id = ?
     `).all(id);
     res.json({ presupuesto, detalles });

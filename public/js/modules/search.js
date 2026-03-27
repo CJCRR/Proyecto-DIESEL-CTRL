@@ -73,29 +73,34 @@ async function handleResultadoClick(p) {
 		}
 	}
 
-	// Poblar selector de depósito cuando haya stock en más de un depósito
+	// Poblar selector de depósito usando solo los depósitos reales.
+	// - Si hay exactamente un depósito con stock, se selecciona automáticamente
+	//   y el selector puede permanecer oculto.
+	// - Si hay más de uno, se muestran todos SIN opción "Automático" para que
+	//   siempre quede asociado un depósito concreto en el carrito.
 	if (depSelect && depWrapper) {
 		if (existenciasConStock.length <= 1) {
 			if (existenciasConStock.length === 1) {
-				// Autoseleccionar el único depósito con stock aunque el selector se mantenga oculto
 				const unico = existenciasConStock[0];
-				depSelect.innerHTML = `<option value="">Automático</option>` +
-					`<option value="${unico.deposito_id}">${unico.deposito_nombre} (${unico.cantidad})</option>`;
+				depSelect.innerHTML = `<option value="${unico.deposito_id}">${unico.deposito_nombre} (${unico.cantidad})</option>`;
 				depSelect.value = String(unico.deposito_id);
 			} else {
-				depSelect.innerHTML = '<option value="">Automático</option>';
+				depSelect.innerHTML = '';
 				depSelect.value = '';
 			}
 			depWrapper.classList.add('hidden');
 		} else {
-			const options = ['<option value="">Automático</option>'];
+			const options = [];
 			existenciasConStock.forEach(e => {
 				const nombre = (e.deposito_nombre || '').toString();
 				const cant = Number(e.cantidad || 0) || 0;
 				options.push(`<option value="${e.deposito_id}">${nombre} (${cant})</option>`);
 			});
 			depSelect.innerHTML = options.join('');
-			depSelect.value = '';
+			// Seleccionar por defecto el primer depósito de la lista
+			if (existenciasConStock.length > 0) {
+				depSelect.value = String(existenciasConStock[0].deposito_id);
+			}
 			depWrapper.classList.remove('hidden');
 		}
 	}

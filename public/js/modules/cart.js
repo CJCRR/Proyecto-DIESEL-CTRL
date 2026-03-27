@@ -488,7 +488,7 @@ export function limpiarSeleccion() {
 	const depWrapper = document.getElementById('pv-deposito-wrapper');
 	const depSelect = document.getElementById('pv_deposito');
 	if (depSelect) {
-		depSelect.innerHTML = '<option value="">Automático</option>';
+		depSelect.innerHTML = '';
 		depSelect.value = '';
 	}
 	if (depWrapper) depWrapper.classList.add('hidden');
