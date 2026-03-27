@@ -249,18 +249,36 @@ async function borrarProductosFirebaseTodos() {
 async function upsertProductoFirebase(producto) {
     try {
         const { ref, scope } = getEmpresaSubcollection('productos');
-        const { id, ...productoData } = producto || {};
+        const { id, original_codigo, ...productoData } = producto || {};
         const codigo = (producto.codigo || '').trim().toUpperCase();
+        const originalCodigo = (original_codigo || '').trim().toUpperCase();
 
         if (!codigo) {
             throw new Error('Código de producto vacío');
         }
 
+        // 1) Intentar localizar por el código actual
+        let targetId = null;
+        let snap = null;
+
         const qRef = query(ref, where('codigo', '==', codigo));
-        const snap = await getDocs(qRef);
+        snap = await getDocs(qRef);
 
         if (!snap.empty) {
-            const targetId = snap.docs[0].id;
+            targetId = snap.docs[0].id;
+        }
+
+        // 2) Si no existe por el código nuevo y tenemos un código original distinto,
+        //    intentamos actualizar ese documento para evitar duplicados en cambios de código.
+        if (!targetId && originalCodigo && originalCodigo !== codigo) {
+            const qRefOld = query(ref, where('codigo', '==', originalCodigo));
+            const snapOld = await getDocs(qRefOld);
+            if (!snapOld.empty) {
+                targetId = snapOld.docs[0].id;
+            }
+        }
+
+        if (targetId) {
             await updateDoc(doc(db, 'empresas', scope.empresa_codigo, 'productos', targetId), {
                 ...productoData,
                 codigo,
@@ -271,6 +289,7 @@ async function upsertProductoFirebase(producto) {
             return targetId;
         }
 
+        // 3) Si no existe ni por código nuevo ni por original, creamos un nuevo documento
         const docRef = await addDoc(ref, {
             ...productoData,
             codigo,

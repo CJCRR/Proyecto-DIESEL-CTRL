@@ -57,7 +57,7 @@ router.get('/stock', requireAuth, (req, res) => {
     const rows = db.prepare(`
       SELECT codigo, descripcion, stock
       FROM productos
-      WHERE stock <= 0${empresaId ? ' AND empresa_id = ?' : ''}
+      WHERE stock <= 0 AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
       ORDER BY stock ASC, codigo ASC
     `).all(...(empresaId ? [empresaId] : []));
     res.json(rows);
@@ -85,7 +85,7 @@ router.get('/resumen', requireAuth, (req, res) => {
     const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
     const stockCero = db.prepare(`
       SELECT COUNT(*) as c FROM productos
-      WHERE stock <= 0${empresaId ? ' AND empresa_id = ?' : ''}
+      WHERE stock <= 0 AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
     `).get(...(empresaId ? [empresaId] : [])).c;
     const morosos = empresaId ? getMorosos(empresaId) : [];
     // Tareas pendientes: por ahora usamos cantidad de morosos + stock en cero
@@ -107,7 +107,7 @@ router.get('/tareas', requireAuth, (req, res) => {
     const stockBajo = db.prepare(`
       SELECT codigo, descripcion, stock
       FROM productos
-      WHERE CAST(stock AS INTEGER) <= ?${empresaId ? ' AND empresa_id = ?' : ''}
+      WHERE CAST(stock AS INTEGER) <= ? AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
       ORDER BY CAST(stock AS INTEGER) ASC, codigo ASC
     `).all(...(empresaId ? [stockMin, empresaId] : [stockMin]));
 
@@ -116,37 +116,37 @@ router.get('/tareas', requireAuth, (req, res) => {
     const sinCostoRow = db.prepare(`
       SELECT COUNT(*) AS c
       FROM productos
-      WHERE (costo_usd IS NULL OR costo_usd <= 0)${empresaId ? ' AND empresa_id = ?' : ''}
+      WHERE (costo_usd IS NULL OR costo_usd <= 0) AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
     `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
 
     const sinCategoriaRow = db.prepare(`
       SELECT COUNT(*) AS c
       FROM productos
-      WHERE (categoria IS NULL OR TRIM(categoria) = '')${empresaId ? ' AND empresa_id = ?' : ''}
+      WHERE (categoria IS NULL OR TRIM(categoria) = '') AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
     `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
 
     const sinDepositoRow = db.prepare(`
       SELECT COUNT(*) AS c
       FROM productos
-      WHERE deposito_id IS NULL${empresaId ? ' AND empresa_id = ?' : ''}
+      WHERE deposito_id IS NULL AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
     `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
 
     const sinStockDefRow = db.prepare(`
       SELECT COUNT(*) AS c
       FROM productos
-      WHERE stock IS NULL${empresaId ? ' AND empresa_id = ?' : ''}
+      WHERE stock IS NULL AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
     `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
 
     const sinMarcaRow = db.prepare(`
       SELECT COUNT(*) AS c
       FROM productos
-      WHERE (marca IS NULL OR TRIM(marca) = '')${empresaId ? ' AND empresa_id = ?' : ''}
+      WHERE (marca IS NULL OR TRIM(marca) = '') AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
     `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
 
     const sinPrecioRow = db.prepare(`
       SELECT COUNT(*) AS c
       FROM productos
-      WHERE (precio_usd IS NULL OR precio_usd <= 0)${empresaId ? ' AND empresa_id = ?' : ''}
+      WHERE (precio_usd IS NULL OR precio_usd <= 0) AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
     `).get(...(empresaId ? [empresaId] : [])) || { c: 0 };
 
     const incompletos = {

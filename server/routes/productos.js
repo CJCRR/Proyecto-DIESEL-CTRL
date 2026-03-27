@@ -21,7 +21,7 @@ router.get('/', requireAuth, (req, res) => {
                         WHERE sd.producto_id = p.id
                     ), p.stock) AS stock
                 FROM productos p
-                WHERE p.empresa_id = ?
+                WHERE p.empresa_id = ? AND p.activo = 1
                 ORDER BY stock ASC, codigo ASC
                 LIMIT ?
             `).all(empresaId, limit);
@@ -37,6 +37,7 @@ router.get('/', requireAuth, (req, res) => {
                         WHERE sd.producto_id = p.id
                     ), p.stock) AS stock
                 FROM productos p
+                WHERE p.activo = 1
                 ORDER BY stock ASC, codigo ASC
                 LIMIT ?
             `).all(limit);

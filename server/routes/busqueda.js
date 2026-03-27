@@ -36,7 +36,7 @@ router.get('/', requireAuth, (req, res) => {
    WHERE (
      REPLACE(REPLACE(REPLACE(REPLACE(lower(p.codigo),'ñ','n'),'Ñ','n'),'ü','u'),'Ü','u') LIKE ?
      OR REPLACE(REPLACE(REPLACE(REPLACE(lower(p.descripcion),'ñ','n'),'Ñ','n'),'ü','u'),'Ü','u') LIKE ?
-   )`;
+   ) AND p.activo = 1`;
     if (empresaId) {
       sql += ' AND p.empresa_id = ?';
       params.push(empresaId);

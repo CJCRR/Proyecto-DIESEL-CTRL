@@ -19,6 +19,7 @@ const f_marca = document.getElementById('f_marca');
 const f_deposito = document.getElementById('f_deposito');
 const msg = document.getElementById('msg');
 const btnBorrar = document.getElementById('btnBorrar');
+const btnActualizarCodigo = document.getElementById('btnActualizarCodigo');
 const pageSize = document.getElementById('pageSize');
 const prevPage = document.getElementById('prevPage');
 const nextPage = document.getElementById('nextPage');
@@ -49,6 +50,7 @@ const categoriaSugList = document.getElementById('categoria_sugerencias');
 const actividadProductoEl = document.getElementById('actividad-producto');
 
 let categoriasInventario = [];
+let codigoOriginalSeleccionado = null;
 
 // Determinar rol de usuario para habilitar o no edición de stock desde inventario
 let esEmpresaAdmin = false;
@@ -362,6 +364,7 @@ function renderList(items) {
 
         el.addEventListener('click', () => {
             // Click en la tarjeta → cargar datos en el formulario
+            codigoOriginalSeleccionado = p.codigo || null;
             f_codigo.value = p.codigo;
             f_desc.value = p.descripcion || '';
             f_precio.value = p.precio_usd || 0;
@@ -767,8 +770,9 @@ btnImportCsv.addEventListener('click', async () => {
 
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const codigoActual = f_codigo.value.trim().toUpperCase();
     let body = {
-        codigo: f_codigo.value.trim().toUpperCase(),
+        codigo: codigoActual,
         descripcion: f_desc.value.trim().toUpperCase(),
         precio_usd: parseFloat(f_precio.value),
         costo_usd: parseFloat(f_costo.value) || 0,
@@ -778,20 +782,25 @@ form.addEventListener('submit', async (e) => {
         deposito_id: (f_deposito && f_deposito.value) ? parseInt(f_deposito.value, 10) : null,
     };
     const motivoAjuste = f_motivoAjuste ? f_motivoAjuste.value.trim() : '';
-    const exists = productosCache.find(p => p.codigo === body.codigo);
-    const oldStock = exists ? Number(exists.stock || 0) : 0;
+    const prodExistente = codigoOriginalSeleccionado
+        ? productosCache.find(p => p.codigo === codigoOriginalSeleccionado)
+        : productosCache.find(p => p.codigo === body.codigo);
+    const oldStock = prodExistente ? Number(prodExistente.stock || 0) : 0;
+    const existeProducto = !!prodExistente;
     // Si el usuario no es admin, no debe poder ajustar stock desde este formulario
     if (!puedeEditarStockDesdeInventario) {
         body = {
             ...body,
-            stock: exists ? oldStock : 0,
+            stock: existeProducto ? oldStock : 0,
         };
     }
     const diffStock = body.stock - oldStock;
 
-    // Decide POST (create) or PUT (update) based on existence
+    const estaEditando = !!codigoOriginalSeleccionado;
+
+    // Decide POST (create) or PUT (update) basado en si hay producto seleccionado
     try {
-        if (!exists) {
+        if (!estaEditando) {
             const res = await fetch('/admin/productos', {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -810,15 +819,18 @@ form.addEventListener('submit', async (e) => {
                 showToast('Para cambiar el stock debes indicar un motivo de ajuste.', 'error');
                 return;
             }
+            const codigoOriginal = codigoOriginalSeleccionado || body.codigo;
+            const nuevoCodigo = codigoActual !== codigoOriginal ? codigoActual : undefined;
 
             // Actualizar datos generales del producto (sin tocar stock aquí)
-            const res = await fetch('/admin/productos/' + encodeURIComponent(body.codigo), {
+            const res = await fetch('/admin/productos/' + encodeURIComponent(codigoOriginal), {
                 method: 'PUT',
                 credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                    nuevo_codigo: nuevoCodigo,
                     descripcion: body.descripcion,
                     precio_usd: body.precio_usd,
                     costo_usd: body.costo_usd,
@@ -831,6 +843,8 @@ form.addEventListener('submit', async (e) => {
             if (!res.ok) throw new Error(d.error || 'Error actualizar');
             msg.innerText = 'Producto actualizado.';
 
+            const codigoParaAjuste = nuevoCodigo || codigoOriginal;
+
             // Si cambió el stock y hay motivo, registrar ajuste de stock
             if (diffStock !== 0 && motivoAjuste) {
                 try {
@@ -839,7 +853,7 @@ form.addEventListener('submit', async (e) => {
                         credentials: 'same-origin',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            codigo: body.codigo,
+                            codigo: codigoParaAjuste,
                             diferencia: diffStock,
                             motivo: motivoAjuste
                         })
@@ -857,7 +871,11 @@ form.addEventListener('submit', async (e) => {
 
         // Sincronizar producto a Firebase (por empresa)
         try {
-            await upsertProductoFirebase(body);
+            const codigoOriginal = codigoOriginalSeleccionado || body.codigo;
+            await upsertProductoFirebase({
+                ...body,
+                original_codigo: codigoOriginal
+            });
         } catch (syncErr) {
             console.error('No se pudo sincronizar producto a Firebase:', syncErr);
         }
@@ -867,11 +885,12 @@ form.addEventListener('submit', async (e) => {
         await cargarAjustes();
         // Limpiar inputs excepto categoria (permite ingresar varios del mismo grupo)
         f_codigo.value = f_desc.value = f_precio.value = f_costo.value = f_stock.value = '';
+        codigoOriginalSeleccionado = null;
         if (f_marca) f_marca.value = '';
         if (f_deposito) f_deposito.value = '';
         if (f_motivoAjuste) f_motivoAjuste.value = '';
         msg.innerText = '';
-        showToast(!exists ? 'Producto creado.' : 'Producto actualizado.', 'success');
+        showToast(!estaEditando ? 'Producto creado.' : 'Producto actualizado.', 'success');
     } catch (err) {
         msg.innerText = 'Error: ' + err.message;
         console.error(err);
@@ -921,6 +940,48 @@ btnBorrar.addEventListener('click', () => {
         setTimeout(() => { modal.classList.add('hidden'); modal.style.display = ''; }, 220);
     };
 });
+
+// Botón para actualizar solo el código del producto seleccionado
+if (btnActualizarCodigo) {
+    btnActualizarCodigo.addEventListener('click', async () => {
+        const nuevoCodigo = f_codigo.value.trim().toUpperCase();
+        if (!codigoOriginalSeleccionado) {
+            msg.innerText = 'Selecciona primero un producto de la lista.';
+            showToast('Selecciona primero un producto de la lista.', 'error');
+            return;
+        }
+        if (!nuevoCodigo || nuevoCodigo.length < 3) {
+            msg.innerText = 'El nuevo código debe tener al menos 3 caracteres.';
+            showToast('El nuevo código debe tener al menos 3 caracteres.', 'error');
+            return;
+        }
+        if (nuevoCodigo === codigoOriginalSeleccionado) {
+            msg.innerText = 'El código no cambió.';
+            return;
+        }
+        try {
+            const res = await fetch('/admin/productos/' + encodeURIComponent(codigoOriginalSeleccionado), {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nuevo_codigo: nuevoCodigo })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || 'Error actualizando código');
+            }
+            codigoOriginalSeleccionado = nuevoCodigo;
+            msg.innerText = 'Código actualizado.';
+            showToast('Código actualizado.', 'success');
+            currentPage = 0;
+            await cargarProductos();
+        } catch (err) {
+            console.error(err);
+            msg.innerText = 'Error: ' + (err.message || 'Error actualizando código');
+            showToast(err.message || 'Error actualizando código', 'error');
+        }
+    });
+}
 
 prevPage.addEventListener('click', () => { if (currentPage > 0) { currentPage--; cargarProductos(); } });
 nextPage.addEventListener('click', () => { const limit = parseInt(pageSize.value); if ((currentPage + 1) * limit < currentTotal) { currentPage++; cargarProductos(); } });

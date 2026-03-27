@@ -29,7 +29,8 @@ const schema = `
     costo_usd REAL DEFAULT 0,
     stock INTEGER DEFAULT 0,
     categoria TEXT,
-    marca TEXT
+    marca TEXT,
+    activo INTEGER DEFAULT 1
   );
 
   CREATE TABLE IF NOT EXISTS ventas (
@@ -612,7 +613,16 @@ const migrations = [
     }
   },
   {
-    id: '016_empresas_contacto',
+    id: '016_productos_activo_flag',
+    up: () => {
+      if (!columnExists('productos', 'activo')) {
+        db.prepare('ALTER TABLE productos ADD COLUMN activo INTEGER DEFAULT 1').run();
+      }
+      db.prepare('UPDATE productos SET activo = 1 WHERE activo IS NULL').run();
+    }
+  },
+  {
+    id: '017_empresas_contacto',
     up: () => {
       // Datos básicos de contacto por empresa
       if (!columnExists('empresas', 'rif')) {

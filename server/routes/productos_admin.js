@@ -192,6 +192,7 @@ router.get('/', requireAuth, (req, res) => {
             const params = [];
             where.push('p.empresa_id = ?');
             params.push(empresaId);
+            where.push('p.activo = 1');
             if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%' + q + '%', '%' + q + '%'); }
             if (categoria) {
                 // Coincidencia exacta de categoría normalizada solo por espacios (soporta Ñ y otros acentos)
@@ -262,6 +263,7 @@ router.get('/', requireAuth, (req, res) => {
         const params = [];
         where.push('p.empresa_id = ?');
         params.push(empresaId);
+        where.push('p.activo = 1');
         where.push('sd.deposito_id = ?');
         params.push(depositoId);
         if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%' + q + '%', '%' + q + '%'); }
@@ -334,7 +336,7 @@ router.get('/categorias', requireAuth, (req, res) => {
         const rows = db.prepare(`
             SELECT DISTINCT TRIM(categoria) AS categoria
             FROM productos
-            WHERE empresa_id = ?
+            WHERE empresa_id = ? AND activo = 1
               AND categoria IS NOT NULL
               AND TRIM(categoria) != ''
             ORDER BY lower(categoria) ASC
@@ -369,7 +371,7 @@ router.get('/export', requireAuth, (req, res) => {
                 d.codigo AS deposito_codigo
             FROM productos p
             LEFT JOIN depositos d ON d.id = p.deposito_id
-            WHERE p.empresa_id = ?
+            WHERE p.empresa_id = ? AND p.activo = 1
             ORDER BY p.codigo
         `).all(empresaId);
         // Allow delimiter selection: comma (default), semicolon or tab
@@ -731,10 +733,10 @@ router.post('/import', requireAuth, (req, res) => {
     }
 });
 
-// PUT /admin/productos/:codigo - Actualizar producto por código
+// PUT /admin/productos/:codigo - Actualizar producto por código (y opcionalmente renombrar código)
 router.put('/:codigo', requireAuth, (req, res) => {
     let codigo = req.params.codigo ? req.params.codigo.trim().toUpperCase() : '';
-    let { descripcion, precio_usd, costo_usd, stock, categoria, marca, deposito_id } = req.body;
+    let { descripcion, precio_usd, costo_usd, stock, categoria, marca, deposito_id, nuevo_codigo } = req.body;
 
     descripcion = descripcion ? descripcion.trim() : '';
     precio_usd = precio_usd !== undefined ? parseFloat(precio_usd) : null;
@@ -751,7 +753,7 @@ router.put('/:codigo', requireAuth, (req, res) => {
             return res.status(400).json({ error: 'Usuario sin empresa asociada' });
         }
 
-        const existing = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
+        const existing = db.prepare('SELECT id, empresa_id, deposito_id, stock, codigo FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
         if (!existing) return res.status(404).json({ error: 'Producto no encontrado en esta empresa' });
 
         if (deposito_id !== undefined && deposito_id !== null && (Number.isNaN(depositoId) || depositoId <= 0)) {
@@ -760,6 +762,24 @@ router.put('/:codigo', requireAuth, (req, res) => {
 
         const updates = [];
         const params = [];
+
+        // Renombrar código si se envía nuevo_codigo
+        let finalCodigo = existing.codigo;
+        if (nuevo_codigo !== undefined && nuevo_codigo !== null) {
+            const nuevo = String(nuevo_codigo).trim().toUpperCase();
+            if (!nuevo || nuevo.length < 3) {
+                return res.status(400).json({ error: 'El nuevo código debe tener al menos 3 caracteres.' });
+            }
+            if (nuevo !== existing.codigo) {
+                const dupe = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?').get(nuevo, empresaId);
+                if (dupe && dupe.id !== existing.id) {
+                    return res.status(409).json({ error: `Ya existe otro producto con el código ${nuevo}.` });
+                }
+                updates.push('codigo = ?');
+                params.push(nuevo);
+                finalCodigo = nuevo;
+            }
+        }
         if (descripcion) { updates.push('descripcion = ?'); params.push(descripcion); }
         if (precio_usd !== null && !isNaN(precio_usd)) { updates.push('precio_usd = ?'); params.push(precio_usd); }
         if (costo_usd !== undefined && costo_usd !== null && !isNaN(parseFloat(costo_usd))) { updates.push('costo_usd = ?'); params.push(parseFloat(costo_usd)); }
@@ -793,7 +813,7 @@ router.put('/:codigo', requireAuth, (req, res) => {
             }
         }
 
-        res.json({ message: 'Producto actualizado', codigo });
+        res.json({ message: 'Producto actualizado', codigo: finalCodigo });
     } catch (err) {
         console.error('Error actualizando producto:', err);
         res.status(500).json({ error: 'Error al actualizar producto' });
@@ -811,20 +831,35 @@ router.delete('/:codigo', requireAuth, requireRole('admin'), (req, res) => {
             return res.status(400).json({ error: 'Usuario sin empresa asociada' });
         }
 
-        const prod = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
+        const prod = db.prepare('SELECT id, activo FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
         if (!prod) return res.status(404).json({ error: 'Producto no encontrado en esta empresa' });
-
-        // No permitir eliminar productos que tengan ventas o devoluciones asociadas
+        // Revisar historial asociado al producto (ventas, devoluciones, compras, ajustes, movimientos)
         const ventasAsociadas = db.prepare('SELECT COUNT(*) AS c FROM venta_detalle WHERE producto_id = ?').get(prod.id);
         const devAsociadas = db.prepare('SELECT COUNT(*) AS c FROM devolucion_detalle WHERE producto_id = ?').get(prod.id);
-        if ((ventasAsociadas && ventasAsociadas.c > 0) || (devAsociadas && devAsociadas.c > 0)) {
-            return res.status(400).json({
-                error: 'No se puede eliminar el producto porque tiene ventas o devoluciones asociadas. Puede dejarlo con stock 0 para no usarlo más.'
+        const comprasAsociadas = db.prepare('SELECT COUNT(*) AS c FROM compra_detalle WHERE producto_id = ?').get(prod.id);
+        const ajustesAsociados = db.prepare('SELECT COUNT(*) AS c FROM ajustes_stock WHERE producto_id = ?').get(prod.id);
+        const movsAsociados = db.prepare('SELECT COUNT(*) AS c FROM movimientos_deposito WHERE producto_id = ?').get(prod.id);
+
+        const tieneHistorial =
+            (ventasAsociadas && ventasAsociadas.c > 0) ||
+            (devAsociadas && devAsociadas.c > 0) ||
+            (comprasAsociadas && comprasAsociadas.c > 0) ||
+            (ajustesAsociados && ajustesAsociados.c > 0) ||
+            (movsAsociados && movsAsociados.c > 0);
+
+        if (tieneHistorial) {
+            // Borrado lógico: mantener historial pero ocultar el producto del inventario y dejar stock en 0
+            const txSoft = db.transaction((productoId) => {
+                db.prepare('UPDATE productos SET activo = 0, stock = 0 WHERE id = ?').run(productoId);
+                db.prepare('DELETE FROM stock_por_deposito WHERE producto_id = ?').run(productoId);
+                return 1;
             });
+            txSoft(prod.id);
+            return res.json({ message: 'Producto desactivado (se mantiene el historial de movimientos y ventas).', codigo });
         }
 
+        // Sin historial: permitir eliminación física completa
         const tx = db.transaction((productoId) => {
-            // Limpiar tablas auxiliares relacionadas con el producto
             db.prepare('DELETE FROM stock_por_deposito WHERE producto_id = ?').run(productoId);
             db.prepare('DELETE FROM ajustes_stock WHERE producto_id = ?').run(productoId);
             db.prepare('DELETE FROM movimientos_deposito WHERE producto_id = ?').run(productoId);
