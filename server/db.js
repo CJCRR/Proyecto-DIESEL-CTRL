@@ -370,6 +370,18 @@ const migrations = [
     }
   },
   {
+    id: '028_presupuesto_detalle_deposito',
+    up: () => {
+      // Guardar depósito asociado a cada línea de presupuesto (cuando exista)
+      if (!columnExists('presupuesto_detalle', 'deposito_id')) {
+        db.prepare('ALTER TABLE presupuesto_detalle ADD COLUMN deposito_id INTEGER').run();
+      }
+      if (!columnExists('presupuesto_detalle', 'deposito_nombre')) {
+        db.prepare('ALTER TABLE presupuesto_detalle ADD COLUMN deposito_nombre TEXT').run();
+      }
+    }
+  },
+  {
     id: '007_proveedores_compras',
     up: () => {
       // Tabla de proveedores

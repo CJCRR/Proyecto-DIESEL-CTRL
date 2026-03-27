@@ -129,6 +129,11 @@ function registrarVenta(payload) {
         const ventaId = ventaResult.lastInsertRowid;
 
         const selectProducto = db.prepare('SELECT id, stock, precio_usd, costo_usd, descripcion, deposito_id, empresa_id FROM productos WHERE codigo = ? AND empresa_id = ?');
+        const selectStockTotal = db.prepare(`
+            SELECT SUM(cantidad) AS total
+            FROM stock_por_deposito
+            WHERE producto_id = ?
+        `);
         const selectStockDep = db.prepare(`
             SELECT cantidad FROM stock_por_deposito
             WHERE producto_id = ? AND deposito_id = ?
@@ -150,7 +155,14 @@ function registrarVenta(payload) {
                 throw new Error(`El producto con código ${item.codigo} no existe en la base de datos`);
             }
 
-            if (producto.stock < item.cantidad) {
+            // Calcular stock total real preferentemente desde stock_por_deposito.
+            // Si no hay filas allí, caer al campo productos.stock para compatibilidad.
+            const rowTotal = selectStockTotal.get(producto.id);
+            const stockTotal = rowTotal && rowTotal.total != null
+                ? Number(rowTotal.total || 0)
+                : (Number(producto.stock || 0) || 0);
+
+            if (stockTotal < item.cantidad) {
                 throw new Error(`Stock insuficiente para el producto: ${item.codigo}`);
             }
 
@@ -187,8 +199,9 @@ function registrarVenta(payload) {
                     VALUES (?, ?, ?, ?, ?, ?)
                 `).run(ventaId, producto.id, item.cantidad, precioUnitUsd, producto.costo_usd || 0, subtotalBs);
 
-            // Descontar del inventario por depósito y en total, y verificar stock crítico
-            const nuevoStock = producto.stock - item.cantidad;
+            // Descontar del inventario por depósito y en total, y verificar stock crítico.
+            // Usamos el stock total calculado para evitar inconsistencias con productos.stock.
+            const nuevoStock = stockTotal - item.cantidad;
             updateProdStock.run(nuevoStock, producto.id);
 
             updateStockDepSub.run(item.cantidad, producto.id, depositoVentaId);

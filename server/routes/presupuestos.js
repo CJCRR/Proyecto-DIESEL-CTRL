@@ -59,11 +59,22 @@ router.get('/:id', requireAuth, (req, res) => {
       : db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
     if (!presupuesto) return res.status(404).json({ error: 'Presupuesto no encontrado' });
     const detalles = db.prepare(`
-      SELECT pd.*, p.stock, p.precio_usd AS precio_base_usd,
-             p.deposito_id, d.nombre AS deposito_nombre
+      SELECT
+        pd.id,
+        pd.presupuesto_id,
+        pd.producto_id,
+        pd.codigo,
+        pd.descripcion,
+        pd.cantidad,
+        pd.precio_usd,
+        pd.subtotal_bs,
+        COALESCE(pd.deposito_id, p.deposito_id) AS deposito_id,
+        COALESCE(pd.deposito_nombre, d.nombre) AS deposito_nombre,
+        p.stock,
+        p.precio_usd AS precio_base_usd
       FROM presupuesto_detalle pd
       LEFT JOIN productos p ON p.id = pd.producto_id
-      LEFT JOIN depositos d ON d.id = p.deposito_id
+      LEFT JOIN depositos d ON d.id = COALESCE(pd.deposito_id, p.deposito_id)
       WHERE pd.presupuesto_id = ?
     `).all(id);
     res.json({ presupuesto, detalles });
@@ -236,7 +247,7 @@ router.post('/', requireAuth, (req, res) => {
       for (const item of items) {
         const codigo = safeStr(item.codigo, 64).toUpperCase();
         const cantidad = parseInt(item.cantidad, 10);
-        const producto = db.prepare('SELECT id, codigo, descripcion, precio_usd FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
+        const producto = db.prepare('SELECT id, codigo, descripcion, precio_usd, deposito_id FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
         if (!producto) throw new Error(`Producto ${codigo} no existe`);
 
         // Si el frontend (POS) envía un precio_usd ya calculado según
@@ -255,10 +266,27 @@ router.post('/', requireAuth, (req, res) => {
         totalUsd += subtotalUsd;
         totalBs += subtotalBs;
 
+        // Guardar también el depósito asociado a la línea cuando el POS lo envía.
+        // Si no viene en el payload, se guarda el deposito_id actual del producto
+        // solo como referencia aproximada.
+        let depId = null;
+        if (item.deposito_id !== undefined && item.deposito_id !== null && item.deposito_id !== '') {
+          const parsedDep = Number(item.deposito_id);
+          if (!Number.isNaN(parsedDep)) depId = parsedDep;
+        } else if (producto.deposito_id != null) {
+          depId = Number(producto.deposito_id);
+        }
+
+        let depNombre = null;
+        if (depId != null) {
+          const dep = db.prepare('SELECT nombre FROM depositos WHERE id = ?').get(depId);
+          if (dep && dep.nombre) depNombre = dep.nombre.toString();
+        }
+
         db.prepare(`
-          INSERT INTO presupuesto_detalle (presupuesto_id, producto_id, codigo, descripcion, cantidad, precio_usd, subtotal_bs)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(presupuestoId, producto.id, producto.codigo, producto.descripcion || '', cantidad, precio, subtotalBs);
+          INSERT INTO presupuesto_detalle (presupuesto_id, producto_id, codigo, descripcion, cantidad, precio_usd, subtotal_bs, deposito_id, deposito_nombre)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(presupuestoId, producto.id, producto.codigo, producto.descripcion || '', cantidad, precio, subtotalBs, depId, depNombre);
       }
 
       const multiplicador = 1 - (descuentoNum / 100);

@@ -623,7 +623,8 @@ async function registrarPresupuesto() {
     const items = carrito.map(item => ({
         codigo: item.codigo,
         cantidad: item.cantidad,
-        precio_usd: typeof item.precio_usd === 'number' ? item.precio_usd : Number(item.precio_usd || 0) || 0
+        precio_usd: typeof item.precio_usd === 'number' ? item.precio_usd : Number(item.precio_usd || 0) || 0,
+        deposito_id: item.deposito_id != null ? item.deposito_id : null
     }));
 
     // Abrir ventana de nota inmediatamente para mantener el gesto del usuario
