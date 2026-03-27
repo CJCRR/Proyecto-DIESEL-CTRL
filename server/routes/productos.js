@@ -89,6 +89,13 @@ router.get('/:codigo', requireAuth, (req, res) => {
             ORDER BY d.nombre ASC
         `).all(producto.id);
         producto.existencias_por_deposito = existencias;
+
+        // Recalcular stock total como suma de existencias por depósito cuando haya datos,
+        // para mantener coherencia con la búsqueda y otros listados.
+        if (Array.isArray(existencias) && existencias.length > 0) {
+            const total = existencias.reduce((acc, row) => acc + (Number(row.cantidad || 0) || 0), 0);
+            producto.stock = total;
+        }
     } catch (err) {
         // Si la tabla aún no existe por alguna razón, simplemente ignorar
         console.warn('No se pudieron obtener existencias por depósito:', err.message);

@@ -100,8 +100,17 @@ async function handleResultadoClick(p) {
 		}
 	}
 
-	// Pasar producto (con detalle opcional) al módulo de carrito
-	const productoParaCarrito = detalle ? { ...p, ...detalle } : p;
+	// Pasar producto (con detalle opcional) al módulo de carrito.
+	// Importante: conservamos el stock total calculado en la búsqueda (p.stock),
+	// ya que el detalle puede traer un campo stock desactualizado de la tabla productos.
+	let productoParaCarrito;
+	if (detalle) {
+		const stockTotal = typeof p.stock === 'number' ? p.stock : (Number(p.stock || 0) || 0);
+		productoParaCarrito = { ...p, ...detalle };
+		productoParaCarrito.stock = stockTotal;
+	} else {
+		productoParaCarrito = p;
+	}
 	if (_refs.prepararParaAgregar) {
 		_refs.prepararParaAgregar(productoParaCarrito);
 	}
