@@ -81,32 +81,49 @@ router.post(
         if (!finalDepositoId || Number.isNaN(finalDepositoId)) {
             return res.status(400).json({ error: 'Debe seleccionar un depósito para el producto.' });
         }
-        // 3. Verificación de duplicados (Optimización: SQLite lanza error en UNIQUE constraint, 
-        // pero consultar antes permite dar un mensaje más amigable).
-        const existe = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
-        if (existe) {
+        // 3. Verificación de duplicados / reactivación
+        //    Si existe un producto con ese código y está activo, devolvemos conflicto.
+        //    Si existe pero está inactivo (borrado lógico), lo reactivamos y actualizamos datos.
+        const existente = db.prepare('SELECT id, activo FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
+        if (existente && existente.activo === 1) {
             return res.status(409).json({ error: `El código ${codigo} ya existe en el inventario.` });
         }
 
-        // 4. Inserción
-        const info = db.prepare(`
-            INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresaId, finalDepositoId);
+        let productoId;
+        let message;
+
+        if (existente && existente.activo === 0) {
+            // Reactivar producto previamente desactivado (manteniendo historial)
+            db.prepare(`
+                UPDATE productos
+                SET descripcion = ?, precio_usd = ?, costo_usd = ?, stock = ?, categoria = ?, marca = ?, deposito_id = ?, activo = 1
+                WHERE id = ?
+            `).run(descripcion, precio_usd, costo_usd, stock, categoria, marca, finalDepositoId, existente.id);
+            productoId = existente.id;
+            message = 'Producto reactivado exitosamente';
+        } else {
+            // 4. Inserción normal
+            const info = db.prepare(`
+                INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresaId, finalDepositoId);
+            productoId = info.lastInsertRowid;
+            message = 'Producto creado exitosamente';
+        }
 
         // Inicializar existencias en stock_por_deposito para este producto
         try {
             db.prepare(`
                 INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
                 VALUES (?, ?, ?, ?)
-            `).run(empresaId, info.lastInsertRowid, finalDepositoId, stock);
+            `).run(empresaId, productoId, finalDepositoId, stock);
         } catch (errStock) {
-            console.warn('No se pudo inicializar stock_por_deposito para el nuevo producto:', errStock.message);
+            console.warn('No se pudo inicializar stock_por_deposito para el nuevo/reativado producto:', errStock.message);
         }
 
         res.status(201).json({
-            message: 'Producto creado exitosamente',
-            id: info.lastInsertRowid,
+            message,
+            id: productoId,
             codigo
         });
 
