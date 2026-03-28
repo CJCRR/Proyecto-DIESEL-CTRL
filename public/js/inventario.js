@@ -47,9 +47,11 @@ const btnMoverDeposito = document.getElementById('btnMoverDeposito');
 const movStockDetalle = document.getElementById('mov_stock_detalle');
 const f_categoria = document.getElementById('f_categoria');
 const categoriaSugList = document.getElementById('categoria_sugerencias');
+const marcaSugList = document.getElementById('marca_sugerencias');
 const actividadProductoEl = document.getElementById('actividad-producto');
 
 let categoriasInventario = [];
+let marcasInventario = [];
 let codigoOriginalSeleccionado = null;
 
 // Determinar rol de usuario para habilitar o no edición de stock desde inventario
@@ -1086,6 +1088,26 @@ async function cargarCategorias() {
 
 cargarCategorias();
 
+// Cargar marcas para sugerencias en formulario
+async function cargarMarcas() {
+    if (!f_marca && !marcaSugList) return;
+    try {
+        const res = await fetch('/admin/productos/marcas', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Error marcas');
+        const data = await res.json();
+        const marcas = Array.isArray(data.items) ? data.items : [];
+        marcasInventario = marcas;
+        if (f_marca && marcaSugList) {
+            renderMarcaSugerencias(marcasInventario);
+            marcaSugList.classList.add('hidden');
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+cargarMarcas();
+
 function renderCategoriaSugerencias(list = []) {
     if (!categoriaSugList) return;
     categoriaSugList.innerHTML = '';
@@ -1127,6 +1149,44 @@ if (f_categoria && categoriaSugList) {
         if (!categoriaSugList) return;
         if (categoriaSugList.contains(ev.target) || f_categoria.contains(ev.target)) return;
         categoriaSugList.classList.add('hidden');
+    });
+}
+
+function renderMarcaSugerencias(list = []) {
+    if (!marcaSugList) return;
+    marcaSugList.innerHTML = '';
+    const items = Array.isArray(list) ? list : [];
+    if (!items.length) {
+        marcaSugList.classList.add('hidden');
+        return;
+    }
+    items.forEach((marca) => {
+        const li = document.createElement('li');
+        li.textContent = marca;
+        li.addEventListener('click', () => {
+            if (f_marca) f_marca.value = marca;
+            marcaSugList.classList.add('hidden');
+        });
+        marcaSugList.appendChild(li);
+    });
+    marcaSugList.classList.remove('hidden');
+}
+
+if (f_marca && marcaSugList) {
+    f_marca.addEventListener('focus', () => {
+        if (!marcasInventario.length) return;
+        renderMarcaSugerencias(marcasInventario);
+    });
+
+    f_marca.addEventListener('input', (e) => {
+        const q = (e.target.value || '').toString().toLowerCase().trim();
+        if (!marcasInventario.length) return;
+        if (!q) {
+            renderMarcaSugerencias(marcasInventario);
+            return;
+        }
+        const filtered = marcasInventario.filter((m) => m && m.toString().toLowerCase().includes(q));
+        renderMarcaSugerencias(filtered);
     });
 }
 

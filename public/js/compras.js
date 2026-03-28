@@ -14,6 +14,7 @@ let modalNuevoProducto;
 let modalNuevoProductoMsg;
 let depositosComprasCargados = false;
 let categoriasCompras = [];
+let marcasCompras = [];
 let compraFocusId = null;
 
 async function cargarCategoriasCompras() {
@@ -31,6 +32,22 @@ async function cargarCategoriasCompras() {
       renderCategoriasComprasSug(categoriasCompras);
       sugList.classList.add('hidden');
     }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function cargarMarcasCompras() {
+  const sugMain = document.getElementById('cMarcaSug');
+  const sugModal = document.getElementById('npMarcaSug');
+  if (!sugMain && !sugModal) return;
+  try {
+    const data = await apiFetchJson('/admin/productos/marcas');
+    const marcas = Array.isArray(data.items) ? data.items : [];
+    marcasCompras = marcas;
+    renderMarcasComprasSug(marcasCompras);
+    if (sugMain) sugMain.classList.add('hidden');
+    if (sugModal) sugModal.classList.add('hidden');
   } catch (err) {
     console.error(err);
   }
@@ -56,6 +73,38 @@ function renderCategoriasComprasSug(list = []) {
     sugList.appendChild(li);
   });
   sugList.classList.remove('hidden');
+}
+
+function renderMarcasComprasSug(list = []) {
+  const mainSug = document.getElementById('cMarcaSug');
+  const mainInput = document.getElementById('c_lote');
+  const modalSug = document.getElementById('npMarcaSug');
+  const modalInput = document.getElementById('np_marca');
+  const items = Array.isArray(list) ? list : [];
+
+  const pairs = [
+    [mainSug, mainInput],
+    [modalSug, modalInput],
+  ];
+
+  pairs.forEach(([ul, input]) => {
+    if (!ul || !input) return;
+    ul.innerHTML = '';
+    if (!items.length) {
+      ul.classList.add('hidden');
+      return;
+    }
+    items.forEach((marca) => {
+      const li = document.createElement('li');
+      li.textContent = marca;
+      li.addEventListener('click', () => {
+        input.value = marca;
+        ul.classList.add('hidden');
+      });
+      ul.appendChild(li);
+    });
+    ul.classList.remove('hidden');
+  });
 }
 
 function formNumber(id, def = 0) {
@@ -773,6 +822,55 @@ function setupUI() {
       npCatSug.classList.add('hidden');
     });
   }
+
+  // Dropdown de marcas en formulario principal y modal
+  const cMarcaInput = document.getElementById('c_lote');
+  const cMarcaSug = document.getElementById('cMarcaSug');
+  if (cMarcaInput && cMarcaSug) {
+    cMarcaInput.addEventListener('focus', () => {
+      if (!marcasCompras.length) return;
+      renderMarcasComprasSug(marcasCompras);
+    });
+    cMarcaInput.addEventListener('input', (e) => {
+      const q = (e.target.value || '').toString().toLowerCase().trim();
+      if (!marcasCompras.length) return;
+      if (!q) {
+        renderMarcasComprasSug(marcasCompras);
+        return;
+      }
+      const filtered = marcasCompras.filter(m => m && m.toString().toLowerCase().includes(q));
+      renderMarcasComprasSug(filtered);
+    });
+    document.addEventListener('click', (ev) => {
+      if (!cMarcaSug) return;
+      if (cMarcaSug.contains(ev.target) || cMarcaInput.contains(ev.target)) return;
+      cMarcaSug.classList.add('hidden');
+    });
+  }
+
+  const npMarcaInput = document.getElementById('np_marca');
+  const npMarcaSug = document.getElementById('npMarcaSug');
+  if (npMarcaInput && npMarcaSug) {
+    npMarcaInput.addEventListener('focus', () => {
+      if (!marcasCompras.length) return;
+      renderMarcasComprasSug(marcasCompras);
+    });
+    npMarcaInput.addEventListener('input', (e) => {
+      const q = (e.target.value || '').toString().toLowerCase().trim();
+      if (!marcasCompras.length) return;
+      if (!q) {
+        renderMarcasComprasSug(marcasCompras);
+        return;
+      }
+      const filtered = marcasCompras.filter(m => m && m.toString().toLowerCase().includes(q));
+      renderMarcasComprasSug(filtered);
+    });
+    document.addEventListener('click', (ev) => {
+      if (!npMarcaSug) return;
+      if (npMarcaSug.contains(ev.target) || npMarcaInput.contains(ev.target)) return;
+      npMarcaSug.classList.add('hidden');
+    });
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -790,5 +888,6 @@ window.addEventListener('DOMContentLoaded', () => {
   limpiarFormularioCompra();
   cargarProveedoresParaSelect();
   cargarHistorialCompras();
-   cargarCategoriasCompras();
+  cargarCategoriasCompras();
+  cargarMarcasCompras();
 });

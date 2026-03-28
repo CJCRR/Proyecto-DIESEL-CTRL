@@ -195,9 +195,9 @@ function registrarVenta(payload) {
 
             // Insertar cada item en el detalle con el precio realmente vendido
             db.prepare(`
-                    INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `).run(ventaId, producto.id, item.cantidad, precioUnitUsd, producto.costo_usd || 0, subtotalBs);
+                    INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs, deposito_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).run(ventaId, producto.id, item.cantidad, precioUnitUsd, producto.costo_usd || 0, subtotalBs, depositoVentaId);
 
             // Descontar del inventario por depósito y en total, y verificar stock crítico.
             // Usamos el stock total calculado para evitar inconsistencias con productos.stock.
@@ -302,14 +302,14 @@ function anularVenta(params) {
         throw err;
     }
 
-    const detalles = db.prepare(`
-        SELECT vd.id, vd.producto_id, vd.cantidad,
-               p.stock AS stock_actual,
-               p.deposito_id,
-               p.empresa_id AS prod_empresa_id
-        FROM venta_detalle vd
-        JOIN productos p ON p.id = vd.producto_id
-        WHERE vd.venta_id = ?
+     const detalles = db.prepare(`
+     SELECT vd.id, vd.producto_id, vd.cantidad,
+         p.stock AS stock_actual,
+         COALESCE(vd.deposito_id, p.deposito_id) AS deposito_id,
+         p.empresa_id AS prod_empresa_id
+     FROM venta_detalle vd
+     JOIN productos p ON p.id = vd.producto_id
+     WHERE vd.venta_id = ?
     `).all(ventaId);
 
     const selectStockDep = db.prepare(`

@@ -430,19 +430,21 @@ async function cargarPresupuestoEnPOS(presupuestoId) {
         if (descInput) descInput.value = String(presupuesto.descuento || 0); // ahora se interpreta como monto en USD
         if (refInput) refInput.value = `PRES-${presupuesto.id}`;
 
-        carrito.length = 0;
+        (carrito.length = 0);
         (detalles || []).forEach(d => {
             const base = (typeof d.precio_base_usd === 'number' && !Number.isNaN(d.precio_base_usd))
                 ? Number(d.precio_base_usd)
                 : Number(d.precio_usd || 0) || 0;
             const depId = d.deposito_id != null ? Number(d.deposito_id) : null;
             const depNombre = d.deposito_nombre ? String(d.deposito_nombre).trim() : '';
+            const depCodigo = d.deposito_codigo ? String(d.deposito_codigo).trim() : depNombre;
             carrito.push({
                 codigo: d.codigo,
                 descripcion: d.descripcion,
                 marca: d.marca || '',
                 deposito_id: Number.isFinite(depId) ? depId : null,
                 deposito_nombre: depNombre,
+                deposito_codigo: depCodigo || null,
                 precio_base_usd: base,
                 precio_usd: Number(d.precio_usd || 0),
                 cantidad: Number(d.cantidad || 0)

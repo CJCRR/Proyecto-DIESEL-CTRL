@@ -59,7 +59,7 @@ router.get('/:codigo', requireAuth, (req, res) => {
     if (empresaId) {
         producto = db
             .prepare(`
-                SELECT p.*, d.nombre AS deposito_nombre
+                SELECT p.*, d.nombre AS deposito_nombre, d.codigo AS deposito_codigo
                 FROM productos p
                 LEFT JOIN depositos d ON d.id = p.deposito_id
                 WHERE p.codigo = ? AND p.empresa_id = ?
@@ -68,7 +68,7 @@ router.get('/:codigo', requireAuth, (req, res) => {
     } else {
         producto = db
             .prepare(`
-                SELECT p.*, d.nombre AS deposito_nombre
+                SELECT p.*, d.nombre AS deposito_nombre, d.codigo AS deposito_codigo
                 FROM productos p
                 LEFT JOIN depositos d ON d.id = p.deposito_id
                 WHERE p.codigo = ?
@@ -82,7 +82,10 @@ router.get('/:codigo', requireAuth, (req, res) => {
 
     try {
         const existencias = db.prepare(`
-            SELECT sd.deposito_id, d.nombre AS deposito_nombre, sd.cantidad
+            SELECT sd.deposito_id,
+                   d.nombre AS deposito_nombre,
+                   d.codigo AS deposito_codigo,
+                   sd.cantidad
             FROM stock_por_deposito sd
             JOIN depositos d ON d.id = sd.deposito_id
             WHERE sd.producto_id = ?

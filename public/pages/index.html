@@ -48,11 +48,19 @@
                 </div>
                 <div class="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-[11px] text-slate-500">
                     <div id="pv-producto-info" class="min-h-[1.25rem]"></div>
-                    <div id="pv-deposito-wrapper" class="flex items-center gap-2 hidden">
-                        <span class="font-semibold uppercase tracking-widest">Depósito</span>
-                        <select id="pv_deposito" class="border rounded-lg px-2 py-1 text-[11px] bg-white">
-                            <option value="">Automático</option>
-                        </select>
+                    <div class="flex items-center gap-4">
+                        <div id="pv-deposito-wrapper" class="flex items-center gap-2 hidden">
+                            <span class="font-semibold uppercase tracking-widest">Depósito</span>
+                            <select id="pv_deposito" class="border rounded-lg px-2 py-1 text-[11px] bg-white">
+                                <option value="">Automático</option>
+                            </select>
+                        </div>
+                        <div id="pv-marca-wrapper" class="flex items-center gap-2 hidden">
+                            <span class="font-semibold uppercase tracking-widest">Marca</span>
+                            <select id="pv_marca" class="border rounded-lg px-2 py-1 text-[11px] bg-white">
+                                <option value=""></option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </section>

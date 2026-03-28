@@ -70,6 +70,7 @@ router.get('/:id', requireAuth, (req, res) => {
         pd.subtotal_bs,
         COALESCE(pd.deposito_id, p.deposito_id) AS deposito_id,
         COALESCE(pd.deposito_nombre, d.nombre) AS deposito_nombre,
+        d.codigo AS deposito_codigo,
         p.stock,
         p.precio_usd AS precio_base_usd
       FROM presupuesto_detalle pd
@@ -95,10 +96,16 @@ router.get('/nota/:id', requireAuth, async (req, res) => {
       : db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
     if (!presupuesto) return res.status(404).send('Presupuesto no encontrado');
     const detalles = db.prepare(`
-      SELECT pd.cantidad, pd.precio_usd, pd.subtotal_bs, pd.descripcion, pd.codigo,
-             p.marca AS marca
+      SELECT pd.cantidad,
+             pd.precio_usd,
+             pd.subtotal_bs,
+             pd.descripcion,
+             pd.codigo,
+             p.marca AS marca,
+             COALESCE(d.codigo, pd.deposito_nombre) AS deposito_codigo
       FROM presupuesto_detalle pd
       LEFT JOIN productos p ON p.id = pd.producto_id
+      LEFT JOIN depositos d ON d.id = pd.deposito_id
       WHERE pd.presupuesto_id = ?
     `).all(id);
 

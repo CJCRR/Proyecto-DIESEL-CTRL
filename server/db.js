@@ -382,6 +382,15 @@ const migrations = [
     }
   },
   {
+    id: '029_venta_detalle_deposito',
+    up: () => {
+      // Guardar depósito asociado a cada línea de venta
+      if (!columnExists('venta_detalle', 'deposito_id')) {
+        db.prepare('ALTER TABLE venta_detalle ADD COLUMN deposito_id INTEGER').run();
+      }
+    }
+  },
+  {
     id: '007_proveedores_compras',
     up: () => {
       // Tabla de proveedores

@@ -105,6 +105,7 @@ export function agregarAlCarrito() {
 	// Depósito seleccionado (si aplica)
 	const depSelect = document.getElementById('pv_deposito');
 	let depositoId = null;
+	let depositoCodigo = '';
 	let depositoNombre = '';
 	if (depSelect && depSelect.value) {
 		const parsed = parseInt(depSelect.value, 10);
@@ -112,17 +113,29 @@ export function agregarAlCarrito() {
 			depositoId = parsed;
 		}
 		const opt = depSelect.options[depSelect.selectedIndex];
-		if (opt && opt.textContent) {
-			// Tomar solo el nombre antes del paréntesis de cantidad
-			const raw = opt.textContent.trim();
-			const idxParen = raw.indexOf('(');
-			depositoNombre = (idxParen > 0 ? raw.slice(0, idxParen) : raw).trim();
+		if (opt) {
+			const depCode = (opt.getAttribute('data-dep-codigo') || opt.textContent || '').toString().trim();
+			if (depCode) {
+				depositoCodigo = depCode;
+				depositoNombre = depCode;
+			}
 		}
+	}
+
+	// Marca seleccionada (si aplica)
+	const marcaSelect = document.getElementById('pv_marca');
+	let marcaItem = '';
+	if (marcaSelect && marcaSelect.value) {
+		marcaItem = marcaSelect.value.toString().trim();
+	}
+	if (!marcaItem && productoSeleccionado && productoSeleccionado.marca) {
+		marcaItem = productoSeleccionado.marca.toString().trim();
 	}
 
 	const index = carrito.findIndex(item =>
 		item.codigo === productoSeleccionado.codigo &&
-		((item.deposito_id || null) === (depositoId || null))
+		((item.deposito_id || null) === (depositoId || null)) &&
+		((item.marca || '') === (marcaItem || ''))
 	);
 
 	// Determinar el precio de venta segun la estrategia de precios configurada
@@ -155,9 +168,10 @@ export function agregarAlCarrito() {
 		carrito.push({
 			codigo: productoSeleccionado.codigo,
 			descripcion: productoSeleccionado.descripcion,
-			marca: productoSeleccionado.marca || '',
+			marca: marcaItem || '',
 			deposito_id: depositoId,
 			deposito_nombre: depositoNombre,
+			deposito_codigo: depositoCodigo || null,
 			precio_base_usd: precioBase,
 			precio_usd: precioVenta,
 			cantidad: cantidad
@@ -227,15 +241,19 @@ export function actualizarTabla() {
 
 		const tr = document.createElement('tr');
 		tr.className = "border-b text-sm hover:bg-slate-50 transition-colors";
-		const depLabel = item.deposito_nombre ? `<div class=\"text-[11px] text-slate-400\">Depósito: ${escapeHtml(item.deposito_nombre)}</div>` : '';
+		const depCodigo = (item.deposito_codigo || item.deposito_nombre || '').toString();
+		const marcaLabel = item.marca ? `<div class=\"text-[11px] text-slate-400\">Marca: ${escapeHtml(item.marca)}</div>` : '';
 		const qtyCell = modoDevolucion
 			? `<input type="number" min="0" max="${item.maxCantidad || item.cantidad}" value="${item.cantidad}" class="w-16 text-center border rounded" data-idx="${index}" data-role="dev-qty">`
 			: `${item.cantidad}`;
+		const codigoMostrado = depCodigo
+			? `${escapeHtml(item.codigo)}-${escapeHtml(depCodigo)}`
+			: escapeHtml(item.codigo);
 		tr.innerHTML = `
-			<td class=\"p-4 font-bold text-slate-600\">${escapeHtml(item.codigo)}</td>
+			<td class=\"p-4 font-bold text-slate-600\">${codigoMostrado}</td>
 			<td class=\"p-4 text-slate-500\">
 				<div>${escapeHtml(item.descripcion)}</div>
-				${depLabel}
+				${marcaLabel}
 			</td>
 			<td class=\"p-4 text-center font-bold\">${qtyCell}</td>
 			<td class=\"p-4 text-right text-slate-400 font-mono cursor-help\" data-role=\"precio-usd\" data-tooltip=\"$${formatNumber(item.precio_usd, 2)} • ≈ ${formatNumber(precioBs, 2)} Bs\">$${formatNumber(item.precio_usd, 2)}</td>

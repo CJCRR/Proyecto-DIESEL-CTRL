@@ -94,9 +94,10 @@
                 </div>
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                        <div class="inv-input-group">
-                            <input id="c_lote" class="inv-input" placeholder=" " />
+                        <div class="inv-input-group relative">
+                            <input id="c_lote" class="inv-input" placeholder=" " autocomplete="off" />
                             <label for="c_lote" class="inv-label">Marca (opcional)</label>
+                            <ul id="cMarcaSug" class="compras-cat-suggestions hidden"></ul>
                         </div>
                 </div>
             </div>
@@ -185,12 +186,13 @@
                                 <label for="np_codigo" class="inv-label">Código interno</label>
                             </div>
                     </div>
-                    <div>
+                    <div class="relative">
                         <label class="text-[11px] font-semibold text-slate-500"></label>
                             <div class="inv-input-group">
-                                <input id="np_marca" class="inv-input" placeholder=" " />
+                                <input id="np_marca" class="inv-input" placeholder=" " autocomplete="off" />
                                 <label for="np_marca" class="inv-label">Marca (opcional)</label>
                             </div>
+                            <ul id="npMarcaSug" class="compras-cat-suggestions hidden"></ul>
                     </div>
                 </div>
                 <div>

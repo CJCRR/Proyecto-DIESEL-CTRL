@@ -11,22 +11,32 @@
 
   function normalizeItems(venta, detalles) {
     if (Array.isArray(venta && venta.items)) {
-      return venta.items.map(it => ({
-        codigo: it.codigo || '',
-        descripcion: it.descripcion || '',
-        marca: it.marca || '',
-        cantidad: number(it.cantidad),
-        precio_usd: number(it.precio_usd)
-      }));
+      return venta.items.map(it => {
+        const depCode = (it.deposito_codigo || it.deposito_nombre || '').toString();
+        const base = it.codigo || '';
+        const codigo = depCode ? `${base}-${depCode}` : base;
+        return {
+          codigo,
+          descripcion: it.descripcion || '',
+          marca: it.marca || '',
+          cantidad: number(it.cantidad),
+          precio_usd: number(it.precio_usd)
+        };
+      });
     }
     if (Array.isArray(detalles)) {
-      return detalles.map(d => ({
-        codigo: d.codigo || '',
-        descripcion: d.descripcion || '',
-        marca: d.marca || d.nombre_marca || '',
-        cantidad: number(d.cantidad),
-        precio_usd: number(d.precio_usd)
-      }));
+      return detalles.map(d => {
+        const depCode = (d.deposito_codigo || d.deposito_nombre || '').toString();
+        const base = d.codigo || '';
+        const codigo = depCode ? `${base}-${depCode}` : base;
+        return {
+          codigo,
+          descripcion: d.descripcion || '',
+          marca: d.marca || d.nombre_marca || '',
+          cantidad: number(d.cantidad),
+          precio_usd: number(d.precio_usd)
+        };
+      });
     }
     return [];
   }

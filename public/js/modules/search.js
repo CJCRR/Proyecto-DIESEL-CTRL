@@ -51,6 +51,8 @@ async function handleResultadoClick(p) {
 	const productoInfoEl = document.getElementById('pv-producto-info');
 	const depWrapper = document.getElementById('pv-deposito-wrapper');
 	const depSelect = document.getElementById('pv_deposito');
+	const marcaWrapper = document.getElementById('pv-marca-wrapper');
+	const marcaSelect = document.getElementById('pv_marca');
 
 	let existencias = Array.isArray(detalle?.existencias_por_deposito)
 		? detalle.existencias_por_deposito
@@ -82,7 +84,8 @@ async function handleResultadoClick(p) {
 		if (existenciasConStock.length <= 1) {
 			if (existenciasConStock.length === 1) {
 				const unico = existenciasConStock[0];
-				depSelect.innerHTML = `<option value="${unico.deposito_id}">${unico.deposito_nombre} (${unico.cantidad})</option>`;
+				const depCodigo = (unico.deposito_codigo || unico.deposito_nombre || '').toString();
+				depSelect.innerHTML = `<option value="${unico.deposito_id}" data-dep-codigo="${depCodigo}">${depCodigo} (${unico.cantidad})</option>`;
 				depSelect.value = String(unico.deposito_id);
 			} else {
 				depSelect.innerHTML = '';
@@ -92,9 +95,9 @@ async function handleResultadoClick(p) {
 		} else {
 			const options = [];
 			existenciasConStock.forEach(e => {
-				const nombre = (e.deposito_nombre || '').toString();
+				const depCodigo = (e.deposito_codigo || e.deposito_nombre || '').toString();
 				const cant = Number(e.cantidad || 0) || 0;
-				options.push(`<option value="${e.deposito_id}">${nombre} (${cant})</option>`);
+				options.push(`<option value="${e.deposito_id}" data-dep-codigo="${depCodigo}">${depCodigo} (${cant})</option>`);
 			});
 			depSelect.innerHTML = options.join('');
 			// Seleccionar por defecto el primer depósito de la lista
@@ -102,6 +105,48 @@ async function handleResultadoClick(p) {
 				depSelect.value = String(existenciasConStock[0].deposito_id);
 			}
 			depWrapper.classList.remove('hidden');
+		}
+	}
+
+	// Poblar selector de marca usando marcas históricas + marca actual del producto
+	let marcasDisponibles = [];
+	if (_refs.apiFetchJson && p && p.codigo) {
+		try {
+			const respMarcas = await _refs.apiFetchJson(`/admin/productos/marcas-por-producto?codigo=${encodeURIComponent(p.codigo)}`);
+			const arr = Array.isArray(respMarcas?.items) ? respMarcas.items : [];
+			marcasDisponibles = arr
+				.map(m => (m || '').toString().trim())
+				.filter(Boolean);
+		} catch (err) {
+			console.warn('No se pudieron obtener marcas históricas del producto', err);
+		}
+	}
+	const marcaPrincipal = (detalle && detalle.marca) || p.marca || '';
+	if (marcaPrincipal) {
+		const norm = marcaPrincipal.toString().trim();
+		if (!marcasDisponibles.some(m => m.toLowerCase() === norm.toLowerCase())) {
+			marcasDisponibles.unshift(norm);
+		}
+	}
+
+	if (marcaSelect && marcaWrapper) {
+		if (marcasDisponibles.length <= 1) {
+			if (marcasDisponibles.length === 1) {
+				const unica = marcasDisponibles[0];
+				marcaSelect.innerHTML = `<option value="${unica}">${unica}</option>`;
+				marcaSelect.value = unica;
+			} else {
+				marcaSelect.innerHTML = '';
+				marcaSelect.value = '';
+			}
+			marcaWrapper.classList.add('hidden');
+		} else {
+			const opts = marcasDisponibles.map(m => `<option value="${m}">${m}</option>`).join('');
+			marcaSelect.innerHTML = opts;
+			if (marcasDisponibles.length > 0) {
+				marcaSelect.value = marcasDisponibles[0];
+			}
+			marcaWrapper.classList.remove('hidden');
 		}
 	}
 

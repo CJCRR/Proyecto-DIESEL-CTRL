@@ -187,6 +187,51 @@ router.get('/actividad', requireAuth, (req, res) => {
     }
 });
 
+// GET /admin/productos/marcas-por-producto?codigo=XXX - Marcas históricas usadas en compras para un producto
+router.get('/marcas-por-producto', requireAuth, (req, res) => {
+    try {
+        const codigoRaw = req.query.codigo ? String(req.query.codigo).trim() : '';
+        if (!codigoRaw) {
+            return res.status(400).json({ error: 'Debe indicar el código del producto.' });
+        }
+        const codigo = codigoRaw.toUpperCase();
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+
+        const prod = db.prepare(`
+            SELECT id, marca
+            FROM productos
+            WHERE codigo = ? AND empresa_id = ?
+        `).get(codigo, empresaId);
+
+        if (!prod) {
+            return res.status(404).json({ error: 'Producto no encontrado en esta empresa.' });
+        }
+
+        const rows = db.prepare(`
+            SELECT DISTINCT TRIM(cd.marca) AS marca
+            FROM compra_detalle cd
+            JOIN compras c ON c.id = cd.compra_id
+            LEFT JOIN usuarios u ON u.id = c.usuario_id
+            WHERE cd.producto_id = ?
+              AND cd.marca IS NOT NULL
+              AND TRIM(cd.marca) != ''
+              AND (u.empresa_id = ? OR u.empresa_id IS NULL)
+            ORDER BY lower(marca) ASC
+        `).all(prod.id, empresaId);
+
+        let marcas = rows.map(r => r.marca).filter(Boolean);
+        const marcaProd = prod.marca ? String(prod.marca).trim() : '';
+        if (marcaProd && !marcas.some(m => String(m).trim().toLowerCase() === marcaProd.toLowerCase())) {
+            marcas = [marcaProd, ...marcas];
+        }
+
+        res.json({ items: marcas });
+    } catch (err) {
+        console.error('Error listando marcas de producto:', err);
+        res.status(500).json({ error: 'Error al listar marcas de producto' });
+    }
+});
+
 // GET /admin/productos - Listar productos (paginado opcional) con filtros
 router.get('/', requireAuth, (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
@@ -365,6 +410,28 @@ router.get('/categorias', requireAuth, (req, res) => {
     } catch (err) {
         console.error('Error listando categorías de productos:', err);
         res.status(500).json({ error: 'Error al listar categorías' });
+    }
+});
+
+// GET /admin/productos/marcas - Listar marcas distintas de productos por empresa
+router.get('/marcas', requireAuth, (req, res) => {
+    try {
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+        const rows = db.prepare(`
+            SELECT DISTINCT TRIM(marca) AS marca
+            FROM productos
+            WHERE empresa_id = ? AND activo = 1
+              AND marca IS NOT NULL
+              AND TRIM(marca) != ''
+            ORDER BY lower(marca) ASC
+        `).all(empresaId);
+        const marcas = rows
+            .map(r => r.marca)
+            .filter(Boolean);
+        res.json({ items: marcas });
+    } catch (err) {
+        console.error('Error listando marcas de productos:', err);
+        res.status(500).json({ error: 'Error al listar marcas' });
     }
 });
 
