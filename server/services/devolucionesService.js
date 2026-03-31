@@ -16,6 +16,11 @@ function safeStr(v, max) {
   return String(v).trim().slice(0, max);
 }
 
+function normalizeMarca(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).trim().toUpperCase();
+}
+
 function computeEstadoCuenta(row) {
   let saldo = Number(row.saldo_usd || 0);
   if (Math.abs(saldo) < SALDO_EPSILON) saldo = 0;
@@ -144,12 +149,12 @@ function registrarDevolucion(payload = {}) {
           throw error;
         }
       }
-      originalDetalles = db.prepare('SELECT producto_id, cantidad, precio_usd, subtotal_bs FROM venta_detalle WHERE venta_id = ?').all(venta_original_id);
+      originalDetalles = db.prepare('SELECT producto_id, cantidad, precio_usd, subtotal_bs, deposito_id, marca FROM venta_detalle WHERE venta_id = ?').all(venta_original_id);
       devueltosPrevios = obtenerDevueltosPrevios(venta_original_id);
       devueltosPosteriores = new Map(devueltosPrevios);
     }
 
-    const selectProducto = db.prepare('SELECT id, precio_usd, stock, deposito_id, empresa_id FROM productos WHERE codigo = ? AND empresa_id = ?');
+    const selectProducto = db.prepare('SELECT id, precio_usd, stock, deposito_id, empresa_id, marca FROM productos WHERE codigo = ? AND empresa_id = ?');
     const selectStockDep = db.prepare(`
       SELECT cantidad FROM stock_por_deposito
       WHERE producto_id = ? AND deposito_id = ?
@@ -165,6 +170,19 @@ function registrarDevolucion(payload = {}) {
         VALUES (?, ?, ?, ?)
       `),
     };
+    const selectStockDepMarca = db.prepare(`
+      SELECT cantidad FROM stock_por_deposito_marca
+      WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+    `);
+    const updateStockDepMarcaAdd = db.prepare(`
+      UPDATE stock_por_deposito_marca
+      SET cantidad = cantidad + ?, actualizado_en = datetime('now')
+      WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+    `);
+    const insertStockDepMarca = db.prepare(`
+      INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad)
+      VALUES (?, ?, ?, ?, ?)
+    `);
     const updateProdStock = db.prepare('UPDATE productos SET stock = ? WHERE id = ?');
 
     for (const item of items) {
@@ -221,17 +239,37 @@ function registrarDevolucion(payload = {}) {
           VALUES (?, ?, ?, ?, ?)
         `).run(devId, producto.id, cantidad, producto.precio_usd || 0, subtotalBs);
 
-      // Aumentar stock total y en el depósito asignado al producto
+      // Aumentar stock total y en el depósito correspondiente
       const nuevoStockTotal = (producto.stock || 0) + cantidad;
       updateProdStock.run(nuevoStockTotal, producto.id);
 
-      const depositoId = producto.deposito_id;
+      let depositoId = producto.deposito_id;
+      // Si la devolución está asociada a una venta original y tenemos el depósito
+      // de esa venta para este producto, devolver al mismo depósito.
+      if (detalleOriginal && detalleOriginal.deposito_id) {
+        depositoId = detalleOriginal.deposito_id;
+      }
       if (depositoId) {
         const rowDep = selectStockDep.get(producto.id, depositoId);
         if (rowDep) {
           upsertStockDep.suma.run(cantidad, producto.id, depositoId);
         } else {
           upsertStockDep.insert.run(producto.empresa_id || empresaId || null, producto.id, depositoId, cantidad);
+        }
+
+        // Actualizar también el desglose por marca dentro del depósito.
+        // Usar la marca con la que se vendió originalmente esta línea si está disponible.
+        const marcaOrigen = detalleOriginal && detalleOriginal.marca
+          ? detalleOriginal.marca
+          : (producto.marca || '');
+        const marcaNorm = normalizeMarca(marcaOrigen);
+        if (marcaNorm) {
+          const rowDepMarca = selectStockDepMarca.get(producto.id, depositoId, marcaNorm);
+          if (rowDepMarca) {
+            updateStockDepMarcaAdd.run(cantidad, producto.id, depositoId, marcaNorm);
+          } else {
+            insertStockDepMarca.run(producto.empresa_id || empresaId || null, producto.id, depositoId, marcaNorm, cantidad);
+          }
         }
       }
     }

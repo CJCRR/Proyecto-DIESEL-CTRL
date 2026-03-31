@@ -66,7 +66,16 @@ async function handleResultadoClick(p) {
 			const partes = existenciasConStock.map(e => {
 				const nombre = (e.deposito_nombre || '').toString();
 				const cant = Number(e.cantidad || 0) || 0;
-				return `${nombre}: ${cant}`;
+				let detalleMarcas = '';
+				if (Array.isArray(e.marcas) && e.marcas.length > 0) {
+					const marcasConStock = e.marcas
+						.filter(m => Number(m.cantidad || 0) > 0)
+						.map(m => `${(m.marca || 'SIN MARCA').toString()}: ${m.cantidad}`);
+					if (marcasConStock.length) {
+						detalleMarcas = ` [${marcasConStock.join(', ')}]`;
+					}
+				}
+				return `${nombre}: ${cant}${detalleMarcas}`;
 			});
 			productoInfoEl.textContent = `Stock total: ${stockTotal} 
 • Por depósito: ${partes.join(' • ')}`;
@@ -108,13 +117,14 @@ async function handleResultadoClick(p) {
 		}
 	}
 
-	// Poblar selector de marca usando marcas históricas + marca actual del producto
-	let marcasDisponibles = [];
+	// Poblar selector de marca de forma dependiente del depósito seleccionado.
+	// 1) Obtener marcas históricas del producto como respaldo.
+	let marcasHistoricas = [];
 	if (_refs.apiFetchJson && p && p.codigo) {
 		try {
 			const respMarcas = await _refs.apiFetchJson(`/admin/productos/marcas-por-producto?codigo=${encodeURIComponent(p.codigo)}`);
 			const arr = Array.isArray(respMarcas?.items) ? respMarcas.items : [];
-			marcasDisponibles = arr
+			marcasHistoricas = arr
 				.map(m => (m || '').toString().trim())
 				.filter(Boolean);
 		} catch (err) {
@@ -124,12 +134,35 @@ async function handleResultadoClick(p) {
 	const marcaPrincipal = (detalle && detalle.marca) || p.marca || '';
 	if (marcaPrincipal) {
 		const norm = marcaPrincipal.toString().trim();
-		if (!marcasDisponibles.some(m => m.toLowerCase() === norm.toLowerCase())) {
-			marcasDisponibles.unshift(norm);
+		if (!marcasHistoricas.some(m => m.toLowerCase() === norm.toLowerCase())) {
+			marcasHistoricas.unshift(norm);
 		}
 	}
 
-	if (marcaSelect && marcaWrapper) {
+	function actualizarSelectorMarca() {
+		if (!marcaSelect || !marcaWrapper) return;
+		let marcasDisponibles = [];
+		// Buscar depósito seleccionado y usar solo las marcas con stock > 0 en ese depósito
+		let depositoSeleccionadoId = null;
+		if (depSelect && depSelect.value) {
+			const parsed = parseInt(depSelect.value, 10);
+			if (!Number.isNaN(parsed)) depositoSeleccionadoId = parsed;
+		}
+		if (depositoSeleccionadoId != null) {
+			const depRow = existenciasConStock.find(e => e.deposito_id === depositoSeleccionadoId) || existencias.find(e => e.deposito_id === depositoSeleccionadoId);
+			if (depRow && Array.isArray(depRow.marcas) && depRow.marcas.length > 0) {
+				marcasDisponibles = depRow.marcas
+					.filter(m => Number(m.cantidad || 0) > 0)
+					.map(m => (m.marca || '').toString().trim())
+					.filter(Boolean);
+			}
+		}
+		// Si no hay marcas con stock en ese depósito, usar las históricas como respaldo
+		if (!marcasDisponibles.length) {
+			marcasDisponibles = marcasHistoricas.slice();
+		}
+
+		// Renderizar selector
 		if (marcasDisponibles.length <= 1) {
 			if (marcasDisponibles.length === 1) {
 				const unica = marcasDisponibles[0];
@@ -143,11 +176,19 @@ async function handleResultadoClick(p) {
 		} else {
 			const opts = marcasDisponibles.map(m => `<option value="${m}">${m}</option>`).join('');
 			marcaSelect.innerHTML = opts;
-			if (marcasDisponibles.length > 0) {
-				marcaSelect.value = marcasDisponibles[0];
-			}
+			marcaSelect.value = marcasDisponibles[0];
 			marcaWrapper.classList.remove('hidden');
 		}
+	}
+
+	if (marcaSelect && marcaWrapper) {
+		// Configurar actualización reactiva al cambiar de depósito
+		if (depSelect) {
+			// Sobrescribimos el handler para evitar acumular listeners
+			depSelect.onchange = actualizarSelectorMarca;
+		}
+		// Inicializar según el depósito seleccionado actual (o único depósito)
+		actualizarSelectorMarca();
 	}
 
 	// Pasar producto (con detalle opcional) al módulo de carrito.

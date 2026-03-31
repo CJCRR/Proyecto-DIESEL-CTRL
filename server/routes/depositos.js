@@ -76,12 +76,54 @@ router.post('/mover', requireAuth, requireRole('admin', 'admin_empresa', 'vended
     const depDestino = db.prepare('SELECT id FROM depositos WHERE empresa_id = ? AND id = ?').get(empresaId, destId);
     if (!depDestino) return res.status(400).json({ error: 'Depósito destino no pertenece a la empresa o no existe' });
 
+    const selectStockDep = db.prepare(`
+      SELECT cantidad FROM stock_por_deposito
+      WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const updateStockDepOrigen = db.prepare(`
+      UPDATE stock_por_deposito
+      SET cantidad = cantidad - ?, actualizado_en = datetime('now')
+      WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const selectStockDepDestino = db.prepare(`
+      SELECT cantidad FROM stock_por_deposito
+      WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const updateStockDepDestino = db.prepare(`
+      UPDATE stock_por_deposito
+      SET cantidad = cantidad + ?, actualizado_en = datetime('now')
+      WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const insertStockDep = db.prepare(`
+      INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+      VALUES (?, ?, ?, ?)
+    `);
+    const selectStockDepMarcaAll = db.prepare(`
+      SELECT marca, cantidad FROM stock_por_deposito_marca
+      WHERE producto_id = ? AND deposito_id = ?
+    `);
+    const selectStockDepMarca = db.prepare(`
+      SELECT cantidad FROM stock_por_deposito_marca
+      WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+    `);
+    const updateStockDepMarcaSub = db.prepare(`
+      UPDATE stock_por_deposito_marca
+      SET cantidad = cantidad - ?, actualizado_en = datetime('now')
+      WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+    `);
+    const updateStockDepMarcaAdd = db.prepare(`
+      UPDATE stock_por_deposito_marca
+      SET cantidad = cantidad + ?, actualizado_en = datetime('now')
+      WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+    `);
+    const insertStockDepMarca = db.prepare(`
+      INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
     const tx = db.transaction(() => {
       // Stock disponible en el depósito origen
-      const stockDepOrigenRow = db.prepare(`
-        SELECT cantidad FROM stock_por_deposito
-        WHERE producto_id = ? AND deposito_id = ?
-      `).get(prod.id, origenId);
+      const stockDepOrigenRow = selectStockDep.get(prod.id, origenId);
       const stockOrigen = stockDepOrigenRow ? Number(stockDepOrigenRow.cantidad || 0) : 0;
 
       let moverCantidad;
@@ -110,28 +152,48 @@ router.post('/mover', requireAuth, requireRole('admin', 'admin_empresa', 'vended
       }
 
       // Actualizar stock en depósito origen
-      db.prepare(`
-        UPDATE stock_por_deposito
-        SET cantidad = cantidad - ?, actualizado_en = datetime('now')
-        WHERE producto_id = ? AND deposito_id = ?
-      `).run(moverCantidad, prod.id, origenId);
+      updateStockDepOrigen.run(moverCantidad, prod.id, origenId);
 
       // Sumar stock en depósito destino (upsert básico)
-      const stockDepDestinoRow = db.prepare(`
-        SELECT cantidad FROM stock_por_deposito
-        WHERE producto_id = ? AND deposito_id = ?
-      `).get(prod.id, destId);
+      const stockDepDestinoRow = selectStockDepDestino.get(prod.id, destId);
       if (stockDepDestinoRow) {
-        db.prepare(`
-          UPDATE stock_por_deposito
-          SET cantidad = cantidad + ?, actualizado_en = datetime('now')
-          WHERE producto_id = ? AND deposito_id = ?
-        `).run(moverCantidad, prod.id, destId);
+        updateStockDepDestino.run(moverCantidad, prod.id, destId);
       } else {
-        db.prepare(`
-          INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
-          VALUES (?, ?, ?, ?)
-        `).run(empresaId, prod.id, destId, moverCantidad);
+        insertStockDep.run(empresaId, prod.id, destId, moverCantidad);
+      }
+
+      // Mantener también el desglose por marca:
+      // repartir la cantidad movida entre las marcas del depósito origen
+      // y sumar esas mismas marcas en el depósito destino.
+      const filasMarcasOrigen = selectStockDepMarcaAll.all(prod.id, origenId) || [];
+      if (filasMarcasOrigen.length > 0) {
+        const totalMarcasOrigen = filasMarcasOrigen.reduce((acc, r) => acc + (Number(r.cantidad || 0) || 0), 0);
+        if (totalMarcasOrigen >= moverCantidad && totalMarcasOrigen > 0) {
+          let restante = moverCantidad;
+          for (const fila of filasMarcasOrigen) {
+            if (restante <= 0) break;
+            const disponible = Number(fila.cantidad || 0) || 0;
+            if (disponible <= 0) continue;
+            const aMover = restante <= disponible ? restante : disponible;
+            // Descontar de la marca en el depósito origen
+            updateStockDepMarcaSub.run(aMover, prod.id, origenId, fila.marca);
+            // Sumar en el depósito destino (upsert por marca)
+            const rowMarcaDest = selectStockDepMarca.get(prod.id, destId, fila.marca);
+            if (rowMarcaDest) {
+              updateStockDepMarcaAdd.run(aMover, prod.id, destId, fila.marca);
+            } else {
+              insertStockDepMarca.run(empresaId, prod.id, destId, fila.marca, aMover);
+            }
+            restante -= aMover;
+          }
+        } else {
+          console.warn('Inconsistencia: stock_por_deposito_marca menor que stock_por_deposito en movimiento de depósito', {
+            productoId: prod.id,
+            origenId,
+            moverCantidad,
+            totalMarcasOrigen,
+          });
+        }
       }
 
       // Si todo el stock del depósito origen se movió y era el depósito actual del producto,

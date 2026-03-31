@@ -7,6 +7,11 @@ function safeStr(v, max = MAX_TEXT) {
   return String(v).trim().slice(0, max);
 }
 
+function normalizeMarca(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).trim().toUpperCase();
+}
+
 function mapCompra(row) {
   if (!row) return null;
   return {
@@ -123,6 +128,19 @@ function crearCompra(payload = {}, usuario) {
       INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
       VALUES (?, ?, ?, ?)
     `);
+    const selectStockDepMarca = db.prepare(`
+      SELECT cantidad FROM stock_por_deposito_marca
+      WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+    `);
+    const updateStockDepMarcaAdd = db.prepare(`
+      UPDATE stock_por_deposito_marca
+      SET cantidad = cantidad + ?, actualizado_en = datetime('now')
+      WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+    `);
+    const insertStockDepMarca = db.prepare(`
+      INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad)
+      VALUES (?, ?, ?, ?, ?)
+    `);
     const updateProdStock = db.prepare(`
       UPDATE productos
       SET stock = ?,
@@ -182,6 +200,7 @@ function crearCompra(payload = {}, usuario) {
       }
 
       const marca = safeStr(raw.marca || prod.marca, 80);
+      const marcaNorm = normalizeMarca(marca);
       const subtotalUsd = costo * cantidad;
       const subtotalBs = subtotalUsd * tasa;
       totalUsd += subtotalUsd;
@@ -219,6 +238,16 @@ function crearCompra(payload = {}, usuario) {
           updateStockDepAdd.run(cantidad, prod.id, depositoId);
         } else {
           insertStockDep.run(prod.empresa_id || empresaId, prod.id, depositoId, cantidad);
+        }
+
+        // Actualizar desglose por marca dentro del depósito
+        if (marcaNorm) {
+          const rowDepMarca = selectStockDepMarca.get(prod.id, depositoId, marcaNorm);
+          if (rowDepMarca) {
+            updateStockDepMarcaAdd.run(cantidad, prod.id, depositoId, marcaNorm);
+          } else {
+            insertStockDepMarca.run(prod.empresa_id || empresaId, prod.id, depositoId, marcaNorm, cantidad);
+          }
         }
       }
     }

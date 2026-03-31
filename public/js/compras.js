@@ -53,6 +53,23 @@ async function cargarMarcasCompras() {
   }
 }
 
+// Cargar marcas específicas de un producto para sugerencias en compras
+async function cargarMarcasProductoCompras(codigo) {
+  if (!codigo) return;
+  try {
+    const resp = await apiFetchJson(`/admin/productos/marcas-por-producto?codigo=${encodeURIComponent(codigo)}`);
+    const arr = Array.isArray(resp && resp.items) ? resp.items : [];
+    const marcas = arr
+      .map(m => (m || '').toString().trim())
+      .filter(Boolean);
+    if (!marcas.length) return;
+    marcasCompras = marcas;
+    renderMarcasComprasSug(marcasCompras);
+  } catch (err) {
+    console.warn('No se pudieron cargar marcas específicas para el producto en compras:', err);
+  }
+}
+
 function renderCategoriasComprasSug(list = []) {
   const sugList = document.getElementById('npCategoriaSug');
   const input = document.getElementById('np_categoria');
@@ -145,7 +162,10 @@ function renderProductoInfo() {
   const desc = p.descripcion ? ` - ${p.descripcion}` : '';
   const stock = typeof p.stock === 'number' ? ` | Stock: ${p.stock}` : '';
 	const precio = typeof p.precio_usd === 'number' ? ` | Precio ref: $${formatNumber(p.precio_usd, 2)}` : '';
-  const marca = p.marca ? ` | Marca: ${p.marca}` : '';
+  const marcasLista = Array.isArray(p.marcas_disponibles) && p.marcas_disponibles.length
+    ? p.marcas_disponibles.join(' / ')
+    : (p.marca || '');
+  const marca = marcasLista ? ` | Marca: ${marcasLista}` : '';
   info.textContent = `Producto: ${p.codigo || ''}${desc}${stock}${precio}${marca}`;
 }
 
@@ -567,7 +587,44 @@ async function cargarProductoPorCodigo(codigo) {
   if (!codigo) return;
   try {
     const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
-    productoSeleccionado = prod || null;
+    let producto = prod || null;
+    if (producto) {
+      // Preferir las marcas que tienen stock actualmente (stock_por_deposito_marca)
+      let marcas = [];
+      if (Array.isArray(producto.existencias_por_deposito) && producto.existencias_por_deposito.length) {
+        const set = new Set();
+        producto.existencias_por_deposito.forEach((e) => {
+          if (Array.isArray(e.marcas)) {
+            e.marcas.forEach((m) => {
+              const nombre = (m && m.marca ? m.marca : '').toString().trim();
+              const cant = Number(m && m.cantidad != null ? m.cantidad : 0) || 0;
+              if (nombre && cant > 0) set.add(nombre);
+            });
+          }
+        });
+        marcas = Array.from(set);
+      }
+
+      // Si no hay marcas con stock, caer al historial de marcas de compras
+      if (!marcas.length) {
+        try {
+          const resp = await apiFetchJson(`/admin/productos/marcas-por-producto?codigo=${encodeURIComponent(codigo)}`);
+          const arr = Array.isArray(resp && resp.items) ? resp.items : [];
+          marcas = arr
+            .map(m => (m || '').toString().trim())
+            .filter(Boolean);
+        } catch (errMarcas) {
+          console.warn('No se pudieron cargar marcas por producto en compras (fallback historial):', errMarcas);
+        }
+      }
+
+      if (marcas.length) {
+        producto.marcas_disponibles = marcas;
+        marcasCompras = marcas;
+        renderMarcasComprasSug(marcasCompras);
+      }
+    }
+    productoSeleccionado = producto;
     renderProductoInfo();
     if (productoSeleccionado) {
       rellenarCamposProductoEnFormulario(productoSeleccionado);

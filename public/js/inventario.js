@@ -49,6 +49,15 @@ const f_categoria = document.getElementById('f_categoria');
 const categoriaSugList = document.getElementById('categoria_sugerencias');
 const marcaSugList = document.getElementById('marca_sugerencias');
 const actividadProductoEl = document.getElementById('actividad-producto');
+const stockMarcaEditorEl = document.getElementById('stock-marca-editor');
+const btnEditarMarcas = document.getElementById('btnEditarMarcas');
+let stockMarcaModal = document.getElementById('stock-marca-modal');
+const stockMarcaModalClose = document.getElementById('stock-marca-modal-close');
+
+// Asegurar que el modal de stock por marca cuelgue del body para cubrir toda la pantalla
+if (stockMarcaModal && stockMarcaModal.parentElement !== document.body) {
+    document.body.appendChild(stockMarcaModal);
+}
 
 let categoriasInventario = [];
 let marcasInventario = [];
@@ -57,16 +66,19 @@ let codigoOriginalSeleccionado = null;
 // Determinar rol de usuario para habilitar o no edición de stock desde inventario
 let esEmpresaAdmin = false;
 let esSuperAdmin = false;
+let esVendedor = false;
 try {
     const currentUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
     if (currentUser && currentUser.rol) {
         esEmpresaAdmin = currentUser.rol === 'admin' || currentUser.rol === 'admin_empresa';
         esSuperAdmin = currentUser.rol === 'superadmin';
+        esVendedor = currentUser.rol === 'vendedor';
     }
 } catch (e) {
     console.warn('No se pudo leer auth_user para roles en inventario:', e);
 }
 const puedeEditarStockDesdeInventario = esEmpresaAdmin || esSuperAdmin;
+const puedeEditarDesgloseMarca = esEmpresaAdmin || esSuperAdmin || esVendedor;
 
 // Select dinámico para elegir depósito origen cuando hay stock en varios depósitos
 let movDepOrigenSelect = null;
@@ -149,6 +161,103 @@ if (!puedeEditarStockDesdeInventario) {
         if (lblDep && lblDep.tagName === 'LABEL') lblDep.classList.add('hidden');
         f_deposito.classList.add('hidden');
     }
+}
+
+// Hacer que el botón de Marca abra el modal de stock por depósito y marca
+if (btnEditarMarcas && stockMarcaModal && stockMarcaEditorEl) {
+    btnEditarMarcas.addEventListener('click', async () => {
+        const codigoValRaw = f_codigo ? String(f_codigo.value || '').trim() : '';
+        if (!codigoValRaw) {
+            showToast('Selecciona primero un producto de la lista para editar sus marcas.', 'info');
+            return;
+        }
+        const codigoVal = codigoValRaw.toUpperCase();
+
+        // Si el producto aún no existe en la lista (producto recién digitado pero no guardado),
+        // intentar crearlo rápido con los datos del formulario para poder editar marcas de inmediato.
+        let prodEnCache = productosCache.find(p => p.codigo === codigoVal);
+        if (!prodEnCache) {
+            const desc = f_desc ? String(f_desc.value || '').trim().toUpperCase() : '';
+            const precio = parseFloat(f_precio && f_precio.value ? f_precio.value : '0');
+            const stockInput = parseInt(f_stock && f_stock.value ? f_stock.value : '0', 10) || 0;
+            const depositoId = (f_deposito && f_deposito.value) ? parseInt(f_deposito.value, 10) : null;
+
+            if (!desc || !precio || !depositoId) {
+                showToast('Completa Código, Descripción, Precio y Depósito y guarda el producto antes de editar marcas.', 'error');
+                return;
+            }
+
+            let stock = stockInput;
+            if (!puedeEditarStockDesdeInventario) {
+                stock = 0;
+            }
+
+            const body = {
+                codigo: codigoVal,
+                descripcion: desc,
+                precio_usd: precio,
+                costo_usd: parseFloat(f_costo && f_costo.value ? f_costo.value : '0') || 0,
+                stock,
+                categoria: (f_categoria && f_categoria.value.trim()) || '',
+                marca: '',
+                deposito_id: depositoId,
+            };
+
+            try {
+                const res = await fetch('/admin/productos', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error || 'Error creando producto antes de editar marcas');
+                showToast('Producto creado. Ahora puedes editar marcas por depósito.', 'success');
+                codigoOriginalSeleccionado = codigoVal;
+                currentPage = 0;
+                await cargarProductos();
+                prodEnCache = productosCache.find(p => p.codigo === codigoVal) || null;
+            } catch (err) {
+                console.error(err);
+                showToast('No se pudo crear el producto para editar marcas: ' + (err.message || ''), 'error');
+                return;
+            }
+        }
+
+        // Asegurar que el editor tenga el desglose actualizado para este código
+        try {
+            await cargarStockMarcaEditor(codigoVal);
+        } catch (e) {
+            console.warn('No se pudo cargar stock por marca antes de abrir el modal:', e);
+        }
+
+        // Abrir modal con misma animación que otros modales
+        stockMarcaModal.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            stockMarcaModal.classList.add('modal-open');
+            stockMarcaModal.style.display = 'flex';
+        });
+    });
+}
+
+// Cerrar modal de stock por depósito y marca
+if (stockMarcaModal && stockMarcaModalClose) {
+    stockMarcaModalClose.addEventListener('click', () => {
+        stockMarcaModal.classList.remove('modal-open');
+        setTimeout(() => {
+            stockMarcaModal.classList.add('hidden');
+            stockMarcaModal.style.display = '';
+        }, 200);
+    });
+    stockMarcaModal.addEventListener('click', (e) => {
+        if (e.target === stockMarcaModal || (e.target && e.target.classList && e.target.classList.contains('modal-backdrop'))) {
+            stockMarcaModal.classList.remove('modal-open');
+            setTimeout(() => {
+                stockMarcaModal.classList.add('hidden');
+                stockMarcaModal.style.display = '';
+            }, 200);
+        }
+    });
 }
 
 // Cargar productos con filtros aplicados y paginación, ordenados alfabéticamente por descripción
@@ -344,7 +453,10 @@ function renderList(items) {
         if (p.costo_usd == null || Number(p.costo_usd) <= 0) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">Sin costo</span>');
         if (p.precio_usd == null || Number(p.precio_usd) <= 0) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700">Sin precio</span>');
         if (!p.categoria || !String(p.categoria).trim()) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-700">Sin categoría</span>');
-        if (!p.marca || !String(p.marca).trim()) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">Sin marca</span>');
+        const tieneMarcasStock = p.marcas_stock && String(p.marcas_stock).trim();
+        if ((!p.marca || !String(p.marca).trim()) && !tieneMarcasStock) {
+            tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">Sin marca principal</span>');
+        }
         if (p.deposito_id == null) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">Sin depósito</span>');
         if (p.stock == null) tags.push('<span class="inline-flex items-center px-1 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700">Sin stock definido</span>');
 
@@ -353,8 +465,10 @@ function renderList(items) {
         }
         const descUpper = (p.descripcion || '').toString().toUpperCase();
         const catUpper = (p.categoria || '').toString().toUpperCase();
-        const marcaUpper = (p.marca || '').toString().toUpperCase();
-        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs ">${descUpper}</span></div><div class="text-xs text-slate-400">${catUpper}${marcaUpper ? ` · Marca: ${marcaUpper}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}${incompletosBadges}</div>
+        const marcasStockUpper = (p.marcas_stock || '').toString().toUpperCase();
+        const marcaPrincipalUpper = (p.marca || '').toString().toUpperCase();
+        const marcaTexto = marcasStockUpper || marcaPrincipalUpper;
+        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs ">${descUpper}</span></div><div class="text-xs text-slate-400">${catUpper}${marcaTexto ? ` · Marca: ${marcaTexto}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}${incompletosBadges}</div>
             <div class="text-right space-y-0.5 min-w-[170px]">
                 <div class="text-sm font-black">Stock: ${p.stock || 0}${badgeHtml}</div>
                 <div class="text-xs text-slate-600">Precio $${formatNumber(precio, 2)}</div>
@@ -373,7 +487,12 @@ function renderList(items) {
             f_costo.value = p.costo_usd || 0;
             f_stock.value = p.stock || 0;
             const f_cat = document.getElementById('f_categoria'); if (f_cat) f_cat.value = p.categoria || '';
-            if (f_marca) f_marca.value = p.marca || '';
+            const marcasStockUpperSel = (p.marcas_stock || '').toString().toUpperCase();
+            const marcaPrincipalUpperSel = (p.marca || '').toString().toUpperCase();
+            const marcaTextoSel = marcasStockUpperSel || marcaPrincipalUpperSel;
+            if (f_marca) f_marca.value = marcaTextoSel || '';
+            const btnEditarMarcasLabel = document.getElementById('btnEditarMarcasLabel');
+            if (btnEditarMarcasLabel) btnEditarMarcasLabel.textContent = marcaTextoSel || '—';
             if (f_deposito) f_deposito.value = p.deposito_id || '';
             msg.innerText = '';
 
@@ -408,6 +527,9 @@ function renderList(items) {
                     elHist.innerHTML = '<div class="text-xs text-rose-500">Error cargando ajustes para este producto.</div>';
                 }
             })();
+
+            // Cargar desglose de stock por depósito y marca para este producto
+            cargarStockMarcaEditor(p.codigo);
 
             // Cargar actividad de compras y ventas para este producto
             (async () => {
@@ -885,13 +1007,23 @@ form.addEventListener('submit', async (e) => {
         currentPage = 0;
         await cargarProductos();
         await cargarAjustes();
-        // Limpiar inputs excepto categoria (permite ingresar varios del mismo grupo)
-        f_codigo.value = f_desc.value = f_precio.value = f_costo.value = f_stock.value = '';
-        codigoOriginalSeleccionado = null;
-        if (f_marca) f_marca.value = '';
-        if (f_deposito) f_deposito.value = '';
-        if (f_motivoAjuste) f_motivoAjuste.value = '';
-        msg.innerText = '';
+
+        // Si es un producto nuevo, seleccionar automáticamente su tarjeta en la lista
+        // para que el usuario pueda ir directo al editor de stock por depósito y marca.
+        if (!estaEditando) {
+            const card = lista.querySelector(`[data-codigo="${codigoActual}"]`);
+            if (card) {
+                card.click();
+            }
+        } else {
+            // En edición sí limpiamos el formulario para dejarlo listo para otro producto
+            f_codigo.value = f_desc.value = f_precio.value = f_costo.value = f_stock.value = '';
+            codigoOriginalSeleccionado = null;
+            if (f_marca) f_marca.value = '';
+            if (f_deposito) f_deposito.value = '';
+            if (f_motivoAjuste) f_motivoAjuste.value = '';
+            msg.innerText = '';
+        }
         showToast(!estaEditando ? 'Producto creado.' : 'Producto actualizado.', 'success');
     } catch (err) {
         msg.innerText = 'Error: ' + err.message;
@@ -921,6 +1053,7 @@ btnBorrar.addEventListener('click', () => {
             if (!res.ok) throw new Error(d.error || 'Error eliminar');
             msg.innerText = 'Producto eliminado.';
             f_codigo.value = f_desc.value = f_precio.value = f_stock.value = '';
+            codigoOriginalSeleccionado = null;
             showToast('Producto eliminado.', 'success');
             // Intentar eliminar también en Firebase (best-effort, no bloqueante)
             try {
@@ -1107,6 +1240,170 @@ async function cargarMarcas() {
 }
 
 cargarMarcas();
+
+// Cargar y renderizar desglose de stock por depósito y marca para un producto
+async function cargarStockMarcaEditor(codigo) {
+    if (!stockMarcaEditorEl) return;
+    if (!codigo) {
+        stockMarcaEditorEl.innerHTML = '<div class="text-[11px] text-slate-400">Selecciona un producto para ver su stock por depósito y marca.</div>';
+        return;
+    }
+    stockMarcaEditorEl.innerHTML = '<div class="text-[11px] text-slate-400">Cargando desglose...</div>';
+    try {
+        const res = await fetch('/productos/' + encodeURIComponent(codigo), { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('No se pudo cargar el producto');
+        const prod = await res.json();
+        const existencias = Array.isArray(prod.existencias_por_deposito) ? prod.existencias_por_deposito : [];
+        if (!existencias.length) {
+            stockMarcaEditorEl.innerHTML = '<div class="text-[11px] text-slate-400">Este producto no tiene stock detallado por depósito.</div>';
+            return;
+        }
+
+        let html = '';
+        existencias.forEach((e, idx) => {
+            const totalDep = Number(e.cantidad || 0) || 0;
+            const marcas = Array.isArray(e.marcas) && e.marcas.length ? e.marcas : [{ marca: '', cantidad: totalDep }];
+            const depNombre = e.deposito_nombre || 'Depósito';
+            html += `
+                <div class="mb-3 border rounded p-2 bg-slate-50" data-deposito-id="${e.deposito_id}" data-total-cantidad="${totalDep}">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-semibold text-[11px] text-slate-700">${depNombre}</div>
+                        <div class="text-[11px] text-slate-500">Total depósito: ${totalDep}</div>
+                    </div>
+                    <div class="space-y-1 js-deposito-marcas">
+                        ${marcas.map((m, i) => {
+                            const marcaLabel = (m.marca || '').toString();
+                            const cant = Number(m.cantidad || 0) || 0;
+                            return `
+                                <div class="flex items-center gap-1 js-fila-marca" data-index="${i}">
+                                    <input type="text" class="flex-1 px-1 py-0.5 border rounded text-[11px]" placeholder="Marca" value="${marcaLabel}">
+                                    <input type="number" step="1" min="0" class="w-16 px-1 py-0.5 border rounded text-[11px] text-right" value="${cant}">
+                                    <button type="button" class="px-1 py-0.5 text-[10px] text-rose-600 hover:text-rose-800 js-remove-marca" title="Eliminar marca">×</button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    <div class="mt-1 flex justify-between items-center">
+                        <button type="button" class="px-2 py-0.5 text-[11px] rounded bg-slate-200 hover:bg-slate-300 text-slate-700 js-add-marca">Agregar marca</button>
+                        <span class="text-[10px] text-slate-400">La suma por depósito debe ser igual a ${totalDep}.</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        if (puedeEditarDesgloseMarca) {
+            html += `
+                <button type="button" id="btnGuardarStockMarca" class="w-full mt-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-semibold">Guardar desglose por marca</button>
+                <p class="mt-1 text-[10px] text-slate-500">Este ajuste solo cambia el reparto por marca dentro de cada depósito. El stock total y por depósito se mantienen.</p>
+            `;
+        } else {
+            html += '<p class="mt-1 text-[10px] text-slate-400">Vista solo lectura: no tienes permisos para editar este desglose.</p>';
+        }
+
+        stockMarcaEditorEl.innerHTML = html;
+
+        // Wiring de botones de agregar/eliminar marcas
+        const contenedores = stockMarcaEditorEl.querySelectorAll('[data-deposito-id]');
+        contenedores.forEach((cont) => {
+            const lista = cont.querySelector('.js-deposito-marcas');
+            if (!lista) return;
+
+            // Eliminar fila de marca (no permitir dejar el depósito sin ninguna fila)
+            lista.addEventListener('click', (ev) => {
+                const target = ev.target;
+                if (!(target && target.classList && target.classList.contains('js-remove-marca'))) return;
+                const filas = lista.querySelectorAll('.js-fila-marca');
+                if (filas.length <= 1) {
+                    showToast('Debe existir al menos una fila de marca por depósito.', 'warning');
+                    return;
+                }
+                const fila = target.closest('.js-fila-marca');
+                if (fila) fila.remove();
+            });
+
+            // Agregar nueva fila de marca vacía
+            const btnAdd = cont.querySelector('.js-add-marca');
+            if (btnAdd) {
+                btnAdd.addEventListener('click', () => {
+                    const fila = document.createElement('div');
+                    fila.className = 'flex items-center gap-1 js-fila-marca';
+                    fila.innerHTML = `
+                        <input type="text" class="flex-1 px-1 py-0.5 border rounded text-[11px]" placeholder="Marca">
+                        <input type="number" step="1" min="0" class="w-16 px-1 py-0.5 border rounded text-[11px] text-right" value="0">
+                        <button type="button" class="px-1 py-0.5 text-[10px] text-rose-600 hover:text-rose-800 js-remove-marca" title="Eliminar marca">×</button>
+                    `;
+                    lista.appendChild(fila);
+                });
+            }
+        });
+
+        // El botón se muestra para admins y vendedores (puedeEditarDesgloseMarca),
+        // y aquí también debemos habilitar el handler para ese mismo grupo.
+        if (puedeEditarDesgloseMarca) {
+            const btnGuardar = document.getElementById('btnGuardarStockMarca');
+            if (btnGuardar) {
+                btnGuardar.addEventListener('click', async () => {
+                    try {
+                        const distribucion = [];
+                        const errores = [];
+                        const conts = stockMarcaEditorEl.querySelectorAll('[data-deposito-id]');
+                        conts.forEach((cont) => {
+                            const depositoId = parseInt(cont.getAttribute('data-deposito-id') || '0', 10) || 0;
+                            const totalEsperado = Number(cont.getAttribute('data-total-cantidad') || 0) || 0;
+                            let suma = 0;
+                            const filas = cont.querySelectorAll('.js-fila-marca');
+                            filas.forEach((fila) => {
+                                const inputs = fila.querySelectorAll('input');
+                                if (!inputs || inputs.length < 2) return;
+                                const marca = (inputs[0].value || '').toString().trim();
+                                const cantidad = Number(inputs[1].value || 0) || 0;
+                                if (cantidad < 0) return;
+                                suma += cantidad;
+                                if (cantidad > 0 && marca) {
+                                    distribucion.push({ deposito_id: depositoId, marca, cantidad });
+                                }
+                            });
+                            if (Math.abs(suma - totalEsperado) > 1e-6) {
+                                errores.push(`Depósito ID ${depositoId}: suma por marca ${suma} ≠ total ${totalEsperado}`);
+                            }
+                        });
+
+                        if (errores.length) {
+                            showToast('No se pudo guardar: ' + errores.join(' | '), 'error', 6000);
+                            return;
+                        }
+
+                        if (!distribucion.length) {
+                            showToast('No hay líneas de marca con cantidades > 0 para guardar.', 'warning');
+                            return;
+                        }
+
+                        const payload = { codigo: codigo.toUpperCase(), distribucion };
+                        const resSave = await fetch('/admin/productos/stock-marca', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await resSave.json();
+                        if (!resSave.ok) {
+                            throw new Error(data.error || 'Error guardando desglose por marca');
+                        }
+                        showToast(data.message || 'Desglose por marca actualizado.', 'success');
+                        // recargar para reflejar lo guardado
+                        await cargarStockMarcaEditor(codigo);
+                    } catch (err) {
+                        console.error(err);
+                        showToast(err.message || 'Error guardando desglose por marca', 'error');
+                    }
+                });
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        stockMarcaEditorEl.innerHTML = '<div class="text-[11px] text-rose-500">Error cargando desglose: ' + (err.message || 'Error desconocido') + '</div>';
+    }
+}
 
 function renderCategoriaSugerencias(list = []) {
     if (!categoriaSugList) return;

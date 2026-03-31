@@ -391,6 +391,62 @@ const migrations = [
     }
   },
   {
+    id: '030_stock_por_deposito_marca',
+    up: () => {
+      // Stock desglosado por depósito y marca
+      const tx = db.transaction(() => {
+        db.prepare(`CREATE TABLE IF NOT EXISTS stock_por_deposito_marca (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          empresa_id INTEGER NOT NULL,
+          producto_id INTEGER NOT NULL,
+          deposito_id INTEGER NOT NULL,
+          marca TEXT NOT NULL,
+          cantidad REAL NOT NULL,
+          creado_en TEXT DEFAULT (datetime('now')),
+          actualizado_en TEXT DEFAULT (datetime('now'))
+        )`).run();
+
+        if (!indexExists('idx_stock_dep_marca_prod_dep_marca')) {
+          db.prepare('CREATE INDEX IF NOT EXISTS idx_stock_dep_marca_prod_dep_marca ON stock_por_deposito_marca (producto_id, deposito_id, marca)').run();
+        }
+
+        // Backfill inicial desde stock_por_deposito si la tabla está vacía
+        const c = db.prepare('SELECT COUNT(*) AS c FROM stock_por_deposito_marca').get();
+        const hasRows = c && Number(c.c || 0) > 0;
+        // En entornos donde todavía no existe stock_por_deposito (por orden de migraciones),
+        // PRAGMA table_info devuelve lista vacía sin lanzar error.
+        const infoStockDep = db.prepare("PRAGMA table_info('stock_por_deposito')").all();
+        const hasStockPorDepositoTable = Array.isArray(infoStockDep) && infoStockDep.length > 0;
+        if (!hasRows && hasStockPorDepositoTable) {
+          const rows = db.prepare(`
+            SELECT sd.empresa_id, sd.producto_id, sd.deposito_id, sd.cantidad,
+                   COALESCE(p.marca, '') AS marca
+            FROM stock_por_deposito sd
+            JOIN productos p ON p.id = sd.producto_id
+          `).all();
+          const insert = db.prepare(`
+            INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad)
+            VALUES (?, ?, ?, ?, ?)
+          `);
+          for (const row of rows) {
+            const marcaNorm = (row.marca || '').toString().trim().toUpperCase();
+            insert.run(row.empresa_id, row.producto_id, row.deposito_id, marcaNorm, Number(row.cantidad || 0) || 0);
+          }
+        }
+      });
+      tx();
+    }
+  },
+  {
+    id: '031_venta_detalle_marca',
+    up: () => {
+      // Guardar la marca usada en cada línea de venta
+      if (!columnExists('venta_detalle', 'marca')) {
+        db.prepare('ALTER TABLE venta_detalle ADD COLUMN marca TEXT').run();
+      }
+    }
+  },
+  {
     id: '007_proveedores_compras',
     up: () => {
       // Tabla de proveedores

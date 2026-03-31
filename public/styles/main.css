@@ -179,10 +179,6 @@
   margin-bottom: 0.75rem;
 }
 
-.marcainv {
-  padding-top: 9px;
-}
-
 .inv-input {
   width: 100%;
   border: 1.5px solid #cbd5e1;
@@ -1158,5 +1154,3 @@ body {
     opacity: 0;
   }
 }
-
-/*# sourceMappingURL=styles.css.map */

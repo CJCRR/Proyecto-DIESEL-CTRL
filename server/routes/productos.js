@@ -85,12 +85,33 @@ router.get('/:codigo', requireAuth, (req, res) => {
             SELECT sd.deposito_id,
                    d.nombre AS deposito_nombre,
                    d.codigo AS deposito_codigo,
-                   sd.cantidad
+                   SUM(sd.cantidad) AS cantidad
             FROM stock_por_deposito sd
             JOIN depositos d ON d.id = sd.deposito_id
             WHERE sd.producto_id = ?
+            GROUP BY sd.deposito_id
             ORDER BY d.nombre ASC
         `).all(producto.id);
+
+        // Adjuntar desglose de stock por marca dentro de cada depósito
+        try {
+            const stmtMarcas = db.prepare(`
+                SELECT marca, cantidad
+                FROM stock_por_deposito_marca
+                WHERE producto_id = ? AND deposito_id = ?
+                ORDER BY marca ASC
+            `);
+            for (const row of existencias) {
+                const marcas = stmtMarcas.all(producto.id, row.deposito_id) || [];
+                row.marcas = marcas.map(m => ({
+                    marca: m.marca,
+                    cantidad: Number(m.cantidad || 0) || 0
+                }));
+            }
+        } catch (errMarcas) {
+            console.warn('No se pudo obtener desglose por marca en stock_por_deposito_marca:', errMarcas.message);
+        }
+
         producto.existencias_por_deposito = existencias;
 
         // Recalcular stock total como suma de existencias por depósito cuando haya datos,

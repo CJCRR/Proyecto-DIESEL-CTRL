@@ -31,8 +31,9 @@ router.get('/:id', requireAuth, (req, res) => {
   }
 });
 
-// POST /compras - registrar una compra y cargar inventario (solo admin)
-router.post('/', requireAuth, requireRole('admin'), (req, res) => {
+// POST /compras - registrar una compra y cargar inventario
+// Permitido para admin, admin de empresa y vendedores (se bloquea superadmin implícitamente).
+router.post('/', requireAuth, requireRole('admin', 'admin_empresa', 'vendedor'), (req, res) => {
   try {
     const compra = crearCompra(req.body || {}, req.usuario);
     res.status(201).json(compra);

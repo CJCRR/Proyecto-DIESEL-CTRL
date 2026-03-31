@@ -20,6 +20,11 @@ function safeStr(v, max) {
     return String(v).trim().slice(0, max);
 }
 
+function normalizeMarca(v) {
+    if (v === null || v === undefined) return '';
+    return String(v).trim().toUpperCase();
+}
+
 /**
  * Registra una venta en la base de datos, actualiza inventario
  * y opcionalmente crea una cuenta por cobrar cuando es a crédito.
@@ -128,7 +133,7 @@ function registrarVenta(payload) {
 
         const ventaId = ventaResult.lastInsertRowid;
 
-        const selectProducto = db.prepare('SELECT id, stock, precio_usd, costo_usd, descripcion, deposito_id, empresa_id FROM productos WHERE codigo = ? AND empresa_id = ?');
+        const selectProducto = db.prepare('SELECT id, stock, precio_usd, costo_usd, descripcion, deposito_id, empresa_id, marca FROM productos WHERE codigo = ? AND empresa_id = ?');
         const selectStockTotal = db.prepare(`
             SELECT SUM(cantidad) AS total
             FROM stock_por_deposito
@@ -145,6 +150,15 @@ function registrarVenta(payload) {
         `);
         const updateProdStock = db.prepare(`
             UPDATE productos SET stock = ? WHERE id = ?
+        `);
+        const selectStockDepMarca = db.prepare(`
+            SELECT cantidad FROM stock_por_deposito_marca
+            WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+        `);
+        const updateStockDepMarcaSub = db.prepare(`
+            UPDATE stock_por_deposito_marca
+            SET cantidad = cantidad - ?, actualizado_en = datetime('now')
+            WHERE producto_id = ? AND deposito_id = ? AND marca = ?
         `);
 
         for (const item of items) {
@@ -194,10 +208,11 @@ function registrarVenta(payload) {
             totalGeneralBs += subtotalBs;
 
             // Insertar cada item en el detalle con el precio realmente vendido
+            const marcaOriginal = safeStr(item.marca || producto.marca || '', MAX_TEXT);
             db.prepare(`
-                    INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs, deposito_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                `).run(ventaId, producto.id, item.cantidad, precioUnitUsd, producto.costo_usd || 0, subtotalBs, depositoVentaId);
+                    INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs, deposito_id, marca)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(ventaId, producto.id, item.cantidad, precioUnitUsd, producto.costo_usd || 0, subtotalBs, depositoVentaId, marcaOriginal);
 
             // Descontar del inventario por depósito y en total, y verificar stock crítico.
             // Usamos el stock total calculado para evitar inconsistencias con productos.stock.
@@ -205,6 +220,14 @@ function registrarVenta(payload) {
             updateProdStock.run(nuevoStock, producto.id);
 
             updateStockDepSub.run(item.cantidad, producto.id, depositoVentaId);
+            // Descontar también del desglose por marca cuando tengamos marca asociada
+            const marcaNorm = normalizeMarca(item.marca || producto.marca || '');
+            if (marcaNorm) {
+                const rowMarca = selectStockDepMarca.get(producto.id, depositoVentaId, marcaNorm);
+                if (rowMarca) {
+                    updateStockDepMarcaSub.run(item.cantidad, producto.id, depositoVentaId, marcaNorm);
+                }
+            }
             if (nuevoStock <= 0) {
                 insertAlerta('stock', `Stock agotado: ${item.codigo}`, { codigo: item.codigo, descripcion: producto.descripcion || '' });
             }

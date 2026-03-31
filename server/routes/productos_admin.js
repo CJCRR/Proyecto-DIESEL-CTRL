@@ -111,8 +111,14 @@ router.post(
             message = 'Producto creado exitosamente';
         }
 
-        // Inicializar existencias en stock_por_deposito para este producto
+        // Inicializar existencias en stock_por_deposito para este producto.
+        // Si el producto existía antes (reactivado), limpiamos cualquier fila previa
+        // para evitar duplicados y dejamos solo el stock indicado en el depósito elegido.
+        // También limpiamos el desglose antiguo en stock_por_deposito_marca para que,
+        // al re-crear un producto con movimientos históricos, no se arrastren marcas viejas.
         try {
+            db.prepare('DELETE FROM stock_por_deposito WHERE producto_id = ?').run(productoId);
+            db.prepare('DELETE FROM stock_por_deposito_marca WHERE producto_id = ?').run(productoId);
             db.prepare(`
                 INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
                 VALUES (?, ?, ?, ?)
@@ -232,6 +238,124 @@ router.get('/marcas-por-producto', requireAuth, (req, res) => {
     }
 });
 
+// POST /admin/productos/stock-marca - Ajustar desglose de stock por depósito y marca sin cambiar el stock total
+// Ahora permitido para cualquier usuario autenticado (incluyendo vendedores).
+router.post('/stock-marca', requireAuth, (req, res) => {
+    try {
+        const codigoRaw = req.body && req.body.codigo ? String(req.body.codigo).trim() : '';
+        const distribucion = Array.isArray(req.body && req.body.distribucion) ? req.body.distribucion : [];
+        if (!codigoRaw) {
+            return res.status(400).json({ error: 'Debe indicar el código del producto.' });
+        }
+        if (!distribucion.length) {
+            return res.status(400).json({ error: 'Debe indicar al menos una línea de distribución por marca.' });
+        }
+        const codigo = codigoRaw.toUpperCase();
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+
+        const prod = db.prepare(`
+            SELECT id, empresa_id
+            FROM productos
+            WHERE codigo = ? AND empresa_id = ?
+        `).get(codigo, empresaId);
+
+        if (!prod) {
+            return res.status(404).json({ error: 'Producto no encontrado en esta empresa.' });
+        }
+
+        // Normalizar distribución: agrupar por (deposito_id, marca_norm)
+        const porDeposito = new Map();
+        const sumaPorMarcaGlobal = new Map();
+        for (const raw of distribucion) {
+            const depositoId = raw && raw.deposito_id != null ? parseInt(raw.deposito_id, 10) || 0 : 0;
+            const cantidad = Number(raw && raw.cantidad != null ? raw.cantidad : 0) || 0;
+            const marcaNorm = raw && raw.marca != null ? String(raw.marca).trim().toUpperCase() : '';
+            if (!depositoId || cantidad < 0) continue;
+            if (!marcaNorm) continue; // ignorar filas sin marca explícita
+            const key = `${depositoId}|${marcaNorm}`;
+            if (!porDeposito.has(key)) {
+                porDeposito.set(key, { deposito_id: depositoId, marca: marcaNorm, cantidad: 0 });
+            }
+            const ref = porDeposito.get(key);
+            ref.cantidad += cantidad;
+
+            const prevMarca = sumaPorMarcaGlobal.get(marcaNorm) || 0;
+            sumaPorMarcaGlobal.set(marcaNorm, prevMarca + cantidad);
+        }
+
+        if (!porDeposito.size) {
+            return res.status(400).json({ error: 'No hay líneas de marca válidas para guardar.' });
+        }
+
+        // Validar que la suma por depósito coincida con stock_por_deposito
+        const porDepositoSuma = new Map();
+        for (const v of porDeposito.values()) {
+            const prev = porDepositoSuma.get(v.deposito_id) || 0;
+            porDepositoSuma.set(v.deposito_id, prev + v.cantidad);
+        }
+
+        const errores = [];
+        for (const [depId, suma] of porDepositoSuma.entries()) {
+            const rowDep = db.prepare(`
+                SELECT cantidad
+                FROM stock_por_deposito
+                WHERE producto_id = ? AND deposito_id = ?
+            `).get(prod.id, depId);
+            const actual = rowDep ? Number(rowDep.cantidad || 0) || 0 : 0;
+            if (Math.abs(suma - actual) > 1e-6) {
+                errores.push(`Depósito ID ${depId}: suma por marca ${suma} ≠ stock actual ${actual}`);
+            }
+        }
+
+        if (errores.length) {
+            return res.status(400).json({ error: errores.join(' | ') });
+        }
+
+        // Aplicar cambios dentro de una transacción: borrar y reinsertar por depósito
+        const tx = db.transaction(() => {
+            const deleteByDep = db.prepare(`
+                DELETE FROM stock_por_deposito_marca
+                WHERE producto_id = ? AND deposito_id = ?
+            `);
+            const insertMarca = db.prepare(`
+                INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad)
+                VALUES (?, ?, ?, ?, ?)
+            `);
+
+            // Para cada depósito afectado, eliminar filas existentes y reinsertar la distribución nueva
+            const depsUnicos = Array.from(porDepositoSuma.keys());
+            depsUnicos.forEach((depId) => {
+                deleteByDep.run(prod.id, depId);
+            });
+
+            for (const v of porDeposito.values()) {
+                insertMarca.run(prod.empresa_id || empresaId, prod.id, v.deposito_id, v.marca, v.cantidad);
+            }
+
+            // Actualizar marca principal del producto tomando la marca con mayor cantidad total
+            if (sumaPorMarcaGlobal.size) {
+                let marcaPrincipal = null;
+                let maxCant = -1;
+                for (const [marca, cant] of sumaPorMarcaGlobal.entries()) {
+                    if (cant > maxCant) {
+                        maxCant = cant;
+                        marcaPrincipal = marca;
+                    }
+                }
+                if (marcaPrincipal) {
+                    db.prepare('UPDATE productos SET marca = ? WHERE id = ?').run(marcaPrincipal, prod.id);
+                }
+            }
+        });
+
+        tx();
+        res.json({ ok: true, message: 'Desglose de stock por marca actualizado correctamente.' });
+    } catch (err) {
+        console.error('Error actualizando stock por marca de producto:', err);
+        res.status(500).json({ error: 'Error al actualizar stock por marca del producto.' });
+    }
+});
+
 // GET /admin/productos - Listar productos (paginado opcional) con filtros
 router.get('/', requireAuth, (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
@@ -307,7 +431,15 @@ router.get('/', requireAuth, (req, res) => {
                                                  FROM stock_por_deposito sd2
                                                  JOIN depositos d2 ON d2.id = sd2.deposito_id
                                                  WHERE sd2.producto_id = p.id AND sd2.cantidad > 0
-                                             ) AS stock_detalle
+                                             ) AS stock_detalle,
+                                             (
+                                                 SELECT GROUP_CONCAT(marca, ' / ')
+                                                 FROM (
+                                                     SELECT DISTINCT TRIM(spdm.marca) AS marca
+                                                     FROM stock_por_deposito_marca spdm
+                                                     WHERE spdm.producto_id = p.id AND spdm.cantidad > 0
+                                                 ) t_marcas
+                                             ) AS marcas_stock
                                 FROM productos p
                                 LEFT JOIN depositos d ON d.id = p.deposito_id
                                 ${whereSQL}
@@ -368,7 +500,15 @@ router.get('/', requireAuth, (req, res) => {
                                          FROM stock_por_deposito sd2
                                          JOIN depositos d2 ON d2.id = sd2.deposito_id
                                          WHERE sd2.producto_id = p.id AND sd2.cantidad > 0
-                                     ) AS stock_detalle
+                                     ) AS stock_detalle,
+                                     (
+                                         SELECT GROUP_CONCAT(marca, ' / ')
+                                         FROM (
+                                             SELECT DISTINCT TRIM(spdm.marca) AS marca
+                                             FROM stock_por_deposito_marca spdm
+                                             WHERE spdm.producto_id = p.id AND spdm.cantidad > 0
+                                         ) t_marcas
+                                     ) AS marcas_stock
                         FROM productos p
                         JOIN stock_por_deposito sd ON sd.producto_id = p.id
                         LEFT JOIN depositos d ON d.id = sd.deposito_id

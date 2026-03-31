@@ -18,7 +18,8 @@
                 <div class="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-4">
                     <div class="flex items-center justify-between gap-2">
                         <h2 class="font-black">Productos</h2>
-                        <button id="btn-mobile-filtros" type="button" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-lg text-slate-600 bg-white shadow-sm sm:hidden">
+                        <button id="btn-mobile-filtros" type="button"
+                            class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-lg text-slate-600 bg-white shadow-sm sm:hidden">
                             <i class="fas fa-sliders-h text-[11px]"></i>
                             <span>Filtros</span>
                         </button>
@@ -43,7 +44,7 @@
                             <option value="medium">Medio (&lt;20)</option>
                             <option value="over">Sobre stock (&gt;100)</option>
                         </select>
-                    <!--    <select id="filterIncompletosTipo" class="select-pos text-sm min-w-[150px] md:min-w-[190px]">
+                        <!--    <select id="filterIncompletosTipo" class="select-pos text-sm min-w-[150px] md:min-w-[190px]">
                             <option value="">Datos incompletos: todos</option>
                             <option value="sin_costo">Solo sin costo</option>
                             <option value="sin_precio">Solo sin precio</option>
@@ -52,7 +53,8 @@
                             <option value="sin_deposito">Solo sin depósito</option>
                             <option value="sin_stock_def">Solo sin stock definido</option>
                         </select>-->
-                        <button id="toggle-editor" type="button" class="p-2 border rounded text-xs text-slate-600 hover:bg-slate-100 shrink-0">
+                        <button id="toggle-editor" type="button"
+                            class="p-2 border rounded text-xs text-slate-600 hover:bg-slate-100 shrink-0">
                             >
                         </button>
                     </div>
@@ -100,18 +102,24 @@
                         <ul id="categoria_sugerencias" class="inv-cat-suggestions hidden"></ul>
                     </div>
                     <datalist id="categoriaOptions"></datalist>
-                    <div class="inv-input-group mb-4 relative">
-                        <input id="f_marca" class="inv-input" placeholder=" " autocomplete="off" />
-                        <label for="f_marca" class="inv-label">Marca</label>
-                        <ul id="marca_sugerencias" class="inv-cat-suggestions hidden"></ul>
-                    </div>
                     <label class="text-xs"></label>
                     <select id="f_deposito" class="w-full select-pos text-sm mb-2"></select>
 
+                    <div class="inv-input-group marcainv mb-4 relative">
+                        <input id="f_marca" class="inv-input hidden" placeholder=" " autocomplete="off" />
+                        <label for="f_marca" class="inv-label">Marca(s)</label>
+                        <button type="button" id="btnEditarMarcas"
+                            class="mt-1 w-full px-2 py-1 border rounded text-[11px] text-slate-700 bg-white hover:bg-slate-50 text-left">
+                            <span class="block text-[10px] text-slate-500">Editar marcas por depósito</span>
+                            <span id="btnEditarMarcasLabel"
+                                class="block text-[11px] font-semibold uppercase truncate">—</span>
+                        </button>
+                        <ul id="marca_sugerencias" class="inv-cat-suggestions hidden"></ul>
+                    </div>
                     <div class="flex gap-2 btn-ge-inv items-center">
                         <button type="submit" id="btnGuardar"
                             class="flex-1 bg-blue-600 text-white p-2 rounded">Guardar</button>
-                        
+
                         <button type="button" id="btnBorrar"
                             class="flex-1 bg-red-500 text-white p-2 rounded">Eliminar</button>
                     </div>
@@ -124,18 +132,38 @@
                     <button id="btnImportCsv" class="flex-1 p-2 bg-indigo-600 text-white rounded">Importar CSV</button>
                     <button id="btnExportCsv" class="p-2 bg-slate-200 rounded">Exportar CSV</button>
                 </div>
+                <h4 class="text-sm font-black mb-1">Actividad del producto</h4>
+                <div id="actividad-producto" class="text-xs text-slate-600">Selecciona un producto para ver la última
+                    compra y la última venta.</div>
+                <hr class="my-4">
+
+                <!-- Modal para stock por depósito y marca -->
+                <div id="stock-marca-modal" class="fixed inset-0 hidden items-center justify-center z-50">
+                    <div class="absolute inset-0 bg-black bg-opacity-40 modal-backdrop"></div>
+                    <div class="relative bg-white p-4 rounded shadow w-11/12 max-w-3xl modal-panel">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-sm font-black">Stock por depósito y marca</h4>
+                            <button type="button" id="stock-marca-modal-close" class="text-slate-500 hover:text-slate-700 text-xl leading-none">&times;</button>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mb-1">Usuarios autorizados pueden editar este desglose. La suma por
+                            depósito debe coincidir con el stock actual del depósito.</p>
+                        <div id="stock-marca-editor" class="text-xs text-slate-600">Selecciona un producto para ver el desglose
+                            por depósito y marca.</div>
+                    </div>
+                </div>
+
                 <!-- filtros movidos arriba -->
                 <hr class="my-4">
                 <h4 class="text-sm font-black mb-1">Historial de ajustes</h4>
-                <p class="text-[11px] text-slate-500 mb-1">Al seleccionar un producto se filtra este historial solo para ese código.</p>
+                <p class="text-[11px] text-slate-500 mb-1">Al seleccionar un producto se filtra este historial solo para
+                    ese código.</p>
                 <div id="ajustes-list" class="text-sm text-slate-600 max-h-40 overflow-auto">Cargando...</div>
                 <hr class="my-4">
-                <h4 class="text-sm font-black mb-1">Actividad del producto</h4>
-                <div id="actividad-producto" class="text-xs text-slate-600">Selecciona un producto para ver la última compra y la última venta.</div>
-                <hr class="my-4">
                 <h4 class="text-sm font-black mb-1">Herramientas de mantenimiento</h4>
-                <p class="text-[11px] text-slate-500 mb-2">Solo para administradores: recalcula el stock total a partir de los depósitos.</p>
-                <button id="btnRebuildStock" class="w-full p-2 bg-amber-600 text-white rounded text-xs font-semibold mb-1 hover:bg-amber-700">
+                <p class="text-[11px] text-slate-500 mb-2">Solo para administradores: recalcula el stock total a partir
+                    de los depósitos.</p>
+                <button id="btnRebuildStock"
+                    class="w-full p-2 bg-amber-600 text-white rounded text-xs font-semibold mb-1 hover:bg-amber-700">
                     Recalcular stock desde depósitos
                 </button>
                 <p id="rebuildStockMsg" class="text-[11px] text-slate-500"></p>
@@ -144,7 +172,8 @@
                 <div class="flex justify-between items-center mb-2">
                     <div>
                         <h2 class="text-sm font-bold text-slate-800">Movimientos entre depósitos</h2>
-                        <p class="text-[11px] text-slate-500">Mueve un producto completo de un depósito a otro y revisa el historial.</p>
+                        <p class="text-[11px] text-slate-500">Mueve un producto completo de un depósito a otro y revisa
+                            el historial.</p>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
@@ -161,11 +190,13 @@
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-600">Cantidad a mover</label>
-                            <input id="mov_cantidad" type="number" min="0" step="1" class="w-full p-2 border rounded" placeholder="Ej: 5" />
+                            <input id="mov_cantidad" type="number" min="0" step="1" class="w-full p-2 border rounded"
+                                placeholder="Ej: 5" />
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-600">Depósito actual</label>
-                            <p id="mov_deposito_origen" class="p-2 border rounded bg-slate-50 text-[11px] text-slate-600">—</p>
+                            <p id="mov_deposito_origen"
+                                class="p-2 border rounded bg-slate-50 text-[11px] text-slate-600">—</p>
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-600">Mover a depósito</label>
@@ -175,10 +206,12 @@
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-600">Motivo (opcional)</label>
-                            <input id="mov_motivo" class="w-full p-2 border rounded" placeholder="Reubicación, organización, etc." />
+                            <input id="mov_motivo" class="w-full p-2 border rounded"
+                                placeholder="Reubicación, organización, etc." />
                         </div>
                         <div>
-                            <button id="btnMoverDeposito" class="mt-2 px-3 py-2 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700">
+                            <button id="btnMoverDeposito"
+                                class="mt-2 px-3 py-2 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700">
                                 Registrar movimiento entre depósitos
                             </button>
                             <p id="mov_msg" class="mt-1 text-[11px] text-slate-500"></p>
@@ -189,7 +222,8 @@
                             <span class="text-[11px] font-semibold text-slate-600">Historial reciente</span>
                             <span class="text-[11px] text-slate-400">Últimos 20 movimientos</span>
                         </div>
-                        <div id="movimientos-list" class="max-h-64 overflow-auto border rounded bg-slate-50 text-[11px]"></div>
+                        <div id="movimientos-list"
+                            class="max-h-64 overflow-auto border rounded bg-slate-50 text-[11px]"></div>
                     </div>
                 </div>
             </section>
