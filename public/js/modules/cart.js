@@ -132,6 +132,44 @@ export function agregarAlCarrito() {
 		marcaItem = productoSeleccionado.marca.toString().trim();
 	}
 
+	// Stock disponible para la marca seleccionada en el depósito actual
+	let stockMarcaDisponible = null;
+	if (Array.isArray(productoSeleccionado?.existencias_por_deposito)) {
+		const depRow = productoSeleccionado.existencias_por_deposito.find((e) =>
+			Number(e.deposito_id) === Number(depositoId)
+		);
+		if (depRow && Array.isArray(depRow.marcas)) {
+			const marcaRow = depRow.marcas.find((m) => {
+				const nombre = (m.marca || '').toString().trim();
+				return nombre.toLowerCase() === (marcaItem || '').toString().trim().toLowerCase();
+			});
+			if (marcaRow) {
+				stockMarcaDisponible = Number(marcaRow.cantidad || 0) || 0;
+			}
+		}
+	}
+
+	// Cantidad ya agregada en el carrito para este código + depósito + marca
+	let cantidadEnCarritoMarca = 0;
+	carrito.forEach((item) => {
+		if (
+			item.codigo === productoSeleccionado.codigo &&
+			((item.deposito_id || null) === (depositoId || null)) &&
+			((item.marca || '') === (marcaItem || ''))
+		) {
+			cantidadEnCarritoMarca += Number(item.cantidad || 0) || 0;
+		}
+	});
+	if (stockMarcaDisponible != null) {
+		const totalSolicitadoMarca = cantidadEnCarritoMarca + cantidad;
+		if (totalSolicitadoMarca > stockMarcaDisponible) {
+			showToast(
+				`Advertencia: la cantidad para la marca seleccionada supera el stock disponible (${stockMarcaDisponible}).`,
+				'warning'
+			);
+		}
+	}
+
 	const index = carrito.findIndex(item =>
 		item.codigo === productoSeleccionado.codigo &&
 		((item.deposito_id || null) === (depositoId || null)) &&

@@ -151,32 +151,48 @@ async function handleResultadoClick(p) {
 		if (depositoSeleccionadoId != null) {
 			const depRow = existenciasConStock.find(e => e.deposito_id === depositoSeleccionadoId) || existencias.find(e => e.deposito_id === depositoSeleccionadoId);
 			if (depRow && Array.isArray(depRow.marcas) && depRow.marcas.length > 0) {
-				marcasDisponibles = depRow.marcas
-					.filter(m => Number(m.cantidad || 0) > 0)
-					.map(m => (m.marca || '').toString().trim())
-					.filter(Boolean);
+					marcasDisponibles = depRow.marcas
+						.filter(m => Number(m.cantidad || 0) > 0)
+						.map(m => ({
+							nombre: (m.marca || '').toString().trim(),
+							cantidad: Number(m.cantidad || 0) || 0,
+						}))
+						.filter(m => m.nombre);
 			}
 		}
 		// Si no hay marcas con stock en ese depósito, usar las históricas como respaldo
 		if (!marcasDisponibles.length) {
-			marcasDisponibles = marcasHistoricas.slice();
+			marcasDisponibles = marcasHistoricas.map((nombre) => ({ nombre, cantidad: null }));
 		}
+
+		const escapeHtml = _refs.escapeHtml || ((v) => v);
+		const buildLabel = (m) => {
+			const base = m.nombre;
+			if (m.cantidad != null) {
+				return `${base} (${m.cantidad})`;
+			}
+			return base;
+		};
 
 		// Renderizar selector
 		if (marcasDisponibles.length <= 1) {
 			if (marcasDisponibles.length === 1) {
 				const unica = marcasDisponibles[0];
-				marcaSelect.innerHTML = `<option value="${unica}">${unica}</option>`;
-				marcaSelect.value = unica;
+				const label = buildLabel(unica);
+				marcaSelect.innerHTML = `<option value="${escapeHtml(unica.nombre)}">${escapeHtml(label)}</option>`;
+				marcaSelect.value = unica.nombre;
 			} else {
 				marcaSelect.innerHTML = '';
 				marcaSelect.value = '';
 			}
 			marcaWrapper.classList.add('hidden');
 		} else {
-			const opts = marcasDisponibles.map(m => `<option value="${m}">${m}</option>`).join('');
+			const opts = marcasDisponibles.map((m) => {
+				const label = buildLabel(m);
+				return `<option value="${escapeHtml(m.nombre)}">${escapeHtml(label)}</option>`;
+			}).join('');
 			marcaSelect.innerHTML = opts;
-			marcaSelect.value = marcasDisponibles[0];
+			marcaSelect.value = marcasDisponibles[0].nombre;
 			marcaWrapper.classList.remove('hidden');
 		}
 	}

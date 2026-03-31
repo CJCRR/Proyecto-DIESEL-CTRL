@@ -30,7 +30,7 @@ async function validarStockOnlineAntesDeVenta() {
 	if (!navigator.onLine) return; // en modo offline se permite registrar localmente
 	const items = Array.isArray(carrito) ? carrito : [];
 	if (!items.length) return;
-	// Agrupar cantidades por código y, si aplica, por depósito
+	// Agrupar cantidades por código y, si aplica, por depósito y marca
 	const porClave = new Map();
 	for (const it of items) {
 		if (!it || !it.codigo) continue;
@@ -38,29 +38,45 @@ async function validarStockOnlineAntesDeVenta() {
 		const qty = Number(it.cantidad || 0) || 0;
 		if (!codigo || qty <= 0) continue;
 		const depId = it.deposito_id != null ? Number(it.deposito_id) : null;
-		const key = `${codigo}::${depId != null ? depId : 'null'}`;
-		const current = porClave.get(key) || { codigo, deposito_id: depId, cantidad: 0 };
+		const marca = (it.marca || '').toString().trim();
+		const key = `${codigo}::${depId != null ? depId : 'null'}::${marca.toLowerCase() || 'null'}`;
+		const current = porClave.get(key) || { codigo, deposito_id: depId, marca, cantidad: 0 };
 		current.cantidad += qty;
 		porClave.set(key, current);
 	}
 	for (const entry of porClave.values()) {
-		const { codigo, deposito_id, cantidad: qtyNecesaria } = entry;
+		const { codigo, deposito_id, marca, cantidad: qtyNecesaria } = entry;
 		const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
 		if (!prod || prod.error) {
 			throw new Error(`No se pudo verificar el stock del producto ${codigo}. Intente de nuevo.`);
 		}
-		let stockDisponible;
+		let stockDisponibleTotal;
+		let stockDisponibleMarca = null;
 		if (deposito_id != null && Array.isArray(prod.existencias_por_deposito)) {
 			const row = prod.existencias_por_deposito.find((e) => Number(e.deposito_id) === Number(deposito_id));
-			stockDisponible = row ? Number(row.cantidad || 0) || 0 : 0;
-		} else {
-			stockDisponible = Number(prod.stock || 0) || 0;
-		}
-		if (stockDisponible < qtyNecesaria) {
-			if (deposito_id != null) {
-				throw new Error(`No se puede registrar la venta: el producto ${codigo} tiene stock ${stockDisponible} en el depósito seleccionado y se intenta vender ${qtyNecesaria}.`);
+			stockDisponibleTotal = row ? (Number(row.cantidad || 0) || 0) : 0;
+			// Si hay una marca seleccionada, validar primero contra el stock por marca
+			if (row && marca && Array.isArray(row.marcas)) {
+				const marcaRow = row.marcas.find((m) => {
+					const nombre = (m.marca || '').toString().trim();
+					return nombre.toLowerCase() === marca.toLowerCase();
+				});
+				if (marcaRow) {
+					stockDisponibleMarca = Number(marcaRow.cantidad || 0) || 0;
+				}
 			}
-			throw new Error(`No se puede registrar la venta: el producto ${codigo} tiene stock ${stockDisponible} y se intenta vender ${qtyNecesaria}.`);
+		} else {
+			stockDisponibleTotal = Number(prod.stock || 0) || 0;
+		}
+		if (stockDisponibleMarca != null) {
+			if (stockDisponibleMarca < qtyNecesaria) {
+				throw new Error(`No se puede registrar la venta: el producto ${codigo} en el depósito seleccionado tiene stock ${stockDisponibleMarca} para la marca ${(marca || '(sin marca)').toString().toUpperCase()} y se intenta vender ${qtyNecesaria}.`);
+			}
+		} else if (stockDisponibleTotal < qtyNecesaria) {
+			if (deposito_id != null) {
+				throw new Error(`No se puede registrar la venta: el producto ${codigo} tiene stock ${stockDisponibleTotal} en el depósito seleccionado y se intenta vender ${qtyNecesaria}.`);
+			}
+			throw new Error(`No se puede registrar la venta: el producto ${codigo} tiene stock ${stockDisponibleTotal} y se intenta vender ${qtyNecesaria}.`);
 		}
 	}
 }
