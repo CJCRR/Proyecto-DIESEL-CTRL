@@ -46,6 +46,23 @@ function formatDateInput(d) {
     return d.toISOString().slice(0, 10);
 }
 
+function buildReportParams() {
+    const desde = document.getElementById('rpt-desde').value;
+    const hasta = document.getElementById('rpt-hasta').value;
+    const clienteInputEl = document.getElementById('rpt-cliente');
+    const cliente = clienteInputEl ? clienteInputEl.value.trim() : '';
+    const vendedor = document.getElementById('rpt-vendedor').value.trim();
+    const metodo = document.getElementById('rpt-metodo').value;
+
+    const params = new URLSearchParams();
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    if (cliente) params.set('cliente', cliente);
+    if (vendedor) params.set('vendedor', vendedor);
+    if (metodo) params.set('metodo', metodo);
+    return params;
+}
+
 function setupReportesTabs() {
     const tabs = document.querySelectorAll('[data-rpt-tab]');
     const sections = document.querySelectorAll('[data-rpt-section]');
@@ -640,8 +657,32 @@ function renderComisiones() {
     }
 
     const fmt = (v) => formatNumber(v || 0, 2);
+    const maxComision = cacheComisiones.reduce((max, r) => {
+        const val = Number(r.comision_usd || 0);
+        return val > max ? val : max;
+    }, 0);
 
-    cont.innerHTML = `<table class="w-full text-[11px]"><thead class="bg-slate-100 text-slate-500"><tr>
+    const chartHtml = maxComision > 0
+        ? `<div class="mb-2">
+            <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Distribución de comisiones (USD)</div>
+            <div class="space-y-1">
+                ${cacheComisiones.map(r => {
+                    const nombre = r.nombre_completo || r.username || '—';
+                    const valor = Number(r.comision_usd || 0);
+                    const pctWidth = Math.max(5, Math.round((valor / maxComision) * 100));
+                    return `<div class="flex items-center gap-2">
+                        <div class="w-28 truncate text-[10px] text-slate-600">${escapeHtml(nombre)}</div>
+                        <div class="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div class="h-full bg-emerald-500/80" style="width:${pctWidth}%;"></div>
+                        </div>
+                        <div class="w-16 text-right text-[10px] text-slate-500">${fmt(valor)}</div>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>`
+        : '';
+
+    const tableHtml = `<table class="w-full text-[11px]"><thead class="bg-slate-100 text-slate-500"><tr>
         <th class="p-1 text-left">Vendedor</th>
         <th class="p-1 text-left">Rol</th>
         <th class="p-1 text-right">Comisión %</th>
@@ -662,14 +703,12 @@ function renderComisiones() {
         </tr>`;
     }).join('')}
     </tbody></table>`;
+
+    cont.innerHTML = `<div class="p-1">${chartHtml}<div class="mt-1">${tableHtml}</div></div>`;
 }
 
 async function cargarComisiones() {
-    const desde = document.getElementById('rpt-desde').value;
-    const hasta = document.getElementById('rpt-hasta').value;
-    const params = new URLSearchParams();
-    if (desde) params.set('desde', desde);
-    if (hasta) params.set('hasta', hasta);
+    const params = buildReportParams();
     try {
         cacheComisiones = await apiFetchJson(`/reportes/comisiones-vendedores?${params.toString()}`);
         renderComisiones();
@@ -685,17 +724,7 @@ async function cargarComisiones() {
 }
 
 async function cargarReporte() {
-    const desde = document.getElementById('rpt-desde').value;
-    const hasta = document.getElementById('rpt-hasta').value;
-    const cliente = document.getElementById('rpt-cliente') ? document.getElementById('rpt-cliente').value.trim() : '';
-    const vendedor = document.getElementById('rpt-vendedor').value.trim();
-    const metodo = document.getElementById('rpt-metodo').value;
-    const params = new URLSearchParams();
-    if (desde) params.set('desde', desde);
-    if (hasta) params.set('hasta', hasta);
-    if (cliente) params.set('cliente', cliente);
-    if (vendedor) params.set('vendedor', vendedor);
-    if (metodo) params.set('metodo', metodo);
+    const params = buildReportParams();
 
     try {
         cacheRows = await apiFetchJson(`/reportes/ventas-rango?${params.toString()}`);
@@ -724,6 +753,13 @@ async function cargarReporte() {
         renderPresupuestos();
     } catch (err) {
         console.error('Error presupuestos', err);
+    }
+
+    // Cargar comisiones con los mismos filtros generales
+    try {
+        await cargarComisiones();
+    } catch (err) {
+        console.error('Error comisiones', err);
     }
 }
 
@@ -783,17 +819,7 @@ if (vendedorInput) {
 }
 
 document.getElementById('rpt-export').addEventListener('click', () => {
-    const desde = document.getElementById('rpt-desde').value;
-    const hasta = document.getElementById('rpt-hasta').value;
-    const cliente = document.getElementById('rpt-cliente') ? document.getElementById('rpt-cliente').value.trim() : '';
-    const vendedor = document.getElementById('rpt-vendedor').value.trim();
-    const metodo = document.getElementById('rpt-metodo').value;
-    const params = new URLSearchParams();
-    if (desde) params.set('desde', desde);
-    if (hasta) params.set('hasta', hasta);
-    if (cliente) params.set('cliente', cliente);
-    if (vendedor) params.set('vendedor', vendedor);
-    if (metodo) params.set('metodo', metodo);
+    const params = buildReportParams();
     window.open(`/reportes/ventas/export/csv?${params.toString()}`, '_blank');
 });
 
@@ -845,19 +871,10 @@ if (btnRentaProv) {
     });
 }
 
-const btnComisiones = document.getElementById('comisiones-cargar');
-if (btnComisiones) {
-    btnComisiones.addEventListener('click', cargarComisiones);
-}
-
 const btnComisionesExport = document.getElementById('comisiones-export');
 if (btnComisionesExport) {
     btnComisionesExport.addEventListener('click', () => {
-        const desde = document.getElementById('rpt-desde').value;
-        const hasta = document.getElementById('rpt-hasta').value;
-        const params = new URLSearchParams();
-        if (desde) params.set('desde', desde);
-        if (hasta) params.set('hasta', hasta);
+        const params = buildReportParams();
         window.open(`/reportes/comisiones-vendedores/export/csv?${params.toString()}`, '_blank');
     });
 }

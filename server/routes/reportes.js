@@ -292,8 +292,8 @@ router.get('/resumen-financiero', requireAuth, forbidSuperadmin, (req, res) => {
 
 router.get('/comisiones-vendedores', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const { desde, hasta } = req.query;
-    const rows = getComisionesVendedores({ desde, hasta, empresaId: req.usuario.empresa_id || null });
+    const { desde, hasta, cliente, vendedor, metodo } = req.query;
+    const rows = getComisionesVendedores({ desde, hasta, cliente, vendedor, metodo, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
     logger.error('Error comisiones vendedores', {
@@ -309,8 +309,8 @@ router.get('/comisiones-vendedores', requireAuth, forbidSuperadmin, (req, res) =
 
 router.get('/comisiones-vendedores/export/csv', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const { desde, hasta } = req.query;
-    const csv = buildComisionesVendedoresCsv({ desde, hasta }, req.usuario.empresa_id || null);
+    const { desde, hasta, cliente, vendedor, metodo } = req.query;
+    const csv = buildComisionesVendedoresCsv({ desde, hasta, cliente, vendedor, metodo }, req.usuario.empresa_id || null);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
 
     const empresaCodigo = (req.usuario && req.usuario.empresa_codigo) || 'empresa';

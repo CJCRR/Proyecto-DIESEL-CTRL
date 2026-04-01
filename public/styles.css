@@ -179,10 +179,6 @@
   margin-bottom: 0.75rem;
 }
 
-.marcainv {
-  padding-top: 9px;
-}
-
 .inv-input {
   width: 100%;
   border: 1.5px solid #cbd5e1;
@@ -256,6 +252,10 @@
 
 .btn-ge-inv {
   padding-top: 10px;
+}
+
+.marcainv {
+  padding-top: 9px;
 }
 
 /* Transición suave para mostrar/ocultar el panel de formulario de inventario */
@@ -557,6 +557,61 @@ section {
   animation: tabPanelFade 0.22s ease-out;
 }
 
+/* Ajustes de layout para POS en pantallas pequeñas */
+@media (max-width: 640px) {
+  .pos-main {
+    padding: 0.75rem 0.55rem;
+    gap: 0.75rem;
+  }
+  .pos-main section {
+    border-radius: 1rem;
+    padding: 0.9rem 0.95rem;
+  }
+  .pos-main .pos-tab-btn {
+    padding: 0.6rem 0.5rem;
+    font-size: 0.75rem;
+  }
+  .pos-main input,
+  .pos-main select,
+  .pos-main .select-pos {
+    font-size: 0.85rem;
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+  /* Carrito más compacto y legible en móvil */
+  .pos-main #venta-items-cuerpo tr {
+    font-size: 0.78rem;
+  }
+  .pos-main #venta-items-cuerpo td {
+    padding: 0.12rem 0.35rem;
+    font-size: 0.78rem;
+  }
+  .pos-main #venta-items-cuerpo td:first-child {
+    padding-left: 0.25rem;
+  }
+  .pos-main #items-count {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.45rem;
+  }
+  .pos-main .btn-pos-add {
+    width: 130px;
+    height: 44px;
+  }
+  .pos-main .btn-pos-add .text {
+    transform: translateX(30px);
+    font-size: 0.85rem;
+  }
+  .pos-main .btn-pos-add .icon {
+    transform: translateX(100px);
+    height: 32px;
+    width: 32px;
+  }
+  /* Evitar que el panel derecho quede fijo en móviles largos */
+  .pos-main section.sticky {
+    position: static;
+    top: auto;
+  }
+}
 @keyframes tabPanelFade {
   from {
     opacity: 0;

@@ -436,8 +436,11 @@ async function renderVentasSeries(tipo) {
         // La vista MENSUAL muestra los últimos 12 meses completos como antes.
         if (tipo === 'diarias' && FILTRO_MES && FILTRO_ANO) {
             filtered = rows.filter(x => {
-                const d = new Date(x.dia);
-                return d.getFullYear() === FILTRO_ANO && (d.getMonth() + 1) === FILTRO_MES;
+                const parts = String(x.dia || '').split('-');
+                const y = parseInt(parts[0], 10);
+                const m = parseInt(parts[1], 10);
+                if (!Number.isFinite(y) || !Number.isFinite(m)) return false;
+                return y === FILTRO_ANO && m === FILTRO_MES;
             });
         }
 
@@ -498,8 +501,11 @@ async function renderMargenActual() {
         let filtered = rows;
         if (FILTRO_MES && FILTRO_ANO) {
             filtered = rows.filter(x => {
-                const d = new Date(x.dia);
-                return d.getFullYear() === FILTRO_ANO && (d.getMonth() + 1) === FILTRO_MES;
+                const parts = String(x.dia || '').split('-');
+                const y = parseInt(parts[0], 10);
+                const m = parseInt(parts[1], 10);
+                if (!Number.isFinite(y) || !Number.isFinite(m)) return false;
+                return y === FILTRO_ANO && m === FILTRO_MES;
             });
         }
         const mesTotal = filtered.reduce((acc, x) => acc + Number((MONEDA === 'USD' ? x.margen_usd : x.margen_bs) || 0), 0);

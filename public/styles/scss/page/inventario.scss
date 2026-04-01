@@ -58,8 +58,8 @@
 	box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
 }
 
-.inv-input:focus + .inv-label,
-.inv-input:not(:placeholder-shown) + .inv-label {
+.inv-input:focus+.inv-label,
+.inv-input:not(:placeholder-shown)+.inv-label {
 	transform: translateY(-50%) scale(0.8);
 	background-color: #ffffff;
 	padding: 0 0.25rem;
@@ -101,6 +101,9 @@
 	padding-top: 10px;
 }
 
+.marcainv {
+	padding-top: 9px;
+}
 /* Transición suave para mostrar/ocultar el panel de formulario de inventario */
 
 #inventario-layout {

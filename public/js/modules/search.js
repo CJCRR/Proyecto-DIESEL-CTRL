@@ -1,6 +1,7 @@
 // search.js - Módulo de búsqueda y selección de productos
 
 import { obtenerProductosLocales, guardarProductoLocal } from '../db-local.js';
+import { initCustomSelect } from './ui.js';
 
 let _refs = {
 	buscarInput: null,
@@ -100,6 +101,7 @@ async function handleResultadoClick(p) {
 				depSelect.innerHTML = '';
 				depSelect.value = '';
 			}
+			// Cuando hay un solo depósito, mantenemos el selector oculto.
 			depWrapper.classList.add('hidden');
 		} else {
 			const options = [];
@@ -114,6 +116,8 @@ async function handleResultadoClick(p) {
 				depSelect.value = String(existenciasConStock[0].deposito_id);
 			}
 			depWrapper.classList.remove('hidden');
+			// Aplicar estilo custom igual que "Nivel de precio"
+			try { initCustomSelect('pv_deposito'); } catch {}
 		}
 	}
 
@@ -204,7 +208,9 @@ async function handleResultadoClick(p) {
 			depSelect.onchange = actualizarSelectorMarca;
 		}
 		// Inicializar según el depósito seleccionado actual (o único depósito)
-		actualizarSelectorMarca();
+			actualizarSelectorMarca();
+			// Aplicar select custom también para marcas
+			try { initCustomSelect('pv_marca'); } catch {}
 	}
 
 	// Pasar producto (con detalle opcional) al módulo de carrito.

@@ -1574,11 +1574,14 @@ function getVendedoresRanking({ desde, hasta, empresaId }) {
   return mergedRows.slice(0, 100);
 }
 
-function getComisionesVendedores({ desde, hasta, empresaId }) {
+function getComisionesVendedores({ desde, hasta, cliente, vendedor, metodo, empresaId }) {
   const where = [];
   const params = [];
   if (desde) { where.push("date(v.fecha) >= date(?)"); params.push(desde); }
   if (hasta) { where.push("date(v.fecha) <= date(?)"); params.push(hasta); }
+  if (cliente) { where.push("(v.cliente LIKE ? OR v.cedula LIKE ? OR v.telefono LIKE ?)"); params.push('%' + cliente + '%', '%' + cliente + '%', '%' + cliente + '%'); }
+  if (vendedor) { where.push("COALESCE(u.nombre_completo, u.username, v.vendedor) LIKE ?"); params.push('%' + vendedor + '%'); }
+  if (metodo) { where.push("v.metodo_pago = ?"); params.push(metodo); }
   if (empresaId !== undefined && empresaId !== null) {
     where.push('u.empresa_id = ?');
     params.push(empresaId);

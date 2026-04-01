@@ -66,8 +66,9 @@ function getResumenCuentas(empresaId, { desde_venc, hasta_venc } = {}) {
 
   if (empresaId == null) {
     // Instalación mononegocio o sin multiempresa activo
-    if (desde_venc) { where.push('date(fecha_emision) >= date(?)'); params.push(desde_venc); }
-    if (hasta_venc) { where.push('date(fecha_emision) <= date(?)'); params.push(hasta_venc); }
+    // Filtro por rango de fecha de VENCIMIENTO, no de emisión
+    if (desde_venc) { where.push('date(fecha_vencimiento) >= date(?)'); params.push(desde_venc); }
+    if (hasta_venc) { where.push('date(fecha_vencimiento) <= date(?)'); params.push(hasta_venc); }
     const whereSQL = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const rows = db.prepare(`
         SELECT estado, COUNT(*) as cantidad, SUM(saldo_usd) as saldo_usd
@@ -78,8 +79,9 @@ function getResumenCuentas(empresaId, { desde_venc, hasta_venc } = {}) {
     return rows;
   }
 
-  if (desde_venc) { where.push('date(cc.fecha_emision) >= date(?)'); params.push(desde_venc); }
-  if (hasta_venc) { where.push('date(cc.fecha_emision) <= date(?)'); params.push(hasta_venc); }
+  // Filtro por rango de fecha de VENCIMIENTO, no de emisión
+  if (desde_venc) { where.push('date(cc.fecha_vencimiento) >= date(?)'); params.push(desde_venc); }
+  if (hasta_venc) { where.push('date(cc.fecha_vencimiento) <= date(?)'); params.push(hasta_venc); }
   where.push('cc.venta_id IS NOT NULL');
   where.push('u.empresa_id = ?');
   params.push(empresaId);
@@ -147,10 +149,12 @@ function listCuentas({ cliente, estado, mora_min, mora_max, desde_venc, hasta_ve
     rows = rows.filter(r => r.estado_calc === estado);
   }
   if (desde_venc) {
-    rows = rows.filter(r => r.fecha_emision && r.fecha_emision >= desde_venc);
+    // Filtrar por fecha de vencimiento en el período seleccionado
+    rows = rows.filter(r => r.fecha_vencimiento && r.fecha_vencimiento >= desde_venc);
   }
   if (hasta_venc) {
-    rows = rows.filter(r => r.fecha_emision && r.fecha_emision <= hasta_venc);
+    // Filtrar por fecha de vencimiento en el período seleccionado
+    rows = rows.filter(r => r.fecha_vencimiento && r.fecha_vencimiento <= hasta_venc);
   }
   const min = mora_min !== undefined && mora_min !== '' ? Number(mora_min) : null;
   const max = mora_max !== undefined && mora_max !== '' ? Number(mora_max) : null;
