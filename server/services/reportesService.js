@@ -258,9 +258,16 @@ function buildVentasRangoCsv(params, empresaId) {
 /**
  * KPIs simples de ventas para el dashboard: cantidad de ventas de hoy,
  * de la última semana y montos totales aproximados en Bs y USD.
+ *
+ * Si se pasan `desde`/`hasta`, los totales (totalBs/totalUsd) se calculan
+ * para ese rango. Si no, se usa el mes calendario actual.
+ *
+ * @param {number|null} empresaId
+ * @param {{desde?:string,hasta?:string}} [opts]
  * @returns {{ventasHoy:number,ventasSemana:number,totalBs:number,totalUsd:number}}
  */
-function getKpis(empresaId) {
+function getKpis(empresaId, opts = {}) {
+  const { desde, hasta } = opts || {};
   // Filtro por empresa para VENTAS
   const whereVentas = [];
   const paramsVentas = [];
@@ -278,58 +285,61 @@ function getKpis(empresaId) {
       WHERE date(v.fecha) >= date('now','localtime','-6 days')${andEmpresaVentas}
     `).get(...paramsVentas);
 
-  const totalWhereVentas = whereVentas.length ? ('WHERE ' + whereVentas.join(' AND ')) : '';
+  // Totales netos del MES ACTUAL (ventas - devoluciones) para TOTAL USD del dashboard
+  const whereTotales = [];
+  const paramsTotales = [];
+  appendEmpresaFilter(whereTotales, paramsTotales, { alias: 'v', empresaId });
+  if (desde || hasta) {
+    appendFechaFilters(whereTotales, paramsTotales, { desde, hasta, alias: 'v', campo: 'fecha' });
+  } else {
+    // Mes calendario actual cuando no se especifica rango
+    whereTotales.push("strftime('%Y-%m', v.fecha) = strftime('%Y-%m', 'now','localtime')");
+  }
+  const totalWhereVentas = whereTotales.length ? ('WHERE ' + whereTotales.join(' AND ')) : '';
 
-  // Totales brutos de ventas (base sin IVA)
   const totalBsVentasRow = db.prepare(`
       SELECT COALESCE(SUM(v.total_bs), 0) as total_bs
       FROM ventas v
       ${totalWhereVentas}
-    `).get(...paramsVentas);
+    `).get(...paramsTotales);
 
   const totalUsdVentasRow = db.prepare(`
       SELECT COALESCE(SUM(CASE WHEN COALESCE(v.tasa_bcv,0) != 0 THEN v.total_bs / v.tasa_bcv ELSE v.total_bs END), 0) as total_usd
       FROM ventas v
       ${totalWhereVentas}
-    `).get(...paramsVentas);
+    `).get(...paramsTotales);
 
-  // Totales de DEVOLUCIONES asociados a las ventas de la empresa
-  let totalBsDevRow;
-  let totalUsdDevRow;
-
-  if (empresaId !== undefined && empresaId !== null) {
-    totalBsDevRow = db.prepare(`
-        SELECT COALESCE(SUM(d.total_bs), 0) AS total_bs
-        FROM devoluciones d
-        WHERE EXISTS (
-          SELECT 1
-          FROM ventas v
-          JOIN usuarios u ON u.id = v.usuario_id
-          WHERE v.id = d.venta_original_id AND u.empresa_id = ?
-        )
-      `).get(empresaId);
-
-    totalUsdDevRow = db.prepare(`
-        SELECT COALESCE(SUM(CASE WHEN COALESCE(d.tasa_bcv,0) != 0 THEN d.total_bs / d.tasa_bcv ELSE d.total_bs END), 0) AS total_usd
-        FROM devoluciones d
-        WHERE EXISTS (
-          SELECT 1
-          FROM ventas v
-          JOIN usuarios u ON u.id = v.usuario_id
-          WHERE v.id = d.venta_original_id AND u.empresa_id = ?
-        )
-      `).get(empresaId);
-  } else {
-    totalBsDevRow = db.prepare(`
-        SELECT COALESCE(SUM(d.total_bs), 0) AS total_bs
-        FROM devoluciones d
-      `).get();
-
-    totalUsdDevRow = db.prepare(`
-        SELECT COALESCE(SUM(CASE WHEN COALESCE(d.tasa_bcv,0) != 0 THEN d.total_bs / d.tasa_bcv ELSE d.total_bs END), 0) AS total_usd
-        FROM devoluciones d
-      `).get();
+  // Totales de DEVOLUCIONES del mismo rango (por fecha de la devolución)
+  const whereDevParts = [];
+  const paramsDev = [];
+  if (desde) { whereDevParts.push('date(d.fecha) >= date(?)'); paramsDev.push(desde); }
+  if (hasta) { whereDevParts.push('date(d.fecha) <= date(?)'); paramsDev.push(hasta); }
+  if (!whereDevParts.length) {
+    // Si no se especifica rango, usar mes calendario actual
+    whereDevParts.push("strftime('%Y-%m', d.fecha) = strftime('%Y-%m', 'now','localtime')");
   }
+  if (empresaId !== undefined && empresaId !== null) {
+    whereDevParts.push(`EXISTS (
+      SELECT 1
+      FROM ventas v
+      JOIN usuarios u ON u.id = v.usuario_id
+      WHERE v.id = d.venta_original_id AND u.empresa_id = ?
+    )`);
+    paramsDev.push(empresaId);
+  }
+  const whereDevSQL = 'WHERE ' + whereDevParts.join(' AND ');
+
+  const totalBsDevRow = db.prepare(`
+      SELECT COALESCE(SUM(d.total_bs), 0) AS total_bs
+      FROM devoluciones d
+      ${whereDevSQL}
+    `).get(...paramsDev);
+
+  const totalUsdDevRow = db.prepare(`
+      SELECT COALESCE(SUM(CASE WHEN COALESCE(d.tasa_bcv,0) != 0 THEN d.total_bs / d.tasa_bcv ELSE d.total_bs END), 0) AS total_usd
+      FROM devoluciones d
+      ${whereDevSQL}
+    `).get(...paramsDev);
 
   const totalBsNeto = (totalBsVentasRow.total_bs || 0) - (totalBsDevRow.total_bs || 0);
   const totalUsdNeto = (totalUsdVentasRow.total_usd || 0) - (totalUsdDevRow.total_usd || 0);

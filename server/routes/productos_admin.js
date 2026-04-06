@@ -152,7 +152,7 @@ router.get('/actividad', requireAuth, (req, res) => {
         const prod = db.prepare(`
             SELECT id, codigo, descripcion
             FROM productos
-            WHERE codigo = ? AND empresa_id = ?
+            WHERE codigo = ? AND empresa_id = ? AND activo = 1
         `).get(codigo, empresaId);
 
         if (!prod) {
@@ -206,7 +206,7 @@ router.get('/marcas-por-producto', requireAuth, (req, res) => {
         const prod = db.prepare(`
             SELECT id, marca
             FROM productos
-            WHERE codigo = ? AND empresa_id = ?
+            WHERE codigo = ? AND empresa_id = ? AND activo = 1
         `).get(codigo, empresaId);
 
         if (!prod) {
@@ -256,7 +256,7 @@ router.post('/stock-marca', requireAuth, (req, res) => {
         const prod = db.prepare(`
             SELECT id, empresa_id
             FROM productos
-            WHERE codigo = ? AND empresa_id = ?
+            WHERE codigo = ? AND empresa_id = ? AND activo = 1
         `).get(codigo, empresaId);
 
         if (!prod) {
@@ -995,8 +995,8 @@ router.put('/:codigo', requireAuth, (req, res) => {
                 return res.status(400).json({ error: 'El nuevo código debe tener al menos 3 caracteres.' });
             }
             if (nuevo !== existing.codigo) {
-                const dupe = db.prepare('SELECT id FROM productos WHERE codigo = ? AND empresa_id = ?').get(nuevo, empresaId);
-                if (dupe && dupe.id !== existing.id) {
+                const dupe = db.prepare('SELECT id, activo FROM productos WHERE codigo = ? AND empresa_id = ?').get(nuevo, empresaId);
+                if (dupe && dupe.id !== existing.id && dupe.activo === 1) {
                     return res.status(409).json({ error: `Ya existe otro producto con el código ${nuevo}.` });
                 }
                 updates.push('codigo = ?');
@@ -1019,7 +1019,7 @@ router.put('/:codigo', requireAuth, (req, res) => {
         db.prepare(sql).run(...params);
 
         // Sincronizar stock_por_deposito cuando el producto tiene depósito definido pero no hay fila asociada
-        const updated = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
+        const updated = db.prepare('SELECT id, empresa_id, deposito_id, stock FROM productos WHERE codigo = ? AND empresa_id = ?').get(finalCodigo, empresaId);
         if (updated && updated.deposito_id) {
             const rowDep = db.prepare(`
                 SELECT cantidad FROM stock_por_deposito

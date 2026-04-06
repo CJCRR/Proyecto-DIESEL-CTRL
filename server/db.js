@@ -1049,6 +1049,54 @@ const migrations = [
     }
   },
   {
+    id: '032_productos_unique_activos',
+    up: () => {
+      // Reemplazar el índice único antiguo por empresa+codigo para que solo
+      // aplique a productos activos. Esto permite reutilizar códigos en
+      // productos desactivados (activo = 0) sin romper la unicidad lógica.
+      try {
+        if (indexExists('idx_productos_empresa_codigo')) {
+          db.prepare('DROP INDEX IF EXISTS idx_productos_empresa_codigo').run();
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      if (!indexExists('idx_productos_empresa_codigo_activos')) {
+        db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_productos_empresa_codigo_activos ON productos (empresa_id, codigo) WHERE activo = 1").run();
+      }
+
+      // Normalizar códigos temporales que se generaron para productos
+      // inactivos con sufijo '-INACT-<algo>'. Si existe otro producto de la
+      // misma empresa con el código base, devolvemos al producto inactivo su
+      // código original sin el sufijo, aprovechando que el índice ahora solo
+      // aplica a activos.
+      try {
+        const candidatos = db.prepare(`
+          SELECT id, empresa_id, codigo
+          FROM productos
+          WHERE activo = 0 AND codigo LIKE '%-INACT-%'
+        `).all();
+
+        const getByEmpresaCodigo = db.prepare('SELECT id FROM productos WHERE empresa_id = ? AND codigo = ? LIMIT 1');
+        const updateCodigo = db.prepare('UPDATE productos SET codigo = ? WHERE id = ?');
+
+        for (const row of candidatos) {
+          const partes = String(row.codigo || '').split('-INACT-');
+          if (partes.length < 2) continue;
+          const baseCodigo = partes[0];
+          if (!baseCodigo) continue;
+          const otro = getByEmpresaCodigo.get(row.empresa_id, baseCodigo);
+          if (otro && otro.id && otro.id !== row.id) {
+            updateCodigo.run(baseCodigo, row.id);
+          }
+        }
+      } catch (e) {
+        // Si algo falla, no es crítico para el funcionamiento.
+      }
+    }
+  },
+  {
     id: '031_usuarios_email_y_reset',
     up: () => {
       // Email y campos básicos de recuperación de contraseña

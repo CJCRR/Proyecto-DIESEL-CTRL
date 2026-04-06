@@ -202,6 +202,9 @@ async function aplicarFiltroPeriodo() {
     await renderVentasSeries('diarias');
     await renderMargenActual();
 
+    // Actualizar KPIs (TOTAL USD) para el nuevo periodo
+    await loadKpis();
+
     // Tendencias mensuales siguen siendo globales (últimos 12 meses)
 }
 
@@ -245,18 +248,7 @@ async function cargarDashboard() {
             }
         } catch (e) { /* ignore */ }
 
-        try {
-            const kpis = await apiFetchJson('/reportes/kpis');
-            document.getElementById('ventas-hoy').innerText = kpis.ventasHoy;
-            document.getElementById('ventas-semana').innerText = kpis.ventasSemana;
-            KPI_TOTAL_USD = Number(kpis.totalUsd || 0);
-            const displayUsd = KPI_TOTAL_USD;
-            const displayBs = KPI_TOTAL_USD * TASA_BCV;
-            const principal = MONEDA === 'USD' ? `${formatNumber(displayUsd, 2)} USD` : `${formatNumber(displayBs, 2)} Bs`;
-            const secundario = MONEDA === 'USD' ? `${formatNumber(displayBs, 2)} Bs` : `${formatNumber(displayUsd, 2)} USD`;
-            document.getElementById('total-bs').innerText = principal;
-            document.getElementById('total-usd').innerText = secundario;
-        } catch (e) { /* ignore */ }
+        await loadKpis();
 
         try {
             const ventas = await apiFetchJson('/reportes/ventas');
@@ -289,6 +281,33 @@ async function cargarDashboard() {
     } catch (err) {
         console.error('Error cargando dashboard', err);
     }
+}
+
+async function loadKpis() {
+    try {
+        const { desde, hasta } = getPeriodoRango();
+        const params = new URLSearchParams();
+        if (desde) params.set('desde', desde);
+        if (hasta) params.set('hasta', hasta);
+        const qs = params.toString();
+        const url = qs ? `/reportes/kpis?${qs}` : '/reportes/kpis';
+        const kpis = await apiFetchJson(url);
+
+        const ventasHoyEl = document.getElementById('ventas-hoy');
+        const ventasSemanaEl = document.getElementById('ventas-semana');
+        if (ventasHoyEl) ventasHoyEl.innerText = kpis.ventasHoy;
+        if (ventasSemanaEl) ventasSemanaEl.innerText = kpis.ventasSemana;
+
+        KPI_TOTAL_USD = Number(kpis.totalUsd || 0);
+        const displayUsd = KPI_TOTAL_USD;
+        const displayBs = KPI_TOTAL_USD * TASA_BCV;
+        const principal = MONEDA === 'USD' ? `${formatNumber(displayUsd, 2)} USD` : `${formatNumber(displayBs, 2)} Bs`;
+        const secundario = MONEDA === 'USD' ? `${formatNumber(displayBs, 2)} Bs` : `${formatNumber(displayUsd, 2)} USD`;
+        const totalBsEl = document.getElementById('total-bs');
+        const totalUsdEl = document.getElementById('total-usd');
+        if (totalBsEl) totalBsEl.innerText = principal;
+        if (totalUsdEl) totalUsdEl.innerText = secundario;
+    } catch (e) { /* ignore */ }
 }
 
 document.getElementById('sincronizar-manual').addEventListener('click', () => {

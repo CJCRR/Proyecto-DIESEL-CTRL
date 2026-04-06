@@ -124,9 +124,12 @@ router.get('/ventas/export/csv', requireAuth, forbidSuperadmin, (req, res) => {
 });
 
 // GET /reportes/kpis - indicadores clave para el dashboard
+// Acepta opcionalmente ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD para que los
+// totales (TOTAL USD) puedan corresponder al período seleccionado.
 router.get('/kpis', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const kpis = getKpis(req.usuario.empresa_id || null);
+    const { desde, hasta } = req.query;
+    const kpis = getKpis(req.usuario.empresa_id || null, { desde, hasta });
     res.json(kpis);
   } catch (err) {
   logger.error('Error obteniendo KPIs', {

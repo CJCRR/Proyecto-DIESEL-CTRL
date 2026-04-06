@@ -173,10 +173,38 @@ if (btnEditarMarcas && stockMarcaModal && stockMarcaEditorEl) {
         }
         const codigoVal = codigoValRaw.toUpperCase();
 
+        // Si ya hay un producto seleccionado y el usuario cambió el código
+        // en el formulario, primero intentamos actualizar el código en backend
+        // (mismo comportamiento que el botón "Actualizar código").
+        if (codigoOriginalSeleccionado && codigoOriginalSeleccionado !== codigoVal) {
+            try {
+                const res = await fetch('/admin/productos/' + encodeURIComponent(codigoOriginalSeleccionado), {
+                    method: 'PUT',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nuevo_codigo: codigoVal })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    const msgErr = data && data.error ? data.error : 'No se pudo actualizar el código antes de editar marcas.';
+                    showToast(msgErr, 'error');
+                    return;
+                }
+                codigoOriginalSeleccionado = codigoVal;
+                // Recargar lista para que productosCache refleje el nuevo código
+                currentPage = 0;
+                await cargarProductos();
+            } catch (err) {
+                console.error('Error actualizando código antes de abrir editor de marcas', err);
+                showToast(err.message || 'Error actualizando código antes de editar marcas', 'error');
+                return;
+            }
+        }
+
         // Si el producto aún no existe en la lista (producto recién digitado pero no guardado),
         // intentar crearlo rápido con los datos del formulario para poder editar marcas de inmediato.
         let prodEnCache = productosCache.find(p => p.codigo === codigoVal);
-        if (!prodEnCache) {
+        if (!prodEnCache && !codigoOriginalSeleccionado) {
             const desc = f_desc ? String(f_desc.value || '').trim().toUpperCase() : '';
             const precio = parseFloat(f_precio && f_precio.value ? f_precio.value : '0');
             const stockInput = parseInt(f_stock && f_stock.value ? f_stock.value : '0', 10) || 0;

@@ -62,7 +62,7 @@ router.get('/:codigo', requireAuth, (req, res) => {
                 SELECT p.*, d.nombre AS deposito_nombre, d.codigo AS deposito_codigo
                 FROM productos p
                 LEFT JOIN depositos d ON d.id = p.deposito_id
-                WHERE p.codigo = ? AND p.empresa_id = ?
+                WHERE p.codigo = ? AND p.empresa_id = ? AND p.activo = 1
             `)
             .get(codigo, empresaId);
     } else {
@@ -71,7 +71,7 @@ router.get('/:codigo', requireAuth, (req, res) => {
                 SELECT p.*, d.nombre AS deposito_nombre, d.codigo AS deposito_codigo
                 FROM productos p
                 LEFT JOIN depositos d ON d.id = p.deposito_id
-                WHERE p.codigo = ?
+                WHERE p.codigo = ? AND p.activo = 1
             `)
             .get(codigo);
     }

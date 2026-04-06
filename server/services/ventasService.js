@@ -133,7 +133,7 @@ function registrarVenta(payload) {
 
         const ventaId = ventaResult.lastInsertRowid;
 
-        const selectProducto = db.prepare('SELECT id, stock, precio_usd, costo_usd, descripcion, deposito_id, empresa_id, marca FROM productos WHERE codigo = ? AND empresa_id = ?');
+        const selectProducto = db.prepare('SELECT id, stock, precio_usd, costo_usd, descripcion, deposito_id, empresa_id, marca FROM productos WHERE codigo = ? AND empresa_id = ? AND activo = 1');
         const selectStockTotal = db.prepare(`
             SELECT SUM(cantidad) AS total
             FROM stock_por_deposito
