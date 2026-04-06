@@ -789,7 +789,7 @@ btnImportCsv.addEventListener('click', async () => {
         const previewRows = rows.slice(0, Math.min(10, rows.length));
         let html = '<table class="w-full text-xs table-fixed border-collapse">';
         html += '<thead><tr class="bg-slate-100"><th class="px-2 py-1 border">#</th>';
-        const headerCols = ['codigo', 'descripcion', 'precio_usd', 'costo_usd', 'stock', 'categoria', 'marca', 'deposito_codigo'];
+        const headerCols = ['codigo', 'descripcion', 'precio_usd', 'costo_usd', 'stock', 'categoria', 'marca', 'deposito_codigo', 'stock_marca_detalle'];
         headerCols.forEach(h => { html += `<th class="px-2 py-1 border">${h}</th>`; });
         html += '</tr></thead><tbody>';
         for (let i = 0; i < previewRows.length; i++) {
@@ -1031,8 +1031,11 @@ form.addEventListener('submit', async (e) => {
         } catch (syncErr) {
             console.error('No se pudo sincronizar producto a Firebase:', syncErr);
         }
-        // reload list at first page (do not overwrite user's top filter)
-        currentPage = 0;
+        // Recargar lista: si se está creando un producto nuevo, ir a la primera página;
+        // si se está editando, mantener la página actual para no interrumpir el flujo.
+        if (!estaEditando) {
+            currentPage = 0;
+        }
         await cargarProductos();
         await cargarAjustes();
 

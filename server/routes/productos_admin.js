@@ -592,7 +592,22 @@ router.get('/export', requireAuth, (req, res) => {
                 ), p.stock) AS stock,
                 p.categoria,
                 p.marca,
-                d.codigo AS deposito_codigo
+                d.codigo AS deposito_codigo,
+                (
+                    SELECT GROUP_CONCAT(
+                        d2.codigo || ':' || COALESCE(TRIM(spdm.marca), '') || '=' || (
+                            CASE
+                                WHEN spdm.cantidad = CAST(spdm.cantidad AS INTEGER)
+                                    THEN CAST(CAST(spdm.cantidad AS INTEGER) AS TEXT)
+                                ELSE printf('%.2f', spdm.cantidad)
+                            END
+                        ),
+                        ' / '
+                    )
+                    FROM stock_por_deposito_marca spdm
+                    JOIN depositos d2 ON d2.id = spdm.deposito_id
+                    WHERE spdm.producto_id = p.id AND spdm.cantidad > 0
+                ) AS stock_marca_detalle
             FROM productos p
             LEFT JOIN depositos d ON d.id = p.deposito_id
             WHERE p.empresa_id = ? AND p.activo = 1
@@ -617,7 +632,7 @@ router.get('/export', requireAuth, (req, res) => {
             return s;
         }
 
-        const header = ['codigo', 'descripcion', 'precio_usd', 'costo_usd', 'stock', 'categoria', 'marca', 'deposito_codigo'].join(delimiter) + '\r\n';
+        const header = ['codigo', 'descripcion', 'precio_usd', 'costo_usd', 'stock', 'categoria', 'marca', 'deposito_codigo', 'stock_marca_detalle'].join(delimiter) + '\r\n';
         const lines = rows.map(r => {
             return [
                 quoteField(r.codigo),
@@ -627,7 +642,8 @@ router.get('/export', requireAuth, (req, res) => {
                 quoteField(r.stock || ''),
                 quoteField(r.categoria || ''),
                 quoteField(r.marca || ''),
-                quoteField(r.deposito_codigo || '')
+                quoteField(r.deposito_codigo || ''),
+                quoteField(r.stock_marca_detalle || '')
             ].join(delimiter);
         }).join('\r\n');
         const csv = '\uFEFF' + header + lines + '\r\n';

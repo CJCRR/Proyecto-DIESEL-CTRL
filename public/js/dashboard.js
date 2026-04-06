@@ -310,11 +310,6 @@ async function loadKpis() {
     } catch (e) { /* ignore */ }
 }
 
-document.getElementById('sincronizar-manual').addEventListener('click', () => {
-    if (typeof window.sincronizarVentasPendientes === 'function') window.sincronizarVentasPendientes();
-});
-
-
 const btnGuardarTasa = document.getElementById('btn-guardar-tasa');
 if (btnGuardarTasa) {
     btnGuardarTasa.addEventListener('click', async () => {
