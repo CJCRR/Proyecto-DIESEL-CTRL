@@ -1,4 +1,5 @@
 const db = require('../db');
+const { validationError } = require('./validationUtils');
 
 function mapDeposito(row) {
   if (!row) return null;
@@ -54,15 +55,11 @@ function getDeposito(id, empresaId) {
 
 function createDeposito(empresaId, payload = {}) {
   if (!empresaId) {
-    const err = new Error('Usuario sin empresa asociada');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Usuario sin empresa asociada', 'DEPOSITO_SIN_EMPRESA');
   }
   const nombre = (payload.nombre || '').toString().trim().slice(0, 160);
   if (!nombre) {
-    const err = new Error('Nombre de depósito requerido');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Nombre de depósito requerido', 'DEPOSITO_NOMBRE_REQUERIDO');
   }
   const codigo = (payload.codigo || '').toString().trim().slice(0, 80) || null;
   const esPrincipal = payload.es_principal ? 1 : 0;
@@ -91,9 +88,7 @@ function updateDeposito(id, empresaId, payload = {}) {
     ? (payload.nombre || '').toString().trim().slice(0, 160)
     : actual.nombre;
   if (!nombre) {
-    const err = new Error('Nombre de depósito requerido');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Nombre de depósito requerido', 'DEPOSITO_NOMBRE_REQUERIDO');
   }
   const codigo = payload.codigo !== undefined
     ? ((payload.codigo || '').toString().trim().slice(0, 80) || null)

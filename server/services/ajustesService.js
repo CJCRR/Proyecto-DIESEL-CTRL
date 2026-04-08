@@ -1,10 +1,12 @@
 const db = require('../db');
 const { insertAlerta } = require('../routes/alertas');
+const { validationError } = require('./validationUtils');
 const XLSX = require('xlsx');
 const { getVentasRango, getTopClientes, getRentabilidadCategorias } = require('./reportesService');
 const { listCompras } = require('./comprasService');
 const { listCuentas } = require('./cobranzasService');
 const { listProveedores } = require('./proveedoresService');
+const { appendEmpresaIdFilter } = require('./empresaUtils');
 // @ts-check
 
 // ===== AJUSTES DE STOCK =====
@@ -29,9 +31,7 @@ function ajustarStock(payload = {}) {
   const diff = parseInt(diferencia);
 
   if (!codigo || Number.isNaN(diff) || diff === 0 || !motivo) {
-    const error = new Error('Datos inválidos. Se requiere código, diferencia distinta de 0 y motivo.');
-    error.tipo = 'VALIDACION';
-    throw error;
+    throw validationError('Datos inválidos. Se requiere código, diferencia distinta de 0 y motivo.', 'AJUSTE_DATOS_INVALIDOS');
   }
 
   db.transaction(() => {
@@ -95,11 +95,7 @@ function listarAjustes(limit = 100, codigo, empresaId) {
   const params = [];
   const whereParts = [];
 
-  const eid = empresaId != null ? Number(empresaId) : null;
-  if (Number.isFinite(eid) && eid > 0) {
-    whereParts.push('p.empresa_id = ?');
-    params.push(eid);
-  }
+  appendEmpresaIdFilter(whereParts, params, { alias: 'p', empresaId });
 
   if (codigo) {
     whereParts.push('p.codigo = ?');
@@ -229,9 +225,7 @@ function getConfigJSON(clave, defObj = {}) {
 function registrarSolicitudPagoLicencia(empresaId, usuario, payload = {}) {
   const eid = empresaId != null ? Number(empresaId) : null;
   if (!Number.isFinite(eid) || eid <= 0) {
-    const err = new Error('Empresa inválida para registrar pago');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Empresa inválida para registrar pago', 'PAGO_LIC_EMPRESA_INVALIDA');
   }
 
   let { fecha_pago, monto_usd, referencia, tipo, comprobante_url, notas } = payload;
@@ -239,9 +233,7 @@ function registrarSolicitudPagoLicencia(empresaId, usuario, payload = {}) {
   const fecha = safeStr(fecha_pago || new Date().toISOString(), 40) || new Date().toISOString();
   const montoNum = Number(monto_usd);
   if (!Number.isFinite(montoNum) || montoNum <= 0) {
-    const err = new Error('El monto del pago debe ser un número mayor a 0');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('El monto del pago debe ser un número mayor a 0', 'PAGO_LIC_MONTO_INVALIDO');
   }
 
   referencia = safeStr(referencia, 120) || null;
@@ -298,16 +290,12 @@ function actualizarEstadoPagoLicencia(empresaId, pagoId, nuevoEstado, opciones =
   const eid = empresaId != null ? Number(empresaId) : null;
   const pid = pagoId != null ? Number(pagoId) : null;
   if (!Number.isFinite(eid) || eid <= 0 || !Number.isFinite(pid) || pid <= 0) {
-    const err = new Error('Identificadores inválidos para actualizar pago');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Identificadores inválidos para actualizar pago', 'PAGO_LIC_IDS_INVALIDOS');
   }
 
   const estado = String(nuevoEstado || '').trim().toLowerCase();
   if (!estado || !['pendiente', 'aplicado', 'rechazado'].includes(estado)) {
-    const err = new Error('Estado de pago inválido');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Estado de pago inválido', 'PAGO_LIC_ESTADO_INVALIDO');
   }
 
   const { meses_pagados } = opciones || {};
@@ -318,9 +306,7 @@ function actualizarEstadoPagoLicencia(empresaId, pagoId, nuevoEstado, opciones =
         WHERE id = ? AND empresa_id = ?
       `).get(pid, eid);
     if (!pago) {
-      const err = new Error('Pago de licencia no encontrado para esta empresa');
-      err.tipo = 'VALIDACION';
-      throw err;
+      throw validationError('Pago de licencia no encontrado para esta empresa', 'PAGO_LIC_NO_ENCONTRADO');
     }
 
     db.prepare('UPDATE pagos_licencia SET estado = ? WHERE id = ?').run(estado, pid);
@@ -993,9 +979,7 @@ function buildSheetFromRows(rows, headerMap) {
 function exportarDatosEmpresa(empresaId, opts = {}) {
   const eid = empresaId != null ? Number(empresaId) : null;
   if (!Number.isFinite(eid) || eid <= 0) {
-    const err = new Error('Empresa inválida para exportación de datos');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Empresa inválida para exportación de datos', 'EXPORT_EMPRESA_INVALIDA');
   }
 
   const { desde, hasta } = opts || {};
@@ -1015,9 +999,7 @@ function exportarDatosEmpresa(empresaId, opts = {}) {
   );
 
   if (!tiposSet.size) {
-    const err = new Error('Debe seleccionar al menos un tipo de dato para exportar');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Debe seleccionar al menos un tipo de dato para exportar', 'EXPORT_TIPOS_REQUERIDOS');
   }
 
   const wb = XLSX.utils.book_new();

@@ -223,6 +223,34 @@
 - [ ] Revisar rendimiento de consultas de reportes al usar filtros por mes/año en bases con muchos registros, ajustando índices o paginación si es necesario.
 - [ ] Añadir tests básicos para asegurar que los filtros por período y las exportaciones generan conteos y totales coherentes con los datos mostrados en pantalla.
 
+## Fase 39: Rendimiento de Reportes Backend ✅
+- [x] Optimizar consultas de reportes/cobranzas moviendo filtros pesados (cliente, rangos de vencimiento) a SQL para reducir carga en Node.
+- [x] Crear índices adicionales en tablas de reportes (devoluciones, cuentas_cobrar, pagos_cc) priorizando filtros por empresa_id, estado y fecha.
+
+## Fase 40: Multiempresa DRY y Seguridad de Datos ✅
+- [x] Extraer helpers reutilizables para inyectar empresa_id en consultas (appendEmpresaIdFilter / appendEmpresaFilter) reduciendo riesgo de fugas entre empresas.
+- [x] Añadir tests específicos que verifican que usuarios de una empresa no pueden ver/modificar datos de otra en servicios clave (proveedores, ventas/cobranzas).
+
+## Fase 41: Validaciones Backend Unificadas ✅
+- [X] Unificar validaciones de entrada (tipos, longitudes, rangos) usando un esquema central por entidad (venta, producto, cliente) para evitar duplicación entre rutas y servicios.
+- [X] Normalizar mensajes de error de validación (códigos y textos) para que el frontend pueda mostrarlos de forma consistente.
+
+## Fase 42: Componentes Reutilizables en Frontend
+- [ ] Extraer componentes reutilizables para tablas con filtros y paginación (inventario, clientes, cobranzas) reduciendo duplicación de código DOM.
+- [ ] Unificar modales de confirmación y selectores de período (mes/año) en utilidades compartidas.
+
+## Fase 43: Estado y Sincronización Offline
+- [ ] Centralizar el manejo de estado local (ventas pendientes, cache de inventario) en un pequeño store JS en lugar de lógica dispersa por módulo.
+- [ ] Revisar y documentar el flujo de sincronización local ↔ nube aprovechando db-local.js y firebase-sync.js.
+
+## Fase 44: Manejo de Errores de Negocio vs Técnicos
+- [ ] Definir una jerarquía simple de errores (BusinessError, AuthError, ValidationError, etc.) en backend.
+- [ ] Actualizar el middleware errorHandler para mapear estos errores a códigos HTTP y respuestas JSON estructuradas.
+
+## Fase 45: Hardening de Seguridad e Infra
+- [ ] Asegurar que en producción no existan valores por defecto inseguros para secretos (JWT, claves de correo, rutas de base de datos) y que la app falle claramente si faltan.
+- [ ] Revisar límites de tamaño de payload por ruta y ajustar donde no se requieran cuerpos grandes para mitigar posibles ataques de DoS.
+
 ## Notas de Progreso
 
 - [idea] Espacio para anotar ideas rápidas antes de asignarlas a una fase.

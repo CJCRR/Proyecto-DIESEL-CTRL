@@ -1,5 +1,7 @@
 const db = require('../db');
+const { appendEmpresaIdFilter } = require('./empresaUtils');
 
+const { validationError } = require('./validationUtils');
 const MAX_TEXT = 400;
 
 function safeStr(v, max = MAX_TEXT) {
@@ -34,10 +36,7 @@ function mapCompra(row) {
 function listCompras({ limit = 100, proveedor_id, empresaId } = {}) {
   const params = [];
   const where = [];
-  if (empresaId) {
-    where.push('c.empresa_id = ?');
-    params.push(empresaId);
-  }
+  appendEmpresaIdFilter(where, params, { alias: 'c', empresaId });
   if (proveedor_id) {
     where.push('c.proveedor_id = ?');
     params.push(proveedor_id);
@@ -80,9 +79,7 @@ function crearCompra(payload = {}, usuario) {
   const { proveedor_id, fecha, numero, tasa_bcv, notas, items } = payload;
 
   if (!Array.isArray(items) || items.length === 0) {
-    const err = new Error('Se requieren items para registrar una compra');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Se requieren items para registrar una compra', 'COMPRA_SIN_ITEMS');
   }
 
   const tasa = parseFloat(tasa_bcv) || 1;
@@ -93,9 +90,7 @@ function crearCompra(payload = {}, usuario) {
   const empresaId = usuario?.empresa_id || null;
 
   if (!empresaId) {
-    const err = new Error('Usuario sin empresa asociada');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Usuario sin empresa asociada', 'COMPRA_SIN_EMPRESA');
   }
 
   const tx = db.transaction(() => {
@@ -157,16 +152,12 @@ function crearCompra(payload = {}, usuario) {
       const obs = safeStr(raw.observaciones, MAX_TEXT);
 
       if (!codigo || cantidad <= 0) {
-        const err = new Error('Cada item requiere código y cantidad > 0');
-        err.tipo = 'VALIDACION';
-        throw err;
+        throw validationError('Cada item requiere código y cantidad > 0', 'COMPRA_ITEM_CANTIDAD');
       }
 
       const prod = selectProd.get(codigo, empresaId);
       if (!prod) {
-        const err = new Error(`Producto no encontrado para código ${codigo}`);
-        err.tipo = 'VALIDACION';
-        throw err;
+        throw validationError(`Producto no encontrado para código ${codigo}`, 'COMPRA_PRODUCTO_NO_ENCONTRADO');
       }
 
       // Si el costo viene null/undefined/"", usamos el costo anterior del producto
@@ -181,9 +172,7 @@ function crearCompra(payload = {}, usuario) {
       }
 
       if (costo < 0) {
-        const err = new Error('Cada item requiere código, cantidad > 0 y costo_usd >= 0');
-        err.tipo = 'VALIDACION';
-        throw err;
+        throw validationError('Cada item requiere código, cantidad > 0 y costo_usd >= 0', 'COMPRA_COSTO_INVALIDO');
       }
 
       // Precio de venta opcional: solo se actualiza si viene un valor
@@ -192,9 +181,7 @@ function crearCompra(payload = {}, usuario) {
       if (precioVentaField !== null && precioVentaField !== undefined && precioVentaField !== '') {
         const precioParsed = parseFloat(precioVentaField);
         if (Number.isNaN(precioParsed) || precioParsed < 0) {
-          const err = new Error('El precio de venta debe ser >= 0 cuando se envía');
-          err.tipo = 'VALIDACION';
-          throw err;
+          throw validationError('El precio de venta debe ser >= 0 cuando se envía', 'COMPRA_PRECIO_VENTA_INVALIDO');
         }
         precioParaActualizar = precioParsed;
       }

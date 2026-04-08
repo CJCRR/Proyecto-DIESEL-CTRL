@@ -3,7 +3,7 @@ const path = require('path');
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 
 const db = require(path.join('..', 'db'));
-const { registrarVenta } = require(path.join('..', 'services', 'ventasService'));
+const { registrarVenta, anularVenta, cambiarVendedorVenta } = require(path.join('..', 'services', 'ventasService'));
 
 function resetVentasData() {
   db.prepare('DELETE FROM stock_por_deposito').run();
@@ -129,5 +129,72 @@ describe('ventasService.registrarVenta', () => {
         metodo_pago: 'EFECTIVO',
       });
     }).toThrow(/carrito está vacío/i);
+  });
+
+  test('anularVenta impide anular ventas de otra empresa', () => {
+    const empresaAId = 1;
+    const empresaBId = 2;
+
+    const userA = db.prepare(`
+      INSERT INTO usuarios (username, password, rol, empresa_id, activo)
+      VALUES ('user_venta_A', 'x', 'admin', ?, 1)
+    `).run(empresaAId);
+
+    const userB = db.prepare(`
+      INSERT INTO usuarios (username, password, rol, empresa_id, activo)
+      VALUES ('user_venta_B', 'x', 'admin', ?, 1)
+    `).run(empresaBId);
+
+    const ventaB = db.prepare(`
+      INSERT INTO ventas (fecha, cliente, vendedor, metodo_pago, total_bs, tasa_bcv, usuario_id)
+      VALUES (datetime('now'), 'Cliente B', 'Vend B', 'EFECTIVO', 100, 10, ?)
+    `).run(userB.lastInsertRowid);
+
+    expect(() => {
+      anularVenta({ ventaId: ventaB.lastInsertRowid, empresaId: empresaAId });
+    }).toThrow(/otra empresa/i);
+  });
+
+  test('cambiarVendedorVenta impide asignar vendedor de otra empresa', () => {
+    const empresaAId = 1;
+    const empresaBId = 2;
+
+    const userOrigen = db.prepare(`
+      INSERT INTO usuarios (username, password, rol, empresa_id, activo)
+      VALUES ('user_origen', 'x', 'vendedor', ?, 1)
+    `).run(empresaAId);
+
+    const userDestinoMisma = db.prepare(`
+      INSERT INTO usuarios (username, password, rol, empresa_id, activo, comision_pct)
+      VALUES ('user_destino_A', 'x', 'vendedor', ?, 1, 5)
+    `).run(empresaAId);
+
+    const userDestinoOtra = db.prepare(`
+      INSERT INTO usuarios (username, password, rol, empresa_id, activo)
+      VALUES ('user_destino_B', 'x', 'vendedor', ?, 1)
+    `).run(empresaBId);
+
+    const venta = db.prepare(`
+      INSERT INTO ventas (fecha, cliente, vendedor, metodo_pago, total_bs, tasa_bcv, usuario_id)
+      VALUES (datetime('now'), 'Cliente Venta', 'Vend Orig', 'EFECTIVO', 100, 10, ?)
+    `).run(userOrigen.lastInsertRowid);
+
+    // Cambio válido dentro de la misma empresa (no debe lanzar)
+    const resultadoOk = cambiarVendedorVenta({
+      ventaId: venta.lastInsertRowid,
+      nuevoUsuarioId: userDestinoMisma.lastInsertRowid,
+      empresaId: empresaAId,
+    });
+    expect(resultadoOk).toBeDefined();
+    expect(resultadoOk.usuario_id).toBe(userDestinoMisma.lastInsertRowid);
+
+    // Intento de asignar vendedor de otra empresa debe fallar
+    expect(() => {
+      cambiarVendedorVenta({
+        ventaId: venta.lastInsertRowid,
+        nuevoUsuarioId: userDestinoOtra.lastInsertRowid,
+        empresaId: empresaAId,
+      });
+    }).toThrow(/otra empresa/i);
   });
 });

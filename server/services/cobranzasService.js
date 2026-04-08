@@ -106,17 +106,46 @@ function getResumenCuentas(empresaId, { desde_venc, hasta_venc } = {}) {
  * @returns {import('../types').CuentaPorCobrar[]}
  */
 function listCuentas({ cliente, estado, mora_min, mora_max, desde_venc, hasta_venc, empresaId } = {}) {
+  const hasCliente = !!(cliente && String(cliente).trim());
+  const lc = hasCliente ? String(cliente).trim().toLowerCase() : null;
+  const where = [];
+  const params = [];
+
+  // Filtros comunes por fecha de vencimiento y cliente se aplican en SQL
+  if (desde_venc) {
+    where.push('date(cc.fecha_vencimiento) >= date(?)');
+    params.push(desde_venc);
+  }
+  if (hasta_venc) {
+    where.push('date(cc.fecha_vencimiento) <= date(?)');
+    params.push(hasta_venc);
+  }
+  if (hasCliente && lc) {
+    where.push('(LOWER(cc.cliente_nombre) LIKE ? OR LOWER(cc.cliente_doc) LIKE ?)');
+    const like = `%${lc}%`;
+    params.push(like, like);
+  }
+
   let rows;
   if (empresaId == null) {
+    const whereSQL = where.length ? 'WHERE ' + where.join(' AND ') : '';
     rows = db.prepare(`
-        SELECT cc.*, 
+        SELECT cc.*,
           CASE WHEN cc.venta_id IS NOT NULL THEN cc.venta_id ELSE NULL END AS nro_seq
         FROM cuentas_cobrar cc
-        ORDER BY date(cc.fecha_vencimiento) ASC
-      `).all();
+        ${whereSQL}
+        ORDER BY date(cc.fecha_vencimiento) ASC, cc.id ASC
+      `).all(...params);
   } else {
+    // Multiempresa: restringir por empresa y ventas asociadas, más filtros de fecha/cliente
+    const whereEmpresa = ['cc.venta_id IS NOT NULL', 'u.empresa_id = ?'];
+    const paramsEmpresa = [empresaId];
+    const whereAll = whereEmpresa.concat(where);
+    const paramsAll = paramsEmpresa.concat(params);
+    const whereSQL = 'WHERE ' + whereAll.join(' AND ');
+
     rows = db.prepare(`
-        SELECT cc.*, 
+        SELECT cc.*,
           CASE WHEN cc.venta_id IS NOT NULL THEN (
             SELECT COUNT(*) FROM ventas v2
             JOIN usuarios u2 ON u2.id = v2.usuario_id
@@ -125,9 +154,9 @@ function listCuentas({ cliente, estado, mora_min, mora_max, desde_venc, hasta_ve
         FROM cuentas_cobrar cc
         LEFT JOIN ventas v ON v.id = cc.venta_id
         LEFT JOIN usuarios u ON u.id = v.usuario_id
-        WHERE cc.venta_id IS NOT NULL AND u.empresa_id = ?
-        ORDER BY date(cc.fecha_vencimiento) ASC
-      `).all(empresaId, empresaId);
+        ${whereSQL}
+        ORDER BY date(cc.fecha_vencimiento) ASC, cc.id ASC
+      `).all(empresaId, ...paramsAll);
   }
 
   // Normalizar estado calculado y número de nota amigable
@@ -141,20 +170,8 @@ function listCuentas({ cliente, estado, mora_min, mora_max, desde_venc, hasta_ve
     return mapped;
   });
 
-  if (cliente) {
-    const lc = cliente.toLowerCase();
-    rows = rows.filter(r => (r.cliente_nombre || '').toLowerCase().includes(lc) || (r.cliente_doc || '').toLowerCase().includes(lc));
-  }
   if (estado) {
     rows = rows.filter(r => r.estado_calc === estado);
-  }
-  if (desde_venc) {
-    // Filtrar por fecha de vencimiento en el período seleccionado
-    rows = rows.filter(r => r.fecha_vencimiento && r.fecha_vencimiento >= desde_venc);
-  }
-  if (hasta_venc) {
-    // Filtrar por fecha de vencimiento en el período seleccionado
-    rows = rows.filter(r => r.fecha_vencimiento && r.fecha_vencimiento <= hasta_venc);
   }
   const min = mora_min !== undefined && mora_min !== '' ? Number(mora_min) : null;
   const max = mora_max !== undefined && mora_max !== '' ? Number(mora_max) : null;

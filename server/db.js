@@ -1097,6 +1097,29 @@ const migrations = [
     }
   },
   {
+    id: '033_indices_reportes_cobranzas_y_devoluciones',
+    up: () => {
+      // Índice por fecha de devolución para acelerar reportes que agrupan por día/mes
+      if (!indexExists('idx_devoluciones_fecha')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_devoluciones_fecha ON devoluciones (fecha)').run();
+      }
+
+      // Índices para cuentas por cobrar: consultas frecuentes por empresa, estado y vencimiento/emisión
+      if (!indexExists('idx_cc_empresa_estado_venc')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_cc_empresa_estado_venc ON cuentas_cobrar (empresa_id, estado, fecha_vencimiento)').run();
+      }
+
+      if (!indexExists('idx_cc_empresa_fecha_emision')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_cc_empresa_fecha_emision ON cuentas_cobrar (empresa_id, fecha_emision)').run();
+      }
+
+      // Índice para pagos de cuentas por cobrar: filtros por empresa y fecha en reportes de cobranzas
+      if (!indexExists('idx_pagos_cc_empresa_fecha')) {
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_pagos_cc_empresa_fecha ON pagos_cc (empresa_id, fecha)').run();
+      }
+    }
+  },
+  {
     id: '031_usuarios_email_y_reset',
     up: () => {
       // Email y campos básicos de recuperación de contraseña

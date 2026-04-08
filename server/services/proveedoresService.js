@@ -1,4 +1,6 @@
 const db = require('../db');
+const { appendEmpresaIdFilter } = require('./empresaUtils');
+const { validationError } = require('./validationUtils');
 
 const MAX_TEXT = 400;
 
@@ -28,10 +30,7 @@ function listProveedores({ q, soloActivos, empresaId } = {}) {
   const where = [];
   const params = [];
 
-  if (empresaId) {
-    where.push('p.empresa_id = ?');
-    params.push(empresaId);
-  }
+  appendEmpresaIdFilter(where, params, { alias: 'p', empresaId });
 
   if (soloActivos) {
     where.push('p.activo = 1');
@@ -62,15 +61,11 @@ function getProveedor(id, empresaId) {
 
 function createProveedor(payload = {}, empresaId) {
   if (!empresaId) {
-    const err = new Error('Usuario sin empresa asociada');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Usuario sin empresa asociada', 'PROV_SIN_EMPRESA');
   }
   const nombre = safeStr(payload.nombre, 160);
   if (!nombre) {
-    const err = new Error('Nombre de proveedor requerido');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Nombre de proveedor requerido', 'PROV_NOMBRE_REQUERIDO');
   }
 
   const rif = safeStr(payload.rif, 80);
@@ -93,9 +88,7 @@ function updateProveedor(id, payload = {}, empresaId) {
 
   const nombre = payload.nombre !== undefined ? safeStr(payload.nombre, 160) : prov.nombre;
   if (!nombre) {
-    const err = new Error('Nombre de proveedor requerido');
-    err.tipo = 'VALIDACION';
-    throw err;
+    throw validationError('Nombre de proveedor requerido', 'PROV_NOMBRE_REQUERIDO');
   }
   const rif = payload.rif !== undefined ? safeStr(payload.rif, 80) : prov.rif;
   const telefono = payload.telefono !== undefined ? safeStr(payload.telefono, 80) : prov.telefono;

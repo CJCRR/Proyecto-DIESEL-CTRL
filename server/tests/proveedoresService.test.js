@@ -51,4 +51,18 @@ describe('proveedoresService', () => {
     const reactivado = proveedoresService.toggleProveedorActivo(prov.id, true, empresaId);
     expect(reactivado.activo).toBe(true);
   });
+
+  test('listProveedores respeta empresaId y no mezcla empresas', () => {
+    const empresaA = 1;
+    const empresaB = 2;
+
+    const provA = proveedoresService.createProveedor({ nombre: 'Prov A', rif: 'J-A' }, empresaA);
+    const provB = proveedoresService.createProveedor({ nombre: 'Prov B', rif: 'J-B' }, empresaB);
+
+    const listaA = proveedoresService.listProveedores({ q: 'Prov', soloActivos: true, empresaId: empresaA });
+    const listaB = proveedoresService.listProveedores({ q: 'Prov', soloActivos: true, empresaId: empresaB });
+
+    expect(listaA.find(p => p.id === provB.id)).toBeUndefined();
+    expect(listaB.find(p => p.id === provA.id)).toBeUndefined();
+  });
 });
