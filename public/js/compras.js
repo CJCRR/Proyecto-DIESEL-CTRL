@@ -16,6 +16,7 @@ let depositosComprasCargados = false;
 let categoriasCompras = [];
 let marcasCompras = [];
 let compraFocusId = null;
+const ES_ADMIN_EMPRESA = (window.Auth && typeof window.Auth.isAdmin === 'function') ? !!window.Auth.isAdmin() : false;
 
 async function cargarCategoriasCompras() {
   const dataList = document.getElementById('npCategoriaOptions');
@@ -677,10 +678,16 @@ async function cargarHistorialCompras() {
       const totalBs = c.total_bs || 0;
       const fechaStr = formatFechaCompra(c.fecha);
       const id = c.id;
+      const estado = (c.estado || 'recibida').toString();
+      const anulada = estado.toLowerCase() === 'anulada';
+      const estadoBadge = anulada
+        ? '<span class="ml-2 inline-flex items-center px-2 py-0.5 text-[10px] rounded-full bg-rose-50 text-rose-700 border border-rose-200">Anulada</span>'
+        : '';
+      const rowClasses = anulada ? 'cursor-pointer bg-slate-50/60 text-slate-400' : 'cursor-pointer hover:bg-slate-50';
       return `
-        <tr class="cursor-pointer hover:bg-slate-50" data-compra-id="${id}">
+        <tr class="${rowClasses}" data-compra-id="${id}">
           <td class="p-2 text-xs">${escapeHtml(fechaStr)}</td>
-          <td class="p-2 text-xs">${escapeHtml(c.proveedor_nombre || '')}</td>
+          <td class="p-2 text-xs">${escapeHtml(c.proveedor_nombre || '')}${estadoBadge}</td>
           <td class="p-2 text-xs text-right">$${formatNumber(totalUsd, 2)}</td>
           <td class="p-2 text-xs text-right">${formatNumber(totalBs, 2)}</td>
         </tr>
@@ -752,15 +759,25 @@ async function toggleDetalleCompra(id) {
 
   const { compra, detalles } = data;
   const itemsDet = Array.isArray(detalles) ? detalles : [];
+  const estado = (compra && compra.compra && compra.compra.estado) ? compra.compra.estado : (compra && compra.estado) || 'recibida';
+  const esAnulada = typeof estado === 'string' && estado.toLowerCase() === 'anulada';
+  const estadoLabel = esAnulada ? 'Anulada' : 'Recibida';
+  const adminBtnHtml = ES_ADMIN_EMPRESA && !esAnulada
+    ? `<button type="button" class="ml-2 px-2 py-1 text-[11px] border border-rose-300 rounded bg-rose-50 text-rose-700 hover:bg-rose-100" data-anular-compra="${compra && compra.id ? compra.id : id}"><i class="fas fa-ban mr-1"></i>Anular compra</button>`
+    : (esAnulada
+      ? '<span class="ml-2 inline-flex items-center px-2 py-0.5 text-[10px] rounded-full bg-rose-50 text-rose-700 border border-rose-200">Compra anulada</span>'
+      : '');
   const header = `
     <div class="flex justify-between items-center mb-2">
       <div>
         <div class="font-semibold text-slate-700">Compra #${compra.id || ''} ${compra.numero ? `- ${escapeHtml(compra.numero)}` : ''}</div>
         <div class="text-[11px] text-slate-500">Tasa BCV: ${compra.tasa_bcv || 1} ${compra.notas ? `| Notas: ${escapeHtml(compra.notas)}` : ''}</div>
+        <div class="text-[10px] text-slate-400 mt-1">Estado: ${escapeHtml(estadoLabel)}</div>
       </div>
-        <div class="text-[11px] text-slate-500 text-right">
+      <div class="flex flex-col items-end gap-1 text-[11px] text-slate-500">
         <div>Total USD: $${formatNumber(compra.total_usd || 0, 2)}</div>
         <div>Total Bs: ${formatNumber(compra.total_bs || 0, 2)}</div>
+        ${adminBtnHtml ? `<div>${adminBtnHtml}</div>` : ''}
       </div>
     </div>
   `;
@@ -810,6 +827,26 @@ async function toggleDetalleCompra(id) {
   cont.innerHTML = header + tabla;
   detalleRow.classList.remove('hidden');
   compraExpandidaId = id;
+
+  if (ES_ADMIN_EMPRESA) {
+    const btnAnular = cont.querySelector('[data-anular-compra]');
+    if (btnAnular) {
+      btnAnular.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const ok = window.confirm('¿Anular completamente esta compra? Esto revertirá el stock asociado. Esta acción no se puede deshacer.');
+        if (!ok) return;
+        try {
+          await apiFetchJson(`/api/compras/${encodeURIComponent(id)}`, { method: 'DELETE' });
+          showToast('Compra anulada y stock revertido.', 'success');
+          // Recargar historial para reflejar el nuevo estado
+          await cargarHistorialCompras();
+        } catch (err) {
+          console.error('Error anulando compra', err);
+          showToast(err.message || 'Error al anular la compra.', 'error');
+        }
+      });
+    }
+  }
 }
 
 function setupUI() {

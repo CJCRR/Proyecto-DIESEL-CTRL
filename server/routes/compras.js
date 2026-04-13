@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth, requireRole } = require('./auth');
-const { listCompras, getCompra, crearCompra } = require('../services/comprasService');
+const logger = require('../services/logger');
+const { registrarAuditoria } = require('../services/auditLogService');
+const { listCompras, getCompra, crearCompra, anularCompra } = require('../services/comprasService');
 
 // GET /compras - listar compras (ingresos de inventario)
 router.get('/', requireAuth, (req, res) => {
@@ -41,6 +43,50 @@ router.post('/', requireAuth, requireRole('admin', 'admin_empresa', 'vendedor'),
     console.error('Error creando compra:', err.message);
     if (err.tipo === 'VALIDACION') return res.status(400).json({ error: err.message });
     res.status(500).json({ error: 'Error al registrar compra' });
+  }
+});
+
+// DELETE /compras/:id - Anular una compra (solo admin/admin_empresa)
+router.delete('/:id', requireAuth, requireRole('admin', 'admin_empresa'), (req, res) => {
+  try {
+    const compraId = parseInt(req.params.id, 10);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+
+    if (!Number.isFinite(compraId) || compraId <= 0) {
+      return res.status(400).json({ error: 'ID de compra inválido' });
+    }
+    if (!empresaId) {
+      return res.status(400).json({ error: 'Usuario sin empresa asociada' });
+    }
+
+    const compraAnulada = anularCompra({ compraId, empresaId });
+
+    registrarAuditoria({
+      usuario: req.usuario,
+      accion: 'COMPRA_ANULADA',
+      entidad: 'compra',
+      entidadId: compraId,
+      detalle: { origen: 'compras', motivo: 'anulacion_manual' },
+      ip: req.ip,
+      userAgent: req.get('user-agent') || null,
+    });
+
+    return res.json({ ok: true, message: 'Compra anulada y stock revertido correctamente.', compra: compraAnulada });
+  } catch (err) {
+    logger.error('Error anulando compra', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null,
+      compraId: req.params.id,
+    });
+
+    const status = err && err.tipo === 'VALIDACION' ? 400 : 500;
+    return res.status(status).json({
+      error: err.message || 'Error al anular compra',
+      code: err.code || 'COMPRA_ANULAR_ERROR',
+    });
   }
 });
 

@@ -41,6 +41,8 @@ function listCompras({ limit = 100, proveedor_id, empresaId } = {}) {
     where.push('c.proveedor_id = ?');
     params.push(proveedor_id);
   }
+  // Ocultar compras anuladas del listado normal de historial
+  where.push("COALESCE(c.estado, 'recibida') <> 'anulada'");
   const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = db.prepare(`
     SELECT c.*, p.nombre AS proveedor_nombre
@@ -249,8 +251,132 @@ function crearCompra(payload = {}, usuario) {
   return getCompra(compraId, empresaId);
 }
 
+/**
+ * Anula una compra existente, revirtiendo sus efectos sobre el inventario.
+ *
+ * - Solo permite anular compras de la empresa del usuario.
+ * - No permite anular dos veces la misma compra.
+ * - Verifica que el stock actual del producto (sumando todos los depósitos)
+ *   sea suficiente para restar la cantidad originalmente recibida.
+ *
+ * @param {{compraId:number,empresaId:number|null}} params
+ */
+function anularCompra(params) {
+  const compraId = params && params.compraId != null ? Number(params.compraId) : NaN;
+  const empresaId = params && params.empresaId != null ? Number(params.empresaId) : null;
+
+  if (!Number.isFinite(compraId) || compraId <= 0) {
+    throw validationError('ID de compra inválido', 'COMPRA_ID_INVALIDO');
+  }
+  if (!empresaId || !Number.isFinite(empresaId) || empresaId <= 0) {
+    throw validationError('Usuario sin empresa asociada', 'COMPRA_SIN_EMPRESA');
+  }
+
+  const compra = db.prepare(`
+    SELECT id, empresa_id, estado
+    FROM compras
+    WHERE id = ?
+  `).get(compraId);
+
+  if (!compra) {
+    throw validationError('Compra no encontrada', 'COMPRA_NO_ENCONTRADA');
+  }
+
+  if (compra.empresa_id != null && Number(compra.empresa_id) !== empresaId) {
+    throw validationError('No puedes anular compras de otra empresa', 'COMPRA_OTRA_EMPRESA');
+  }
+
+  const estadoActual = (compra.estado || '').toString().toLowerCase();
+  if (estadoActual === 'anulada') {
+    throw validationError('La compra ya está anulada', 'COMPRA_YA_ANULADA');
+  }
+
+  const detalles = db.prepare(`
+    SELECT cd.id, cd.producto_id, cd.cantidad
+    FROM compra_detalle cd
+    JOIN productos p ON p.id = cd.producto_id
+    WHERE cd.compra_id = ? AND p.empresa_id = ?
+  `).all(compraId, empresaId);
+
+  if (!Array.isArray(detalles) || !detalles.length) {
+    // Sin detalles no hay nada que revertir; marcar como anulada por consistencia.
+    db.prepare(`UPDATE compras SET estado = 'anulada', actualizado_en = datetime('now') WHERE id = ?`).run(compraId);
+    return getCompra(compraId, empresaId);
+  }
+
+  const selectStockDep = db.prepare(`
+    SELECT deposito_id, cantidad
+    FROM stock_por_deposito
+    WHERE producto_id = ?
+    ORDER BY cantidad DESC
+  `);
+  const updateStockDepResta = db.prepare(`
+    UPDATE stock_por_deposito
+    SET cantidad = cantidad - ?, actualizado_en = datetime('now')
+    WHERE producto_id = ? AND deposito_id = ?
+  `);
+  const selectProducto = db.prepare(`
+    SELECT id, stock, empresa_id
+    FROM productos
+    WHERE id = ? AND empresa_id = ?
+  `);
+  const updateProdStock = db.prepare('UPDATE productos SET stock = ? WHERE id = ?');
+
+  const tx = db.transaction(() => {
+    for (const det of detalles) {
+      const cantidad = Number(det.cantidad || 0) || 0;
+      if (!cantidad) continue;
+
+      const prod = selectProducto.get(det.producto_id, empresaId);
+      if (!prod) {
+        throw validationError('Producto asociado a la compra no encontrado', 'COMPRA_PRODUCTO_INEXISTENTE');
+      }
+
+      const filasDep = selectStockDep.all(prod.id) || [];
+      let stockTotal = 0;
+      for (const row of filasDep) {
+        stockTotal += Number(row.cantidad || 0) || 0;
+      }
+      if (!filasDep.length) {
+        stockTotal = Number(prod.stock || 0) || 0;
+      }
+
+      if (stockTotal < cantidad) {
+        throw validationError(
+          'No se puede anular la compra porque el stock actual de uno de los productos es menor que lo recibido en la compra. Use un ajuste de stock en su lugar.',
+          'COMPRA_STOCK_INSUFICIENTE_PARA_ANULAR',
+        );
+      }
+
+      let restante = cantidad;
+      for (const row of filasDep) {
+        if (!restante) break;
+        const disponible = Number(row.cantidad || 0) || 0;
+        if (disponible <= 0) continue;
+        const aRestar = Math.min(disponible, restante);
+        updateStockDepResta.run(aRestar, prod.id, row.deposito_id);
+        restante -= aRestar;
+      }
+
+      const nuevoStockTotal = stockTotal - cantidad;
+      updateProdStock.run(nuevoStockTotal, prod.id);
+    }
+
+    db.prepare(`
+      UPDATE compras
+      SET estado = 'anulada', actualizado_en = datetime('now')
+      WHERE id = ?
+    `).run(compraId);
+
+    return getCompra(compraId, empresaId);
+  });
+
+  return tx();
+}
+
 module.exports = {
   listCompras,
   getCompra,
   crearCompra,
+  anularCompra,
 };
