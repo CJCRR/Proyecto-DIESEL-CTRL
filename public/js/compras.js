@@ -134,8 +134,15 @@ function formInt(id, def = 0) {
   return Number.isNaN(v) ? def : v;
 }
 
+function getLocalDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function limpiarFormularioCompra() {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = getLocalDateInputValue();
   document.getElementById('c_fecha').value = hoy;
   document.getElementById('c_numero').value = '';
   document.getElementById('c_codigo').value = '';
@@ -469,7 +476,7 @@ async function guardarCompra() {
   const proveedorIdVal = document.getElementById('c_proveedor').value || '';
   const payload = {
     proveedor_id: proveedorIdVal ? parseInt(proveedorIdVal, 10) : null,
-    fecha: document.getElementById('c_fecha').value || new Date().toISOString(),
+    fecha: document.getElementById('c_fecha').value || getLocalDateInputValue(),
     numero: document.getElementById('c_numero').value.trim(),
     tasa_bcv: formNumber('c_tasa', 1),
     notas: '',
@@ -527,6 +534,25 @@ async function guardarCompra() {
     console.error(err);
     showToast(err.message || 'Error registrando compra', 'error');
   }
+}
+
+function formatFechaCompra(fechaRaw) {
+  if (!fechaRaw) return '';
+  const str = String(fechaRaw).trim();
+
+  // Caso fecha pura YYYY-MM-DD (sin hora): tratarla como fecha local
+  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const [, y, mth, d] = m;
+    return `${d}/${mth}/${y}`;
+  }
+
+  // Fallback para valores con hora u otros formatos
+  const d = new Date(str);
+  if (!Number.isNaN(d.getTime())) {
+    return d.toLocaleDateString();
+  }
+  return str;
 }
 
 async function buscarProductos(q) {
@@ -649,7 +675,7 @@ async function cargarHistorialCompras() {
     tbody.innerHTML = list.map(c => {
       const totalUsd = c.total_usd || 0;
       const totalBs = c.total_bs || 0;
-      const fechaStr = c.fecha ? new Date(c.fecha).toLocaleDateString() : '';
+      const fechaStr = formatFechaCompra(c.fecha);
       const id = c.id;
       return `
         <tr class="cursor-pointer hover:bg-slate-50" data-compra-id="${id}">
