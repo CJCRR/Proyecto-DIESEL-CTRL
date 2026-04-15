@@ -419,3 +419,113 @@ window.editarUsuario = editarUsuario;
 window.desactivarUsuario = desactivarUsuario;
 window.activarUsuario = activarUsuario;
 window.eliminarUsuario = eliminarUsuario;
+
+// Tour guiado de la pantalla de usuarios
+if (window.GuidedTour) {
+  const usuariosTourId = 'usuarios_v1';
+
+  const usuariosSteps = [
+    {
+      selector: '#usuarios-header',
+      title: 'Gestión de usuarios',
+      text: 'En esta pantalla administras quién puede entrar al sistema y con qué permisos.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#btn-nuevo-usuario',
+      title: 'Crear un nuevo usuario',
+      text: 'Usa este botón para registrar un nuevo usuario con su nombre, rol y contraseña.',
+      placement: 'left',
+    },
+    {
+      selector: '#usuarios-lista',
+      title: 'Lista de usuarios',
+      text: 'Aquí ves todos los usuarios, su rol, comisión, estado y último inicio de sesión.',
+      placement: 'top',
+    },
+    {
+      selector: '#usuarios-tbody',
+      title: 'Acciones rápidas por usuario',
+      text: 'Desde esta tabla puedes editar, desactivar, activar o eliminar usuarios (según tus permisos).',
+      placement: 'top',
+    },
+    {
+      selector: '#modal-usuario-content',
+      title: 'Formulario de usuario',
+      text: 'Vamos a ver el formulario que se usa para crear o editar un usuario.',
+      placement: 'right',
+      onEnter: () => {
+        const modal = document.getElementById('modal-usuario');
+        if (modal && modal.classList.contains('hidden')) {
+          const btnNuevo = document.getElementById('btn-nuevo-usuario');
+          if (btnNuevo) btnNuevo.click();
+        }
+      },
+    },
+    {
+      selector: '#usuario-username',
+      title: 'Nombre de usuario',
+      text: 'Este será el usuario con el que la persona inicia sesión. Debe ser único y fácil de recordar.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#usuario-password',
+      title: 'Contraseña',
+      text: 'La contraseña debe tener al menos 6 caracteres. En edición puedes dejarla en blanco para mantener la actual.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#usuario-rol-group',
+      title: 'Rol y permisos',
+      text: 'El rol define qué puede hacer el usuario: vendedor, administrador o solo lectura.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#usuario-comision',
+      title: 'Comisión sobre ventas',
+      text: 'Si este usuario gana comisión por sus ventas, indica aquí el porcentaje. Si no, déjalo en 0.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#usuario-email-group',
+      title: 'Correo del administrador',
+      text: 'Para usuarios con rol administrador puedes guardar un correo para recuperar la contraseña principal.',
+      placement: 'bottom',
+      onEnter: () => {
+        if (inputRol) {
+          inputRol.value = 'admin';
+          actualizarVisibilidadEmail();
+        }
+      },
+    },
+    {
+      selector: '#usuario-form-actions',
+      title: 'Guardar o cancelar cambios',
+      text: 'Usa Guardar para aplicar los cambios o Cancelar para cerrar el formulario sin modificar nada.',
+      placement: 'top',
+    },
+  ];
+
+  function startUsuariosTour(force = false) {
+    if (!window.GuidedTour) return;
+    window.GuidedTour.start({
+      id: usuariosTourId,
+      steps: usuariosSteps,
+      autoStart: !force,
+    });
+  }
+
+  const btnUsuariosTour = document.getElementById('btn-usuarios-tour');
+  if (btnUsuariosTour) {
+    btnUsuariosTour.addEventListener('click', () => {
+      if (window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(usuariosTourId)) {
+        window.GuidedTour.reset(usuariosTourId);
+      }
+      startUsuariosTour(true);
+    });
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    startUsuariosTour(false);
+  });
+}

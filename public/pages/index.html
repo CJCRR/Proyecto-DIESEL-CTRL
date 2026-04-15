@@ -18,9 +18,16 @@
         <!-- Izquierda: búsqueda y carrito -->
         <div class="lg:col-span-8 space-y-4">
             <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <i class="fas fa-search"></i><span>Buscar y agregar</span>
-                </h2>
+                <div class="flex items-center justify-between mb-4 gap-2">
+                    <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <i class="fas fa-search"></i><span>Buscar y agregar</span>
+                    </h2>
+                    <button id="btnPosTour" type="button"
+                        class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
+                        <i class="fas fa-circle-question text-[12px]"></i>
+                        <span>Guía rápida del POS</span>
+                    </button>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                     <div class="md:col-span-8 relative">
                         <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Producto</label>
@@ -174,7 +181,7 @@
                 </div>
 
                 <div class="pt-4 border-t space-y-3" data-panel-venta>
-                    <div class="grid grid-cols-3 gap-2">
+                    <div id="pos-pago-detalle" class="grid grid-cols-3 gap-2">
                         <input id="v_desc" type="number" min="0" step="0.01" class="p-3 border rounded-xl text-center"
                             placeholder="Descuento $" oninput="actualizarTabla()">
                         <select id="v_metodo" class="select-pos w-full">
@@ -259,7 +266,7 @@
                     </div>
                 </div>
 
-                <div class="pt-4 border-t space-y-3">
+                <div id="pos-totales-cta" class="pt-4 border-t space-y-3">
                     <div class="bg-slate-900 text-white p-4 rounded-2xl space-y-2 shadow-inner">
                         <div class="flex justify-between items-center uppercase font-bold tracking-widest opacity-70">
                             <span>Subtotal</span>
@@ -324,6 +331,7 @@
         </div>
     </main>
 
+    <script src="/js/guided-tour.js"></script>
     <script type="module" src="/js/db-local.js"></script>
     <script src="/service-worker.js"></script>
     <script type="module" src="/js/auth-guard.js"></script>

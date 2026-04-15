@@ -697,3 +697,85 @@ async function renderAlertasTareas() {
 }
 
 document.getElementById('alertas-refrescar')?.addEventListener('click', () => renderAlertasTareas());
+
+// === Tour guiado del Dashboard ===
+if (window.GuidedTour) {
+    const steps = [
+        {
+            selector: '#dash-kpis-ventas',
+            title: 'Resúmenes de ventas',
+            text: 'Aquí ves las ventas de hoy, de la semana y el total del periodo seleccionado. Es la forma más rápida de saber cómo va el negocio.',
+            placement: 'bottom',
+        },
+        {
+            selector: '#dash-kpis-inventario',
+            title: 'Valor del inventario',
+            text: 'Este bloque muestra el valor del inventario a precio de venta y a costo. Te ayuda a ver cuánto tienes invertido y cuánto podrías recuperar en ventas.',
+            placement: 'top',
+        },
+        {
+            selector: '#dash-ventas-chart',
+            title: 'Gráfico de ventas y margen',
+            text: 'En este gráfico puedes ver la evolución de ventas y margen por día o por mes. Usa los botones "Diarias" y "Mensuales" para cambiar la vista.',
+            placement: 'top',
+        },
+        {
+            selector: '#dash-top-productos',
+            title: 'Top de productos más vendidos',
+            text: 'Aquí se listan los productos que más facturan. Puedes cambiar cuántos mostrar con el selector "Mostrar" (5, 10, 20, etc.).',
+            placement: 'top',
+        },
+        {
+            selector: '#dash-top-clientes',
+            title: 'Mejores clientes',
+            text: 'Este gráfico muestra los clientes con mayor monto de compra en el periodo. Sirve para identificar a tus clientes clave.',
+            placement: 'top',
+        },
+        {
+            selector: '#alertas-panel',
+            title: 'Alertas y tareas pendientes',
+            text: 'En este panel ves productos con stock bajo, clientes morosos y un resumen de productos con datos incompletos. Desde aquí puedes saltar directo a inventario.',
+            placement: 'left',
+        },
+        {
+            selector: '#tendencias-list',
+            title: 'Tendencias mensuales',
+            text: 'Este bloque resume los últimos meses con sus ventas, margen y si van subiendo o bajando respecto al mes anterior.',
+            placement: 'left',
+        },
+        {
+            selector: '#dash-ranking-vendedores',
+            title: 'Ranking de vendedores',
+            text: 'Aquí comparas vendedores por número de ventas, monto y margen. Puedes filtrar por fecha usando las cajas de "desde" y "hasta".',
+            placement: 'left',
+        },
+        {
+            selector: '#dash-margen',
+            title: 'Margen en tiempo real',
+            text: 'En esta sección ves el margen de hoy, del mes y cómo se reparte por vendedor. Se actualiza automáticamente cada cierto tiempo.',
+            placement: 'left',
+        },
+    ];
+
+    const tourId = 'dashboard_v1';
+    const startDashTour = (force = false) => {
+        window.GuidedTour.start({
+            id: tourId,
+            steps,
+            autoStart: !force,
+        });
+    };
+
+    const btnDashTour = document.getElementById('btnDashTour');
+    if (btnDashTour) {
+        btnDashTour.addEventListener('click', () => {
+            if (window.GuidedTour.reset && window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(tourId)) {
+                window.GuidedTour.reset(tourId);
+            }
+            startDashTour(true);
+        });
+    }
+
+    // Lanzar automáticamente solo la primera vez que entra al dashboard
+    startDashTour(false);
+}

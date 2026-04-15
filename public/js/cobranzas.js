@@ -381,3 +381,108 @@ function setupEventos() {
         initCustomSelect('p_moneda');
     } catch {}
 })();
+
+// Tour guiado de la pantalla de cobranzas
+if (window.GuidedTour) {
+    const cobranzasTourId = 'cobranzas_v1';
+
+    const cobranzasSteps = [
+     //   {
+     //       selector: '#cobranzas-header',
+     //       title: 'Cobranzas y cuentas por cobrar',
+     //       text: 'En esta pantalla ves todas las cuentas por cobrar de tus clientes y registras los pagos que van entrando.',
+      //      placement: 'bottom',
+      //  },
+        {
+            selector: '#cobranzas-filtros-bar',
+            title: 'Búsqueda y filtros rápidos',
+            text: 'Busca por cliente o documento y filtra por estado de la cuenta o días de mora para enfocarte en lo importante.',
+            placement: 'bottom',
+        },
+        {
+            selector: '#cob-periodo-controls',
+            title: 'Períodos por mes',
+            text: 'Con estos botones cambias el mes que estás viendo. El sistema muestra las cuentas que vencen en ese período.',
+            placement: 'bottom',
+        },
+        {
+            selector: '#cobranzas-tabla-wrapper',
+            title: 'Listado de cuentas por cobrar',
+            text: 'Aquí ves cada cliente con su documento, fecha de vencimiento, total y saldo pendiente. Haz clic en una fila para ver el detalle.',
+            placement: 'top',
+        },
+        {
+            selector: '#panel-resumen',
+            title: 'Resumen del período e histórico',
+            text: 'Este cuadro resume cuántas cuentas tienes en cada estado en el mes actual y cuánto tienes pendiente en total en todo el historial.',
+            placement: 'left',
+        },
+        {
+            selector: '#panel-detalle',
+            title: 'Detalle de la cuenta seleccionada',
+            text: 'Al seleccionar una cuenta verás aquí el cliente, montos, fechas y notas. Desde este panel se controla todo lo relacionado a esa deuda.',
+            placement: 'left',
+            onEnter: () => {
+                if (!cuentaSeleccionada && Array.isArray(cuentas) && cuentas.length) {
+                    cargarDetalle(cuentas[0].id);
+                }
+            },
+        },
+        {
+            selector: '#detalle-items',
+            title: 'Productos vendidos',
+            text: 'En esta lista ves qué productos generaron la cuenta. Puedes desplegar u ocultar el detalle con el botón de "Productos vendidos".',
+            placement: 'top',
+            onEnter: () => {
+                const cont = document.getElementById('detalle-items');
+                const toggle = document.getElementById('detalle-items-toggle');
+                if (cont) cont.classList.remove('hidden');
+                if (toggle) {
+                    const icon = toggle.querySelector('i');
+                    if (icon) icon.classList.remove('rotate-180');
+                }
+            },
+        },
+        {
+            selector: '#detalle-pagos',
+            title: 'Historial de pagos',
+            text: 'Aquí se muestran todos los abonos registrados para esta cuenta: fecha, monto, método, referencia y quién registró el pago.',
+            placement: 'top',
+        },
+        {
+            selector: '#cobranzas-form-pago-card',
+            title: 'Registrar un nuevo pago',
+            text: 'En esta sección registras los abonos: monto, moneda, tasa BCV, método, referencia y notas. Al guardar, la cuenta y el saldo se actualizan automáticamente.',
+            placement: 'top',
+        },
+        {
+            selector: '#pago-info',
+            title: 'Mensajes e info adicional',
+            text: 'Aquí verás avisos importantes que el sistema te muestra sobre esta cuenta o sobre el pago más reciente.',
+            placement: 'top',
+        },
+    ];
+
+    function startCobranzasTour(force = false) {
+        if (!window.GuidedTour) return;
+        window.GuidedTour.start({
+            id: cobranzasTourId,
+            steps: cobranzasSteps,
+            autoStart: !force,
+        });
+    }
+
+    const btnCobranzasTour = document.getElementById('btnCobranzasTour');
+    if (btnCobranzasTour) {
+        btnCobranzasTour.addEventListener('click', () => {
+            if (window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(cobranzasTourId)) {
+                window.GuidedTour.reset(cobranzasTourId);
+            }
+            startCobranzasTour(true);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        startCobranzasTour(false);
+    });
+}

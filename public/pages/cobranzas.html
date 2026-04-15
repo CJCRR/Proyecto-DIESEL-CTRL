@@ -14,8 +14,15 @@
 
 <body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
     <main class="flex-1 container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!--<div id="cobranzas-header" class="lg:col-span-12 flex items-center justify-between mb-2">
+            <div>
+                <h1 class="text-sm sm:text-base font-black text-slate-800">Cobranzas y cuentas por cobrar</h1>
+                <p class="text-[11px] text-slate-500">Aquí ves quién te debe, cuánto y registras los pagos.</p>
+            </div>
+        </div>-->
         <section class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-sm">
-            <div class="p-4 border-b bg-slate-50 flex flex-wrap gap-3 items-center justify-between">
+            <div id="cobranzas-filtros-bar"
+                class="p-4 border-b bg-slate-50 flex flex-wrap gap-3 items-center justify-between">
                 <div class="flex items-center gap-2 text-slate-500 text-xs font-black uppercase tracking-widest">
                     <i class="fas fa-list"></i>
                     <span>Listado</span>
@@ -35,12 +42,14 @@
                         <option value="7">Mora ≥ 7 días</option>
                         <option value="30">Mora ≥ 30 días</option>
                     </select>
-                    <div class="flex items-center gap-1">
-                        <button id="cob-periodo-prev" type="button" class="px-3 py-2 border rounded-xl text-[11px] text-slate-600 bg-white hover:bg-slate-50 flex items-center gap-1">
+                    <div id="cob-periodo-controls" class="flex items-center gap-1">
+                        <button id="cob-periodo-prev" type="button"
+                            class="px-3 py-2 border rounded-xl text-[11px] text-slate-600 bg-white hover:bg-slate-50 flex items-center gap-1">
                             <i class="fas fa-chevron-left text-[9px]"></i>
                             <span>Período anterior</span>
                         </button>
-                        <button id="cob-periodo-next" type="button" class="px-3 py-2 border rounded-xl text-[11px] text-slate-600 bg-white hover:bg-slate-50 flex items-center gap-1">
+                        <button id="cob-periodo-next" type="button"
+                            class="px-3 py-2 border rounded-xl text-[11px] text-slate-600 bg-white hover:bg-slate-50 flex items-center gap-1">
                             <span>Período siguiente</span>
                             <i class="fas fa-chevron-right text-[9px]"></i>
                         </button>
@@ -52,7 +61,7 @@
                     </button>
                 </div>
             </div>
-            <div class="overflow-x-auto">
+            <div id="cobranzas-tabla-wrapper" class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead class="bg-white text-[10px] uppercase text-slate-400 font-black border-b">
                         <tr>
@@ -71,7 +80,14 @@
 
         <section class="lg:col-span-4 space-y-4">
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4" id="panel-resumen">
-                <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Resumen</div>
+                <div class="flex items-center justify-between gap-2 mb-1">
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Resumen</div>
+                    <button id="btnCobranzasTour" type="button"
+                        class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
+                        <i class="fas fa-circle-question text-slate-400"></i>
+                        <span>Guía rápida de cobranzas</span>
+                    </button>
+                </div>
                 <div id="resumen-totales" class="mb-3 text-[11px] text-slate-600 space-y-1"></div>
                 <div class="grid grid-cols-2 gap-3" id="resumen-cards"></div>
             </div>
@@ -100,24 +116,26 @@
                         <span>Vencimiento</span><span id="detalle-venc">—</span>
                     </div>
                     <div class="text-xs text-slate-500" id="detalle-notas">—</div>
-                    <div class="pt-2 border-t">
+                    <div id="cobranzas-registrar-pago" class="pt-2 border-t">
                         <button id="detalle-items-toggle" type="button"
                             class="w-full flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                             <span>Productos vendidos</span>
                             <i class="fas fa-chevron-down text-[9px]"></i>
                         </button>
-                        <div id="detalle-items" class="space-y-1 max-h-40 overflow-y-auto text-xs text-slate-600 hidden"></div>
+                        <div id="detalle-items"
+                            class="space-y-1 max-h-40 overflow-y-auto text-xs text-slate-600 hidden"></div>
                     </div>
                     <div>
                         <div class="text-[10px] font-black text-slate-400 uppercase mb-1">Pagos</div>
                         <div id="detalle-pagos" class="space-y-2 max-h-48 overflow-y-auto"></div>
                     </div>
-                    <div class="pt-2 border-t">
+                    <div id="cobranzas-form-pago-card" class="pt-2 border-t">
                         <div class="text-[10px] font-black text-slate-400 uppercase mb-2">Registrar pago</div>
                         <form id="form-pago" class="space-y-2">
                             <div class="grid grid-cols-2 gap-2">
                                 <div class="inv-input-group">
-                                    <input id="p_monto" type="number" step="0.01" min="0" class="inv-input" placeholder=" " />
+                                    <input id="p_monto" type="number" step="0.01" min="0" class="inv-input"
+                                        placeholder=" " />
                                     <label for="p_monto" class="inv-label">Monto</label>
                                 </div>
                                 <div>
@@ -130,7 +148,8 @@
                             </div>
                             <div class="grid grid-cols-2 gap-2">
                                 <div class="inv-input-group">
-                                    <input id="p_tasa" type="number" step="0.01" min="0" class="inv-input" placeholder=" " />
+                                    <input id="p_tasa" type="number" step="0.01" min="0" class="inv-input"
+                                        placeholder=" " />
                                     <label for="p_tasa" class="inv-label">Tasa BCV</label>
                                 </div>
                                 <div class="inv-input-group">
@@ -147,11 +166,12 @@
                                 <label for="p_notas" class="inv-label">Notas</label>
                             </div>
                             <button type="submit"
-								class="w-full bg-emerald-600 text-white py-2 rounded-xl font-semibold hover:bg-emerald-700 transition">Guardar
-								pago</button>
+                                class="w-full bg-emerald-600 text-white py-2 rounded-xl font-semibold hover:bg-emerald-700 transition">Guardar
+                                pago</button>
                         </form>
                     </div>
-                    <div id="pago-info" class="text-[11px] text-amber-600"></div>
+                    <div id="pago-info" class="text-[11px] text-amber-600">Aquí aparecerán mensajes importantes sobre
+                        esta cuenta o el último pago registrado.</div>
                 </div>
             </div>
         </section>
@@ -161,6 +181,7 @@
 
     <!-- Script de navegación movido a cobranzas.js -->
 
+    <script src="/js/guided-tour.js"></script>
     <script type="module" src="/js/auth-guard.js"></script>
     <script type="module" src="/js/theme.js"></script>
     <script src="/js/layout-shell.js"></script>

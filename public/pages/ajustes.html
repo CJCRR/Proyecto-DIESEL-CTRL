@@ -13,7 +13,8 @@
 </head>
 
 <body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
-    <nav class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/40 border-b border-slate-800/60">
+    <nav
+        class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/40 border-b border-slate-800/60">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center gap-4">
             <div class="flex items-center gap-3">
                 <button id="btn-menu"
@@ -26,18 +27,24 @@
                     </label>
                 </button>
                 <div class="flex items-center gap-3">
-                    <div class="h-10 w-10 rounded-2xl bg-blue-500/15 flex items-center justify-center ring-1 ring-blue-400/40 shadow-md shadow-blue-900/40">
+                    <div
+                        class="h-10 w-10 rounded-2xl bg-blue-500/15 flex items-center justify-center ring-1 ring-blue-400/40 shadow-md shadow-blue-900/40">
                         <i class="fas fa-sliders-h text-lg text-blue-400"></i>
                     </div>
                     <div>
-                        <h1 id="brand-main-title" class="text-base sm:text-lg font-extrabold tracking-tight">NEXA <span class="text-blue-400">CTRL</span></h1>
-                        <p class="hidden sm:block text-[11px] uppercase tracking-[0.2em] text-slate-300/80 font-semibold">Ajustes</p>
+                        <h1 id="brand-main-title" class="text-base sm:text-lg font-extrabold tracking-tight">NEXA <span
+                                class="text-blue-400">CTRL</span></h1>
+                        <p
+                            class="hidden sm:block text-[11px] uppercase tracking-[0.2em] text-slate-300/80 font-semibold">
+                            Ajustes</p>
                     </div>
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <div id="app-session-status" class="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full border border-slate-600/60 bg-slate-900/60 text-[11px] font-medium text-slate-100">
-                    <span id="app-session-status-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-inner"></span>
+                <div id="app-session-status"
+                    class="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full border border-slate-600/60 bg-slate-900/60 text-[11px] font-medium text-slate-100">
+                    <span id="app-session-status-dot"
+                        class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-inner"></span>
                     <span id="app-session-status-text">Sesión activa</span>
                 </div>
                 <a href="/ajustes" title="Ajustes"
@@ -61,7 +68,8 @@
                 <i class="fas fa-xmark text-slate-500"></i>
             </button>
         </div>
-        <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700"><!-- nav generado por layout-nav.js --></nav>
+        <nav class="flex-1 p-4 space-y-2 text-sm font-semibold text-slate-700"><!-- nav generado por layout-nav.js -->
+        </nav>
         <div class="p-4 border-t border-slate-100 text-xs text-slate-500">
             <p class="font-semibold">Atajos rápidos</p>
             <p class="mt-1">Mantenga presionada la tecla ESC para cerrar.</p>
@@ -69,28 +77,50 @@
     </aside>
 
     <main class="flex-1 container mx-auto p-6 space-y-6">
+        <!--<div id="ajustes-header" class="flex justify-between items-center mb-4">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800">Ajustes del sistema</h2>
+                <p class="text-[11px] text-slate-500">Configura tu empresa, políticas de precios, seguridad y copias de
+                    datos.</p>
+            </div>
+        </div>-->
+
         <!-- Tabs de navegación de ajustes -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 px-5 pt-4 pb-0">
-            <nav class="flex flex-wrap gap-4 border-b border-slate-200 text-xs sm:text-sm font-semibold text-slate-500">
-                <button type="button" data-aj-tab="empresa" class="aj-tab aj-tab-default px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
-                    Empresa
-                </button>
-                <button type="button" data-aj-tab="inventario" class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
-                    Inventario
-                </button>
-                <button type="button" data-aj-tab="nota" class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
-                    Nota de entrega
-                </button>
-                <button type="button" data-aj-tab="Politica" class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
-                    Politica
-                </button>
-                <button type="button" data-aj-tab="seguridad" class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
-                    Seguridad y riesgo
-                </button>
-            </nav>
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <nav id="ajustes-tabs-nav"
+                    class="flex flex-wrap gap-4 border-b border-slate-200 text-xs sm:text-sm font-semibold text-slate-500">
+                    <button type="button" data-aj-tab="empresa"
+                        class="aj-tab aj-tab-default px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                        Empresa
+                    </button>
+                    <button type="button" data-aj-tab="inventario"
+                        class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                        Inventario
+                    </button>
+                    <button type="button" data-aj-tab="nota"
+                        class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                        Nota de entrega
+                    </button>
+                    <button type="button" data-aj-tab="Politica"
+                        class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                        Politica
+                    </button>
+                    <button type="button" data-aj-tab="seguridad"
+                        class="aj-tab px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
+                        Seguridad y riesgo
+                    </button>
+                </nav>
+            <button id="btnAjustesTour" type="button"
+                class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
+                <i class="fas fa-circle-question text-slate-400"></i>
+                <span>Guía rápida de ajustes</span>
+            </button>
+            </div>
         </div>
 
-        <section id="aj-sec-empresa" data-aj-section="empresa" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <section id="aj-sec-empresa" data-aj-section="empresa"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Empresa</p>
@@ -117,26 +147,31 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500">Teléfonos</label>
-                    <input id="e_telefonos" class="w-full p-3 border rounded-xl" placeholder="0412-0000000 / 0414-0000000">
+                    <input id="e_telefonos" class="w-full p-3 border rounded-xl"
+                        placeholder="0412-0000000 / 0414-0000000">
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500">Ubicación</label>
-                    <input id="e_ubicacion" class="w-full p-3 border rounded-xl" placeholder="Ciudad, estado, dirección completa">
+                    <input id="e_ubicacion" class="w-full p-3 border rounded-xl"
+                        placeholder="Ciudad, estado, dirección completa">
                 </div>
             </div>
-            
+
         </section>
 
         <!-- Depósitos de inventario -->
-        <section id="aj-sec-inventario" data-aj-section="inventario" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
+        <section id="aj-sec-inventario" data-aj-section="inventario"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inventario</p>
                     <h2 class="text-lg font-black">Depósitos de inventario</h2>
-                    <p class="text-[11px] text-slate-500 mt-1">Configura los depósitos físicos donde guardas tu inventario.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Configura los depósitos físicos donde guardas tu
+                        inventario.</p>
                 </div>
                 <button id="btnNuevoDeposito"
-                    class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Nuevo depósito</button>
+                    class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Nuevo
+                    depósito</button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div class="md:col-span-2 space-y-2" id="depositos-lista">
@@ -183,7 +218,8 @@
         </section>
 
         <!-- Nota de Entrega: Personalización -->
-        <section id="aj-sec-nota" data-aj-section="nota" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
+        <section id="aj-sec-nota" data-aj-section="nota"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota de entrega</p>
@@ -227,13 +263,14 @@
                 <!-- Columna centro: marcas y totales -->
                 <div class="space-y-4">
                     <div class="p-3 border border-slate-200 rounded-2xl bg-slate-50/60 space-y-2">
-                        <label class="text-xs font-semibold text-slate-500">Logos de marcas (URLs, uno por línea)</label>
+                        <label class="text-xs font-semibold text-slate-500">Logos de marcas (URLs, uno por
+                            línea)</label>
                         <div class="flex items-start gap-2">
-                            <textarea id="n_marcas" rows="6" class="flex-1 p-3 border rounded-xl bg-white"
-                                placeholder="https://...logo1.png
+                            <textarea id="n_marcas" rows="6" class="flex-1 p-3 border rounded-xl bg-white" placeholder="https://...logo1.png
 https://...logo2.png"></textarea>
                             <div class="flex flex-col gap-2">
-                                <button id="btnUploadMarca" class="px-3 py-2 border rounded-lg text-xs">Subir marca</button>
+                                <button id="btnUploadMarca" class="px-3 py-2 border rounded-lg text-xs">Subir
+                                    marca</button>
                             </div>
                         </div>
                     </div>
@@ -241,16 +278,19 @@ https://...logo2.png"></textarea>
                         <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Textos de totales</p>
                         <div>
                             <label class="text-xs font-semibold text-slate-500">Pie principal</label>
-                            <input id="n_pie" class="w-full p-3 border rounded-xl bg-white" placeholder="Total a Pagar:">
+                            <input id="n_pie" class="w-full p-3 border rounded-xl bg-white"
+                                placeholder="Total a Pagar:">
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <div>
                                 <label class="text-xs font-semibold text-slate-500">Etiqueta Total USD</label>
-                                <input id="n_pie_usd" class="w-full p-3 border rounded-xl bg-white" placeholder="Total USD">
+                                <input id="n_pie_usd" class="w-full p-3 border rounded-xl bg-white"
+                                    placeholder="Total USD">
                             </div>
                             <div>
                                 <label class="text-xs font-semibold text-slate-500">Etiqueta Total Bs</label>
-                                <input id="n_pie_bs" class="w-full p-3 border rounded-xl bg-white" placeholder="Total Bs">
+                                <input id="n_pie_bs" class="w-full p-3 border rounded-xl bg-white"
+                                    placeholder="Total Bs">
                             </div>
                         </div>
                     </div>
@@ -273,7 +313,8 @@ https://...logo2.png"></textarea>
             </div>
         </section>
 
-        <section id="aj-sec-descuentos" data-aj-section="Politica" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
+        <section id="aj-sec-descuentos" data-aj-section="Politica"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Políticas de precios</p>
@@ -285,9 +326,11 @@ https://...logo2.png"></textarea>
             <div class="space-y-6">
                 <div class="p-4 border border-slate-200 rounded-2xl bg-slate-50/60 space-y-3">
                     <div>
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estrategia de precios</p>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estrategia de precios
+                        </p>
                         <p class="text-[11px] text-slate-500 mt-1">
-                            Configura hasta 3 niveles de precio adicionales basados en un porcentaje sobre el precio en USD
+                            Configura hasta 3 niveles de precio adicionales basados en un porcentaje sobre el precio en
+                            USD
                             de tus productos.
                         </p>
                     </div>
@@ -295,7 +338,8 @@ https://...logo2.png"></textarea>
                         <div class="space-y-2">
                             <div>
                                 <label class="text-xs font-semibold text-slate-500">Nombre nivel 1</label>
-                                <input id="e_precio1_nombre" class="w-full p-3 border rounded-xl" placeholder="Ej: Detal" />
+                                <input id="e_precio1_nombre" class="w-full p-3 border rounded-xl"
+                                    placeholder="Ej: Detal" />
                             </div>
                             <div>
                                 <label class="text-xs font-semibold text-slate-500">Incremento % nivel 1</label>
@@ -306,7 +350,8 @@ https://...logo2.png"></textarea>
                         <div class="space-y-2">
                             <div>
                                 <label class="text-xs font-semibold text-slate-500">Nombre nivel 2</label>
-                                <input id="e_precio2_nombre" class="w-full p-3 border rounded-xl" placeholder="Ej: Mayor" />
+                                <input id="e_precio2_nombre" class="w-full p-3 border rounded-xl"
+                                    placeholder="Ej: Mayor" />
                             </div>
                             <div>
                                 <label class="text-xs font-semibold text-slate-500">Incremento % nivel 2</label>
@@ -317,7 +362,8 @@ https://...logo2.png"></textarea>
                         <div class="space-y-2">
                             <div>
                                 <label class="text-xs font-semibold text-slate-500">Nombre nivel 3</label>
-                                <input id="e_precio3_nombre" class="w-full p-3 border rounded-xl" placeholder="Ej: Especial" />
+                                <input id="e_precio3_nombre" class="w-full p-3 border rounded-xl"
+                                    placeholder="Ej: Especial" />
                             </div>
                             <div>
                                 <label class="text-xs font-semibold text-slate-500">Incremento % nivel 3</label>
@@ -328,10 +374,12 @@ https://...logo2.png"></textarea>
                     </div>
                     <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
-                            <label class="text-xs font-semibold text-slate-500">Umbral m&iacute;nimo para redondeo (USD)</label>
+                            <label class="text-xs font-semibold text-slate-500">Umbral m&iacute;nimo para redondeo
+                                (USD)</label>
                             <input id="e_precio_redondeo_umbral" type="number" step="0.01" min="0"
                                 class="w-full p-3 border rounded-xl" placeholder="Ej: 20.00" />
-                            <p class="text-[11px] text-slate-400 mt-1">Solo se redondear&aacute;n productos con precio base en USD mayor o igual a este valor.</p>
+                            <p class="text-[11px] text-slate-400 mt-1">Solo se redondear&aacute;n productos con precio
+                                base en USD mayor o igual a este valor.</p>
                         </div>
                     </div>
                     <div class="mt-3 flex items-center gap-2">
@@ -341,10 +389,12 @@ https://...logo2.png"></textarea>
                                 <div class="slider">
                                     <div class="circle">
                                         <svg class="cross" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path fill="currentColor" d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                            <path fill="currentColor" d="M7 7l10 10M17 7L7 17" stroke="currentColor"
+                                                stroke-width="2" stroke-linecap="round" />
                                         </svg>
                                         <svg class="checkmark" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path fill="currentColor" d="M9.5 16.5L5 12l1.5-1.5L9.5 13.5 17.5 5.5 19 7z" />
+                                            <path fill="currentColor"
+                                                d="M9.5 16.5L5 12l1.5-1.5L9.5 13.5 17.5 5.5 19 7z" />
                                         </svg>
                                     </div>
                                 </div>
@@ -358,7 +408,8 @@ https://...logo2.png"></textarea>
                     <div class="flex justify-between items-center text-sm text-slate-600">
                         <div>
                             <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descuentos</p>
-                            <p class="text-[11px] text-slate-500 mt-1">Define tramos de cantidad mínima y el descuento % que se aplicará automáticamente en POS.</p>
+                            <p class="text-[11px] text-slate-500 mt-1">Define tramos de cantidad mínima y el descuento %
+                                que se aplicará automáticamente en POS.</p>
                         </div>
                         <button id="btnAddTier" class="px-3 py-1 text-xs border rounded">Añadir tramo</button>
                     </div>
@@ -369,7 +420,8 @@ https://...logo2.png"></textarea>
                     <div class="flex justify-between items-center text-sm text-slate-600">
                         <div>
                             <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Impuestos</p>
-                            <p class="text-[11px] text-slate-500 mt-1">Configura los impuestos que se aplican en el POS.</p>
+                            <p class="text-[11px] text-slate-500 mt-1">Configura los impuestos que se aplican en el POS.
+                            </p>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center text-sm">
@@ -379,10 +431,12 @@ https://...logo2.png"></textarea>
                                 <div class="slider">
                                     <div class="circle">
                                         <svg class="cross" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path fill="currentColor" d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                            <path fill="currentColor" d="M7 7l10 10M17 7L7 17" stroke="currentColor"
+                                                stroke-width="2" stroke-linecap="round" />
                                         </svg>
                                         <svg class="checkmark" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path fill="currentColor" d="M9.5 16.5L5 12l1.5-1.5L9.5 13.5 17.5 5.5 19 7z" />
+                                            <path fill="currentColor"
+                                                d="M9.5 16.5L5 12l1.5-1.5L9.5 13.5 17.5 5.5 19 7z" />
                                         </svg>
                                     </div>
                                 </div>
@@ -391,7 +445,8 @@ https://...logo2.png"></textarea>
                         </div>
                         <div>
                             <label class="text-xs font-semibold text-slate-500">IVA % aplicado en POS</label>
-                            <input id="n_iva" type="number" step="0.01" min="0" max="100" class="w-full p-3 border rounded-xl bg-white" placeholder="0">
+                            <input id="n_iva" type="number" step="0.01" min="0" max="100"
+                                class="w-full p-3 border rounded-xl bg-white" placeholder="0">
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center text-sm">
@@ -401,10 +456,12 @@ https://...logo2.png"></textarea>
                                 <div class="slider">
                                     <div class="circle">
                                         <svg class="cross" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path fill="currentColor" d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                            <path fill="currentColor" d="M7 7l10 10M17 7L7 17" stroke="currentColor"
+                                                stroke-width="2" stroke-linecap="round" />
                                         </svg>
                                         <svg class="checkmark" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path fill="currentColor" d="M9.5 16.5L5 12l1.5-1.5L9.5 13.5 17.5 5.5 19 7z" />
+                                            <path fill="currentColor"
+                                                d="M9.5 16.5L5 12l1.5-1.5L9.5 13.5 17.5 5.5 19 7z" />
                                         </svg>
                                     </div>
                                 </div>
@@ -413,7 +470,8 @@ https://...logo2.png"></textarea>
                         </div>
                         <div>
                             <label class="text-xs font-semibold text-slate-500">IGTF % aplicado en POS</label>
-                            <input id="n_igtf_pct" type="number" step="0.01" min="0" max="100" class="w-full p-3 border rounded-xl bg-white" placeholder="3">
+                            <input id="n_igtf_pct" type="number" step="0.01" min="0" max="100"
+                                class="w-full p-3 border rounded-xl bg-white" placeholder="3">
                         </div>
                     </div>
                 </div>
@@ -421,7 +479,8 @@ https://...logo2.png"></textarea>
         </section>
 
 
-        <section id="aj-sec-Politica" data-aj-section="Politica" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
+        <section id="aj-sec-Politica" data-aj-section="Politica"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Devoluciones</p>
@@ -437,7 +496,8 @@ https://...logo2.png"></textarea>
                         <div class="slider">
                             <div class="circle">
                                 <svg class="cross" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path fill="currentColor" d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                    <path fill="currentColor" d="M7 7l10 10M17 7L7 17" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" />
                                 </svg>
                                 <svg class="checkmark" viewBox="0 0 24 24" aria-hidden="true">
                                     <path fill="currentColor" d="M9.5 16.5L5 12l1.5-1.5L9.5 13.5 17.5 5.5 19 7z" />
@@ -461,20 +521,28 @@ https://...logo2.png"></textarea>
             </div>
         </section>
 
-                <!-- Plan y pagos -->
-        <section id="aj-sec-plan" data-aj-section="seguridad" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
+        <!-- Plan y pagos -->
+        <section id="aj-sec-plan" data-aj-section="seguridad"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Seguridad y riesgo</p>
                     <h2 class="text-lg font-black">Plan y pagos</h2>
-                    <p class="text-[11px] text-slate-500 mt-1">Resumen del plan activo de tu empresa y próximos cobros.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Resumen del plan activo de tu empresa y próximos cobros.
+                    </p>
                 </div>
                 <div class="flex flex-col items-start sm:items-end gap-2 text-xs">
                     <div class="flex items-center gap-2">
-                        <span id="plan_estado_badge" class="px-2 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Cargando plan...</span>
-                        <span id="plan_pendiente_badge" class="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 hidden" title="Hay un pago pendiente por confirmar">Pago pendiente</span>
+                        <span id="plan_estado_badge"
+                            class="px-2 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Cargando
+                            plan...</span>
+                        <span id="plan_pendiente_badge"
+                            class="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 hidden"
+                            title="Hay un pago pendiente por confirmar">Pago pendiente</span>
                     </div>
-                    <button id="plan_pagar_btn" class="mt-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm">Pagar plan</button>
+                    <button id="plan_pagar_btn"
+                        class="mt-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm">Pagar
+                        plan</button>
                 </div>
             </div>
             <div class="space-y-4 text-sm">
@@ -492,7 +560,8 @@ https://...logo2.png"></textarea>
                     </div>
                     <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col space-y-2">
                         <div>
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Historial de pagos</p>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Historial de
+                                pagos</p>
                         </div>
                         <div class="mt-1 rounded-xl bg-slate-50/60 max-h-40 overflow-y-auto" id="plan_historial_box">
                             <div id="plan_historial_list" class="divide-y divide-slate-100 text-[11px]">
@@ -527,12 +596,14 @@ https://...logo2.png"></textarea>
         </section>
 
         <!-- Seguridad (2FA) -->
-        <section id="aj-sec-export" data-aj-section="seguridad" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
+        <section id="aj-sec-export" data-aj-section="seguridad"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Exportación</p>
                     <h2 class="text-lg font-black">Exportación de datos</h2>
-                    <p class="text-[11px] text-slate-500 mt-1">Genera un archivo Excel con tus ventas, compras, créditos, clientes, proveedores, inventario y rentabilidad.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Genera un archivo Excel con tus ventas, compras,
+                        créditos, clientes, proveedores, inventario y rentabilidad.</p>
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -577,7 +648,8 @@ https://...logo2.png"></textarea>
                         <label class="text-xs font-semibold text-slate-500">Hasta</label>
                         <input id="exp_hasta" type="date" class="w-full p-2.5 border rounded-xl text-xs">
                     </div>
-                    <p class="text-[11px] text-slate-400">Si no indicas fechas, se exportarán todos los registros disponibles.</p>
+                    <p class="text-[11px] text-slate-400">Si no indicas fechas, se exportarán todos los registros
+                        disponibles.</p>
                 </div>
                 <div class="flex flex-col justify-between gap-3">
                     <div class="text-[11px] text-slate-500">
@@ -585,7 +657,8 @@ https://...logo2.png"></textarea>
                         <p class="mt-1">Ideal para respaldos, auditorías o migrar datos a otra herramienta.</p>
                     </div>
                     <div class="flex flex-col items-start gap-2">
-                        <button id="btnExportDatos" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition flex items-center gap-2">
+                        <button id="btnExportDatos"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition flex items-center gap-2">
                             <i class="fa-solid fa-file-excel"></i>
                             <span>Exportar a Excel (XLSX)</span>
                         </button>
@@ -595,38 +668,50 @@ https://...logo2.png"></textarea>
             </div>
         </section>
 
-        <section id="sec-2fa" data-aj-section="seguridad" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
+        <section id="sec-2fa" data-aj-section="seguridad"
+            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hidden">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Seguridad</p>
                     <h2 class="text-lg font-black">Doble factor (2FA)</h2>
                 </div>
-                <span id="twofa-status-badge" class="px-2 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Cargando...</span>
+                <span id="twofa-status-badge"
+                    class="px-2 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Cargando...</span>
             </div>
             <div class="space-y-4 text-sm text-slate-600">
                 <p>
                     El doble factor de autenticación agrega una capa extra de seguridad a tu cuenta
                     usando una app como Google Authenticator o Authy.
-                    Solo está disponible para usuarios con rol <span class="font-semibold">admin</span> o <span class="font-semibold">superadmin</span>.
+                    Solo está disponible para usuarios con rol <span class="font-semibold">admin</span> o <span
+                        class="font-semibold">superadmin</span>.
                 </p>
 
                 <div id="twofa-setup-block" class="space-y-3">
                     <p class="text-slate-700 font-semibold">Configurar 2FA en esta cuenta</p>
-                    <button id="btn-2fa-setup" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+                    <button id="btn-2fa-setup"
+                        class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
                         Generar código de configuración
                     </button>
                     <div id="twofa-setup-data" class="mt-3 space-y-2 hidden">
-                        <p class="text-xs text-slate-500">1. Agrega una nueva cuenta en tu app 2FA, usando el código secreto de abajo.</p>
-                        <div class="p-2 bg-slate-100 rounded text-xs break-all font-mono select-all" id="twofa-secret">SECRETO</div>
-                        <p class="text-xs text-slate-500">Opcional: algunas apps permiten pegar directamente esta URL:</p>
-                        <div class="p-2 bg-slate-100 rounded text-[11px] break-all font-mono select-all" id="twofa-otpauth">otpauth://...</div>
+                        <p class="text-xs text-slate-500">1. Agrega una nueva cuenta en tu app 2FA, usando el código
+                            secreto de abajo.</p>
+                        <div class="p-2 bg-slate-100 rounded text-xs break-all font-mono select-all" id="twofa-secret">
+                            SECRETO</div>
+                        <p class="text-xs text-slate-500">Opcional: algunas apps permiten pegar directamente esta URL:
+                        </p>
+                        <div class="p-2 bg-slate-100 rounded text-[11px] break-all font-mono select-all"
+                            id="twofa-otpauth">otpauth://...</div>
                         <p class="text-xs text-slate-500">O escanea este código QR en tu app 2FA:</p>
-                        <div id="twofa-qr" class="inline-flex items-center justify-center p-2 border rounded-xl bg-slate-50"></div>
-                        <p class="text-xs text-slate-500">2. Escribe un código generado por tu app para confirmar y activar 2FA:</p>
+                        <div id="twofa-qr"
+                            class="inline-flex items-center justify-center p-2 border rounded-xl bg-slate-50"></div>
+                        <p class="text-xs text-slate-500">2. Escribe un código generado por tu app para confirmar y
+                            activar 2FA:</p>
                         <div class="flex gap-2 items-center">
-                            <input id="twofa-code-enable" type="text" inputmode="numeric" maxlength="8" placeholder="Código de 6 dígitos"
+                            <input id="twofa-code-enable" type="text" inputmode="numeric" maxlength="8"
+                                placeholder="Código de 6 dígitos"
                                 class="w-40 p-2 border rounded-lg text-center tracking-[0.3em]">
-                            <button id="btn-2fa-enable" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition">
+                            <button id="btn-2fa-enable"
+                                class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition">
                                 Confirmar y activar
                             </button>
                         </div>
@@ -640,9 +725,10 @@ https://...logo2.png"></textarea>
                         Solo hagas esto si estás seguro.
                     </p>
                     <div class="flex gap-2 items-center">
-                        <input id="twofa-code-disable" type="text" inputmode="numeric" maxlength="8" placeholder="Código actual"
-                            class="w-40 p-2 border rounded-lg text-center tracking-[0.3em]">
-                        <button id="btn-2fa-disable" class="px-3 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700 transition">
+                        <input id="twofa-code-disable" type="text" inputmode="numeric" maxlength="8"
+                            placeholder="Código actual" class="w-40 p-2 border rounded-lg text-center tracking-[0.3em]">
+                        <button id="btn-2fa-disable"
+                            class="px-3 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700 transition">
                             Desactivar 2FA
                         </button>
                     </div>
@@ -650,7 +736,8 @@ https://...logo2.png"></textarea>
             </div>
         </section>
 
-        <section id="aj-sec-riesgo" data-aj-section="seguridad" class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5 hidden">
+        <section id="aj-sec-riesgo" data-aj-section="seguridad"
+            class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5 hidden">
             <div class="flex items-center justify-between mb-3">
                 <div>
                     <p class="text-[10px] font-black text-rose-400 uppercase tracking-widest">Zona de riesgo</p>
@@ -671,11 +758,13 @@ https://...logo2.png"></textarea>
     </main>
 
     <!-- Modal para registrar pago de plan -->
-    <div id="modal-plan-pago" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div id="modal-plan-pago"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
             <h3 class="text-lg font-bold mb-2">Registrar pago de plan</h3>
             <p class="text-[11px] text-slate-600 mb-3">
-                Realiza tu pago por <span class="font-semibold">pago móvil</span> o <span class="font-semibold">transferencia</span> a las cuentas indicadas abajo
+                Realiza tu pago por <span class="font-semibold">pago móvil</span> o <span
+                    class="font-semibold">transferencia</span> a las cuentas indicadas abajo
                 y completa el formulario con los datos del pago.
             </p>
             <div class="mb-4 text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
@@ -692,11 +781,13 @@ https://...logo2.png"></textarea>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500">Monto pagado (USD)</label>
-                    <input id="plan_pago_monto" type="number" min="0" step="0.01" class="w-full mt-1 p-2.5 border rounded-lg" placeholder="Ej: 25.00" />
+                    <input id="plan_pago_monto" type="number" min="0" step="0.01"
+                        class="w-full mt-1 p-2.5 border rounded-lg" placeholder="Ej: 25.00" />
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500">Referencia del pago</label>
-                    <input id="plan_pago_referencia" class="w-full mt-1 p-2.5 border rounded-lg" placeholder="Número de referencia o comentario" />
+                    <input id="plan_pago_referencia" class="w-full mt-1 p-2.5 border rounded-lg"
+                        placeholder="Número de referencia o comentario" />
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500">Tipo de pago</label>
@@ -709,25 +800,33 @@ https://...logo2.png"></textarea>
                 <div>
                     <label class="text-xs font-semibold text-slate-500">Captura del pago</label>
                     <div class="flex items-center gap-2 mt-1">
-                        <input id="plan_pago_comprobante" class="flex-1 p-2.5 border rounded-lg text-xs" placeholder="URL de la captura" readonly />
-                        <button type="button" id="plan_pago_subir" class="px-3 py-2 border rounded-lg text-xs">Subir</button>
+                        <input id="plan_pago_comprobante" class="flex-1 p-2.5 border rounded-lg text-xs"
+                            placeholder="URL de la captura" readonly />
+                        <button type="button" id="plan_pago_subir"
+                            class="px-3 py-2 border rounded-lg text-xs">Subir</button>
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-1">Se subirá una imagen y se guardará el enlace como respaldo.</p>
+                    <p class="text-[10px] text-slate-400 mt-1">Se subirá una imagen y se guardará el enlace como
+                        respaldo.</p>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500">Notas adicionales (opcional)</label>
-                    <textarea id="plan_pago_notas" rows="2" class="w-full mt-1 p-2.5 border rounded-lg text-xs" placeholder="Ej: Meses que está pagando, observaciones, etc."></textarea>
+                    <textarea id="plan_pago_notas" rows="2" class="w-full mt-1 p-2.5 border rounded-lg text-xs"
+                        placeholder="Ej: Meses que está pagando, observaciones, etc."></textarea>
                 </div>
                 <div class="flex justify-end gap-2 mt-4">
-                    <button type="button" id="plan_pago_cancelar" class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cancelar</button>
-                    <button type="submit" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Enviar pago</button>
+                    <button type="button" id="plan_pago_cancelar"
+                        class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cancelar</button>
+                    <button type="submit"
+                        class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Enviar
+                        pago</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- Modal confirmación para borrar todos los datos -->
-    <div id="modal-purge-all" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div id="modal-purge-all"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
             <h3 class="text-lg font-bold text-rose-700 mb-2">Borrar todo el sistema</h3>
             <p class="text-sm text-slate-600 mb-2">
@@ -761,7 +860,7 @@ https://...logo2.png"></textarea>
 
     <!-- Librería ligera para generar códigos QR en el navegador -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
+    <script src="/js/guided-tour.js"></script>
     <script type="module" src="/js/auth-guard.js"></script>
     <script type="module" src="/js/theme.js"></script>
     <script type="module" src="/js/ajustes.js"></script>

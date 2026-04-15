@@ -892,6 +892,106 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Atajos de teclado del POS (F2 búsqueda, F3 cliente, F9 / Ctrl+Enter vender)
     setupKeyboardShortcuts();
+
+    // Tour guiado del POS
+    if (window.GuidedTour) {
+        const steps = [
+            {
+                selector: '#buscar',
+                title: 'Buscar producto',
+                text: 'Escribe el código o parte de la descripción y usa Enter o clic para agregar al carrito. También puedes presionar F2 para venir directo aquí.',
+                placement: 'bottom',
+            },
+            {
+                selector: '#v_cantidad',
+                title: 'Cantidad a vender',
+                text: 'Define cuántas unidades quieres agregar antes de presionar el botón Agregar.',
+                placement: 'bottom',
+            },
+            {
+                selector: '#venta-items-cuerpo',
+                title: 'Carrito de productos',
+                text: 'Aquí ves el detalle de la venta actual: código, descripción, cantidad y subtotal por ítem. Desde aquí también puedes eliminar líneas.',
+                placement: 'top',
+            },
+            {
+                selector: '#v_cliente',
+                title: 'Datos del cliente',
+                text: 'Busca un cliente existente o escribe uno nuevo. F3 te lleva directo a este campo. También puedes guardar rápidamente un nuevo cliente con el botón de la derecha.',
+                placement: 'right',
+            },
+            {
+                selector: '#v_tasa',
+                title: 'Tasa BS/USD',
+                text: 'Aquí ves y actualizas la tasa del día. Afecta todos los totales en bolívares. Si la tasa tiene muchas horas sin actualizar, el sistema te avisa en amarillo.',
+                placement: 'right',
+            },
+            {
+                selector: '#pos-pago-detalle',
+                title: 'Descuento, método de pago y referencia',
+                text: 'En esta fila defines el descuento en dólares, eliges el método de pago (efectivo, transferencia, crédito, etc.) y colocas la referencia cuando aplica.',
+                placement: 'top',
+                onEnter: () => {
+                    try { setModoDevolucion(false); } catch {}
+                },
+            },
+            {
+                selector: '#panel-credito',
+                title: 'Ventas a crédito',
+                text: 'Si eliges el método "Crédito" se abre este bloque donde defines los días de plazo o una fecha de vencimiento específica para la deuda.',
+                placement: 'top',
+                onEnter: () => {
+                    try { setModoDevolucion(false); } catch {}
+                    const sel = document.getElementById('v_metodo');
+                    if (sel) {
+                        sel.value = 'credito';
+                        if (window.syncCreditoUI) window.syncCreditoUI();
+                    }
+                },
+            },
+            {
+                selector: '#panel-devolucion',
+                title: 'Devoluciones de ventas',
+                text: 'Desde aquí puedes buscar una venta ya registrada para hacer una devolución parcial o total, indicando un motivo opcional.',
+                placement: 'top',
+                onEnter: () => {
+                    try { setModoDevolucion(true); } catch {}
+                },
+            },
+            {
+                selector: '#pos-totales-cta',
+                title: 'Totales y registro de venta',
+                text: 'Revisa el resumen de subtotal, impuestos y total a pagar. Cuando todo esté listo, presiona "Registrar venta" (o usa F9 / Ctrl+Enter) para generar la nota.',
+                placement: 'top',
+                onEnter: () => {
+                    try { setModoDevolucion(false); } catch {}
+                },
+            },
+        ];
+
+        const tourId = 'pos_v1';
+        const startTour = (force = false) => {
+            window.GuidedTour.start({
+                id: tourId,
+                steps,
+                autoStart: !force,
+            });
+        };
+
+        const btnPosTour = document.getElementById('btnPosTour');
+        if (btnPosTour) {
+            btnPosTour.addEventListener('click', () => {
+                // Permitir reabrir aunque ya lo haya visto
+                if (window.GuidedTour.reset && window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(tourId)) {
+                    window.GuidedTour.reset(tourId);
+                }
+                startTour(true);
+            });
+        }
+
+        // Lanzar automáticamente solo la primera vez que entra al POS
+        startTour(false);
+    }
 });
 
 function finalizarVentaUI() {

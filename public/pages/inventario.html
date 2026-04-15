@@ -25,6 +25,11 @@
                             <span>Filtros</span>
                         </button>
                     </div>
+                    <button id="btnInvTour" type="button"
+                        class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 inline-flex items-center gap-1 self-start sm:self-auto">
+                        <i class="fas fa-circle-question text-[12px]"></i>
+                        <span>Guía rápida de inventario</span>
+                    </button>
                     <div id="filtros-inventario" class="hidden flex-wrap gap-2 items-center sm:flex sm:justify-end">
                         <input id="q" placeholder="Buscar..." class="p-2 border rounded w-45" />
                         <select id="pageSize" class="select-pos text-sm w-20">
@@ -169,7 +174,7 @@
                 </button>
                 <p id="rebuildStockMsg" class="text-[11px] text-slate-500"></p>
             </aside>
-            <section class="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mt-4">
+            <section id="inv-movimientos" class="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mt-4">
                 <div class="flex justify-between items-center mb-2">
                     <div>
                         <h2 class="text-sm font-bold text-slate-800">Movimientos entre depósitos</h2>
@@ -231,6 +236,7 @@
         </div>
     </main>
 
+    <script src="/js/guided-tour.js"></script>
     <script type="module" src="/js/inventario.js"></script>
     <script type="module" src="/js/auth-guard.js"></script>
     <script type="module" src="/js/theme.js"></script>

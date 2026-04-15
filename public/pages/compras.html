@@ -14,36 +14,48 @@
 
 <body class="bg-slate-50 min-h-screen text-slate-900 flex flex-col">
     <main class="flex-1 container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <section class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
+        <!--<div id="compras-header" class="lg:col-span-12 flex items-center justify-between mb-2">
+            <div>
+                <h1 class="text-sm sm:text-base font-black text-slate-800">Registro de compras e ingresos</h1>
+                <p class="text-[11px] text-slate-500">Carga facturas de proveedores y actualiza el stock.</p>
+            </div>
+
+        </div>-->
+        <section id="compra-panel"
+            class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4 relative">
             <div class="flex items-center justify-between gap-2 mb-2">
                 <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest">Nueva compra / ingreso</h2>
-                <button id="btnNuevaCompra"
+                <button id="btnComprasTour" type="button"
+                    class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
+                    <i class="fas fa-circle-question text-slate-400"></i>
+                    <span>Guía rápida de compras</span>
+                </button>
+              <!-- <button id="btnNuevaCompra"
                     class="text-xs px-3 py-2 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-2">
                     <i class="fas fa-eraser"></i><span>Limpiar</span>
-                </button>
+                </button>--> 
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            <div id="compras-datos-compra" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                    <select id="c_proveedor"
-						class="w-full select-pos text-sm"></select>
+                    <select id="c_proveedor" class="w-full select-pos text-sm"></select>
                 </div>
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                        <div class="inv-input-group">
-                            <input id="c_fecha" type="date" class="inv-input" placeholder=" " />
-                            <label for="c_fecha" class="inv-label">Fecha</label>
-                        </div>
+                    <div class="inv-input-group">
+                        <input id="c_fecha" type="date" class="inv-input" placeholder=" " />
+                        <label for="c_fecha" class="inv-label">Fecha</label>
+                    </div>
                 </div>
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                        <div class="inv-input-group">
-                            <input id="c_numero" class="inv-input" placeholder=" " />
-                            <label for="c_numero" class="inv-label">Número / Ref.</label>
-                        </div>
+                    <div class="inv-input-group">
+                        <input id="c_numero" class="inv-input" placeholder=" " />
+                        <label for="c_numero" class="inv-label">Número / Ref.</label>
+                    </div>
                 </div>
             </div>
-            <div class="grid grid-cols-1 gap-3 mb-4">
+            <div id="compras-buscar-producto" class="grid grid-cols-1 gap-3 mb-4">
                 <div>
                     <div class="flex items-center justify-between">
                         <label class="text-[11px] font-semibold text-slate-500"></label>
@@ -53,53 +65,53 @@
                             <span>Nuevo producto</span>
                         </button>
                     </div>
-                        <div class="inv-input-group">
-                            <input id="c_codigo" autocomplete="off" class="inv-input" placeholder=" " />
-                            <label for="c_codigo" class="inv-label">Código o nombre</label>
-                            <ul id="c_sugerencias"
-    								class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
-                            </ul>
-                        </div>
+                    <div class="inv-input-group">
+                        <input id="c_codigo" autocomplete="off" class="inv-input" placeholder=" " />
+                        <label for="c_codigo" class="inv-label">Código o nombre</label>
+                        <ul id="c_sugerencias"
+                            class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
+                        </ul>
+                    </div>
                     <div id="c_producto_info" class="mt-1 text-[11px] text-slate-500 min-h-[1.5rem]"></div>
                 </div>
 
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+            <div id="compras-producto-detalle" class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                        <div class="inv-input-group">
-                            <input id="c_tasa" type="number" step="0.01" class="inv-input" placeholder=" " />
-                            <label for="c_tasa" class="inv-label">Tasa BCV</label>
-                        </div>
+                    <div class="inv-input-group">
+                        <input id="c_tasa" type="number" step="0.01" class="inv-input" placeholder=" " />
+                        <label for="c_tasa" class="inv-label">Tasa BCV</label>
+                    </div>
                 </div>
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                        <div class="inv-input-group">
-                            <input id="c_cantidad" type="number" class="inv-input" placeholder=" " />
-                            <label for="c_cantidad" class="inv-label">Cantidad</label>
-                        </div>
+                    <div class="inv-input-group">
+                        <input id="c_cantidad" type="number" class="inv-input" placeholder=" " />
+                        <label for="c_cantidad" class="inv-label">Cantidad</label>
+                    </div>
                 </div>
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                        <div class="inv-input-group">
-                            <input id="c_costo" type="number" step="0.01" class="inv-input" placeholder=" " />
-                            <label for="c_costo" class="inv-label">Costo USD</label>
-                        </div>
+                    <div class="inv-input-group">
+                        <input id="c_costo" type="number" step="0.01" class="inv-input" placeholder=" " />
+                        <label for="c_costo" class="inv-label">Costo USD</label>
+                    </div>
                 </div>
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                        <div class="inv-input-group">
-                            <input id="c_precio" type="number" step="0.01" class="inv-input" placeholder=" " />
-                            <label for="c_precio" class="inv-label">Precio USD</label>
-                        </div>
+                    <div class="inv-input-group">
+                        <input id="c_precio" type="number" step="0.01" class="inv-input" placeholder=" " />
+                        <label for="c_precio" class="inv-label">Precio USD</label>
+                    </div>
                 </div>
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                        <div class="inv-input-group relative">
-                            <input id="c_lote" class="inv-input" placeholder=" " autocomplete="off" />
-                            <label for="c_lote" class="inv-label">Marca (opcional)</label>
-                            <ul id="cMarcaSug" class="compras-cat-suggestions hidden"></ul>
-                        </div>
+                    <div class="inv-input-group relative">
+                        <input id="c_lote" class="inv-input" placeholder=" " autocomplete="off" />
+                        <label for="c_lote" class="inv-label">Marca (opcional)</label>
+                        <ul id="cMarcaSug" class="compras-cat-suggestions hidden"></ul>
+                    </div>
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
@@ -119,7 +131,7 @@
                     <i class="fas fa-plus"></i><span>Agregar item</span>
                 </button>
             </div>
-            <div class="overflow-auto max-h-[50vh] border rounded-xl mb-4">
+            <div id="compras-items-wrapper" class="overflow-auto max-h-[50vh] border rounded-xl mb-4">
                 <table class="w-full text-sm">
                     <thead class="bg-slate-100 text-[11px] uppercase text-slate-500">
                         <tr>
@@ -143,14 +155,24 @@
                     <i class="fas fa-save"></i><span>Registrar compra</span>
                 </button>
             </div>
+
+            <!-- Overlay de carga al registrar compra -->
+            <div id="c_compra_loader"
+                class="hidden absolute inset-0 bg-white/75 backdrop-blur-[1px] flex flex-col items-center justify-center z-20">
+                <div class="h-10 w-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin mb-3">
+                </div>
+                <p class="text-xs font-semibold text-slate-700">Registrando compra, por favor espera...</p>
+                <p class="text-[10px] text-slate-500 mt-1">No cierres esta ventana ni hagas clic de nuevo.</p>
+            </div>
         </section>
 
-        <section class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
-                <div class="flex items-center justify-between gap-2">
+        <section id="compras-historial"
+            class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
+            <div id="compras-historial-header" class="flex items-center justify-between gap-2">
                 <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest">Historial de compras</h2>
-				<select id="c_filtro_proveedor" class="select-pos text-sm min-w-[180px]"></select>
+                <select id="c_filtro_proveedor" class="select-pos text-sm min-w-[180px]"></select>
             </div>
-            <div class="overflow-auto max-h-[70vh] border rounded-xl">
+            <div id="compras-historial-tabla-wrapper" class="overflow-auto max-h-[70vh] border rounded-xl">
                 <table class="w-full text-sm">
                     <thead class="bg-slate-100 text-[11px] uppercase text-slate-500">
                         <tr>
@@ -181,57 +203,58 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="text-[11px] font-semibold text-slate-500"></label>
-                            <div class="inv-input-group">
-                                <input id="np_codigo" class="inv-input" placeholder=" " required />
-                                <label for="np_codigo" class="inv-label">Código interno</label>
-                            </div>
+                        <div class="inv-input-group">
+                            <input id="np_codigo" class="inv-input" placeholder=" " required />
+                            <label for="np_codigo" class="inv-label">Código interno</label>
+                        </div>
                     </div>
                     <div class="relative">
                         <label class="text-[11px] font-semibold text-slate-500"></label>
-                            <div class="inv-input-group">
-                                <input id="np_marca" class="inv-input" placeholder=" " autocomplete="off" />
-                                <label for="np_marca" class="inv-label">Marca (opcional)</label>
-                            </div>
-                            <ul id="npMarcaSug" class="compras-cat-suggestions hidden"></ul>
+                        <div class="inv-input-group">
+                            <input id="np_marca" class="inv-input" placeholder=" " autocomplete="off" />
+                            <label for="np_marca" class="inv-label">Marca (opcional)</label>
+                        </div>
+                        <ul id="npMarcaSug" class="compras-cat-suggestions hidden"></ul>
                     </div>
                 </div>
                 <div>
                     <label class="text-[11px] font-semibold text-slate-500"></label>
-                        <div class="inv-input-group">
-                            <input id="np_descripcion" class="inv-input" placeholder=" " required />
-                            <label for="np_descripcion" class="inv-label">Nombre del producto</label>
-                        </div>
+                    <div class="inv-input-group">
+                        <input id="np_descripcion" class="inv-input" placeholder=" " required />
+                        <label for="np_descripcion" class="inv-label">Nombre del producto</label>
+                    </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                         <label class="text-[11px] font-semibold text-slate-500"></label>
-                            <div class="inv-input-group">
-                                <input id="np_precio" type="number" step="0.01" class="inv-input" placeholder=" " required />
-                                <label for="np_precio" class="inv-label">Precio USD</label>
-                            </div>
+                        <div class="inv-input-group">
+                            <input id="np_precio" type="number" step="0.01" class="inv-input" placeholder=" "
+                                required />
+                            <label for="np_precio" class="inv-label">Precio USD</label>
+                        </div>
                     </div>
                     <div>
                         <label class="text-[11px] font-semibold text-slate-500"></label>
-                            <div class="inv-input-group">
-                                <input id="np_costo" type="number" step="0.01" class="inv-input" placeholder=" " />
-                                <label for="np_costo" class="inv-label">Costo USD</label>
-                            </div>
+                        <div class="inv-input-group">
+                            <input id="np_costo" type="number" step="0.01" class="inv-input" placeholder=" " />
+                            <label for="np_costo" class="inv-label">Costo USD</label>
+                        </div>
                     </div>
                     <div>
                         <label class="text-[11px] font-semibold text-slate-500"></label>
-                            <div class="inv-input-group">
-                                <input id="np_stock" type="number" class="inv-input" placeholder=" " value="0" />
-                                <label for="np_stock" class="inv-label">Stock inicial</label>
-                            </div>
+                        <div class="inv-input-group">
+                            <input id="np_stock" type="number" class="inv-input" placeholder=" " value="0" />
+                            <label for="np_stock" class="inv-label">Stock inicial</label>
+                        </div>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div class="relative">
                         <label class="text-[11px] font-semibold text-slate-500"></label>
-                            <div class="inv-input-group">
-                                <input id="np_categoria" class="inv-input" placeholder=" " autocomplete="off" />
-                                <label for="np_categoria" class="inv-label">Categoría (opcional)</label>
-                            </div>
+                        <div class="inv-input-group">
+                            <input id="np_categoria" class="inv-input" placeholder=" " autocomplete="off" />
+                            <label for="np_categoria" class="inv-label">Categoría (opcional)</label>
+                        </div>
                         <ul id="npCategoriaSug" class="compras-cat-suggestions hidden"></ul>
                         <datalist id="npCategoriaOptions"></datalist>
                     </div>
@@ -260,6 +283,7 @@
     </div>
 
     <div id="toast" class="fixed right-4 bottom-4 space-y-2 z-50"></div>
+    <script src="/js/guided-tour.js"></script>
     <script type="module" src="/js/auth-guard.js"></script>
     <script type="module" src="/js/theme.js"></script>
     <script src="/js/layout-shell.js"></script>

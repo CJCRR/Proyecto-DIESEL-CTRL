@@ -134,3 +134,94 @@ window.addEventListener('DOMContentLoaded', () => {
   cargarProveedores();
   try { initCustomSelect('p_activo'); } catch {}
 });
+
+// Tour guiado de la pantalla de proveedores
+if (window.GuidedTour) {
+  const proveedoresTourId = 'proveedores_v1';
+
+  const proveedoresSteps = [
+    {
+      selector: '#proveedores-form',
+      title: 'Formulario del proveedor',
+      text: 'Aquí completas la ficha del proveedor: datos básicos, contacto y observaciones.',
+      placement: 'right',
+    },
+    {
+      selector: '#p_nombre',
+      title: 'Nombre del proveedor',
+      text: 'Escribe el nombre comercial del proveedor. Es el dato principal que verás en la lista.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#p_rif',
+      title: 'RIF o identificación',
+      text: 'Coloca el RIF o identificación fiscal. Ayuda a evitar duplicados y facilita la búsqueda.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#p_telefono',
+      title: 'Teléfono y contacto',
+      text: 'Opcionalmente agrega un teléfono para contactar rápido al proveedor.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#p_email',
+      title: 'Email y estado activo',
+      text: 'Puedes guardar el correo del proveedor y marcar si está activo o no según si sigues trabajando con él.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#p_notas',
+      title: 'Notas y condiciones especiales',
+      text: 'Usa este espacio para condiciones de pago, marcas que maneja, tiempos de entrega u otros detalles importantes.',
+      placement: 'top',
+    },
+    {
+      selector: '#btnGuardarProveedor',
+      title: 'Guardar o actualizar proveedor',
+      text: 'Con este botón guardas un nuevo proveedor o actualizas uno existente. El formulario se llena al seleccionar desde la lista.',
+      placement: 'top',
+    },
+    {
+      selector: '#btnNuevoProveedor',
+      title: 'Limpiar el formulario',
+      text: 'Si quieres cargar un nuevo proveedor desde cero, usa este botón para limpiar todos los campos.',
+      placement: 'top',
+    },
+    {
+      selector: '#proveedores-lista-header',
+      title: 'Listado y búsqueda de proveedores',
+      text: 'En esta sección ves todos los proveedores registrados y puedes filtrar por nombre o RIF usando la barra de búsqueda.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#proveedores-tabla-wrapper',
+      title: 'Seleccionar un proveedor existente',
+      text: 'Haz clic sobre una fila para cargar los datos de ese proveedor en el formulario y poder editarlos.',
+      placement: 'top',
+    },
+  ];
+
+  function startProveedoresTour(force = false) {
+    if (!window.GuidedTour) return;
+    window.GuidedTour.start({
+      id: proveedoresTourId,
+      steps: proveedoresSteps,
+      autoStart: !force,
+    });
+  }
+
+  const btnProveedoresTour = document.getElementById('btnProveedoresTour');
+  if (btnProveedoresTour) {
+    btnProveedoresTour.addEventListener('click', () => {
+      if (window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(proveedoresTourId)) {
+        window.GuidedTour.reset(proveedoresTourId);
+      }
+      startProveedoresTour(true);
+    });
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    startProveedoresTour(false);
+  });
+}

@@ -148,3 +148,91 @@ btnGuardar.addEventListener('click', guardarCliente);
 btnEliminar.addEventListener('click', eliminarCliente);
 
 loadClientes();
+
+// Tour guiado para Clientes
+if (window.GuidedTour) {
+    const steps = [
+        {
+            selector: '#clientes-form',
+            title: 'Formulario del cliente',
+            text: 'En este bloque creas o actualizas los datos básicos del cliente: nombre, cédula, teléfono, descuento, etiquetas y notas.',
+            placement: 'right',
+        },
+        {
+            selector: '#c_nombre',
+            title: 'Nombre del cliente',
+            text: 'Escribe aquí el nombre completo o razón social del cliente. Este campo es obligatorio.',
+            placement: 'right',
+        },
+        {
+            selector: '#c_cedula',
+            title: 'Cédula o identificación',
+            text: 'Coloca la cédula, RIF o identificación del cliente. Si la cédula ya existe, al guardar se actualiza ese registro; si no existe, se crea uno nuevo.',
+            placement: 'right',
+        },
+        {
+            selector: '#c_descuento',
+            title: 'Descuento por cliente',
+            text: 'Puedes asignar un porcentaje de descuento permanente a este cliente. Se aplicará automáticamente en el POS cuando lo selecciones.',
+            placement: 'right',
+        },
+        {
+            selector: '#c_tags',
+            title: 'Tags y notas',
+            text: 'Usa las etiquetas (tags) y el campo de observaciones para marcar clientes especiales, condiciones de crédito, rutas, etc.',
+            placement: 'right',
+        },
+        {
+            selector: '#btnGuardarCliente',
+            title: 'Guardar o actualizar',
+            text: 'Este botón guarda un nuevo cliente o actualiza los datos si la cédula ya existe. Úsalo siempre después de hacer cambios.',
+            placement: 'bottom',
+        },
+        {
+            selector: '#btnEliminarCliente',
+            title: 'Eliminar cliente',
+            text: 'Si necesitas borrar un cliente, selecciónalo en la lista o escribe su cédula y luego usa este botón. Úsalo con cuidado: la acción es definitiva.',
+            placement: 'bottom',
+        },
+        {
+            selector: '#c_buscar',
+            title: 'Buscar en la lista de clientes',
+            text: 'Desde aquí filtras rápidamente la tabla por nombre o cédula. Es útil cuando tienes muchos registros.',
+            placement: 'bottom',
+        },
+        {
+            selector: '#clientes-tabla-wrapper',
+            title: 'Listado de clientes',
+            text: 'La tabla muestra todos los clientes. Haz clic en una fila para cargar sus datos en el formulario y ver su historial de compras.',
+            placement: 'top',
+        },
+        {
+            selector: '#clientes-historial-wrapper',
+            title: 'Historial de compras del cliente',
+            text: 'Al seleccionar un cliente se llena este historial con sus últimas ventas, montos y vendedor. Sirve para revisar rápidamente su actividad.',
+            placement: 'top',
+        },
+    ];
+
+    const tourId = 'clientes_v1';
+    const startClientesTour = (force = false) => {
+        window.GuidedTour.start({
+            id: tourId,
+            steps,
+            autoStart: !force,
+        });
+    };
+
+    const btnClientesTour = document.getElementById('btnClientesTour');
+    if (btnClientesTour) {
+        btnClientesTour.addEventListener('click', () => {
+            if (window.GuidedTour.reset && window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(tourId)) {
+                window.GuidedTour.reset(tourId);
+            }
+            startClientesTour(true);
+        });
+    }
+
+    // Lanzar automáticamente solo la primera vez que entra a Clientes
+    startClientesTour(false);
+}

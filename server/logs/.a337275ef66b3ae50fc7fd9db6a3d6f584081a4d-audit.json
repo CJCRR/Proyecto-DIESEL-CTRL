@@ -6,11 +6,6 @@
     "auditLog": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\.a337275ef66b3ae50fc7fd9db6a3d6f584081a4d-audit.json",
     "files": [
         {
-            "date": 1774974577114,
-            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-03-31.log",
-            "hash": "a683ff14acea584596e5bd57ea6843b52a7af147b098880b47f4869b9238e12a"
-        },
-        {
             "date": 1775051595658,
             "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-01.log",
             "hash": "f44b8e3f3454446859a595b323813e9c79ca63e2144d29388eaf740c6259cdd3"
@@ -29,6 +24,16 @@
             "date": 1776100330230,
             "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-13.log",
             "hash": "0381a12da8cb2536adbdd574d6b49004eceb8554ce0d61093689ca6faa58e43a"
+        },
+        {
+            "date": 1776177051503,
+            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-14.log",
+            "hash": "a5923d16113abac47cac0ec8a15b29da894028b27b52acb38d6fd6983cdad0c9"
+        },
+        {
+            "date": 1776256861018,
+            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-15.log",
+            "hash": "3ec5793e839b010c83cff40952df817ee5a25cb24f1384a09ba08d7c5e360864"
         }
     ],
     "hashType": "sha256"

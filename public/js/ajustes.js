@@ -1186,3 +1186,124 @@ function setup2FASection() {
         });
     }
 }
+
+// Tour guiado de la pantalla de ajustes
+if (window.GuidedTour) {
+    const ajustesTourId = 'ajustes_v1';
+
+    const ajustesSteps = [
+    //    {
+    //        selector: '#ajustes-header',
+    //        title: 'Ajustes del sistema',
+    //        text: 'Desde aquí configuras datos de tu empresa, políticas de precios, seguridad y copias de datos.',
+    //        placement: 'bottom',
+    //    },
+        {
+            selector: '#ajustes-tabs-nav',
+            title: 'Secciones de ajustes',
+            text: 'Usa estas pestañas para moverte entre Empresa, Inventario, Nota de entrega, Políticas y Seguridad.',
+            placement: 'bottom',
+        },
+        {
+            selector: '#aj-sec-empresa',
+            title: 'Datos de la empresa',
+            text: 'Aquí defines el nombre comercial, logo, RIF, teléfonos y ubicación que verán tus clientes.',
+            placement: 'top',
+            onEnter: () => {
+                const tab = document.querySelector('[data-aj-tab="empresa"]');
+                if (tab) tab.click();
+            },
+        },
+        {
+            selector: '#aj-sec-inventario',
+            title: 'Depósitos de inventario',
+            text: 'Gestiona los depósitos físicos donde guardas productos, marcando cuál es el principal y si están activos.',
+            placement: 'top',
+            onEnter: () => {
+                const tab = document.querySelector('[data-aj-tab="inventario"]');
+                if (tab) tab.click();
+            },
+        },
+        {
+            selector: '#aj-sec-nota',
+            title: 'Nota de entrega',
+            text: 'Personaliza el diseño de la nota: logos, textos, totales y vista previa antes de imprimir.',
+            placement: 'top',
+            onEnter: () => {
+                const tab = document.querySelector('[data-aj-tab="nota"]');
+                if (tab) tab.click();
+            },
+        },
+        {
+            selector: '#aj-sec-descuentos',
+            title: 'Políticas de precios e impuestos',
+            text: 'Configura niveles de precios, descuentos por volumen e impuestos (IVA / IGTF) que usa el POS.',
+            placement: 'top',
+            onEnter: () => {
+                const tab = document.querySelector('[data-aj-tab="Politica"]');
+                if (tab) tab.click();
+            },
+        },
+        {
+            selector: '#aj-sec-Politica',
+            title: 'Devoluciones',
+            text: 'Define si permites devoluciones, el límite de días y el porcentaje de restocking informativo.',
+            placement: 'top',
+            onEnter: () => {
+                const tab = document.querySelector('[data-aj-tab="Politica"]');
+                if (tab) tab.click();
+            },
+        },
+        {
+            selector: '#aj-sec-plan',
+            title: 'Plan y pagos',
+            text: 'Consulta el plan activo, próximos cobros, historial de pagos y registra nuevos pagos de licencia.',
+            placement: 'top',
+            onEnter: () => {
+                const tab = document.querySelector('[data-aj-tab="seguridad"]');
+                if (tab) tab.click();
+            },
+        },
+        {
+            selector: '#aj-sec-export',
+            title: 'Exportación de datos',
+            text: 'Genera un Excel con la información de ventas, compras, créditos, clientes, proveedores e inventario.',
+            placement: 'top',
+        },
+        {
+            selector: '#sec-2fa',
+            title: 'Seguridad 2FA',
+            text: 'Si eres administrador, aquí puedes activar o desactivar el doble factor de autenticación para tu cuenta.',
+            placement: 'top',
+        },
+        {
+            selector: '#aj-sec-riesgo',
+            title: 'Zona de riesgo',
+            text: 'Esta sección borra TODOS los datos del sistema. Solo úsala en casos extremos y entendiendo el impacto.',
+            placement: 'top',
+        },
+    ];
+
+    function startAjustesTour(force = false) {
+        if (!window.GuidedTour) return;
+        window.GuidedTour.start({
+            id: ajustesTourId,
+            steps: ajustesSteps,
+            autoStart: !force,
+        });
+    }
+
+    const btnAjustesTour = document.getElementById('btnAjustesTour');
+    if (btnAjustesTour) {
+        btnAjustesTour.addEventListener('click', () => {
+            if (window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(ajustesTourId)) {
+                window.GuidedTour.reset(ajustesTourId);
+            }
+            startAjustesTour(true);
+        });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        startAjustesTour(false);
+    });
+}

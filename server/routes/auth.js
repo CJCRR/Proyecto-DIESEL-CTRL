@@ -156,14 +156,10 @@ router.post('/login', loginLimiter, (req, res) => {
 
     if (!ok) {
       const newFailed = (usuario.failed_attempts || 0) + 1;
-      // Bloqueo progresivo: 5 intentos = 15min, 10 intentos = 1h, 15 intentos = 24h
+      // Bloqueo simple: a partir de 5 intentos fallidos, bloquear la cuenta 5 minutos
       let lockUntil = null;
-      if (newFailed >= 15) {
-        lockUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      } else if (newFailed >= 10) {
-        lockUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      } else if (newFailed >= 5) {
-        lockUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      if (newFailed >= 5) {
+        lockUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
       }
       db.prepare('UPDATE usuarios SET failed_attempts = ?, locked_until = ? WHERE id = ?')
         .run(newFailed, lockUntil, usuario.id);

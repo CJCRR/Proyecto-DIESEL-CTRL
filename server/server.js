@@ -46,7 +46,8 @@ app.use(express.static(PUBLIC_DIR));
 // Redirecciones para la nueva ubicación de las vistas en /pages
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(PAGES_DIR, 'index.html'));
+    // Landing informativa principal
+    res.sendFile(path.join(PAGES_DIR, 'inicio.html'));
 });
 
 app.get('/index.html', (req, res) => {
@@ -61,7 +62,7 @@ app.get('/pages/login.html', (req, res) => {
 // Servir todas las páginas HTML de /pages con CSP
 const htmlPages = [
     'ajustes.html', 'clientes.html', 'cobranzas.html', 'dashboard.html',
-    'index.html', 'inventario.html', 'login.html', 'reportes.html', 'usuarios.html',
+    'index.html', 'inicio.html', 'inventario.html', 'login.html', 'reportes.html', 'usuarios.html',
     'admin-empresas.html', '404.html', 'terminos.html', 'reset-password.html'
 ];
 htmlPages.forEach(page => {
@@ -72,6 +73,7 @@ htmlPages.forEach(page => {
 
 // Rutas amigables sin .html para las vistas principales
 const prettyRoutes = {
+    '/inicio': 'inicio.html',
     '/pos': 'index.html',
     '/login': 'login.html',
     '/dashboard': 'dashboard.html',

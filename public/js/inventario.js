@@ -118,9 +118,14 @@ previewModal.innerHTML = `
             <option value="adicional">Ingreso adicional (suma unidades al depósito)</option>
         </select>
     </div>
-    <div class="flex justify-end gap-2">
+    <div class="flex justify-end gap-2 relative z-10">
         <button id="importPreviewCancel" class="p-2 bg-slate-200 rounded">Cancelar</button>
         <button id="importPreviewConfirm" class="p-2 bg-indigo-600 text-white rounded">Confirmar importación</button>
+    </div>
+    <div id="importLoader" class="hidden absolute inset-0 z-20 bg-slate-100/90 rounded flex flex-col items-center justify-center">
+        <div class="h-10 w-10 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin mb-3"></div>
+        <p class="text-xs font-semibold text-slate-700">Importando productos, por favor espera...</p>
+        <p class="text-[10px] text-slate-500 mt-1">No cierres esta ventana ni repitas la importación.</p>
     </div>
 </div>
 `;
@@ -129,6 +134,26 @@ const importPreviewBody = previewModal.querySelector('#importPreviewBody');
 const importPreviewCancel = previewModal.querySelector('#importPreviewCancel');
 const importPreviewConfirm = previewModal.querySelector('#importPreviewConfirm');
 const importModeSelect = previewModal.querySelector('#importMode');
+const importLoaderEl = previewModal.querySelector('#importLoader');
+let importInProgress = false;
+
+function setInventarioImportLoading(isLoading) {
+    importInProgress = !!isLoading;
+    if (importLoaderEl) {
+        if (isLoading) importLoaderEl.classList.remove('hidden');
+        else importLoaderEl.classList.add('hidden');
+    }
+    if (importPreviewConfirm) {
+        importPreviewConfirm.disabled = !!isLoading;
+        importPreviewConfirm.classList.toggle('opacity-60', !!isLoading);
+        importPreviewConfirm.classList.toggle('cursor-not-allowed', !!isLoading);
+    }
+    if (importPreviewCancel) {
+        importPreviewCancel.disabled = !!isLoading;
+        importPreviewCancel.classList.toggle('opacity-60', !!isLoading);
+        importPreviewCancel.classList.toggle('cursor-not-allowed', !!isLoading);
+    }
+}
 
 let productosCache = [];
 let currentPage = 0;
@@ -817,7 +842,8 @@ btnImportCsv.addEventListener('click', async () => {
 
         // handler de confirmación de importación   
         const onConfirm = async () => {
-            importPreviewConfirm.disabled = true;
+            if (importInProgress) return;
+            setInventarioImportLoading(true);
             try {
                 const mode = importModeSelect ? importModeSelect.value : '';
                 let url = '/admin/productos/import';
@@ -904,7 +930,7 @@ btnImportCsv.addEventListener('click', async () => {
                 console.error(err);
                 showToast('Error importando CSV', 'error');
             }
-            importPreviewConfirm.disabled = false;
+            setInventarioImportLoading(false);
             // close modal
             previewModal.classList.remove('modal-open');
             setTimeout(() => { previewModal.classList.add('hidden'); previewModal.style.display = ''; }, 220);
@@ -912,7 +938,11 @@ btnImportCsv.addEventListener('click', async () => {
         };
 
         importPreviewConfirm.addEventListener('click', onConfirm);
-        importPreviewCancel.onclick = () => { previewModal.classList.remove('modal-open'); setTimeout(() => { previewModal.classList.add('hidden'); previewModal.style.display = ''; }, 220); };
+        importPreviewCancel.onclick = () => {
+            if (importInProgress) return;
+            previewModal.classList.remove('modal-open');
+            setTimeout(() => { previewModal.classList.add('hidden'); previewModal.style.display = ''; }, 220);
+        };
 
     } catch (err) {
         console.error(err);
@@ -1173,6 +1203,10 @@ function setEditorVisible(visible) {
         if (toggleEditorBtn) toggleEditorBtn.textContent = '<';
     }
 }
+
+try {
+    window.setInventarioEditorVisible = setEditorVisible;
+} catch {}
 
 if (toggleEditorBtn && layoutInventario && panelEditor && productosSection) {
     let visible = true;
@@ -1710,3 +1744,124 @@ cargarMovimientosDeposito();
 ['pageSize', 'filterCategoria', 'filterStock', 'importMode'].forEach((id) => {
     try { initCustomSelect(id); } catch {}
 });
+
+// Tour guiado para Inventario
+if (window.GuidedTour) {
+    const steps = [
+        {
+            selector: '#q',
+            title: 'Buscar productos',
+            text: 'Escribe parte del código, descripción, categoría o marca para filtrar la lista de productos de la izquierda en tiempo real.',
+            placement: 'bottom',
+            onEnter: () => {
+                const filtros = document.getElementById('filtros-inventario');
+                if (filtros) filtros.classList.remove('hidden');
+            },
+        },
+        {
+            selector: '#filtros-inventario',
+            title: 'Filtros por categoría, depósito y stock',
+            text: 'Desde aquí ajustas cuántos productos ver por página y filtras por categoría, depósito o nivel de stock (sin stock, bajo, sobre stock).',
+            placement: 'bottom',
+            onEnter: () => {
+                const filtros = document.getElementById('filtros-inventario');
+                if (filtros) filtros.classList.remove('hidden');
+            },
+        },
+        {
+            selector: '#lista',
+            title: 'Listado de productos',
+            text: 'Aquí ves los productos con su stock y alertas visuales (sin stock, stock bajo, datos incompletos, etc.). Haz clic en una tarjeta para cargarla en el panel de la derecha.',
+            placement: 'top',
+        },
+        {
+            selector: '#paginacion-info',
+            title: 'Paginación',
+            text: 'Si tienes muchos productos, usa Anterior y Siguiente para moverte entre páginas. Aquí ves cuántos productos se están mostrando.',
+            placement: 'top',
+        },
+        {
+            selector: '#panel-editor',
+            title: 'Crear y editar productos',
+            text: 'En este panel llenas o ajustas los datos del producto: código, descripción, precios, stock, categoría, depósito y motivo de ajuste cuando cambias el stock.',
+            placement: 'left',
+            onEnter: () => {
+                try {
+                    if (window.setInventarioEditorVisible) window.setInventarioEditorVisible(true);
+                } catch {}
+            },
+        },
+        {
+            selector: '#btnEditarMarcas',
+            title: 'Marcas por depósito',
+            text: 'Con este botón abres un editor donde repartes el stock de este producto entre diferentes marcas dentro de cada depósito.',
+            placement: 'left',
+            onEnter: () => {
+                try {
+                    if (window.setInventarioEditorVisible) window.setInventarioEditorVisible(true);
+                } catch {}
+            },
+        },
+        {
+            selector: '#btnImportCsv',
+            title: 'Importar y exportar inventario por CSV',
+            text: 'Aquí puedes exportar todo el inventario a CSV y también importar muchos productos a la vez desde un archivo, revisando primero una vista previa.',
+            placement: 'top',
+            onEnter: () => {
+                try {
+                    if (window.setInventarioEditorVisible) window.setInventarioEditorVisible(true);
+                } catch {}
+            },
+        },
+        {
+            selector: '#actividad-producto',
+            title: 'Actividad del producto',
+            text: 'Al seleccionar un producto ves su última compra y última venta, con accesos rápidos para abrir esas pantallas.',
+            placement: 'top',
+            onEnter: () => {
+                try {
+                    if (window.setInventarioEditorVisible) window.setInventarioEditorVisible(true);
+                } catch {}
+            },
+        },
+        {
+            selector: '#ajustes-list',
+            title: 'Historial de ajustes de stock',
+            text: 'Aquí se registran los cambios manuales de stock. Al elegir un producto se filtran solo los ajustes relacionados con ese código.',
+            placement: 'top',
+            onEnter: () => {
+                try {
+                    if (window.setInventarioEditorVisible) window.setInventarioEditorVisible(true);
+                } catch {}
+            },
+        },
+        {
+            selector: '#inv-movimientos',
+            title: 'Movimientos entre depósitos',
+            text: 'En esta sección mueves stock de un depósito a otro y revisas el historial reciente de movimientos por depósito.',
+            placement: 'top',
+        },
+    ];
+
+    const tourId = 'inventario_v1';
+    const startTourInventario = (force = false) => {
+        window.GuidedTour.start({
+            id: tourId,
+            steps,
+            autoStart: !force,
+        });
+    };
+
+    const btnInvTour = document.getElementById('btnInvTour');
+    if (btnInvTour) {
+        btnInvTour.addEventListener('click', () => {
+            if (window.GuidedTour.reset && window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(tourId)) {
+                window.GuidedTour.reset(tourId);
+            }
+            startTourInventario(true);
+        });
+    }
+
+    // Lanzar automáticamente solo la primera vez que entra a Inventario
+    startTourInventario(false);
+}

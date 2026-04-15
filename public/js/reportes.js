@@ -1297,3 +1297,156 @@ document.addEventListener('DOMContentLoaded', () => {
         cargarReporte();
     }, 100);
 });
+
+// Tour guiado de la página de reportes
+if (window.GuidedTour) {
+    const reportesTourId = 'reportes_v1';
+
+    const reportesSteps = [
+    //    {
+      //      selector: '#reportes-header',
+        //    title: 'Reportes del negocio',
+          //  text: 'Aquí tienes un resumen de ventas, devoluciones, presupuestos y comisiones en una sola pantalla.',
+          //  placement: 'bottom',
+       // },
+        {
+            selector: '#reportes-tabs-nav',
+            title: 'Tipos de reporte',
+            text: 'Usa estas pestañas para cambiar entre ventas, devoluciones, presupuestos y comisiones por vendedor.',
+            placement: 'bottom',
+            onEnter: () => {
+                const tabVentas = document.querySelector('[data-rpt-tab="ventas"]');
+                if (tabVentas) tabVentas.click();
+            },
+        },
+        {
+            selector: '#reportes-filtros',
+            title: 'Filtros generales',
+            text: 'Primero elige fechas, cliente, vendedor y método de pago. Estos filtros aplican a todos los reportes.',
+            placement: 'bottom',
+            onEnter: () => {
+                const body = document.getElementById('reportes-filtros-body');
+                const card = document.getElementById('reportes-filtros');
+                if (body) body.classList.remove('hidden');
+                if (card) card.classList.remove('bg-slate-50');
+            },
+        },
+        {
+            selector: '#btn-rango-rapido',
+            title: 'Rangos rápidos de fecha',
+            text: 'Con este botón saltas rápido a hoy, esta semana, este mes o año. También puedes moverte con los botones de período anterior y siguiente.',
+            placement: 'bottom',
+        },
+        {
+            selector: '#rpt-sec-ventas',
+            title: 'Reporte de ventas',
+            text: 'Aquí ves cada venta con cliente, vendedor, método de pago, total y margen. Arriba puedes cambiar la moneda entre USD y Bs.',
+            placement: 'top',
+            onEnter: () => {
+                const tabVentas = document.querySelector('[data-rpt-tab="ventas"]');
+                if (tabVentas) tabVentas.click();
+                const panel = document.getElementById('ventas-panel');
+                const toggle = document.getElementById('ventas-toggle');
+                if (panel && panel.classList.contains('hidden')) {
+                    panel.classList.remove('hidden');
+                    if (toggle) {
+                        const icon = toggle.querySelector('i');
+                        const label = toggle.querySelector('span');
+                        if (icon) {
+                            icon.classList.remove('fa-chevron-down');
+                            icon.classList.add('fa-chevron-up');
+                        }
+                        if (label) label.textContent = 'Ocultar';
+                    }
+                }
+            },
+        },
+        {
+            selector: '#rpt-tabla',
+            title: 'Detalle de cada venta',
+            text: 'Haz clic en una fila para ver los productos vendidos, abrir la nota y, si eres administrador, cambiar el vendedor de la venta.',
+            placement: 'top',
+        },
+        {
+            selector: '#rpt-sec-devoluciones',
+            title: 'Devoluciones',
+            text: 'En esta pestaña ves las devoluciones del rango, con motivo, monto y acceso rápido a la venta original.',
+            placement: 'top',
+            onEnter: () => {
+                const tab = document.querySelector('[data-rpt-tab="devoluciones"]');
+                if (tab) tab.click();
+                const panel = document.getElementById('dev-panel');
+                const toggle = document.getElementById('dev-toggle');
+                if (panel && panel.classList.contains('hidden')) {
+                    panel.classList.remove('hidden');
+                    if (toggle) {
+                        const icon = toggle.querySelector('i');
+                        const label = toggle.querySelector('span');
+                        if (icon) {
+                            icon.classList.remove('fa-chevron-down');
+                            icon.classList.add('fa-chevron-up');
+                        }
+                        if (label) label.textContent = 'Ocultar';
+                    }
+                }
+            },
+        },
+        {
+            selector: '#rpt-sec-presupuestos',
+            title: 'Presupuestos',
+            text: 'Aquí se listan los últimos presupuestos. Puedes abrirlos, eliminarlos o enviarlos directo al POS para convertirlos en venta.',
+            placement: 'top',
+            onEnter: () => {
+                const tab = document.querySelector('[data-rpt-tab="presupuestos"]');
+                if (tab) tab.click();
+                const panel = document.getElementById('pres-panel');
+                const toggle = document.getElementById('pres-toggle');
+                if (panel && panel.classList.contains('hidden')) {
+                    panel.classList.remove('hidden');
+                    if (toggle) {
+                        const icon = toggle.querySelector('i');
+                        const label = toggle.querySelector('span');
+                        if (icon) {
+                            icon.classList.remove('fa-chevron-down');
+                            icon.classList.add('fa-chevron-up');
+                        }
+                        if (label) label.textContent = 'Ocultar';
+                    }
+                }
+            },
+        },
+        {
+            selector: '#rpt-sec-comisiones',
+            title: 'Comisiones por vendedor',
+            text: 'Finalmente puedes ver cuántas ventas hizo cada vendedor, su comisión en USD y una barra comparativa entre ellos.',
+            placement: 'top',
+            onEnter: () => {
+                const tab = document.querySelector('[data-rpt-tab="comisiones"]');
+                if (tab) tab.click();
+            },
+        },
+    ];
+
+    function startReportesTour(force = false) {
+        if (!window.GuidedTour) return;
+        window.GuidedTour.start({
+            id: reportesTourId,
+            steps: reportesSteps,
+            autoStart: !force,
+        });
+    }
+
+    const btnReportesTour = document.getElementById('btnReportesTour');
+    if (btnReportesTour) {
+        btnReportesTour.addEventListener('click', () => {
+            if (window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(reportesTourId)) {
+                window.GuidedTour.reset(reportesTourId);
+            }
+            startReportesTour(true);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        startReportesTour(false);
+    });
+}

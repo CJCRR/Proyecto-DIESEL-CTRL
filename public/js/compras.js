@@ -16,7 +16,25 @@ let depositosComprasCargados = false;
 let categoriasCompras = [];
 let marcasCompras = [];
 let compraFocusId = null;
+let compraGuardando = false;
 const ES_ADMIN_EMPRESA = (window.Auth && typeof window.Auth.isAdmin === 'function') ? !!window.Auth.isAdmin() : false;
+
+function setCompraGuardando(isLoading) {
+  compraGuardando = !!isLoading;
+  const overlay = document.getElementById('c_compra_loader');
+  const btn = document.getElementById('btnGuardarCompra');
+
+  if (overlay) {
+    if (isLoading) overlay.classList.remove('hidden');
+    else overlay.classList.add('hidden');
+  }
+
+  if (btn) {
+    btn.disabled = !!isLoading;
+    btn.classList.toggle('opacity-60', !!isLoading);
+    btn.classList.toggle('cursor-not-allowed', !!isLoading);
+  }
+}
 
 async function cargarCategoriasCompras() {
   const dataList = document.getElementById('npCategoriaOptions');
@@ -470,6 +488,7 @@ function agregarItemDesdeFormulario() {
 }
 
 async function guardarCompra() {
+  if (compraGuardando) return;
   if (!items.length) {
     showToast('Agregue al menos un item', 'error');
     return;
@@ -496,8 +515,10 @@ async function guardarCompra() {
     })),
   };
 
+  setCompraGuardando(true);
+
   try {
-  const saved = await apiFetchJson('/api/compras', {
+    const saved = await apiFetchJson('/api/compras', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -530,10 +551,12 @@ async function guardarCompra() {
     }
 
     limpiarFormularioCompra();
-    cargarHistorialCompras();
+    await cargarHistorialCompras();
   } catch (err) {
     console.error(err);
     showToast(err.message || 'Error registrando compra', 'error');
+  } finally {
+    setCompraGuardando(false);
   }
 }
 
@@ -850,22 +873,38 @@ async function toggleDetalleCompra(id) {
 }
 
 function setupUI() {
-  document.getElementById('btnAgregarItemCompra').addEventListener('click', (e) => {
-    e.preventDefault();
-    agregarItemDesdeFormulario();
-  });
-  document.getElementById('btnGuardarCompra').addEventListener('click', (e) => {
-    e.preventDefault();
-    guardarCompra();
-  });
-  document.getElementById('btnNuevaCompra').addEventListener('click', (e) => {
-    e.preventDefault();
-    limpiarFormularioCompra();
-  });
-  document.getElementById('c_tasa').addEventListener('input', () => {
-    renderItems();
-    renderResumen();
-  });
+  const btnAgregarItem = document.getElementById('btnAgregarItemCompra');
+  if (btnAgregarItem) {
+    btnAgregarItem.addEventListener('click', (e) => {
+      e.preventDefault();
+      agregarItemDesdeFormulario();
+    });
+  }
+
+  const btnGuardar = document.getElementById('btnGuardarCompra');
+  if (btnGuardar) {
+    btnGuardar.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (compraGuardando) return;
+      guardarCompra();
+    });
+  }
+
+  const btnNueva = document.getElementById('btnNuevaCompra');
+  if (btnNueva) {
+    btnNueva.addEventListener('click', (e) => {
+      e.preventDefault();
+      limpiarFormularioCompra();
+    });
+  }
+
+  const tasaInput = document.getElementById('c_tasa');
+  if (tasaInput) {
+    tasaInput.addEventListener('input', () => {
+      renderItems();
+      renderResumen();
+    });
+  }
   const codigoInput = document.getElementById('c_codigo');
   if (codigoInput) {
     codigoInput.addEventListener('input', () => {
@@ -878,9 +917,12 @@ function setupUI() {
       }, 200);
     });
   }
-  document.getElementById('c_filtro_proveedor').addEventListener('change', () => {
-    cargarHistorialCompras();
-  });
+  const filtroProveedor = document.getElementById('c_filtro_proveedor');
+  if (filtroProveedor) {
+    filtroProveedor.addEventListener('change', () => {
+      cargarHistorialCompras();
+    });
+  }
 
   // Modal nuevo producto
   modalNuevoProducto = document.getElementById('modal-nuevo-producto');
@@ -1010,3 +1052,106 @@ window.addEventListener('DOMContentLoaded', () => {
   cargarCategoriasCompras();
   cargarMarcasCompras();
 });
+
+// Tour guiado de la pantalla de compras
+if (window.GuidedTour) {
+  const comprasTourId = 'compras_v1';
+
+  const comprasSteps = [
+  //  {
+  //    selector: '#compras-header',
+  //    title: 'Registro de compras e ingresos',
+  //    text: 'En esta pantalla registras facturas de proveedores y actualizas el inventario.',
+  //    placement: 'bottom',
+  //  },
+    {
+      selector: '#compra-panel',
+      title: 'Formulario de compra',
+      text: 'En este panel registras toda la información de la compra y los productos que van a entrar al inventario.',
+      placement: 'right',
+    },
+    {
+      selector: '#compras-datos-compra',
+      title: 'Proveedor, fecha y número',
+      text: 'Primero selecciona el proveedor, la fecha de la factura y el número o referencia del documento.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#compras-buscar-producto',
+      title: 'Buscar o crear producto',
+      text: 'Aquí escribes un código o nombre para buscar productos existentes. Si no existe, usa "Nuevo producto" para crearlo desde aquí.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#compras-producto-detalle',
+      title: 'Tasa, cantidades, costos y precios',
+      text: 'Luego defines tasa BCV, cantidad comprada, costo y precio de venta en USD, además de la marca asociada al producto.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#c_deposito',
+      title: 'Depósito destino',
+      text: 'Opcionalmente puedes indicar a qué depósito entrará esta mercadería. Si no eliges, usa el principal.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#btnAgregarItemCompra',
+      title: 'Agregar item a la compra',
+      text: 'Cuando tengas completo el producto, usa este botón para agregarlo a la lista de items de la compra.',
+      placement: 'top',
+    },
+    {
+      selector: '#compras-items-wrapper',
+      title: 'Lista de items y totales',
+      text: 'Aquí ves los productos agregados con cantidades, costos y subtotales. Desde esta tabla puedes quitar un item si lo cargaste por error.',
+      placement: 'top',
+    },
+    {
+      selector: '#c_resumen',
+      title: 'Resumen de la compra',
+      text: 'Este resumen muestra cuántos items se cargaron y el total en USD y en Bs según la tasa indicada.',
+      placement: 'top',
+    },
+    {
+      selector: '#btnGuardarCompra',
+      title: 'Registrar la compra',
+      text: 'Cuando todo esté listo, registra la compra. Se actualizará el stock y se guardará el historial para consultas futuras.',
+      placement: 'top',
+    },
+    {
+      selector: '#compras-historial',
+      title: 'Historial de compras',
+      text: 'En este panel ves las compras registradas. Puedes filtrar por proveedor y revisar el total de cada compra.',
+      placement: 'left',
+    },
+    {
+      selector: '#compras-historial-tabla-wrapper',
+      title: 'Ver detalle de una compra',
+      text: 'Haz clic en una fila para desplegar el detalle: productos, cantidades, costos y estado de la compra (recibida o anulada).',
+      placement: 'top',
+    },
+  ];
+
+  function startComprasTour(force = false) {
+    if (!window.GuidedTour) return;
+    window.GuidedTour.start({
+      id: comprasTourId,
+      steps: comprasSteps,
+      autoStart: !force,
+    });
+  }
+
+  const btnComprasTour = document.getElementById('btnComprasTour');
+  if (btnComprasTour) {
+    btnComprasTour.addEventListener('click', () => {
+      if (window.GuidedTour.hasSeen && window.GuidedTour.hasSeen(comprasTourId)) {
+        window.GuidedTour.reset(comprasTourId);
+      }
+      startComprasTour(true);
+    });
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    startComprasTour(false);
+  });
+}

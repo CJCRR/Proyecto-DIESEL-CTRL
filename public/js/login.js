@@ -6,6 +6,8 @@ import { upsertEmpresaFirebase } from './firebase-sync.js';
 const loginForm = document.getElementById('loginForm');
 const usernameInput = document.getElementById('username');
 const passwordInput = document.getElementById('password');
+const passwordToggleBtn = document.getElementById('password-toggle');
+const passwordToggleIcon = document.getElementById('password-toggle-icon');
 const loginBtn = document.getElementById('loginBtn');
 const errorMessage = document.getElementById('error-message');
 const errorText = document.getElementById('error-text');
@@ -57,6 +59,16 @@ let confettiActivo = false;
 let confetiIconoEjecutado = false;
 
 let pendingLoginBody = null;
+
+// Toggle de visibilidad de contraseña en login
+if (passwordInput && passwordToggleBtn && passwordToggleIcon) {
+  passwordToggleBtn.addEventListener('click', () => {
+    const isHidden = passwordInput.type === 'password';
+    passwordInput.type = isHidden ? 'text' : 'password';
+    passwordToggleIcon.classList.toggle('fa-eye', !isHidden);
+    passwordToggleIcon.classList.toggle('fa-eye-slash', isHidden);
+  });
+}
 
 // Verificar si ya está autenticado
 try { localStorage.removeItem('auth_token'); } catch {}
