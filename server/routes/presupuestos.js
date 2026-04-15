@@ -217,7 +217,7 @@ router.post('/', requireAuth, (req, res) => {
   if (!tasa || Number.isNaN(tasa) || tasa <= 0) {
     return res.status(400).json({ error: 'Tasa BCV inválida.' });
   }
-  const descuentoNum = Math.max(0, Math.min(100, parseFloat(descuento) || 0));
+  const descuentoNum = Math.max(0, parseFloat(descuento) || 0);
 
   for (const item of items) {
     const codigo = safeStr(item.codigo, 64);
@@ -296,16 +296,17 @@ router.post('/', requireAuth, (req, res) => {
         `).run(presupuestoId, producto.id, producto.codigo, producto.descripcion || '', cantidad, precio, subtotalBs, depId, depNombre);
       }
 
-      const multiplicador = 1 - (descuentoNum / 100);
-      const totalBsFinal = totalBs * multiplicador;
-      const totalUsdFinal = totalUsd * multiplicador;
+      const descuentoAplicadoUsd = Math.min(descuentoNum, totalUsd);
+      const descuentoAplicadoBs = descuentoAplicadoUsd * tasa;
+      const totalBsFinal = Math.max(0, totalBs - descuentoAplicadoBs);
+      const totalUsdFinal = Math.max(0, totalUsd - descuentoAplicadoUsd);
 
       const factorImpuestos = 1 + (ivaPctNum / 100) + (igtfPctNum / 100);
       const totalBsIva = totalBsFinal * factorImpuestos;
       const totalUsdIva = totalUsdFinal * factorImpuestos;
 
-      db.prepare('UPDATE presupuestos SET total_bs = ?, total_usd = ?, iva_pct = ?, igtf_pct = ?, total_bs_iva = ?, total_usd_iva = ? WHERE id = ?')
-        .run(totalBsFinal, totalUsdFinal, ivaPctNum, igtfPctNum, totalBsIva, totalUsdIva, presupuestoId);
+      db.prepare('UPDATE presupuestos SET descuento = ?, total_bs = ?, total_usd = ?, iva_pct = ?, igtf_pct = ?, total_bs_iva = ?, total_usd_iva = ? WHERE id = ?')
+        .run(descuentoAplicadoUsd, totalBsFinal, totalUsdFinal, ivaPctNum, igtfPctNum, totalBsIva, totalUsdIva, presupuestoId);
 
       return presupuestoId;
     });
