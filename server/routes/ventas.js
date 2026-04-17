@@ -15,10 +15,69 @@ function forbidSuperadmin(req, res, next) {
     next();
 }
 
+function debeSuspenderEmpresa(estadoActual, proximoCobroStr, diasGracia) {
+    if (estadoActual === 'suspendida') return true;
+    if (!proximoCobroStr) return false;
+
+    const proximoCobro = new Date(proximoCobroStr);
+    if (Number.isNaN(proximoCobro.getTime())) return false;
+
+    const dias = Number.isFinite(Number(diasGracia)) ? Number(diasGracia) : 0;
+    const hoy = new Date();
+    const limiteGracia = new Date(proximoCobro.getTime());
+    limiteGracia.setDate(limiteGracia.getDate() + dias);
+    return hoy > limiteGracia;
+}
+
+function blockVentasIfEmpresaSuspendida(req, res, next) {
+    try {
+        if (!req.usuario || req.usuario.rol === 'superadmin' || !req.usuario.empresa_id) {
+            return next();
+        }
+
+        const empresa = db
+            .prepare('SELECT id, estado, proximo_cobro, dias_gracia FROM empresas WHERE id = ?')
+            .get(req.usuario.empresa_id);
+
+        if (!empresa) {
+            return res.status(400).json({ error: 'Empresa no encontrada para este usuario', code: 'EMPRESA_NO_ENCONTRADA' });
+        }
+
+        const estadoActual = (empresa.estado || '').toString().toLowerCase() || 'activa';
+        const suspendida = debeSuspenderEmpresa(estadoActual, empresa.proximo_cobro, empresa.dias_gracia);
+
+        if (suspendida) {
+            if (estadoActual !== 'suspendida') {
+                try {
+                    db.prepare("UPDATE empresas SET estado = 'suspendida', actualizado_en = datetime('now') WHERE id = ?")
+                        .run(empresa.id);
+                } catch (e) {
+                    logger.warn('No se pudo persistir estado suspendida al bloquear ventas', { message: e.message });
+                }
+            }
+            return res.status(403).json({
+                error: 'Tu empresa está suspendida por pago. Puedes ingresar al sistema, pero no registrar ventas hasta regularizar el plan.',
+                code: 'LICENCIA_SUSPENDIDA'
+            });
+        }
+
+        return next();
+    } catch (error) {
+        logger.error('Error validando estado de licencia para ventas', {
+            message: error.message,
+            stack: error.stack,
+            user: req.usuario ? req.usuario.id : null,
+            empresa_id: req.usuario ? req.usuario.empresa_id : null,
+        });
+        return res.status(500).json({ error: 'No se pudo validar el estado de licencia', code: 'LICENCIA_VALIDACION_ERROR' });
+    }
+}
+
 router.post(
     '/',
     requireAuth,
     forbidSuperadmin,
+    blockVentasIfEmpresaSuspendida,
     validate([
         body('items')
             .isArray({ min: 1 })

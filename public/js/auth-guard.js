@@ -3,7 +3,7 @@ import { apiFetchJson } from './app-api.js';
 // Protección de autenticación para todas las páginas
 (function () {
   // Forzar uso de cookies httpOnly (no tokens en localStorage)
-  try { localStorage.removeItem('auth_token'); } catch {}
+  try { localStorage.removeItem('auth_token'); } catch { }
 
   // Wrapper global de fetch para enviar cookies y limpiar Authorization inválido
   const originalFetch = window.fetch.bind(window);
@@ -133,7 +133,7 @@ import { apiFetchJson } from './app-api.js';
         }
         // marcar que ya se mostró en esta sesión de navegador
         sessionStorage.setItem(sessionKey, '1');
-      } catch (_) {}
+      } catch (_) { }
       overlay.remove();
     }
 
@@ -176,6 +176,222 @@ import { apiFetchJson } from './app-api.js';
     dotEl.style.backgroundColor = color;
     dotEl.style.boxShadow = `0 0 0 2px ${color}33`;
     pill.classList.remove('hidden');
+  }
+
+  function parseDateStart(value) {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function addDays(baseDate, days) {
+    const d = new Date(baseDate.getTime());
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+
+  function formatDateES(date) {
+    try {
+      return date.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch {
+      return date.toISOString().slice(0, 10);
+    }
+  }
+
+  function isoDateOnly(date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  function buildLicenciaAlertContext(user) {
+    if (!user) return null;
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const proximoCobro = parseDateStart(user.empresa_proximo_cobro);
+    const diasGracia = Number.isFinite(Number(user.empresa_dias_gracia)) ? Number(user.empresa_dias_gracia) : 0;
+
+    if (user.empresa_estado === 'suspendida') {
+      let limiteTxt = '';
+      if (proximoCobro) {
+        const limite = addDays(proximoCobro, Math.max(0, diasGracia));
+        limiteTxt = ` La fecha límite era ${formatDateES(limite)}.`;
+      }
+      return {
+        tipo: 'suspendida',
+        tono: 'rose',
+        titulo: 'Empresa suspendida por pago',
+        mensaje: `No puedes registrar ventas hasta regularizar el plan.${limiteTxt}`,
+        proximoCobro,
+        limite: proximoCobro ? addDays(proximoCobro, Math.max(0, diasGracia)) : null,
+      };
+    }
+
+    if (!proximoCobro) return null;
+
+    const inicioGracia = proximoCobro;
+    const avisoPrevio = addDays(inicioGracia, -3);
+    const limiteGracia = addDays(inicioGracia, Math.max(0, diasGracia));
+
+    if (hoy >= avisoPrevio && hoy <= inicioGracia) {
+      const fechaInicioTxt = formatDateES(inicioGracia);
+      const msg = hoy.getTime() === inicioGracia.getTime()
+        ? `Tu empresa vence hoy (${fechaInicioTxt}). Paga hoy para evitar entrar en días de gracia.`
+        : `Tu empresa entrará en días de gracia el ${fechaInicioTxt}. Te recomendamos pagar antes de esa fecha.`;
+      return {
+        tipo: 'pregracia',
+        tono: 'amber',
+        titulo: 'Aviso de vencimiento próximo',
+        mensaje: msg,
+        proximoCobro,
+        limite: limiteGracia,
+      };
+    }
+
+    if (hoy > inicioGracia && hoy <= limiteGracia) {
+      const limiteTxt = formatDateES(limiteGracia);
+      return {
+        tipo: 'en_gracia',
+        tono: 'rose',
+        titulo: 'Empresa en días de gracia',
+        mensaje: `La empresa ya pasó su fecha de cobro y está en días de gracia. Paga antes del ${limiteTxt}.`,
+        proximoCobro,
+        limite: limiteGracia,
+      };
+    }
+
+    return null;
+  }
+
+  function buildLicenciaAlertDismissKey(user, ctx) {
+    const empresaRef = user.empresa_id || user.empresa_codigo || 'unknown';
+    const fechaCobro = ctx.proximoCobro ? isoDateOnly(ctx.proximoCobro) : 'sin-cobro';
+    const fechaLimite = ctx.limite ? isoDateOnly(ctx.limite) : 'sin-limite';
+    return `licencia_alerta_hidden_${empresaRef}_${ctx.tipo}_${fechaCobro}_${fechaLimite}`;
+  }
+
+  function isLicenciaAlertDismissed(key) {
+    try {
+      return localStorage.getItem(key) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function dismissLicenciaAlert(key) {
+    try {
+      localStorage.setItem(key, '1');
+    } catch {
+      // ignorar fallo de almacenamiento
+    }
+  }
+
+  function mostrarAlertaSuspensionPago(user, intento = 0) {
+    const existente = document.getElementById('app-licencia-alerta');
+    const ctx = buildLicenciaAlertContext(user);
+    if (!ctx) {
+      if (existente) existente.remove();
+      return;
+    }
+
+    const dismissKey = buildLicenciaAlertDismissKey(user, ctx);
+    if (isLicenciaAlertDismissed(dismissKey)) {
+      if (existente) existente.remove();
+      return;
+    }
+
+    if (!document.body && intento < 8) {
+      setTimeout(() => mostrarAlertaSuspensionPago(user, intento + 1), 120);
+      return;
+    }
+    if (!document.body) return;
+
+    const nav = document.querySelector('body > nav') || document.querySelector('nav.bg-gradient-to-r');
+    if (!nav && intento < 8) {
+      setTimeout(() => mostrarAlertaSuspensionPago(user, intento + 1), 120);
+      return;
+    }
+
+    if (existente) {
+      const existingKey = existente.dataset.dismissKey || '';
+      if ((nav && existente.previousElementSibling !== nav) || existingKey !== dismissKey) {
+        try { existente.remove(); } catch { }
+      } else {
+        return;
+      }
+    }
+
+    const tone = ctx.tono === 'amber'
+      ? {
+        border: 'border-amber-300/80',
+        bg: 'bg-amber-50',
+        text: 'text-amber-800',
+        close: 'text-amber-600 hover:bg-amber-100 hover:text-amber-800',
+        btn: 'bg-amber-600 hover:bg-amber-700',
+      }
+      : {
+        border: 'border-rose-300/80',
+        bg: 'bg-rose-50',
+        text: 'text-rose-800',
+        close: 'text-rose-600 hover:bg-rose-100 hover:text-rose-800',
+        btn: 'bg-rose-600 hover:bg-rose-700',
+      };
+
+    const alert = document.createElement('section');
+    alert.id = 'app-licencia-alerta';
+    alert.dataset.dismissKey = dismissKey;
+    alert.className = 'w-full py-2';
+    alert.innerHTML = `
+    <div class="container mx-auto px-4">
+      <div class="relative w-full rounded-2xl border ${tone.border} ${tone.bg} ${tone.text} px-10 py-3 text-center text-xs md:text-sm font-semibold shadow-sm">
+        <button
+          type="button"
+          id="app-licencia-alerta-close"
+          aria-label="Cerrar alerta"
+          class="absolute right-2 top-2 h-7 w-7 rounded-full ${tone.close} transition flex items-center justify-center"
+        >
+          <i class="fas fa-xmark"></i>
+        </button>
+        <div class="flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3">
+          <div>
+            <i class="fas fa-triangle-exclamation mr-2"></i>
+            <span class="font-black mr-1">${ctx.titulo}:</span>${ctx.mensaje}
+          </div>
+          <button
+            type="button"
+            id="app-licencia-alerta-go-plan"
+            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg ${tone.btn} text-white text-[11px] md:text-xs font-bold transition"
+          >
+            <i class="fas fa-arrow-right"></i>
+            Ir a planes y pagos
+          </button>
+        </div>
+        </div>
+      </div>
+    `;
+
+    if (nav && nav.parentNode) {
+      nav.insertAdjacentElement('afterend', alert);
+    } else {
+      document.body.insertAdjacentElement('afterbegin', alert);
+    }
+
+    const closeBtn = document.getElementById('app-licencia-alerta-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        dismissLicenciaAlert(dismissKey);
+        try { alert.remove(); } catch { }
+      });
+    }
+
+    const goPlanBtn = document.getElementById('app-licencia-alerta-go-plan');
+    if (goPlanBtn) {
+      goPlanBtn.addEventListener('click', () => {
+        window.location.href = '/ajustes#aj-sec-plan';
+      });
+    }
   }
 
   function applyRoleGuards(u) {
@@ -232,6 +448,7 @@ import { apiFetchJson } from './app-api.js';
         if (!applyRoleGuards(u)) return;
         mostrarModalTrial(u);
         actualizarPillSesion(u);
+        mostrarAlertaSuspensionPago(u);
       })
       .catch(() => redirectLogin());
   } else {
@@ -240,6 +457,7 @@ import { apiFetchJson } from './app-api.js';
         if (!applyRoleGuards(u)) return;
         mostrarModalTrial(u);
         actualizarPillSesion(u);
+        mostrarAlertaSuspensionPago(u);
       })
       .catch(() => redirectLogin());
   }

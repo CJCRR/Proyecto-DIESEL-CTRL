@@ -116,8 +116,9 @@ router.post('/login', loginLimiter, (req, res) => {
     }
 
     // Verificación de licencia/estado de empresa (solo usuarios de empresa, no superadmin global)
+    let empresaEstadoSesion = usuario.empresa_estado || (empresa && empresa.estado) || null;
     if (usuario.rol !== 'superadmin' && usuario.empresa_id) {
-      const estadoEmpresa = usuario.empresa_estado || (empresa && empresa.estado) || 'activa';
+      const estadoEmpresa = empresaEstadoSesion || 'activa';
       const diasGracia = usuario.empresa_dias_gracia ?? (empresa && empresa.dias_gracia);
       const proximoCobro = usuario.empresa_proximo_cobro || (empresa && empresa.proximo_cobro) || null;
 
@@ -134,7 +135,7 @@ router.post('/login', loginLimiter, (req, res) => {
             logger.warn('No se pudo actualizar estado de empresa a suspendida:', e.message);
           }
         }
-        return res.status(403).json({ error: 'La cuenta de la empresa está suspendida. Contacte al administrador del sistema.' });
+        empresaEstadoSesion = 'suspendida';
       }
     }
 
@@ -242,9 +243,11 @@ router.post('/login', loginLimiter, (req, res) => {
       rol: usuario.rol,
       empresa_id: usuario.empresa_id || null,
       empresa_codigo: usuario.empresa_codigo || null,
-      empresa_estado: usuario.empresa_estado || null,
-       empresa_plan: usuario.empresa_plan || null,
-       empresa_trial: empresaTrialInfo,
+      empresa_estado: empresaEstadoSesion,
+      empresa_proximo_cobro: usuario.empresa_proximo_cobro || null,
+      empresa_dias_gracia: (usuario.empresa_dias_gracia != null ? Number(usuario.empresa_dias_gracia) : null),
+      empresa_plan: usuario.empresa_plan || null,
+      empresa_trial: empresaTrialInfo,
       must_change_password: !!usuario.must_change_password,
       twofa_enabled: !!usuario.twofa_enabled
     };
@@ -304,6 +307,25 @@ router.get('/verificar', (req, res) => {
   if (jwtToken) {
     const user = verifyJwt(jwtToken);
     if (user) {
+      const missingLicenciaData = user.empresa_id && (user.empresa_proximo_cobro === undefined || user.empresa_dias_gracia === undefined);
+      if (missingLicenciaData) {
+        try {
+          const empresaRow = db.prepare('SELECT codigo, estado, proximo_cobro, dias_gracia FROM empresas WHERE id = ?').get(user.empresa_id);
+          if (empresaRow) {
+            const enriched = {
+              ...user,
+              empresa_codigo: user.empresa_codigo || empresaRow.codigo || null,
+              empresa_estado: user.empresa_estado || empresaRow.estado || null,
+              empresa_proximo_cobro: empresaRow.proximo_cobro || null,
+              empresa_dias_gracia: empresaRow.dias_gracia != null ? Number(empresaRow.dias_gracia) : null,
+            };
+            return res.json({ valido: true, usuario: enriched, via: 'jwt' });
+          }
+        } catch (err) {
+          const logger = require('../services/logger');
+          logger.warn('No se pudo enriquecer payload JWT con datos de licencia', { message: err.message });
+        }
+      }
       return res.json({ valido: true, usuario: user, via: 'jwt' });
     }
   }
@@ -315,7 +337,8 @@ router.get('/verificar', (req, res) => {
   try {
     const sesion = db.prepare(`
         SELECT s.*, u.username, u.nombre_completo, u.rol, u.must_change_password, u.twofa_enabled,
-          u.empresa_id, e.codigo AS empresa_codigo, e.estado AS empresa_estado
+          u.empresa_id, e.codigo AS empresa_codigo, e.estado AS empresa_estado,
+          e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia
       FROM sesiones s
       JOIN usuarios u ON u.id = s.usuario_id
       LEFT JOIN empresas e ON e.id = u.empresa_id
@@ -334,6 +357,8 @@ router.get('/verificar', (req, res) => {
         empresa_id: sesion.empresa_id || null,
         empresa_codigo: sesion.empresa_codigo || null,
         empresa_estado: sesion.empresa_estado || null,
+        empresa_proximo_cobro: sesion.empresa_proximo_cobro || null,
+        empresa_dias_gracia: (sesion.empresa_dias_gracia != null ? Number(sesion.empresa_dias_gracia) : null),
         must_change_password: !!sesion.must_change_password,
         twofa_enabled: !!sesion.twofa_enabled
       },

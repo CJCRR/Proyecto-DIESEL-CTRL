@@ -866,6 +866,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const cantidadInput = document.getElementById('v_cantidad');
+    if (cantidadInput) {
+        cantidadInput.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            agregarAlCarrito();
+        });
+    }
+
     setModoDevolucion(false);
     cargarVentasRecientes();
 

@@ -34,12 +34,25 @@ function formatFechaCorta(iso) {
     }
 }
 
+function parseFechaLocal(iso) {
+    if (!iso) return null;
+    const simpleMatch = /^\d{4}-\d{2}-\d{2}$/.test(String(iso));
+    const d = simpleMatch
+        ? (() => {
+            const [y, m, day] = String(iso).split('-').map(Number);
+            return new Date(y, m - 1, day);
+        })()
+        : new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
 function diasHasta(iso) {
     if (!iso) return null;
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return null;
+    const d = parseFechaLocal(iso);
+    if (!d) return null;
     const hoy = new Date();
-    d.setHours(0, 0, 0, 0);
     hoy.setHours(0, 0, 0, 0);
     const diffMs = d.getTime() - hoy.getTime();
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
@@ -50,7 +63,11 @@ function renderTiers(list = []) {
     const cont = document.getElementById('tiers');
     if (!cont) return;
     cont.innerHTML = '';
-    const tiers = list.length ? list : [{ min_qty: 10, descuento_pct: 5 }];
+    const tiers = Array.isArray(list) ? list : [];
+    if (!tiers.length) {
+        cont.innerHTML = '<div class="text-xs text-slate-400 italic">No hay tramos configurados. Usa "Añadir tramo" para crear uno.</div>';
+        return;
+    }
     tiers.forEach((t, idx) => {
         const row = document.createElement('div');
         row.className = 'grid grid-cols-5 gap-2 items-center text-sm border p-2 rounded-xl';
@@ -390,7 +407,7 @@ async function saveConfig(section) {
         const payload = readForms();
         // Mantener datos previos por si alguna sección no se usa
         payload.empresa = { ...configCache.empresa, ...payload.empresa };
-        payload.descuentos_volumen = payload.descuentos_volumen.length ? payload.descuentos_volumen : configCache.descuentos_volumen || [];
+        payload.descuentos_volumen = Array.isArray(payload.descuentos_volumen) ? payload.descuentos_volumen : [];
         payload.devolucion = { ...configCache.devolucion, ...payload.devolucion };
         payload.nota = { ...configCache.nota, ...payload.nota };
 
@@ -428,12 +445,36 @@ function setupUI() {
             });
         };
 
+        const activateFromHash = () => {
+            const rawHash = (window.location.hash || '').trim();
+            if (!rawHash || rawHash === '#') return false;
+            const targetId = rawHash.replace(/^#/, '');
+            const target = document.getElementById(targetId);
+            if (!target) return false;
+
+            const sectionKey = target.dataset && target.dataset.ajSection ? target.dataset.ajSection : null;
+            if (sectionKey) {
+                activate(sectionKey);
+                setTimeout(() => {
+                    try {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } catch {
+                        target.scrollIntoView();
+                    }
+                }, 20);
+                return true;
+            }
+            return false;
+        };
+
         tabs.forEach((tab) => {
             tab.addEventListener('click', () => activate(tab.dataset.ajTab));
         });
 
         const initial = document.querySelector('[data-aj-tab].aj-tab-default');
         activate(initial ? initial.dataset.ajTab : tabs[0].dataset.ajTab);
+        activateFromHash();
+        window.addEventListener('hashchange', activateFromHash);
     }
 
     document.getElementById('btnAddTier')?.addEventListener('click', () => {

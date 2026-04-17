@@ -18,6 +18,21 @@ function safeStr(v, max) {
   return String(v).trim().slice(0, max);
 }
 
+function parseFechaLocal(iso) {
+  if (!iso) return null;
+  const raw = String(iso).trim();
+  const simpleMatch = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+  const d = simpleMatch
+    ? (() => {
+        const [y, m, day] = raw.split('-').map(Number);
+        return new Date(y, m - 1, day);
+      })()
+    : new Date(raw);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 /**
  * Aplica un ajuste de stock puntual sobre un producto identificado por código.
  * Registra el movimiento en `ajustes_stock` y genera una alerta cuando el
@@ -319,8 +334,8 @@ function actualizarEstadoPagoLicencia(empresaId, pagoId, nuevoEstado, opciones =
           ? Number(meses_pagados)
           : 1;
         const fechaPago = pago.fecha || new Date().toISOString();
-        const baseDate = new Date(fechaPago);
-        if (!Number.isNaN(baseDate.getTime())) {
+        const baseDate = parseFechaLocal(fechaPago);
+        if (baseDate) {
           const proximo = new Date(baseDate.getTime());
           proximo.setMonth(proximo.getMonth() + meses);
           const y = proximo.getFullYear();

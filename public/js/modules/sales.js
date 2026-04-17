@@ -17,6 +17,15 @@ import { enviarVentaASync } from '../sync-client.js';
 
 let vendiendo = false;
 
+function empresaSuspendidaPorPago() {
+	try {
+		const user = window.Auth ? window.Auth.getUser() : JSON.parse(localStorage.getItem('auth_user') || 'null');
+		return !!(user && user.empresa_estado === 'suspendida');
+	} catch {
+		return false;
+	}
+}
+
 // --- GENERADOR DE ID GLOBAL (VEN-YYYY-MM-DD-UUID) ---
 function generarIDVenta() {
 	const fecha = new Date().toISOString().split('T')[0];
@@ -201,6 +210,10 @@ async function imprimirNotaLocal(venta) {
 export async function registrarVenta() {
 	if (modoDevolucion) {
 		await registrarDevolucion();
+		return;
+	}
+	if (empresaSuspendidaPorPago()) {
+		showToast('Tu empresa está suspendida por pago. Puedes ingresar al sistema, pero no registrar ventas hasta regularizar el plan.', 'error', 6000);
 		return;
 	}
 	if (vendiendo || carrito.length === 0) return;

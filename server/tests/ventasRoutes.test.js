@@ -100,4 +100,25 @@ describe('Rutas HTTP /ventas', () => {
     expect(res.status).toBe(403);
     expect(res.body).toHaveProperty('error');
   });
+
+  test('POST /ventas bloquea registro cuando la empresa está suspendida por pago', async () => {
+    const empresaId = 1;
+    const { token } = createTestUserAndToken({ empresaId });
+    const app = buildApp();
+
+    db.prepare("UPDATE empresas SET estado = 'suspendida' WHERE id = ?").run(empresaId);
+
+    const res = await request(app)
+      .post('/ventas')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        items: [{ codigo: 'NO-IMPORTA', cantidad: 1 }],
+        cliente: 'Cliente bloqueado',
+        tasa_bcv: 10,
+        metodo_pago: 'EFECTIVO',
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toHaveProperty('code', 'LICENCIA_SUSPENDIDA');
+  });
 });

@@ -174,6 +174,20 @@ function formatFechaCortaLocal(iso) {
   }
 }
 
+function parseFechaLocal(iso) {
+  if (!iso) return null;
+  const simpleMatch = /^\d{4}-\d{2}-\d{2}$/.test(String(iso));
+  const d = simpleMatch
+    ? (() => {
+        const [y, m, day] = String(iso).split('-').map(Number);
+        return new Date(y, m - 1, day);
+      })()
+    : new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function calcularEstadoLicencia(empresa) {
   const estadoBase = empresa.estado || 'activa';
 
@@ -184,8 +198,9 @@ function calcularEstadoLicencia(empresa) {
   if (!empresa.proximo_cobro) return estadoBase;
 
   const hoy = new Date();
-  const fechaCobro = new Date(empresa.proximo_cobro);
-  if (Number.isNaN(fechaCobro.getTime())) return estadoBase;
+  hoy.setHours(0, 0, 0, 0);
+  const fechaCobro = parseFechaLocal(empresa.proximo_cobro);
+  if (!fechaCobro) return estadoBase;
 
   const diasGracia = Number.isFinite(Number(empresa.dias_gracia)) ? Number(empresa.dias_gracia) : 0;
   const limiteGracia = addDays(fechaCobro, diasGracia);
@@ -216,8 +231,8 @@ function renderEmpresas() {
     const planBase = (e.plan || '—') + (e.monto_mensual ? ` / $${formatNumber(e.monto_mensual, 2)}` : '');
     const planTexto = esTrial ? `${planBase} · TRIAL` : planBase;
     const textoGracia = `${e.dias_gracia || 0} días de gracia`;
-    const proximo = e.proximo_cobro ? new Date(e.proximo_cobro).toLocaleDateString() : '—';
-    const ultimoPago = e.ultimo_pago_en ? new Date(e.ultimo_pago_en).toLocaleDateString() : '—';
+    const proximo = e.proximo_cobro ? formatFechaCortaLocal(e.proximo_cobro) : '—';
+    const ultimoPago = e.ultimo_pago_en ? formatFechaCortaLocal(e.ultimo_pago_en) : '—';
 
     let rowClasses = 'hover:bg-slate-50 transition';
     if (estadoLicencia === 'morosa') rowClasses += ' bg-amber-50';
@@ -494,8 +509,8 @@ window.__registrarPago = function (id) {
     const fechaDefault = formatDateInput(hoy);
     const fechaPagoStr = window.prompt('Fecha del pago (YYYY-MM-DD):', fechaDefault);
     if (fechaPagoStr === null) return;
-    const fechaPago = new Date(fechaPagoStr);
-    if (Number.isNaN(fechaPago.getTime())) {
+    const fechaPago = parseFechaLocal(fechaPagoStr);
+    if (!fechaPago) {
       if (window.showToast) window.showToast('Fecha de pago inválida.', 'error'); else alert('Fecha de pago inválida.');
       return;
     }
@@ -793,8 +808,8 @@ if (formPago && modalPago) {
       rpFecha.focus();
       return;
     }
-    const fechaPago = new Date(fechaStr);
-    if (Number.isNaN(fechaPago.getTime())) {
+    const fechaPago = parseFechaLocal(fechaStr);
+    if (!fechaPago) {
       if (window.showToast) window.showToast('Fecha de pago inválida.', 'error'); else alert('Fecha de pago inválida.');
       rpFecha.focus();
       return;
