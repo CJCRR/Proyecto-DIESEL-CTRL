@@ -1,4 +1,4 @@
-import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc } from '../config/firebase-config.js';
+import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc } from '../config/firebase-config.sample.js';
 import { apiFetchJson } from './app-api.js';
 import { abrirIndexedDB, obtenerVentasPendientes, marcarComoSincronizada } from './db-local.js';
 
