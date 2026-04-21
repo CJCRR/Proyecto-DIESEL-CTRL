@@ -16,7 +16,6 @@ const urlsToCache = [
     '/js/auth-guard.js',
     '/js/firebase-sync.js',
     '/js/presupuestos.js',
-    '/config/firebase-config.js',
     '/shared/nota-template.js'
 ];
 

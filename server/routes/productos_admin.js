@@ -1077,15 +1077,11 @@ router.delete('/:codigo', requireAuth, requireRole('admin'), (req, res) => {
         const ventasAsociadas = db.prepare('SELECT COUNT(*) AS c FROM venta_detalle WHERE producto_id = ?').get(prod.id);
         const devAsociadas = db.prepare('SELECT COUNT(*) AS c FROM devolucion_detalle WHERE producto_id = ?').get(prod.id);
         const comprasAsociadas = db.prepare('SELECT COUNT(*) AS c FROM compra_detalle WHERE producto_id = ?').get(prod.id);
-        const ajustesAsociados = db.prepare('SELECT COUNT(*) AS c FROM ajustes_stock WHERE producto_id = ?').get(prod.id);
-        const movsAsociados = db.prepare('SELECT COUNT(*) AS c FROM movimientos_deposito WHERE producto_id = ?').get(prod.id);
 
         const tieneHistorial =
             (ventasAsociadas && ventasAsociadas.c > 0) ||
             (devAsociadas && devAsociadas.c > 0) ||
-            (comprasAsociadas && comprasAsociadas.c > 0) ||
-            (ajustesAsociados && ajustesAsociados.c > 0) ||
-            (movsAsociados && movsAsociados.c > 0);
+            (comprasAsociadas && comprasAsociadas.c > 0);
 
         if (tieneHistorial) {
             // Borrado lógico: mantener historial pero ocultar el producto del inventario y dejar stock en 0

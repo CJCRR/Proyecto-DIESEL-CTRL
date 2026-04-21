@@ -378,7 +378,7 @@ async function cargarAjustes() {
 async function cargarMovimientosDeposito() {
     if (!movList) return;
     try {
-        const res = await fetch('/depositos/movimientos?limit=20', { credentials: 'same-origin' });
+        const res = await fetch('/api/depositos/movimientos?limit=20', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Error movimientos');
         const rows = await res.json();
         if (!rows.length) {
@@ -670,7 +670,7 @@ function renderList(items) {
                 if (!movList) return;
                 movList.innerHTML = '<div class="p-2 text-slate-400">Cargando movimientos...</div>';
                 try {
-                    const res = await fetch('/depositos/movimientos?limit=20&codigo=' + encodeURIComponent(p.codigo), { credentials: 'same-origin' });
+                    const res = await fetch('/api/depositos/movimientos?limit=20&codigo=' + encodeURIComponent(p.codigo), { credentials: 'same-origin' });
                     if (!res.ok) throw new Error('Error movimientos');
                     const rows = await res.json();
                     if (!rows.length) {
@@ -732,8 +732,21 @@ if (btnMobileFiltros && filtrosInventario) {
 
 // Import / Export CSV handlers
 const csvFile = document.getElementById('csvFile');
+const btnSelectCsv = document.getElementById('btnSelectCsv');
+const csvFileName = document.getElementById('csvFileName');
 const btnImportCsv = document.getElementById('btnImportCsv');
 const btnExportCsv = document.getElementById('btnExportCsv');
+
+if (btnSelectCsv) {
+    btnSelectCsv.addEventListener('click', () => csvFile && csvFile.click());
+}
+if (csvFile && csvFileName) {
+    csvFile.addEventListener('change', () => {
+        csvFileName.textContent = csvFile.files && csvFile.files[0]
+            ? csvFile.files[0].name
+            : 'Sin archivos seleccionados';
+    });
+}
 
 btnExportCsv.addEventListener('click', async () => {
     try {
@@ -901,7 +914,7 @@ btnImportCsv.addEventListener('click', async () => {
 
                         for (const codigo of codigos) {
                             try {
-                                const prodRes = await fetch('/productos/' + encodeURIComponent(codigo), {
+                                const prodRes = await fetch('/api/productos/' + encodeURIComponent(codigo), {
                                     credentials: 'same-origin'
                                 });
                                 if (!prodRes.ok) continue;
@@ -1192,7 +1205,7 @@ function setEditorVisible(visible) {
         if (!productosSection.classList.contains('lg:col-span-2')) {
             productosSection.classList.add('lg:col-span-2');
         }
-        if (toggleEditorBtn) toggleEditorBtn.textContent = '>';
+        if (toggleEditorBtn) toggleEditorBtn.innerHTML = '<i class="fas fa-chevron-right text-[11px]"></i>';
     } else {
         panelEditor.classList.add('inv-editor-collapsed');
         panelEditor.classList.add('hidden');
@@ -1200,7 +1213,7 @@ function setEditorVisible(visible) {
         if (!productosSection.classList.contains('lg:col-span-3')) {
             productosSection.classList.add('lg:col-span-3');
         }
-        if (toggleEditorBtn) toggleEditorBtn.textContent = '<';
+        if (toggleEditorBtn) toggleEditorBtn.innerHTML = '<i class="fas fa-chevron-left text-[11px]"></i>';
     }
 }
 
@@ -1230,7 +1243,7 @@ cargarAjustes();
 async function cargarDepositos() {
     if (!f_deposito && !filterDeposito && !movDepDestino) return;
     try {
-        const res = await fetch('/depositos?soloActivos=1', { credentials: 'same-origin' });
+        const res = await fetch('/api/depositos?soloActivos=1', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Error depósitos');
         const items = await res.json();
         if (f_deposito) {
@@ -1315,7 +1328,7 @@ async function cargarStockMarcaEditor(codigo) {
     }
     stockMarcaEditorEl.innerHTML = '<div class="text-[11px] text-slate-400">Cargando desglose...</div>';
     try {
-        const res = await fetch('/productos/' + encodeURIComponent(codigo), { credentials: 'same-origin' });
+        const res = await fetch('/api/productos/' + encodeURIComponent(codigo), { credentials: 'same-origin' });
         if (!res.ok) throw new Error('No se pudo cargar el producto');
         const prod = await res.json();
         const existencias = Array.isArray(prod.existencias_por_deposito) ? prod.existencias_por_deposito : [];
@@ -1568,7 +1581,7 @@ async function cargarProductoParaMovimiento() {
         return;
     }
     try {
-        const res = await fetch(`/productos/${encodeURIComponent(codigo)}`, { credentials: 'same-origin' });
+        const res = await fetch(`/api/productos/${encodeURIComponent(codigo)}`, { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Producto no encontrado');
         const p = await res.json();
         const descUpper = (p.descripcion || '').toString().toUpperCase();
@@ -1661,7 +1674,7 @@ async function ejecutarMovimientoDeposito() {
         if (!Number.isNaN(origenId)) {
             payload.deposito_origen_id = origenId;
         }
-        const res = await fetch('/depositos/mover', {
+        const res = await fetch('/api/depositos/mover', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },

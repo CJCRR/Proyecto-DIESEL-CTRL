@@ -72,7 +72,7 @@
   <main class="flex-1 container mx-auto p-6 max-w-6xl">
     <div id="usuarios-header" class="flex justify-between items-center mb-6">
       <div>
-        <h2 class="text-2xl font-bold text-slate-800">Gestión de Usuarios</h2>
+        <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest">Gestión de Usuarios</h2>
         <p class="text-[11px] text-slate-500">Aquí creas, editas y controlas los usuarios que usan el sistema.</p>
       </div>
       <div class="flex items-center gap-2">
@@ -82,7 +82,7 @@
           <span>Guía rápida de usuarios</span>
         </button>
         <button id="btn-nuevo-usuario"
-          class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm">
+          class="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition flex items-center gap-2 text-sm">
           <i class="fas fa-user-plus"></i>
           <span>Nuevo usuario</span>
         </button>
@@ -92,7 +92,7 @@
     <!-- Lista de usuarios -->
     <div id="usuarios-lista" class="bg-white rounded-2xl shadow-sm border overflow-hidden">
       <table class="w-full">
-        <thead class="bg-slate-100 text-slate-600 text-sm uppercase">
+        <thead class="bg-slate-100 text-slate-600 text-[11px] uppercase">
           <tr>
             <th class="p-4 text-left">Usuario</th>
             <th class="p-4 text-left">Nombre Completo</th>
@@ -129,7 +129,7 @@
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1">Username *</label>
           <input type="text" id="usuario-username"
-            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ej: jperez"
+            class="w-full p-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ej: jperez"
             required minlength="3">
           <p class="text-xs text-slate-500 mt-1">Mínimo 3 caracteres</p>
         </div>
@@ -137,7 +137,7 @@
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1">Contraseña *</label>
           <input type="password" id="usuario-password"
-            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="••••••"
+            class="w-full p-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="••••••"
             required minlength="6">
           <p class="text-xs text-slate-500 mt-1" id="password-hint">Mínimo 6 caracteres</p>
         </div>
@@ -145,21 +145,21 @@
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1">Nombre Completo</label>
           <input type="text" id="usuario-nombre"
-            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            class="w-full p-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
             placeholder="Ej: Juan Pérez">
         </div>
 
         <div id="usuario-email-group" class="hidden">
           <label class="block text-sm font-semibold text-slate-700 mb-1">Correo del administrador principal</label>
           <input type="email" id="usuario-email"
-            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            class="w-full p-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
             placeholder="admin@empresa.com">
           <p class="text-xs text-slate-500 mt-1">Se usará para recuperar la contraseña del administrador principal.</p>
         </div>
 
         <div id="usuario-rol-group">
           <label class="block text-sm font-semibold text-slate-700 mb-1">Rol *</label>
-          <select id="usuario-rol" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          <select id="usuario-rol" class="w-full p-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
             required>
             <option value="vendedor">Vendedor</option>
             <option value="admin">Administrador</option>
@@ -175,7 +175,7 @@
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1">Comisión sobre ventas (%)</label>
           <input type="number" id="usuario-comision" min="0" max="100" step="0.01"
-            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            class="w-full p-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
             placeholder="Ej: 5 para 5%">
           <p class="text-xs text-slate-500 mt-1">Porcentaje de comisión que ganará este usuario sobre el monto de sus ventas.
             Déjalo en 0 si no aplica comisión.</p>
@@ -183,12 +183,12 @@
 
         <div id="usuario-form-actions" class="flex gap-3 pt-4">
           <button type="submit"
-            class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-semibold">
+            class="flex-1 bg-blue-600 text-white py-2 rounded-xl hover:bg-blue-700 transition font-semibold">
             <i class="fas fa-save mr-2"></i>
             Guardar
           </button>
           <button type="button" id="btn-cancelar"
-            class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg hover:bg-slate-300 transition font-semibold">
+            class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-xl hover:bg-slate-300 transition font-semibold">
             Cancelar
           </button>
         </div>

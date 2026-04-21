@@ -4,7 +4,7 @@ node_modules/
 .env.*
 
 # Config Firebase (no subir claves reales)
-public/firebase-config.js
+public/config/firebase-config.js
 service-account.json
 
 # Backups/artefactos locales

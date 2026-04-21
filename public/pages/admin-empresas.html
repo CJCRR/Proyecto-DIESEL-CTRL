@@ -55,7 +55,7 @@
         <p id="drawer-app-name" class="text-lg font-black text-slate-800">Nexa CTRL</p>
       </div>
       <button id="drawer-close"
-        class="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition">
+        class="h-9 w-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition">
         <i class="fas fa-xmark text-slate-500"></i>
       </button>
     </div>
@@ -69,25 +69,25 @@
   <main class="flex-1 container mx-auto p-6 max-w-6xl">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
-        <h2 class="text-2xl font-bold text-slate-800">Empresas / Licencias</h2>
+        <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest">Empresas / Licencias</h2>
         <p class="text-sm text-slate-500 mt-1">Panel solo para superadmin. Administre estados de licencia y ciclo de facturación.</p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
-        <select id="filtro-estado" class="border rounded-lg px-3 py-2 text-sm">
+        <select id="filtro-estado" class="border rounded-xl px-3 py-2 text-sm">
           <option value="">Todos los estados</option>
           <option value="activa">Activa</option>
           <option value="morosa">Morosa</option>
           <option value="suspendida">Suspendida</option>
         </select>
         <input id="busqueda" type="text" placeholder="Buscar por nombre o código"
-          class="border rounded-lg px-3 py-2 text-sm w-48">
+          class="border rounded-xl px-3 py-2 text-sm w-48">
         <button id="btn-buscar"
-          class="bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition text-sm flex items-center gap-2">
+          class="bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-800 transition text-sm flex items-center gap-2">
           <i class="fas fa-search"></i>
           Buscar
         </button>
         <button id="btn-nueva-empresa"
-          class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-500 transition text-sm flex items-center gap-2">
+          class="bg-emerald-600 text-white px-4 py-2 rounded-xl hover:bg-emerald-500 transition text-sm flex items-center gap-2">
           <i class="fas fa-plus"></i>
           Nueva empresa
         </button>
@@ -125,36 +125,36 @@
       <form id="form-nueva-empresa" class="space-y-3">
         <div>
           <label class="text-xs font-semibold text-slate-600">Nombre</label>
-          <input id="ne-nombre" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" required />
+          <input id="ne-nombre" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" required />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label class="text-xs font-semibold text-slate-600">RIF / CI</label>
-            <input id="ne-rif" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="J-00000000-0" />
+            <input id="ne-rif" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" placeholder="J-00000000-0" />
           </div>
           <div>
             <label class="text-xs font-semibold text-slate-600">Teléfono</label>
-            <input id="ne-telefono" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="0414-0000000" />
+            <input id="ne-telefono" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" placeholder="0414-0000000" />
           </div>
         </div>
         <div>
           <label class="text-xs font-semibold text-slate-600">Dirección</label>
-          <textarea id="ne-direccion" rows="2" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></textarea>
+          <textarea id="ne-direccion" rows="2" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm"></textarea>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label class="text-xs font-semibold text-slate-600">Plan</label>
-            <input id="ne-plan" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="Mensual" />
+            <input id="ne-plan" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" placeholder="Mensual" />
           </div>
           <div>
             <label class="text-xs font-semibold text-slate-600">Monto mensual (USD)</label>
-            <input id="ne-monto" type="number" min="0" step="0.01" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" value="0" />
+            <input id="ne-monto" type="number" min="0" step="0.01" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" value="0" />
           </div>
         </div>
         <p class="text-[11px] text-slate-400">El código interno para login se generará automáticamente a partir del RIF o del nombre.</p>
         <div class="flex justify-end gap-2 mt-4">
-          <button type="button" id="ne-cancelar" class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cancelar</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Crear empresa</button>
+          <button type="button" id="ne-cancelar" class="px-4 py-2 rounded-xl border text-sm text-slate-700">Cancelar</button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Crear empresa</button>
         </div>
       </form>
     </div>
@@ -169,20 +169,20 @@
       <form id="form-admin-empresa" class="space-y-3">
         <div>
           <label class="text-xs font-semibold text-slate-600">Username</label>
-          <input id="ua-username" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" required minlength="3" />
+          <input id="ua-username" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" required minlength="3" />
         </div>
         <div>
           <label class="text-xs font-semibold text-slate-600">Contraseña</label>
-          <input id="ua-password" type="password" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" required minlength="6" />
+          <input id="ua-password" type="password" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" required minlength="6" />
           <p class="text-[11px] text-slate-400 mt-1">Mínimo 6 caracteres.</p>
         </div>
         <div>
           <label class="text-xs font-semibold text-slate-600">Nombre completo</label>
-          <input id="ua-nombre" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="Opcional" />
+          <input id="ua-nombre" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" placeholder="Opcional" />
         </div>
         <div class="flex justify-end gap-2 mt-4">
-          <button type="button" id="ua-cancelar" class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cancelar</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold">Crear usuario</button>
+          <button type="button" id="ua-cancelar" class="px-4 py-2 rounded-xl border text-sm text-slate-700">Cancelar</button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold">Crear usuario</button>
         </div>
       </form>
     </div>
@@ -195,8 +195,8 @@
       <h3 id="mc-title" class="text-lg font-bold mb-2">Confirmar acción</h3>
       <p id="mc-message" class="text-sm text-slate-600 mb-4"></p>
       <div class="flex justify-end gap-2 mt-4">
-        <button type="button" id="mc-cancelar" class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cancelar</button>
-        <button type="button" id="mc-confirmar" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold">Confirmar</button>
+        <button type="button" id="mc-cancelar" class="px-4 py-2 rounded-xl border text-sm text-slate-700">Cancelar</button>
+        <button type="button" id="mc-confirmar" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold">Confirmar</button>
       </div>
     </div>
   </div>
@@ -209,16 +209,16 @@
       <form id="form-plan-empresa" class="space-y-3">
         <div>
           <label class="text-xs font-semibold text-slate-600">Plan</label>
-          <input id="mp-plan" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="Mensual, Pro, Multi-sucursal" />
+          <input id="mp-plan" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" placeholder="Mensual, Pro, Multi-sucursal" />
         </div>
         <div>
           <label class="text-xs font-semibold text-slate-600">Monto mensual (USD)</label>
-          <input id="mp-monto" type="number" min="0" step="0.01" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+          <input id="mp-monto" type="number" min="0" step="0.01" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" />
         </div>
         <p class="text-[11px] text-slate-400">Use 0 si desea dejar el monto como referencia interna.</p>
         <div class="flex justify-end gap-2 mt-4">
-          <button type="button" id="mp-cancelar" class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cancelar</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold">Guardar cambios</button>
+          <button type="button" id="mp-cancelar" class="px-4 py-2 rounded-xl border text-sm text-slate-700">Cancelar</button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold">Guardar cambios</button>
         </div>
       </form>
     </div>
@@ -232,16 +232,16 @@
       <form id="form-pago-empresa" class="space-y-3">
         <div>
           <label class="text-xs font-semibold text-slate-600">Fecha del pago</label>
-          <input id="rp-fecha" type="date" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+          <input id="rp-fecha" type="date" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" />
         </div>
         <div>
           <label class="text-xs font-semibold text-slate-600">Meses pagados</label>
-          <input id="rp-meses" type="number" min="1" max="24" step="1" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+          <input id="rp-meses" type="number" min="1" max="24" step="1" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" />
           <p class="text-[11px] text-slate-400 mt-1">Ej: 1 = mensual, 3 = trimestral, 12 = anual. Máximo 24 meses.</p>
         </div>
         <div class="flex justify-end gap-2 mt-4">
-          <button type="button" id="rp-cancelar" class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cancelar</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold">Registrar pago</button>
+          <button type="button" id="rp-cancelar" class="px-4 py-2 rounded-xl border text-sm text-slate-700">Cancelar</button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold">Registrar pago</button>
         </div>
       </form>
     </div>
@@ -257,7 +257,7 @@
         <div class="py-2 text-slate-400">Cargando pagos...</div>
       </div>
       <div class="flex justify-end gap-2 mt-4">
-        <button type="button" id="pl-cerrar" class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cerrar</button>
+        <button type="button" id="pl-cerrar" class="px-4 py-2 rounded-xl border text-sm text-slate-700">Cerrar</button>
       </div>
     </div>
   </div>
@@ -270,12 +270,12 @@
       <form id="form-ciclo-empresa" class="space-y-3">
         <div>
           <label class="text-xs font-semibold text-slate-600">Días de gracia (0-60)</label>
-          <input id="ec-gracia" type="number" min="0" max="60" step="1" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" />
+          <input id="ec-gracia" type="number" min="0" max="60" step="1" class="w-full mt-1 px-3 py-2 border rounded-xl text-sm" />
         </div>
         <p class="text-[11px] text-slate-400 mt-1">El estado morosa/suspendida se calcula en base al próximo cobro y los días de gracia.</p>
         <div class="flex justify-end gap-2 mt-4">
-          <button type="button" id="ec-cancelar" class="px-4 py-2 rounded-lg border text-sm text-slate-700">Cancelar</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">Guardar cambios</button>
+          <button type="button" id="ec-cancelar" class="px-4 py-2 rounded-xl border text-sm text-slate-700">Cancelar</button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">Guardar cambios</button>
         </div>
       </form>
     </div>

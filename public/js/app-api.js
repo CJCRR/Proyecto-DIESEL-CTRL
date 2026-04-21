@@ -17,9 +17,10 @@ export async function apiFetchJson(url, options = {}) {
         if (!res.ok) {
             const baseMsg = (data && data.error) ? data.error : (typeof data === 'string' && data) ? data : `HTTP ${res.status}`;
             const err = new Error(baseMsg);
-            if (data && typeof data === 'object' && data.code) {
-                err.code = data.code;
-            }
+            // Exponer siempre el código de error del backend para que el frontend
+            // pueda mostrar mensajes específicos según el tipo de error
+            err.code = (data && typeof data === 'object' && data.code) ? data.code : `HTTP_${res.status}`;
+            err.status = res.status;
             throw err;
         }
         return data;

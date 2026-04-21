@@ -1,5 +1,5 @@
 {
-  "name": "diesel-ctrl-pos",
+  "name": "nexa-ctrl",
   "version": "1.0.0",
   "description": "Sistema de Punto de Venta para Repuestos Diesel",
   "main": "server/server.js",

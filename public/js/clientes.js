@@ -57,7 +57,7 @@ async function cargarHistorial() {
         return;
     }
     try {
-        const rows = await apiFetchJson(`/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=20`);
+        const rows = await apiFetchJson(`/api/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=20`);
         body.innerHTML = rows
             .map(
                 (r) => `<tr><td class=\"p-2\">${new Date(r.fecha).toLocaleString()}</td><td class=\"p-2\">${r.vendedor || ''}</td><td class=\"p-2 text-right\">${formatNumber(r.total_usd || 0, 2)}</td></tr>`,

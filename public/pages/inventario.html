@@ -15,7 +15,7 @@
 <body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
     <main class="flex-1 container mx-auto p-6">
         <div id="inventario-layout" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <section id="productos-section" class="lg:col-span-2 bg-white p-4 rounded shadow">
+            <section id="productos-section" class="lg:col-span-2 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                 <div class="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-4">
                     <div class="flex items-center justify-between gap-2">
                         <h2 class="font-black">Productos</h2>
@@ -31,7 +31,7 @@
                         <span>Guía rápida de inventario</span>
                     </button>
                     <div id="filtros-inventario" class="hidden flex-wrap gap-2 items-center sm:flex sm:justify-end">
-                        <input id="q" placeholder="Buscar..." class="p-2 border rounded w-45" />
+                        <input id="q" placeholder="Buscar..." class="p-2 border rounded-xl text-sm w-45" />
                         <select id="pageSize" class="select-pos text-sm w-20">
                             <option value="15" selected>15</option>
                             <option value="25">25</option>
@@ -60,8 +60,8 @@
                             <option value="sin_stock_def">Solo sin stock definido</option>
                         </select>-->
                         <button id="toggle-editor" type="button"
-                            class="p-2 border rounded text-xs text-slate-600 hover:bg-slate-100 shrink-0">
-                            >
+                            class="inline-flex items-center justify-center w-8 h-8 border rounded-xl text-slate-600 hover:bg-slate-100 transition shrink-0">
+                            <i class="fas fa-chevron-right text-[11px]"></i>
                         </button>
                     </div>
                 </div>
@@ -69,13 +69,13 @@
                 <div class="flex justify-between items-center mt-4">
                     <div id="paginacion-info" class="text-sm text-slate-500"></div>
                     <div class="flex gap-2">
-                        <button id="prevPage" class="p-2 bg-slate-200 rounded">Anterior</button>
-                        <button id="nextPage" class="p-2 bg-slate-200 rounded">Siguiente</button>
+                        <button id="prevPage" class="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"><i class="fas fa-chevron-left text-[10px]"></i> Anterior</button>
+                        <button id="nextPage" class="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">Siguiente <i class="fas fa-chevron-right text-[10px]"></i></button>
                     </div>
                 </div>
             </section>
 
-            <aside id="panel-editor" class="bg-white p-4 rounded shadow">
+            <aside id="panel-editor" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                 <h3 class="font-black mb-2">Crear / Editar</h3>
                 <form id="form">
                     <div class="inv-input-group">
@@ -115,7 +115,7 @@
                         <input id="f_marca" class="inv-input hidden" placeholder=" " autocomplete="off" />
                         <label for="f_marca" class="inv-label">Marca(s)</label>
                         <button type="button" id="btnEditarMarcas"
-                            class="mt-1 w-full px-2 py-1 border rounded text-[11px] text-slate-700 bg-white hover:bg-slate-50 text-left">
+                            class="mt-1 w-full px-2 py-1 border rounded-xl text-[11px] text-slate-700 bg-white hover:bg-slate-50 text-left">
                             <span class="block text-[10px] text-slate-500">Editar marcas por depósito</span>
                             <span id="btnEditarMarcasLabel"
                                 class="block text-[11px] font-semibold uppercase truncate">—</span>
@@ -124,19 +124,35 @@
                     </div>
                     <div class="flex gap-2 btn-ge-inv items-center">
                         <button type="submit" id="btnGuardar"
-                            class="flex-1 bg-blue-600 text-white p-2 rounded">Guardar</button>
-
+                            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold uppercase tracking-wide py-2.5 px-4 shadow-sm shadow-blue-200 transition-all duration-150">
+                            <i class="fas fa-floppy-disk text-[11px]"></i> Guardar
+                        </button>
                         <button type="button" id="btnBorrar"
-                            class="flex-1 bg-red-500 text-white p-2 rounded">Eliminar</button>
+                            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-red-500 hover:bg-red-600 active:scale-95 text-white text-xs font-bold uppercase tracking-wide py-2.5 px-4 shadow-sm shadow-red-200 transition-all duration-150">
+                            <i class="fas fa-trash-can text-[11px]"></i> Eliminar
+                        </button>
                     </div>
                     <div class="mt-3 text-sm" id="msg"></div>
                 </form>
                 <hr class="my-4">
                 <h4 class="text-sm font-black mb-2">Import / Export CSV</h4>
-                <input id="csvFile" type="file" accept="text/csv" class="mb-2" />
+                <input id="csvFile" type="file" accept="text/csv" class="hidden" />
+                <div class="flex items-center gap-2 mb-3">
+                    <button type="button" id="btnSelectCsv"
+                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-700 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold uppercase tracking-wide py-2.5 px-4 shadow-sm transition-all duration-150 shrink-0">
+                        <i class="fas fa-folder-open text-[11px]"></i> Seleccionar archivo
+                    </button>
+                    <span id="csvFileName" class="text-xs text-slate-400 truncate">Sin archivos seleccionados</span>
+                </div>
                 <div class="flex gap-2 mb-4">
-                    <button id="btnImportCsv" class="flex-1 p-2 bg-indigo-600 text-white rounded">Importar CSV</button>
-                    <button id="btnExportCsv" class="p-2 bg-slate-200 rounded">Exportar CSV</button>
+                    <button id="btnImportCsv"
+                        class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold uppercase tracking-wide py-2.5 px-4 shadow-sm shadow-indigo-200 transition-all duration-150">
+                        <i class="fas fa-file-arrow-up text-[11px]"></i> Importar CSV
+                    </button>
+                    <button id="btnExportCsv"
+                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 text-xs font-bold uppercase tracking-wide py-2.5 px-4 transition-all duration-150">
+                        <i class="fas fa-file-arrow-down text-[11px]"></i> Exportar CSV
+                    </button>
                 </div>
                 <h4 class="text-sm font-black mb-1">Actividad del producto</h4>
                 <div id="actividad-producto" class="text-xs text-slate-600">Selecciona un producto para ver la última
@@ -146,7 +162,7 @@
                 <!-- Modal para stock por depósito y marca -->
                 <div id="stock-marca-modal" class="fixed inset-0 hidden items-center justify-center z-50">
                     <div class="absolute inset-0 bg-black bg-opacity-40 modal-backdrop"></div>
-                    <div class="relative bg-white p-4 rounded shadow w-11/12 max-w-3xl modal-panel">
+                    <div class="relative bg-white p-4 rounded-2xl shadow-sm border border-slate-200 w-11/12 max-w-3xl modal-panel">
                         <div class="flex justify-between items-center mb-2">
                             <h4 class="text-sm font-black">Stock por depósito y marca</h4>
                             <button type="button" id="stock-marca-modal-close" class="text-slate-500 hover:text-slate-700 text-xl leading-none">&times;</button>
@@ -169,8 +185,8 @@
                 <p class="text-[11px] text-slate-500 mb-2">Solo para administradores: recalcula el stock total a partir
                     de los depósitos.</p>
                 <button id="btnRebuildStock"
-                    class="w-full p-2 bg-amber-600 text-white rounded text-xs font-semibold mb-1 hover:bg-amber-700">
-                    Recalcular stock desde depósitos
+                    class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold uppercase tracking-wide py-2.5 px-4 shadow-sm shadow-amber-200 transition-all duration-150 mb-1">
+                    <i class="fas fa-rotate text-[11px]"></i> Recalcular stock desde depósitos
                 </button>
                 <p id="rebuildStockMsg" class="text-[11px] text-slate-500"></p>
             </aside>
@@ -186,7 +202,7 @@
                     <div class="space-y-2 md:col-span-1">
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-600">Código de producto</label>
-                            <input id="mov_codigo" class="w-full p-2 border rounded" placeholder="Ej: ABC-123" />
+                            <input id="mov_codigo" class="w-full p-2 border rounded-xl text-sm" placeholder="Ej: ABC-123" />
                         </div>
                         <div>
                             <p id="mov_info" class="text-[11px] text-slate-500">Ingresa un código y presiona Enter.</p>
@@ -196,28 +212,29 @@
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-600">Cantidad a mover</label>
-                            <input id="mov_cantidad" type="number" min="0" step="1" class="w-full p-2 border rounded"
+                            <input id="mov_cantidad" type="number" min="0" step="1" class="w-full p-2 border rounded-xl text-sm"
                                 placeholder="Ej: 5" />
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-600">Depósito actual</label>
                             <p id="mov_deposito_origen"
-                                class="p-2 border rounded bg-slate-50 text-[11px] text-slate-600">—</p>
+                                class="p-2 border rounded-xl bg-slate-50 text-[11px] text-slate-600">—</p>
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-600">Mover a depósito</label>
-                            <select id="mov_deposito_destino" class="w-full p-2 border rounded">
+                            <select id="mov_deposito_destino" class="w-full p-2 border rounded-xl text-sm">
                                 <option value="">Seleccione depósito destino</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-600">Motivo (opcional)</label>
-                            <input id="mov_motivo" class="w-full p-2 border rounded"
+                            <input id="mov_motivo" class="w-full p-2 border rounded-xl text-sm"
                                 placeholder="Reubicación, organización, etc." />
                         </div>
                         <div>
                             <button id="btnMoverDeposito"
-                                class="mt-2 px-3 py-2 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700">
+                                class="mt-2 inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition">
+                                <i class="fas fa-arrow-right-arrow-left text-[10px]"></i>
                                 Registrar movimiento entre depósitos
                             </button>
                             <p id="mov_msg" class="mt-1 text-[11px] text-slate-500"></p>
@@ -229,7 +246,7 @@
                             <span class="text-[11px] text-slate-400">Últimos 20 movimientos</span>
                         </div>
                         <div id="movimientos-list"
-                            class="max-h-64 overflow-auto border rounded bg-slate-50 text-[11px]"></div>
+                            class="max-h-64 overflow-auto border rounded-xl bg-slate-50 text-[11px]"></div>
                     </div>
                 </div>
             </section>

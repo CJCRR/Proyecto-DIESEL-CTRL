@@ -53,7 +53,7 @@ async function fetchJSON(url) {
 
 async function pollStock() {
   try {
-    const rows = await fetchJSON('/alertas/stock');
+    const rows = await fetchJSON('/api/alertas/stock');
     rows.forEach(r => {
       const key = r.codigo;
       if (!seenStock.has(key)) {
@@ -69,7 +69,7 @@ async function pollStock() {
 
 async function pollMorosos() {
   try {
-    const rows = await fetchJSON('/alertas/morosos');
+    const rows = await fetchJSON('/api/alertas/morosos');
     rows.forEach(r => {
       const key = `${r.id}`;
       if (!seenMorosos.has(key)) {

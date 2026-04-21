@@ -95,7 +95,7 @@ async function handleResultadoClick(p) {
 	let detalle = null;
 	if (_refs.apiFetchJson && p && p.codigo) {
 		try {
-			detalle = await _refs.apiFetchJson(`/productos/${encodeURIComponent(p.codigo)}`);
+			detalle = await _refs.apiFetchJson(`/api/productos/${encodeURIComponent(p.codigo)}`);
 		} catch (err) {
 			console.warn('No se pudo obtener detalle de producto para depósitos', err);
 		}
@@ -301,7 +301,7 @@ async function onBuscarInput() {
 	const online = navigator.onLine;
 	if (online) {
 		try {
-			const data = await _refs.apiFetchJson(`/buscar?q=${encodeURIComponent(q)}`);
+			const data = await _refs.apiFetchJson(`/api/buscar?q=${encodeURIComponent(q)}`);
 			// Guardar resultados en cache local para uso offline
 			if (Array.isArray(data) && data.length) {
 				for (const p of data) {

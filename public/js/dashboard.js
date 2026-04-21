@@ -68,8 +68,8 @@ async function loadInventarioDashboard() {
         const { desde, hasta } = getPeriodoRango();
         const isPeriodoActual = !desde || !hasta || (FILTRO_MES === currentMonth && FILTRO_ANO === currentYear);
         const url = isPeriodoActual
-            ? '/reportes/inventario'
-            : `/reportes/inventario?corte=${encodeURIComponent(hasta)}`;
+            ? '/api/reportes/inventario'
+            : `/api/reportes/inventario?corte=${encodeURIComponent(hasta)}`;
         const inv = await apiFetchJson(url);
         const invUsdEl = document.getElementById('inv-total-usd');
         const invBsEl = document.getElementById('inv-total-bs');
@@ -88,8 +88,8 @@ async function loadTopProductos() {
     try {
         const periodoQs = getPeriodoQueryString();
         const url = periodoQs
-            ? `/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}&${periodoQs}`
-            : `/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}`;
+            ? `/api/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}&${periodoQs}`
+            : `/api/reportes/top-productos?limit=${encodeURIComponent(TOP_LIMIT)}`;
         cacheTop = await apiFetchJson(url);
         renderTopProductos();
     } catch (err) {
@@ -251,7 +251,7 @@ async function cargarDashboard() {
         await loadKpis();
 
         try {
-            const ventas = await apiFetchJson('/reportes/ventas');
+            const ventas = await apiFetchJson('/api/reportes/ventas');
             const ultimas = ventas.slice(0, 3);
             const ultEl = document.getElementById('ultimas-ventas');
             ultEl.innerHTML = '';
@@ -290,7 +290,7 @@ async function loadKpis() {
         if (desde) params.set('desde', desde);
         if (hasta) params.set('hasta', hasta);
         const qs = params.toString();
-        const url = qs ? `/reportes/kpis?${qs}` : '/reportes/kpis';
+        const url = qs ? `/api/reportes/kpis?${qs}` : '/api/reportes/kpis';
         const kpis = await apiFetchJson(url);
 
         const ventasHoyEl = document.getElementById('ventas-hoy');
@@ -366,8 +366,8 @@ async function cargarVendedores() {
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
     try {
-        const baseRows = await apiFetchJson(`/reportes/vendedores?${params.toString()}`);
-        const roiRows = await apiFetchJson(`/reportes/vendedores/roi?${params.toString()}`);
+        const baseRows = await apiFetchJson(`/api/reportes/vendedores?${params.toString()}`);
+        const roiRows = await apiFetchJson(`/api/reportes/vendedores/roi?${params.toString()}`);
     const roiMap = new Map(roiRows.map(r => [r.vendedor || '—', r]));
     cacheVend = baseRows.map(row => {
         const extra = roiMap.get(row.vendedor || '—') || {};
@@ -443,7 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function renderVentasSeries(tipo) {
     try {
-        const endpoint = tipo === 'mensuales' ? '/reportes/series/ventas-mensuales?meses=12' : '/reportes/series/ventas-diarias?dias=365';
+        const endpoint = tipo === 'mensuales' ? '/api/reportes/series/ventas-mensuales?meses=12' : '/api/reportes/series/ventas-diarias?dias=365';
         const rows = await apiFetchJson(endpoint);
         let filtered = rows;
         // El filtro de mes/año solo aplica a la vista DIARIA.
@@ -485,8 +485,8 @@ async function renderTopClientes() {
     try {
         const periodoQs = getPeriodoQueryString();
         const url = periodoQs
-            ? `/reportes/top-clientes?limit=5&${periodoQs}`
-            : '/reportes/top-clientes?limit=5';
+            ? `/api/reportes/top-clientes?limit=5&${periodoQs}`
+            : '/api/reportes/top-clientes?limit=5';
         const rows = await apiFetchJson(url);
         const labels = rows.map(x => x.cliente);
         const data = rows.map(x => Number((MONEDA === 'USD' ? x.total_usd : x.total_bs) || 0));
@@ -506,12 +506,12 @@ async function renderTopClientes() {
 
 async function renderMargenActual() {
     try {
-        const j = await apiFetchJson('/reportes/margen/actual');
+        const j = await apiFetchJson('/api/reportes/margen/actual');
         const hoy = MONEDA === 'USD' ? j.hoy.margen_usd : j.hoy.margen_bs;
         document.getElementById('margen-hoy').innerText = `${formatNumber(hoy || 0, 2)} ${MONEDA}`;
 
         // Calcular margen del mes según filtro usando series diarias
-        const rows = await apiFetchJson('/reportes/series/ventas-diarias?dias=365');
+        const rows = await apiFetchJson('/api/reportes/series/ventas-diarias?dias=365');
         let filtered = rows;
         if (FILTRO_MES && FILTRO_ANO) {
             filtered = rows.filter(x => {
@@ -547,7 +547,7 @@ async function renderMargenActual() {
 async function renderMargenVendedoresHoy() {
     try {
         const hoy = new Date().toISOString().slice(0,10);
-        const rows = await apiFetchJson(`/reportes/vendedores?desde=${hoy}&hasta=${hoy}`);
+        const rows = await apiFetchJson(`/api/reportes/vendedores?desde=${hoy}&hasta=${hoy}`);
         const cont = document.getElementById('margen-vendedores');
         if (!cont) return;
         if (!rows.length) {
@@ -571,7 +571,7 @@ function fmtPct(p) { return p == null ? '—' : `${(p * 100).toFixed(1)}%`; }
 
 async function loadTendencias() {
     try {
-        const rows = await apiFetchJson('/reportes/tendencias/mensuales?meses=12');
+        const rows = await apiFetchJson('/api/reportes/tendencias/mensuales?meses=12');
         const el = document.getElementById('tendencias-list');
         if (!el) return;
         const recent = rows.slice(-6);
@@ -599,7 +599,7 @@ async function renderAlertasTareas() {
     try {
         // Usar umbral configurable para stock bajo
         const umbralActual = Number.isFinite(STOCK_UMBRAL) && STOCK_UMBRAL >= 0 ? STOCK_UMBRAL : 1;
-        const j = await apiFetchJson(`/alertas/tareas?umbral=${encodeURIComponent(umbralActual)}`);
+        const j = await apiFetchJson(`/api/alertas/tareas?umbral=${encodeURIComponent(umbralActual)}`);
 
         const stock = Array.isArray(j.stock_bajo) ? j.stock_bajo : [];
         const morosos = Array.isArray(j.morosos) ? j.morosos : [];

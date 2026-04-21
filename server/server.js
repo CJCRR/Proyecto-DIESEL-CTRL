@@ -2,6 +2,7 @@ const express = require('express');
 const logger = require('./services/logger');
 const path = require('path');
 const db = require('./db');
+const rateLimit = require('express-rate-limit');
 const { enforceHTTPS, helmetConfig } = require('./middleware/security');
 const cookieParser = require('cookie-parser');
 
@@ -99,6 +100,18 @@ Object.entries(prettyRoutes).forEach(([route, page]) => {
 });
 
 // Registro de Rutas API
+// Límite general para todas las rutas de datos (API y admin), evita abuso de endpoints costosos
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 300,                  // 300 requests por ventana por IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
+    message: { error: 'Demasiadas solicitudes. Intente más tarde.' }
+});
+app.use('/api/', apiLimiter);
+app.use('/admin/', apiLimiter);
+
 // Nota: La ruta /ventas ahora deberá estar preparada para recibir un array de items
 app.use('/auth', authRoutes);
 app.use('/admin/productos', productosAdmin);
@@ -107,19 +120,19 @@ app.use('/admin/usuarios', usuariosRoutes);
 app.use('/admin/empresas', empresasAdminRoutes);
 // Rutas API bajo prefijo /api para no colisionar con las vistas limpias
 app.use('/api/proveedores', proveedoresRoutes);
-app.use('/depositos', depositosRoutes);
+app.use('/api/depositos', depositosRoutes);
 app.use('/api/compras', comprasRoutes);
-app.use('/productos', productosRoutes);
-app.use('/ventas', ventasRoutes);
-app.use('/nota', notasRoutes);
-app.use('/reportes', reportesRoutes);
-app.use('/devoluciones', devolucionesRoutes);
-app.use('/buscar', busquedaRoutes);
-app.use('/backup', backupRoutes);
-app.use('/cobranzas', cobranzasRoutes);
-app.use('/alertas', alertasRoutes);
-app.use('/presupuestos', presupuestosRoutes);
-app.use('/sync', syncRoutes);
+app.use('/api/productos', productosRoutes);
+app.use('/api/ventas', ventasRoutes);
+app.use('/api/nota', notasRoutes);
+app.use('/api/reportes', reportesRoutes);
+app.use('/api/devoluciones', devolucionesRoutes);
+app.use('/api/buscar', busquedaRoutes);
+app.use('/api/backup', backupRoutes);
+app.use('/api/cobranzas', cobranzasRoutes);
+app.use('/api/alertas', alertasRoutes);
+app.use('/api/presupuestos', presupuestosRoutes);
+app.use('/api/sync', syncRoutes);
 
 // Middleware 404: rutas no encontradas
 app.use((req, res, next) => {

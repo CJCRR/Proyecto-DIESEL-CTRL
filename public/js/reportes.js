@@ -200,7 +200,7 @@ function renderReporte() {
             <div class="flex items-center justify-between">
                             <div class="text-[10px] uppercase text-slate-400 font-black">Detalles de la venta</div>
                             <div class="flex items-center gap-2">
-                                <a href="/nota/${r.id}" target="_blank" class="text-xs px-2 py-1 bg-slate-200 rounded">Ver nota</a>
+                                <a href="/api/nota/${r.id}" target="_blank" class="text-xs px-2 py-1 bg-slate-200 rounded">Ver nota</a>
                                 ${adminBtnsHtml}
                             </div>
             </div>
@@ -268,7 +268,7 @@ function renderReporte() {
                 if (!detallesCache.has(r.id)) {
                     cont.textContent = 'Cargando...';
                     try {
-                        const j = await apiFetchJson(`/reportes/ventas/${r.id}`);
+                        const j = await apiFetchJson(`/api/reportes/ventas/${r.id}`);
                         detallesCache.set(r.id, j);
                     } catch (err) {
                         console.error('Error detalle venta', err);
@@ -494,7 +494,7 @@ function renderPresupuestos() {
                 ev.stopPropagation();
                 const id = btn.dataset.presVer || btn.getAttribute('data-pres-ver');
                 if (!id) return;
-                const url = `/presupuestos/nota/${encodeURIComponent(id)}`;
+                const url = `/api/presupuestos/nota/${encodeURIComponent(id)}`;
                 window.open(url, '_blank');
             });
         });
@@ -508,7 +508,7 @@ function renderPresupuestos() {
                 const ok = window.confirm('¿Eliminar este presupuesto? Esta acción no se puede deshacer.');
                 if (!ok) return;
                 try {
-                    await apiFetchJson(`/presupuestos/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                    await apiFetchJson(`/api/presupuestos/${encodeURIComponent(id)}`, { method: 'DELETE' });
                     cachePres = cachePres.filter(p => String(p.id) !== String(id));
                     renderPresupuestos();
                     if (window.showToast) {
@@ -533,7 +533,7 @@ async function sugerirClientes(q) {
         return;
     }
     try {
-        const data = await apiFetchJson(`/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=8`);
+        const data = await apiFetchJson(`/api/reportes/historial-cliente?q=${encodeURIComponent(q)}&limit=8`);
         renderClienteSugerencias(data || []);
     } catch (err) {
         console.error('Error sugiriendo clientes', err);
@@ -542,7 +542,7 @@ async function sugerirClientes(q) {
 
 async function cargarVendedoresFiltro() {
     try {
-        const data = await apiFetchJson('/admin/usuarios/vendedores-list');
+        const data = await apiFetchJson('/api/admin/usuarios/vendedores-list');
         vendedoresCache = Array.isArray(data) ? data : [];
     } catch (err) {
         console.warn('No se pudieron cargar vendedores para filtros de reporte', err);
@@ -633,9 +633,9 @@ async function cargarRentabilidad() {
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
     try {
-        cacheRentCat = await apiFetchJson(`/reportes/rentabilidad/categorias?${params.toString()}`);
-        cacheRentProv = await apiFetchJson(`/reportes/rentabilidad/proveedores?${params.toString()}`);
-        resumenRent = await apiFetchJson(`/reportes/resumen-financiero?${params.toString()}`);
+        cacheRentCat = await apiFetchJson(`/api/reportes/rentabilidad/categorias?${params.toString()}`);
+        cacheRentProv = await apiFetchJson(`/api/reportes/rentabilidad/proveedores?${params.toString()}`);
+        resumenRent = await apiFetchJson(`/api/reportes/resumen-financiero?${params.toString()}`);
         renderRentabilidad();
     } catch (err) {
         console.error('Error cargando rentabilidad:', err);
@@ -710,7 +710,7 @@ function renderComisiones() {
 async function cargarComisiones() {
     const params = buildReportParams();
     try {
-        cacheComisiones = await apiFetchJson(`/reportes/comisiones-vendedores?${params.toString()}`);
+        cacheComisiones = await apiFetchJson(`/api/reportes/comisiones-vendedores?${params.toString()}`);
         renderComisiones();
     } catch (err) {
         console.error('Error cargando comisiones', err);
@@ -727,7 +727,7 @@ async function cargarReporte() {
     const params = buildReportParams();
 
     try {
-        cacheRows = await apiFetchJson(`/reportes/ventas-rango?${params.toString()}`);
+        cacheRows = await apiFetchJson(`/api/reportes/ventas-rango?${params.toString()}`);
     } catch (err) {
         console.error('Error cargando reporte:', err);
 		if (window.showToast) {
@@ -742,14 +742,14 @@ async function cargarReporte() {
 
     // Cargar devoluciones
     try {
-        cacheDev = await apiFetchJson(`/devoluciones/historial?${params.toString()}`);
+        cacheDev = await apiFetchJson(`/api/devoluciones/historial?${params.toString()}`);
         renderDevoluciones();
     } catch (err) {
         console.error('Error devoluciones', err);
     }
 
     try {
-        cachePres = await apiFetchJson('/presupuestos?limit=50');
+        cachePres = await apiFetchJson('/api/presupuestos?limit=50');
         renderPresupuestos();
     } catch (err) {
         console.error('Error presupuestos', err);
@@ -820,7 +820,7 @@ if (vendedorInput) {
 
 document.getElementById('rpt-export').addEventListener('click', () => {
     const params = buildReportParams();
-    window.open(`/reportes/ventas/export/csv?${params.toString()}`, '_blank');
+    window.open(`/api/reportes/ventas/export/csv?${params.toString()}`, '_blank');
 });
 
 // Acordeones: ventas y presupuestos
@@ -855,7 +855,7 @@ if (btnRentaCat) {
         const params = new URLSearchParams();
         if (desde) params.set('desde', desde);
         if (hasta) params.set('hasta', hasta);
-        window.open(`/reportes/rentabilidad/categorias/export/csv?${params.toString()}`, '_blank');
+        window.open(`/api/reportes/rentabilidad/categorias/export/csv?${params.toString()}`, '_blank');
     });
 }
 
@@ -867,7 +867,7 @@ if (btnRentaProv) {
         const params = new URLSearchParams();
         if (desde) params.set('desde', desde);
         if (hasta) params.set('hasta', hasta);
-        window.open(`/reportes/rentabilidad/proveedores/export/csv?${params.toString()}`, '_blank');
+        window.open(`/api/reportes/rentabilidad/proveedores/export/csv?${params.toString()}`, '_blank');
     });
 }
 
@@ -875,7 +875,7 @@ const btnComisionesExport = document.getElementById('comisiones-export');
 if (btnComisionesExport) {
     btnComisionesExport.addEventListener('click', () => {
         const params = buildReportParams();
-        window.open(`/reportes/comisiones-vendedores/export/csv?${params.toString()}`, '_blank');
+        window.open(`/api/reportes/comisiones-vendedores/export/csv?${params.toString()}`, '_blank');
     });
 }
 
@@ -924,7 +924,7 @@ if (ES_ADMIN_EMPRESA) {
 
             const nuevoId = Number(sel.value);
             try {
-                await apiFetchJson(`/ventas/${encodeURIComponent(cambioVendVentaId)}/vendedor`, {
+                await apiFetchJson(`/api/ventas/${encodeURIComponent(cambioVendVentaId)}/vendedor`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ usuario_id: nuevoId }),
@@ -1053,7 +1053,7 @@ function renderDevoluciones() {
             if (!devDetallesCache.has(devId)) {
                 panel.textContent = 'Cargando...';
                 try {
-                    const j = await apiFetchJson(`/devoluciones/${devId}`);
+                    const j = await apiFetchJson(`/api/devoluciones/${devId}`);
                     devDetallesCache.set(devId, j);
                 } catch (err) {
                     console.error('Error detalle devolución', err);

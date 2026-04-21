@@ -55,7 +55,7 @@ async function validarStockOnlineAntesDeVenta() {
 	}
 	for (const entry of porClave.values()) {
 		const { codigo, deposito_id, marca, cantidad: qtyNecesaria } = entry;
-		const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
+		const prod = await apiFetchJson(`/api/productos/${encodeURIComponent(codigo)}`);
 		if (!prod || prod.error) {
 			throw new Error(`No se pudo verificar el stock del producto ${codigo}. Intente de nuevo.`);
 		}
@@ -162,7 +162,7 @@ export async function cargarHistorialDevoluciones(cliente, cedula) {
 		const params = new URLSearchParams();
 		if (cliente) params.set('cliente', cliente);
 		if (cedula) params.set('cedula', cedula);
-		const data = await apiFetchJson(`/devoluciones/historial?${params.toString()}`);
+		const data = await apiFetchJson(`/api/devoluciones/historial?${params.toString()}`);
 		renderHistorialDevoluciones(data || []);
 		aplicarDescuentoDevolucion(data || []);
 	} catch (err) {
@@ -462,7 +462,7 @@ export async function registrarDevolucion() {
 			venta_original_id: ventaOriginalId,
 			usuario_id: usuario ? usuario.id : null
 		};
-		await apiFetchJson('/devoluciones', {
+		await apiFetchJson('/api/devoluciones', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(payload)
@@ -474,7 +474,7 @@ export async function registrarDevolucion() {
 			const codigos = [...new Set(items.map(it => (it && it.codigo ? String(it.codigo).trim() : '')).filter(Boolean))];
 			for (const codigo of codigos) {
 				try {
-					const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
+						const prod = await apiFetchJson(`/api/productos/${encodeURIComponent(codigo)}`);
 					if (!prod || prod.error) continue;
 					await upsertProductoFirebase({
 						codigo: prod.codigo,
@@ -527,7 +527,7 @@ export async function enviarVentaAlServidor(venta) {
 		usuario_id: baseUsuarioId
 	};
 
-	const data = await apiFetchJson('/ventas', {
+	const data = await apiFetchJson('/api/ventas', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(ventaConUsuario)
