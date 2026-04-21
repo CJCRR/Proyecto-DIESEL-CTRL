@@ -1,7 +1,6 @@
 // Sistema de autenticación
 import { apiFetchJson } from './app-api.js';
 import { borrarDatosLocales } from './db-local.js';
-import { upsertEmpresaFirebase } from './firebase-sync.js';
 
 const loginForm = document.getElementById('loginForm');
 const usernameInput = document.getElementById('username');
@@ -226,7 +225,7 @@ async function intentarLogin(body, opciones = {}) {
       if (!desdeTwofaModal && esMensaje2FA) {
         // Primera respuesta indicando que se requiere 2FA para superadmin
         pendingLoginBody = body;
-            window.location.href = '/pos';
+        abrirModalTwofa();
       } else if (desdeTwofaModal && esMensaje2FA) {
         // Error al validar el código 2FA dentro del modal
         if (twofaError) {
@@ -661,6 +660,8 @@ async function enviarRegistroEmpresa(e) {
       try {
         const empresa = data.empresa || {};
         if (empresa && empresa.codigo) {
+          // Carga diferida: evita romper login cuando firebase-config.js no existe.
+          const { upsertEmpresaFirebase } = await import('./firebase-sync.js');
           await upsertEmpresaFirebase({
             ...empresa,
             rif: rif || null,
