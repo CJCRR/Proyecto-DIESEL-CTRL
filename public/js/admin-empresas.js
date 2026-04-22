@@ -252,28 +252,28 @@ function renderEmpresas() {
     html += '<td class="p-3 align-top"><div class="flex flex-wrap gap-2 justify-end text-xs">';
 
     if (estadoLicencia !== 'activa') {
-      html += `<button class="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-action="activar-empresa" data-id="${e.id}">Activar</button>`;
+      html += `<button class="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200" onclick="window.__activarEmpresa(${e.id})">Activar</button>`;
     }
     if (estadoLicencia !== 'suspendida') {
-      html += `<button class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200" data-action="suspender-empresa" data-id="${e.id}">Suspender</button>`;
+      html += `<button class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200" onclick="window.__suspenderEmpresa(${e.id})">Suspender</button>`;
     }
     if (estadoLicencia === 'activa') {
-      html += `<button class="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200" data-action="marcar-morosa" data-id="${e.id}">Marcar morosa</button>`;
+      html += `<button class="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200" onclick="window.__marcarMorosa(${e.id})">Marcar morosa</button>`;
     }
 
-    html += `<button class="px-2 py-1 rounded-lg bg-sky-100 text-sky-700 hover:bg-sky-200" data-action="editar-plan" data-id="${e.id}">Plan / Monto</button>`;
-    html += `<button class="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200" data-action="registrar-pago" data-id="${e.id}">Registrar pago</button>`;
-    html += `<button class="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200" data-action="ver-pagos-licencia" data-id="${e.id}">Pagos plan</button>`;
-    html += `<button class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" data-action="editar-ciclo" data-id="${e.id}">Días de gracia</button>`;
+    html += `<button class="px-2 py-1 rounded-lg bg-sky-100 text-sky-700 hover:bg-sky-200" onclick="window.__editarPlan(${e.id})">Plan / Monto</button>`;
+    html += `<button class="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200" onclick="window.__registrarPago(${e.id})">Registrar pago</button>`;
+    html += `<button class="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200" onclick="window.__verPagosLicencia(${e.id})">Pagos plan</button>`;
+    html += `<button class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="window.__editarCiclo(${e.id})">Días de gracia</button>`;
 
     // Botón para crear usuario admin de empresa
     if (e.id !== 1 && e.codigo !== 'LOCAL') {
-      html += `<button class="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200" data-action="abrir-crear-admin" data-id="${e.id}">Usuario admin</button>`;
+      html += `<button class="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200" onclick="window.__abrirCrearAdmin(${e.id})">Usuario admin</button>`;
     }
 
     // Botón para eliminar empresa (solo no LOCAL)
     if (e.id !== 1 && e.codigo !== 'LOCAL') {
-      html += `<button class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200" data-action="eliminar-empresa" data-id="${e.id}">Eliminar</button>`;
+      html += `<button class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200" onclick="window.__eliminarEmpresa(${e.id})">Eliminar</button>`;
     }
 
     html += '</div></td>';
@@ -394,7 +394,7 @@ async function cargarPagosLicenciaEmpresa(id) {
   }
 }
 
-function verPagosLicencia(id) {
+window.__verPagosLicencia = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa || !modalPagosLic || !plEmpresaInfo) return;
   plEmpresaId = id;
@@ -412,7 +412,7 @@ if (plCerrar && modalPagosLic) {
   });
 }
 
-function activarEmpresa(id) {
+window.__activarEmpresa = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   if (!modalConfirm) {
@@ -428,7 +428,7 @@ function activarEmpresa(id) {
   modalConfirm.classList.add('flex');
 };
 
-function suspenderEmpresa(id) {
+window.__suspenderEmpresa = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   if (!modalConfirm) {
@@ -444,7 +444,7 @@ function suspenderEmpresa(id) {
   modalConfirm.classList.add('flex');
 };
 
-function marcarMorosaEmpresa(id) {
+window.__marcarMorosa = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   if (!modalConfirm) {
@@ -460,7 +460,7 @@ function marcarMorosaEmpresa(id) {
   modalConfirm.classList.add('flex');
 };
 
-function editarPlan(id) {
+window.__editarPlan = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   if (!modalPlan) {
@@ -501,7 +501,7 @@ function addMonths(date, months) {
   return d;
 }
 
-function registrarPagoEmpresa(id) {
+window.__registrarPago = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   if (!modalPago) {
@@ -540,7 +540,7 @@ function registrarPagoEmpresa(id) {
   setTimeout(() => rpFecha.focus(), 50);
 };
 
-function editarCicloEmpresa(id) {
+window.__editarCiclo = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   if (!modalCiclo) {
@@ -885,13 +885,14 @@ if (btnGuardarBranding && brandTituloInput) {
   });
 }
 
-function abrirCrearAdmin(id) {
+// Funciones globales para botones de acciones
+window.__abrirCrearAdmin = function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   abrirModalAdminEmpresa(empresa);
 };
 
-async function eliminarEmpresa(id) {
+window.__eliminarEmpresa = async function (id) {
   const empresa = empresas.find(e => e.id === id);
   if (!empresa) return;
   if (!modalConfirm) {
@@ -927,26 +928,6 @@ async function eliminarEmpresa(id) {
   modalConfirm.classList.remove('hidden');
   modalConfirm.classList.add('flex');
 };
-
-// Delegación de eventos: un solo listener para todos los botones de acción de la tabla
-if (tbody) {
-  tbody.addEventListener('click', (ev) => {
-    const btn = ev.target.closest('[data-action]');
-    if (!btn) return;
-    const id = parseInt(btn.dataset.id, 10);
-    if (!Number.isFinite(id)) return;
-    const action = btn.dataset.action;
-    if (action === 'activar-empresa')      activarEmpresa(id);
-    else if (action === 'suspender-empresa')  suspenderEmpresa(id);
-    else if (action === 'marcar-morosa')      marcarMorosaEmpresa(id);
-    else if (action === 'editar-plan')        editarPlan(id);
-    else if (action === 'registrar-pago')     registrarPagoEmpresa(id);
-    else if (action === 'ver-pagos-licencia') verPagosLicencia(id);
-    else if (action === 'editar-ciclo')       editarCicloEmpresa(id);
-    else if (action === 'abrir-crear-admin')  abrirCrearAdmin(id);
-    else if (action === 'eliminar-empresa')   eliminarEmpresa(id);
-  });
-}
 
 // Carga inicial
 cargarEmpresas();

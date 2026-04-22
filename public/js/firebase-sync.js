@@ -1,4 +1,4 @@
-import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc } from '../config/firebase-config.sample.js';
+import { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc } from '../config/firebase-config.js';
 import { apiFetchJson } from './app-api.js';
 import { abrirIndexedDB, obtenerVentasPendientes, marcarComoSincronizada } from './db-local.js';
 
@@ -409,7 +409,7 @@ async function sincronizarVentasPendientes({ isRetry = false } = {}) {
 
                 const payload = usuarioId != null ? { ...venta, usuario_id: usuarioId } : venta;
 
-                const data = await apiPostJson('/api/ventas', payload);
+                const data = await apiPostJson('/ventas', payload);
                 console.log(`✅ Venta enviada al servidor: ${venta.id_global} -> ${data.ventaId || data.id || 'OK'}`);
 
                 // Notificar al frontend (POS) que la venta se registró en el backend,
@@ -436,7 +436,7 @@ async function sincronizarVentasPendientes({ isRetry = false } = {}) {
                         : [];
                     for (const codigo of codigos) {
                         try {
-                            const prod = await apiFetchJson(`/api/productos/${encodeURIComponent(codigo)}`);
+                            const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
                             if (!prod || prod.error) continue;
                             await upsertProductoFirebase({
                                 codigo: prod.codigo,

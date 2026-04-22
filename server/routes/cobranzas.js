@@ -53,23 +53,6 @@ router.get('/list', requireAuth, forbidSuperadmin, (req, res) => {
   }
 });
 
-// Alias GET / → mismo que /list (compatibilidad con tests y clientes directos)
-router.get('/', requireAuth, forbidSuperadmin, (req, res) => {
-  try {
-    const rows = listCuentas({ ...(req.query || {}), empresaId: req.usuario.empresa_id || null });
-    res.json(rows);
-  } catch (err) {
-  logger.error('Error listando cc (root)', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'No se pudo listar cuentas', code: 'COBRANZAS_LISTADO_ERROR' });
-  }
-});
-
 router.get('/:id', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const data = getCuentaConPagos(req.params.id, req.usuario.empresa_id || null);

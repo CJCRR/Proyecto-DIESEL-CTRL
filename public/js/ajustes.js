@@ -737,7 +737,7 @@ function fillDepositoForm(dep) {
 // Función para cargar depósitos desde el servidor y renderizar la lista
 async function loadDepositos() {
     try {
-        const items = await apiFetchJson('/api/depositos');
+        const items = await apiFetchJson('/depositos');
         depositosCache = Array.isArray(items) ? items : [];
         renderDepositosList();
     } catch (err) {
@@ -773,7 +773,7 @@ function setupDepositosUI() {
             const nombre = dep && dep.nombre ? dep.nombre : 'este depósito';
             try {
                 // Primer intento: verificar si tiene stock/productos asociados
-                await apiFetchJson(`/api/depositos/${encodeURIComponent(depositoEditId)}`, {
+                await apiFetchJson(`/depositos/${encodeURIComponent(depositoEditId)}`, {
                     method: 'DELETE',
                 });
                 showToast('Depósito eliminado', 'success');
@@ -788,7 +788,7 @@ function setupDepositosUI() {
                     );
                     if (!ok) return;
                     try {
-                        await apiFetchJson(`/api/depositos/${encodeURIComponent(depositoEditId)}?force=1`, {
+                        await apiFetchJson(`/depositos/${encodeURIComponent(depositoEditId)}?force=1`, {
                             method: 'DELETE',
                         });
                         showToast('Depósito y stock asociados eliminados', 'success');
@@ -822,7 +822,7 @@ function setupDepositosUI() {
             try {
                 if (!idStr) {
                     // Crear
-                    await apiFetchJson('/api/depositos', {
+                    await apiFetchJson('/depositos', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload),
@@ -830,7 +830,7 @@ function setupDepositosUI() {
                     showToast('Depósito creado', 'success');
                 } else {
                     // Actualizar
-                    await apiFetchJson(`/api/depositos/${encodeURIComponent(idStr)}`, {
+                    await apiFetchJson(`/depositos/${encodeURIComponent(idStr)}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload),

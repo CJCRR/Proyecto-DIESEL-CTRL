@@ -206,7 +206,7 @@ async function cargarResumen() {
         const params = new URLSearchParams();
         if (periodoDesde) params.append('desde_venc', periodoDesde);
         if (periodoHasta) params.append('hasta_venc', periodoHasta);
-        const url = params.toString() ? `/api/cobranzas/resumen?${params.toString()}` : '/api/cobranzas/resumen';
+        const url = params.toString() ? `/cobranzas/resumen?${params.toString()}` : '/cobranzas/resumen';
         const j = await apiFetchJson(url);
         renderResumen(j);
     } catch (err) {
@@ -225,7 +225,7 @@ async function cargarCuentas() {
         if (mora) params.append('mora_min', mora);
         if (periodoDesde) params.append('desde_venc', periodoDesde);
         if (periodoHasta) params.append('hasta_venc', periodoHasta);
-        const j = await apiFetchJson(`/api/cobranzas/list?${params.toString()}`);
+        const j = await apiFetchJson(`/cobranzas/list?${params.toString()}`);
         // Normalizar la respuesta en caso de que el backend devuelva un objeto envolviendo las filas
         if (Array.isArray(j)) {
             cuentas = j;
@@ -248,7 +248,7 @@ async function cargarCuentas() {
 
 async function cargarResumenGlobal() {
     try {
-        resumenGlobal = await apiFetchJson('/api/cobranzas/resumen');
+        resumenGlobal = await apiFetchJson('/cobranzas/resumen');
     } catch (err) {
         console.error('Error cargando resumen histórico de cobranzas', err);
         resumenGlobal = null;
@@ -257,7 +257,7 @@ async function cargarResumenGlobal() {
 
 async function cargarDetalle(id) {
     try {
-        const j = await apiFetchJson(`/api/cobranzas/${id}`);
+        const j = await apiFetchJson(`/cobranzas/${id}`);
         renderDetalle(j);
     } catch (err) {
         console.error(err);
@@ -327,7 +327,7 @@ async function registrarPago(evt) {
     const notas = document.getElementById('p_notas').value || '';
     if (!monto || monto <= 0) { showToast('Monto inválido', 'error'); return; }
     try {
-        const j = await apiFetchJson(`/api/cobranzas/${cuentaSeleccionada.id}/pago`, {
+        const j = await apiFetchJson(`/cobranzas/${cuentaSeleccionada.id}/pago`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ monto, moneda, tasa_bcv: tasa, metodo, referencia, notas })

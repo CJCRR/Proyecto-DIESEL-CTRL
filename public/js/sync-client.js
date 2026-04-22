@@ -62,7 +62,7 @@ export async function enviarVentaASync(venta) {
   const evento = buildVentaEvent(venta);
 
   try {
-    await apiFetchJson('/api/sync/push', {
+    await apiFetchJson('/sync/push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ origen: 'pos-local', eventos: [evento] })
@@ -78,7 +78,7 @@ export async function enviarEventosSync(eventos, origen = 'pos-local') {
   if (!navigator.onLine) return;
 
   try {
-    await apiFetchJson('/api/sync/push', {
+    await apiFetchJson('/sync/push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ origen, eventos })

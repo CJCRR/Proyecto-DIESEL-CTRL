@@ -33,17 +33,28 @@ async function showNotification(title, body) {
   const opts = { body, icon: NOTIF_ICON, tag: title };
   try {
     if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.ready;
-      if (reg.showNotification) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg?.showNotification) {
         await reg.showNotification(title, opts);
         return;
       }
       // Fallback usando postMessage al SW
-      if (reg.active) reg.active.postMessage({ type: 'SHOW_NOTIFICATION', payload: { title, options: opts } });
+      if (reg?.active) reg.active.postMessage({ type: 'SHOW_NOTIFICATION', payload: { title, options: opts } });
     }
     new Notification(title, opts);
   } catch (err) {
     console.warn('No se pudo mostrar notificación', err);
+  }
+}
+
+async function fetchAlertasJson(currentUrl, legacyUrl) {
+  try {
+    return await fetchJSON(currentUrl);
+  } catch (err) {
+    if (legacyUrl && (err.status === 404 || /HTTP 404/i.test(err.message || ''))) {
+      return await fetchJSON(legacyUrl);
+    }
+    throw err;
   }
 }
 
@@ -53,7 +64,7 @@ async function fetchJSON(url) {
 
 async function pollStock() {
   try {
-    const rows = await fetchJSON('/api/alertas/stock');
+    const rows = await fetchAlertasJson('/alertas/stock', '/api/alertas/stock');
     rows.forEach(r => {
       const key = r.codigo;
       if (!seenStock.has(key)) {
@@ -69,7 +80,7 @@ async function pollStock() {
 
 async function pollMorosos() {
   try {
-    const rows = await fetchJSON('/api/alertas/morosos');
+    const rows = await fetchAlertasJson('/alertas/morosos', '/api/alertas/morosos');
     rows.forEach(r => {
       const key = `${r.id}`;
       if (!seenMorosos.has(key)) {

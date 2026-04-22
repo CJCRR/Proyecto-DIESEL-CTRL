@@ -148,18 +148,7 @@ router.post('/login', loginLimiter, (req, res) => {
     if (isBcrypt) {
       ok = bcrypt.compareSync(password, usuario.password);
     } else {
-      // Contraseña legada sin hash — migración al vuelo con protección contra timing attacks
-      try {
-        const logger = require('../services/logger');
-        logger.warn(`Usuario ${usuario.username} tiene contraseña sin hash (legada). Se migrará a bcrypt al iniciar sesión.`);
-      } catch { }
-      try {
-        const a = Buffer.from(String(password));
-        const b = Buffer.from(String(usuario.password));
-        ok = a.length === b.length && crypto.timingSafeEqual(a, b);
-      } catch {
-        ok = false;
-      }
+      ok = password === usuario.password;
       if (ok) {
         const newHash = bcrypt.hashSync(password, 10);
         db.prepare('UPDATE usuarios SET password = ? WHERE id = ?').run(newHash, usuario.id);

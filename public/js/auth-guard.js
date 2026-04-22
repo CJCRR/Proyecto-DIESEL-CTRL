@@ -25,6 +25,20 @@ import { apiFetchJson } from './app-api.js';
     return;
   }
 
+  if (['localhost', '127.0.0.1', '::1'].includes(window.location.hostname) && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+      .catch(() => {});
+
+    if ('caches' in window) {
+      caches.keys()
+        .then((keys) => Promise.all(keys
+          .filter((key) => key.startsWith('diesel-ctrl-'))
+          .map((key) => caches.delete(key))))
+        .catch(() => {});
+    }
+  }
+
   const storedUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
 
   const isEmpresaAdminRole = (rol) => rol === 'admin' || rol === 'admin_empresa';

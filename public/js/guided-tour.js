@@ -1,22 +1,5 @@
 (function () {
     const STORAGE_PREFIX = 'nexa_tour_';
-
-    // Incluir userId en la clave para que usuarios distintos en el mismo dispositivo
-    // no compartan el estado del tour
-    function getUserSuffix() {
-        try {
-            const user = window.Auth && typeof window.Auth.getUser === 'function'
-                ? window.Auth.getUser()
-                : JSON.parse(localStorage.getItem('auth_user') || 'null');
-            return user && user.id ? `_u${user.id}` : '';
-        } catch {
-            return '';
-        }
-    }
-
-    function storageKey(id) {
-        return STORAGE_PREFIX + id + getUserSuffix();
-    }
     let overlayEl = null;
     let highlightEl = null;
     let tooltipEl = null;
@@ -30,7 +13,7 @@
 
     function hasSeen(id) {
         try {
-            return localStorage.getItem(storageKey(id)) === '1';
+            return localStorage.getItem(STORAGE_PREFIX + id) === '1';
         } catch {
             return false;
         }
@@ -38,7 +21,7 @@
 
     function markSeen(id) {
         try {
-            localStorage.setItem(storageKey(id), '1');
+            localStorage.setItem(STORAGE_PREFIX + id, '1');
         } catch {
             /* ignore */
         }
@@ -331,7 +314,7 @@
         hasSeen,
         reset(id) {
             try {
-                localStorage.removeItem(storageKey(id));
+                localStorage.removeItem(STORAGE_PREFIX + id);
             } catch { }
         },
     };

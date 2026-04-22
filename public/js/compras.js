@@ -7,30 +7,6 @@ import { formatNumber } from './format-utils.js';
 let proveedores = [];
 let items = [];
 let productoSeleccionado = null;
-
-const COMPRAS_CART_KEY = 'compras_carrito_borrador';
-
-function saveCartToStorage() {
-  try { localStorage.setItem(COMPRAS_CART_KEY, JSON.stringify(items)); } catch { }
-}
-
-function clearCartStorage() {
-  try { localStorage.removeItem(COMPRAS_CART_KEY); } catch { }
-}
-
-function loadCartFromStorage() {
-  try {
-    const raw = localStorage.getItem(COMPRAS_CART_KEY);
-    if (!raw) return;
-    const saved = JSON.parse(raw);
-    if (Array.isArray(saved) && saved.length > 0) {
-      items = saved;
-      renderItems();
-      renderResumen();
-      showToast(`Se restauraron ${items.length} producto(s) del borrador anterior`, 'info');
-    }
-  } catch { }
-}
 let comprasHistorial = [];
 const comprasDetallesCache = {};
 let compraExpandidaId = null;
@@ -211,7 +187,7 @@ function renderProductoInfo() {
   const p = productoSeleccionado;
   const desc = p.descripcion ? ` - ${p.descripcion}` : '';
   const stock = typeof p.stock === 'number' ? ` | Stock: ${p.stock}` : '';
-  const precio = typeof p.precio_usd === 'number' ? ` | Precio ref: $${formatNumber(p.precio_usd, 2)}` : '';
+	const precio = typeof p.precio_usd === 'number' ? ` | Precio ref: $${formatNumber(p.precio_usd, 2)}` : '';
   const marcasLista = Array.isArray(p.marcas_disponibles) && p.marcas_disponibles.length
     ? p.marcas_disponibles.join(' / ')
     : (p.marca || '');
@@ -239,7 +215,7 @@ function rellenarCamposProductoEnFormulario(prod) {
 function renderItems() {
   const tbody = document.getElementById('c_items');
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="p-2 text-center text-slate-400 text-sm">Sin items</td></tr>';
+	tbody.innerHTML = '<tr><td colspan="8" class="p-2 text-center text-slate-400 text-sm">Sin items</td></tr>';
     return;
   }
   const tasa = formNumber('c_tasa', 1) || 1;
@@ -274,7 +250,6 @@ function renderItems() {
         items.splice(idx, 1);
         renderItems();
         renderResumen();
-        saveCartToStorage();
       }
     });
   });
@@ -387,7 +362,7 @@ async function cargarDepositosCompras() {
   const cDeposito = document.getElementById('c_deposito');
   if (!npDeposito && !cDeposito) return;
   try {
-    const res = await apiFetchJson('/api/depositos?soloActivos=1');
+    const res = await apiFetchJson('/depositos?soloActivos=1');
     const items = Array.isArray(res) ? res : [];
     const optionsHtml = items.map(d => `<option value="${d.id}">${escapeHtml(d.nombre || '')}</option>`).join('');
     if (npDeposito) {
@@ -406,7 +381,7 @@ async function cargarDepositosCompras() {
 
 async function cargarProveedoresParaSelect() {
   try {
-    const data = await apiFetchJson('/api/proveedores?soloActivos=1');
+  const data = await apiFetchJson('/api/proveedores?soloActivos=1');
     proveedores = Array.isArray(data) ? data : [];
     const sel = document.getElementById('c_proveedor');
     const selFiltro = document.getElementById('c_filtro_proveedor');
@@ -416,7 +391,7 @@ async function cargarProveedoresParaSelect() {
     try {
       initCustomSelect('c_proveedor');
       initCustomSelect('c_filtro_proveedor');
-    } catch { }
+    } catch {}
   } catch (err) {
     console.error(err);
     showToast(err.message || 'Error cargando proveedores', 'error');
@@ -510,7 +485,6 @@ function agregarItemDesdeFormulario() {
   if (sug) sug.classList.add('hidden');
   renderItems();
   renderResumen();
-  saveCartToStorage();
 }
 
 async function guardarCompra() {
@@ -550,14 +524,13 @@ async function guardarCompra() {
       body: JSON.stringify(payload),
     });
     showToast('Compra registrada y stock actualizado', 'success');
-    clearCartStorage();
 
     // Sincronizar stock y datos del producto en Firebase para los códigos comprados
     try {
       const codigos = [...new Set(items.map(it => (it && it.codigo ? String(it.codigo).trim() : '')).filter(Boolean))];
       for (const codigo of codigos) {
         try {
-          const prod = await apiFetchJson(`/api/productos/${encodeURIComponent(codigo)}`);
+          const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
           if (!prod || prod.error) continue;
           await upsertProductoFirebase({
             codigo: prod.codigo,
@@ -574,17 +547,17 @@ async function guardarCompra() {
         }
       }
     } catch (syncErrList) {
-    console.warn('No se pudo preparar sincronización de productos tras compra', syncErrList);
-  }
+      console.warn('No se pudo preparar sincronización de productos tras compra', syncErrList);
+    }
 
-  limpiarFormularioCompra();
-  await cargarHistorialCompras();
-} catch (err) {
-  console.error(err);
-  showToast(err.message || 'Error registrando compra', 'error');
-} finally {
-  setCompraGuardando(false);
-}
+    limpiarFormularioCompra();
+    await cargarHistorialCompras();
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || 'Error registrando compra', 'error');
+  } finally {
+    setCompraGuardando(false);
+  }
 }
 
 function formatFechaCompra(fechaRaw) {
@@ -610,12 +583,12 @@ async function buscarProductos(q) {
   const lista = document.getElementById('c_sugerencias');
   if (!lista) return;
   if (!q || q.length < 2) {
-    lista.innerHTML = '';
-    lista.classList.add('hidden');
-    return;
+     lista.innerHTML = '';
+     lista.classList.add('hidden');
+     return;
   }
   try {
-    const data = await apiFetchJson(`/api/buscar?q=${encodeURIComponent(q)}`);
+    const data = await apiFetchJson(`/buscar?q=${encodeURIComponent(q)}`);
     const results = Array.isArray(data) ? data : [];
     if (!results.length) {
       lista.innerHTML = '<li class="p-3 text-[11px] text-slate-400">Sin coincidencias</li>';
@@ -662,7 +635,7 @@ async function buscarProductos(q) {
 async function cargarProductoPorCodigo(codigo) {
   if (!codigo) return;
   try {
-    const prod = await apiFetchJson(`/api/productos/${encodeURIComponent(codigo)}`);
+    const prod = await apiFetchJson(`/productos/${encodeURIComponent(codigo)}`);
     let producto = prod || null;
     if (producto) {
       // Preferir las marcas que tienen stock actualmente (stock_por_deposito_marca)
@@ -715,7 +688,7 @@ async function cargarHistorialCompras() {
   try {
     const proveedorFiltro = document.getElementById('c_filtro_proveedor').value || '';
     const qs = proveedorFiltro ? `?proveedor_id=${encodeURIComponent(proveedorFiltro)}` : '';
-    const data = await apiFetchJson(`/api/compras${qs}`);
+	const data = await apiFetchJson(`/api/compras${qs}`);
     const tbody = document.getElementById('c_historial');
     const list = Array.isArray(data) ? data : [];
     comprasHistorial = list;
@@ -794,7 +767,7 @@ async function toggleDetalleCompra(id) {
   // Cargar detalles si no están en cache
   if (!comprasDetallesCache[id]) {
     try {
-      const data = await apiFetchJson(`/api/compras/${id}`);
+    const data = await apiFetchJson(`/api/compras/${id}`);
       comprasDetallesCache[id] = data;
     } catch (err) {
       console.error(err);
@@ -853,9 +826,9 @@ async function toggleDetalleCompra(id) {
           </thead>
           <tbody class="divide-y">
             ${itemsDet.map(d => {
-      const subUsd = (d.costo_usd || 0) * (d.cantidad || 0);
-      const subBs = d.subtotal_bs || 0;
-      return `
+              const subUsd = (d.costo_usd || 0) * (d.cantidad || 0);
+              const subBs = d.subtotal_bs || 0;
+              return `
                 <tr>
                   <td class="p-2">${escapeHtml(d.codigo || '')}</td>
                   <td class="p-2">${escapeHtml((d.descripcion || d.producto_descripcion_db || '').toString().toUpperCase())}</td>
@@ -867,7 +840,7 @@ async function toggleDetalleCompra(id) {
                   <td class="p-2">${escapeHtml(d.lote || '')}</td>
                 </tr>
               `;
-    }).join('')}
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -883,7 +856,7 @@ async function toggleDetalleCompra(id) {
     if (btnAnular) {
       btnAnular.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        const ok = await confirmarAnulacionCompra();
+        const ok = window.confirm('¿Anular completamente esta compra? Esto revertirá el stock asociado. Esta acción no se puede deshacer.');
         if (!ok) return;
         try {
           await apiFetchJson(`/api/compras/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -897,33 +870,6 @@ async function toggleDetalleCompra(id) {
       });
     }
   }
-}
-
-// Modal de confirmación de anulación de compra
-function confirmarAnulacionCompra() {
-  return new Promise((resolve) => {
-    const modal = document.getElementById('modal-anular-compra');
-    const btnOk = document.getElementById('modal-anular-confirmar');
-    const btnCancel = document.getElementById('modal-anular-cancelar');
-    if (!modal || !btnOk || !btnCancel) { resolve(window.confirm('¿Anular esta compra?')); return; }
-
-    modal.classList.remove('hidden');
-
-    function cleanup(result) {
-      modal.classList.add('hidden');
-      btnOk.removeEventListener('click', onOk);
-      btnCancel.removeEventListener('click', onCancel);
-      modal.removeEventListener('click', onBackdrop);
-      resolve(result);
-    }
-    function onOk() { cleanup(true); }
-    function onCancel() { cleanup(false); }
-    function onBackdrop(e) { if (e.target === modal) cleanup(false); }
-
-    btnOk.addEventListener('click', onOk);
-    btnCancel.addEventListener('click', onCancel);
-    modal.addEventListener('click', onBackdrop);
-  });
 }
 
 function setupUI() {
@@ -1098,10 +1044,9 @@ window.addEventListener('DOMContentLoaded', () => {
         compraFocusId = idNum;
       }
     }
-  } catch { }
+  } catch {}
   setupUI();
   limpiarFormularioCompra();
-  loadCartFromStorage();
   cargarProveedoresParaSelect();
   cargarHistorialCompras();
   cargarCategoriasCompras();
@@ -1113,12 +1058,12 @@ if (window.GuidedTour) {
   const comprasTourId = 'compras_v1';
 
   const comprasSteps = [
-    //  {
-    //    selector: '#compras-header',
-    //    title: 'Registro de compras e ingresos',
-    //    text: 'En esta pantalla registras facturas de proveedores y actualizas el inventario.',
-    //    placement: 'bottom',
-    //  },
+  //  {
+  //    selector: '#compras-header',
+  //    title: 'Registro de compras e ingresos',
+  //    text: 'En esta pantalla registras facturas de proveedores y actualizas el inventario.',
+  //    placement: 'bottom',
+  //  },
     {
       selector: '#compra-panel',
       title: 'Formulario de compra',

@@ -1,11 +1,13 @@
 // Middleware para JWT opcional y utilidades
 const jwt = require('jsonwebtoken');
 
-// Permitir fallback solo en entorno de test; en cualquier otro (dev, staging, prod) falla rápido
-const SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'jwt_dev_secret' : null);
+const isProd = process.env.NODE_ENV === 'production';
+const SECRET = process.env.JWT_SECRET || (!isProd ? 'jwt_dev_secret' : null);
 
 if (!SECRET) {
-  console.error('FATAL: JWT_SECRET no está configurado. Defina la variable de entorno JWT_SECRET antes de iniciar el servidor.');
+  // Fallar rápido en producción si no hay secreto JWT configurado
+  // para evitar emitir/verificar tokens inseguros.
+  console.error('FATAL: JWT_SECRET no configurado en entorno de producción');
   throw new Error('JWT_SECRET no configurado');
 }
 

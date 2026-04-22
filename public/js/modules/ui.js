@@ -65,7 +65,7 @@ export function initSyncBackupUI() {
 	if (btnBackupNow) {
 		btnBackupNow.addEventListener('click', async () => {
 			try {
-				await apiFetchJson('/api/backup/create', {
+				await apiFetchJson('/backup/create', {
 					method: 'POST',
 				});
 				showToast('Backup creado', 'success');

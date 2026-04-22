@@ -3,7 +3,6 @@ import { authFetch, apiFetchJson } from './app-api.js';
 import { escapeHtml, showToast } from './app-utils.js';
 import { formatNumber } from './format-utils.js';
 import { guardarProductoLocal } from './db-local.js';
-import { setTasaUI, cargarTasaPV, precargarTasaCache, actualizarTasaPV } from './modules/tasa.js';
 
 import {
     carrito, productoSeleccionado, modoDevolucion, actualizarTabla, setModoDevolucion,
@@ -20,6 +19,8 @@ import { setupSearchModule } from './modules/search.js';
 import { initClientesUI, initOfflineUI, initSyncBackupUI, initCustomSelect } from './modules/ui.js';
 
 let vendiendo = false;
+let TASA_BCV_POS = 1;
+let TASA_BCV_UPDATED_POS = null;
 let ventasRecientesCache = [];
 let configGeneral = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
 let lastAutoDescuentoVolumen = null;
@@ -83,11 +84,51 @@ function setupKeyboardShortcuts() {
     });
 }
 
+function setTasaUI(tasa, actualizadoEn) {
+    TASA_BCV_POS = Number(tasa || 1) || 1;
+    if (actualizadoEn) TASA_BCV_UPDATED_POS = actualizadoEn;
+    try {
+        localStorage.setItem('tasa_bcv', String(TASA_BCV_POS));
+        if (TASA_BCV_UPDATED_POS) localStorage.setItem('tasa_bcv_updated', TASA_BCV_UPDATED_POS);
+    } catch {}
+    const input = document.getElementById('v_tasa');
+    if (input) {
+        input.value = TASA_BCV_POS.toFixed(2);
+        actualizarTabla();
+    }
+    const kpi = document.getElementById('pv-kpi-tasa');
+    if (kpi) kpi.textContent = formatNumber(TASA_BCV_POS, 2);
+    const alertEl = document.getElementById('pv-tasa-alert');
+    if (alertEl) {
+        const diffHrs = TASA_BCV_UPDATED_POS ? (Date.now() - new Date(TASA_BCV_UPDATED_POS).getTime()) / 36e5 : null;
+        const show = diffHrs !== null && diffHrs > 8;
+        alertEl.classList.toggle('hidden', !show);
+        if (show) alertEl.textContent = `Tasa sin actualizar hace ${diffHrs.toFixed(1)}h`;
+    }
+}
+
+async function cargarTasaPV() {
+    try {
+        const j = await apiFetchJson('/admin/ajustes/tasa-bcv');
+        setTasaUI(j.tasa_bcv, j.actualizado_en);
+    } catch (err) {
+        console.warn('No se pudo cargar tasa BCV', err);
+    }
+}
+
+function precargarTasaCache() {
+    try {
+        const cached = localStorage.getItem('tasa_bcv');
+        const cachedUpdated = localStorage.getItem('tasa_bcv_updated');
+        if (cached) setTasaUI(Number(cached), cachedUpdated || null);
+    } catch {}
+}
+
 // Precarga de catálogo de productos en IndexedDB para búsqueda offline
 async function precargarCatalogoProductos() {
     try {
         // Traer hasta ~5000 productos; el backend aplica límite
-        const productos = await apiFetchJson('/api/productos?limit=5000');
+        const productos = await apiFetchJson('/productos?limit=5000');
         if (Array.isArray(productos) && productos.length) {
             for (const p of productos) {
                 if (!p || !p.codigo) continue;
@@ -370,7 +411,7 @@ function validarPoliticaDevolucionLocal(venta) {
 
 async function cargarPresupuestoEnPOS(presupuestoId) {
     try {
-        const data = await apiFetchJson(`/api/presupuestos/${encodeURIComponent(presupuestoId)}`);
+        const data = await apiFetchJson(`/presupuestos/${encodeURIComponent(presupuestoId)}`);
         const { presupuesto, detalles } = data || {};
         if (!presupuesto) throw new Error('Presupuesto no encontrado');
 
@@ -440,6 +481,38 @@ async function cargarPresupuestoEnPOS(presupuestoId) {
     }
 }
 
+async function actualizarTasaPV() {
+    const val = parseFloat(document.getElementById('v_tasa')?.value || '');
+
+    // Si hay un valor válido en el input, guardar manualmente; si no, actualizar automático
+    if (!Number.isNaN(val) && val > 0) {
+        try {
+            const j = await apiFetchJson('/admin/ajustes/tasa-bcv', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tasa_bcv: val }),
+            });
+            setTasaUI(j.tasa_bcv ?? val, j.actualizado_en || new Date().toISOString());
+            showToast('Tasa guardada', 'success');
+        } catch (err) {
+            showToast('Error guardando tasa', 'error');
+        }
+        return;
+    }
+
+    // Modo auto-actualizar
+    try {
+        const j = await apiFetchJson('/admin/ajustes/tasa-bcv/actualizar', { method: 'POST' });
+        const tasa = Number(j.tasa_bcv || 0);
+        if (tasa > 0) {
+            setTasaUI(tasa, j.actualizado_en || new Date().toISOString());
+            showToast('Tasa actualizada', 'success');
+        }
+    } catch (err) {
+        showToast('Error actualizando tasa', 'error');
+    }
+}
+
 // Escuchar eventos de sincronización provenientes de firebase-sync.js
 window.addEventListener('sync-status', (evt) => {
     const detail = evt.detail || {};
@@ -452,7 +525,7 @@ window.addEventListener('sync-status', (evt) => {
 
 async function cargarVentasRecientes() {
     try {
-        ventasRecientesCache = await apiFetchJson('/api/reportes/ventas');
+        ventasRecientesCache = await apiFetchJson('/reportes/ventas');
         renderVentasRecientes();
     } catch (err) {
         console.error(err);
@@ -500,7 +573,7 @@ function renderVentasRecientes(filter = '') {
 
 async function cargarVentaParaDevolucion(id) {
     try {
-        const { venta, detalles } = await apiFetchJson(`/api/reportes/ventas/${id}`);
+        const { venta, detalles } = await apiFetchJson(`/reportes/ventas/${id}`);
         setVentaSeleccionada(venta);
         carrito.length = 0;
         (detalles || []).forEach(d => {
@@ -569,7 +642,7 @@ async function registrarPresupuesto() {
 
     vendiendo = true;
     try {
-        const res = await apiFetchJson('/api/presupuestos', {
+        const res = await apiFetchJson('/presupuestos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ items, cliente, cedula, telefono, tasa_bcv: tasa, descuento, notas, nivel_precio: nivelPrecio })
@@ -578,7 +651,7 @@ async function registrarPresupuesto() {
         finalizarVentaUI();
         if (window.limpiarBackup) window.limpiarBackup();
         if (res && res.presupuestoId) {
-            const notaUrl = `/api/presupuestos/nota/${encodeURIComponent(res.presupuestoId)}`;
+            const notaUrl = `/presupuestos/nota/${encodeURIComponent(res.presupuestoId)}`;
             // Si abrimos una ventana al inicio para evitar popup blockers, reutilizarla
             const win = (imprimirNotaLocal._ventana && !imprimirNotaLocal._ventana.closed) ? imprimirNotaLocal._ventana : null;
             if (win) {
@@ -719,11 +792,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnToggleDev = document.getElementById('btn-toggle-devolucion');
     if (btnToggleDev) btnToggleDev.addEventListener('click', () => toggleDevolucion());
 
-    // Registrar service worker
+    // En localhost desactivamos el SW para evitar cache stale y ruido de consola.
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.js')
-            .then(() => console.log('✅ Service Worker activo'))
-            .catch(err => console.error('❌ Error SW:', err));
+        const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+
+        if (isLocalhost) {
+            navigator.serviceWorker.getRegistrations()
+                .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+                .catch(() => {});
+
+            if ('caches' in window) {
+                caches.keys()
+                    .then((keys) => Promise.all(keys
+                        .filter((key) => key.startsWith('diesel-ctrl-'))
+                        .map((key) => caches.delete(key))))
+                    .catch(() => {});
+            }
+        } else {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(() => console.log('✅ Service Worker activo'))
+                .catch(err => console.error('❌ Error SW:', err));
+        }
     }
 
     // Toggle UI para ventas a crédito (acordeón por método o checkbox)
@@ -1042,9 +1131,9 @@ async function actualizarHistorial() {
     cont.innerHTML = '<div class="text-slate-400 text-xs">Cargando movimientos...</div>';
     try {
         const [ventasRes, devRes, presRes] = await Promise.allSettled([
-            apiFetchJson('/api/reportes/ventas'),
-            apiFetchJson('/api/devoluciones/historial?limit=20'),
-            apiFetchJson('/api/presupuestos?limit=20')
+            apiFetchJson('/reportes/ventas'),
+            apiFetchJson('/devoluciones/historial?limit=20'),
+            apiFetchJson('/presupuestos?limit=20')
         ]);
         const ventas = ventasRes.status === 'fulfilled' ? ventasRes.value : [];
         const devoluciones = devRes.status === 'fulfilled' ? devRes.value : [];
@@ -1099,7 +1188,7 @@ async function actualizarHistorial() {
             const clickable = (isPres || (!isDev && mov.id));
             div.className = `group p-3 border rounded-xl flex justify-between items-center text-xs ${clickable ? 'hover:border-blue-200 hover:bg-blue-50 cursor-pointer' : 'cursor-default bg-white'}`;
             if (clickable && isPres) div.onclick = () => window.location.href = `/pos?presupuesto=${mov.id}`;
-            if (clickable && !isPres && !isDev) div.onclick = () => window.open(`/api/nota/${mov.id}`, '_blank');
+            if (clickable && !isPres && !isDev) div.onclick = () => window.open(`/nota/${mov.id}`, '_blank');
             div.innerHTML = `
                 <div class="flex flex-col">
                     <div class="flex items-center gap-2">

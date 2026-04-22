@@ -1,4 +1,4 @@
-const CACHE_NAME = 'diesel-ctrl-v2';
+const CACHE_NAME = 'diesel-ctrl-v3';
 const urlsToCache = [
     '/',
     '/styles.css',
@@ -15,7 +15,6 @@ const urlsToCache = [
     '/js/db-local.js',
     '/js/auth-guard.js',
     '/js/firebase-sync.js',
-    '/js/presupuestos.js',
     '/shared/nota-template.js'
 ];
 
@@ -72,9 +71,14 @@ function swMarcarComoSincronizada(db, id) {
 // Instalación
 self.addEventListener('install', event => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => {
-            console.log('Cache creado');
-            return cache.addAll(urlsToCache);
+        caches.open(CACHE_NAME).then(async cache => {
+            await Promise.all(urlsToCache.map(async (url) => {
+                try {
+                    await cache.add(url);
+                } catch (_) {
+                    // Ignorar recursos faltantes para no romper la instalación del SW.
+                }
+            }));
         })
     );
     self.skipWaiting();
@@ -127,7 +131,7 @@ self.addEventListener('fetch', event => {
         } catch (err) {
             const cached = await caches.match(event.request);
             if (cached) return cached;
-            const fallback = await caches.match('/pages/index.html');
+            const fallback = await caches.match('/pos');
             return fallback || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
         }
     })());
