@@ -1,10 +1,23 @@
 // Middleware de seguridad: HTTPS enforcement y configuración avanzada de Helmet
 const helmet = require('helmet');
 
+function isHttpsEnforced() {
+  const raw = String(process.env.ENFORCE_HTTPS || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
 function enforceHTTPS(req, res, next) {
-  if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https') {
+  if (!isHttpsEnforced()) {
+    return next();
+  }
+
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+  const isSecure = req.secure || forwardedProto === 'https';
+
+  if (!isSecure) {
     return res.redirect(301, 'https://' + req.headers.host + req.originalUrl);
   }
+
   next();
 }
 

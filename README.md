@@ -51,6 +51,7 @@ Estas son las más importantes:
 - `PORT`: puerto del servidor
 - `DB_PATH`: ruta o nombre de la base de datos SQLite
 - `JWT_SECRET`: secreto para firmar/verificar tokens JWT (obligatorio fuera de tests)
+- `ENFORCE_HTTPS`: usar `true` solo si el despliegue ya está detrás de HTTPS real o proxy TLS
 - `ADMIN_USERNAME`: usuario admin inicial
 - `ADMIN_PASSWORD`: clave admin inicial
 - `SUPERADMIN_USERNAME`: usuario superadmin inicial
@@ -136,3 +137,5 @@ Si vas a usar este proyecto en producción, revisa antes:
 - configuración de Firebase
 - ruta de la base de datos
 - backups
+
+Si expones la app directamente por IP y puerto, no actives `ENFORCE_HTTPS`. Úsalo solo cuando tengas un dominio o proxy con TLS real delante de Node.
