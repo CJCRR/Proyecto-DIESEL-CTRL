@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const logger = require('./services/logger');
 const path = require('path');
 const db = require('./db');
@@ -41,6 +42,7 @@ app.use(express.text({ type: ['text/*', 'application/csv'], limit: '10mb' }));
 // Servir archivos estáticos desde la carpeta public
 const PUBLIC_DIR = path.join(__dirname, '../public');
 const PAGES_DIR = path.join(PUBLIC_DIR, 'pages');
+const FIREBASE_CONFIG_FILE = path.join(PUBLIC_DIR, 'config', 'firebase-config.js');
 const disableStaticCache = process.env.NODE_ENV !== 'production';
 
 function applyNoStoreHeaders(res) {
@@ -50,6 +52,50 @@ function applyNoStoreHeaders(res) {
     res.setHeader('Expires', '0');
     res.setHeader('Surrogate-Control', 'no-store');
 }
+
+app.get('/config/firebase-config.js', (req, res) => {
+    applyNoStoreHeaders(res);
+    res.type('application/javascript; charset=utf-8');
+
+    try {
+        if (fs.existsSync(FIREBASE_CONFIG_FILE)) {
+            return res.send(fs.readFileSync(FIREBASE_CONFIG_FILE, 'utf8'));
+        }
+    } catch (err) {
+        logger.warn('No se pudo leer public/config/firebase-config.js; se usara config por entorno', {
+            message: err.message,
+            stack: err.stack,
+        });
+    }
+
+    const firebaseConfig = {
+        apiKey: process.env.FIREBASE_API_KEY || '',
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
+        projectId: process.env.FIREBASE_PROJECT_ID || '',
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || '',
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+        appId: process.env.FIREBASE_APP_ID || '',
+    };
+
+    const moduleSource = `import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+
+const firebaseConfig = ${JSON.stringify(firebaseConfig, null, 2)};
+
+const hasRealFirebaseConfig = Object.values(firebaseConfig).every((value) => {
+  return typeof value === "string" && value.trim().length > 0;
+});
+
+const app = hasRealFirebaseConfig
+  ? (getApps().length ? getApp() : initializeApp(firebaseConfig))
+  : null;
+const db = app ? getFirestore(app) : null;
+
+export { firebaseConfig, hasRealFirebaseConfig, db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc };
+`;
+
+    return res.send(moduleSource);
+});
 
 app.use(express.static(PUBLIC_DIR, {
     setHeaders: (res, filePath) => {

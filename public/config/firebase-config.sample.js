@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
 // Copie este archivo a firebase-config.js y reemplace los valores
@@ -12,7 +12,13 @@ const firebaseConfig = {
   appId: "REEMPLAZAR_APP_ID"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const hasRealFirebaseConfig = Object.values(firebaseConfig).every((value) => {
+  return typeof value === "string" && value.trim() && !value.startsWith("REEMPLAZAR");
+});
 
-export { db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc };
+const app = hasRealFirebaseConfig
+  ? (getApps().length ? getApp() : initializeApp(firebaseConfig))
+  : null;
+const db = app ? getFirestore(app) : null;
+
+export { firebaseConfig, hasRealFirebaseConfig, db, collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, setDoc };

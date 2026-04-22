@@ -73,6 +73,17 @@ El proyecto usa un archivo de configuración en frontend.
 
 Ese archivo no debe subirse al repositorio si contiene datos reales.
 
+En despliegues donde ese archivo no exista, el servidor puede generarlo en runtime con estas variables:
+
+- `FIREBASE_API_KEY`
+- `FIREBASE_AUTH_DOMAIN`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_STORAGE_BUCKET`
+- `FIREBASE_MESSAGING_SENDER_ID`
+- `FIREBASE_APP_ID`
+
+Si no se define el archivo privado ni esas variables, la app sigue cargando pero Firebase queda deshabilitado en esa instancia.
+
 ## Pruebas
 
 Para correr las pruebas:
