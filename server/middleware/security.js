@@ -23,18 +23,27 @@ function enforceHTTPS(req, res, next) {
 
 const httpsEnforced = isHttpsEnforced();
 
+const cspDirectives = {
+  defaultSrc: ["'self'", 'https:'],
+  scriptSrc: ["'self'", "'unsafe-inline'", 'https:', 'cdn.tailwindcss.com', 'cdnjs.cloudflare.com'],
+  styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
+  fontSrc: ["'self'", 'https:', 'data:', 'fonts.gstatic.com'],
+  imgSrc: ["'self'", 'data:', 'https:'],
+  connectSrc: ["'self'", 'https:'],
+  objectSrc: ["'none'"],
+  baseUri: ["'self'"],
+  formAction: ["'self'"],
+  frameAncestors: ["'self'"]
+};
+
+if (httpsEnforced) {
+  cspDirectives.upgradeInsecureRequests = [];
+}
+
 const helmetConfig = helmet({
   contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'", 'https:'],
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https:', 'cdn.tailwindcss.com', 'cdnjs.cloudflare.com'],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      fontSrc: ["'self'", 'https:', 'fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", 'https:'],
-      objectSrc: ["'none'"],
-      ...(httpsEnforced ? { upgradeInsecureRequests: [] } : {}),
-    },
+    useDefaults: false,
+    directives: cspDirectives,
   },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   frameguard: { action: 'deny' },
