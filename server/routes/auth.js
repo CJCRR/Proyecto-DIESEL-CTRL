@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const speakeasy = require('speakeasy');
 const { signJwt } = require('../middleware/jwt');
+const { isHttpsEnforced } = require('../middleware/security');
 const { registrarEventoNegocio } = require('../services/eventosService');
 const { registrarAuditoria } = require('../services/auditLogService');
 const { sendPasswordResetEmail } = require('../services/emailService');
@@ -252,18 +253,19 @@ router.post('/login', loginLimiter, (req, res) => {
       twofa_enabled: !!usuario.twofa_enabled
     };
     const jwtToken = signJwt(jwtPayload);
+    const secureCookies = isHttpsEnforced();
 
     // Setear ambas cookies: auth_token (clásico) y jwt_token (JWT)
     res.cookie('auth_token', token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: secureCookies,
       maxAge: 8 * 60 * 60 * 1000
     });
     res.cookie('jwt_token', jwtToken, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: secureCookies,
       maxAge: 8 * 60 * 60 * 1000
     });
 

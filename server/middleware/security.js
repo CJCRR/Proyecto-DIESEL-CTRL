@@ -21,6 +21,8 @@ function enforceHTTPS(req, res, next) {
   next();
 }
 
+const httpsEnforced = isHttpsEnforced();
+
 const helmetConfig = helmet({
   contentSecurityPolicy: {
     directives: {
@@ -31,12 +33,12 @@ const helmetConfig = helmet({
       imgSrc: ["'self'", 'data:', 'https:'],
       connectSrc: ["'self'", 'https:'],
       objectSrc: ["'none'"],
-      upgradeInsecureRequests: [],
+      ...(httpsEnforced ? { upgradeInsecureRequests: [] } : {}),
     },
   },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   frameguard: { action: 'deny' },
-  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  hsts: httpsEnforced ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
   xssFilter: true,
   noSniff: true,
   ieNoOpen: true,
@@ -44,6 +46,7 @@ const helmetConfig = helmet({
 });
 
 module.exports = {
+  isHttpsEnforced,
   enforceHTTPS,
   helmetConfig
 };
