@@ -81,7 +81,7 @@ async function sendMessage(to, text) {
             logger.error('whatsappService: error de red al enviar mensaje', { message: err.message });
             reject(err);
         });
-        req.on('timeout', () => { req.destroy(); reject(new Error('WhatsApp API timeout')); });
+        req.on('timeout', () => { req.destroy(); reject(new Error('WhatsApp API timeout after 15000ms')); });
         req.write(body);
         req.end();
     });
@@ -148,6 +148,18 @@ function normalize(text) {
 }
 
 /**
+ * Extrae la query del producto tras los verbos/palabras clave de la intención.
+ * @param {string} normalized  – texto ya normalizado
+ * @param {string} keywordsRe  – alternativas de palabras clave (sin delimitadores)
+ * @returns {string}
+ */
+function extractQuery(normalized, keywordsRe) {
+    return normalized
+        .replace(new RegExp(`^.*?(${keywordsRe})\\s*(de|del|la|el|los|las|un|una)?\\s*`, 'i'), '')
+        .trim();
+}
+
+/**
  * Detecta la intención del mensaje.
  * @param {string} text
  * @returns {{ intent: string, query: string }}
@@ -155,25 +167,19 @@ function normalize(text) {
 function detectIntent(text) {
     const t = normalize(text);
 
-    if (/^(hola|buenas|buenos|buen dia|buen tarde|buen noche|saludos|hey|hi|ola)/.test(t)) {
+    if (/^(hola|buenas|buenos|buen dia|buen tarde|buen noche|saludos|hey|hi|hola|ola)/.test(t)) {
         return { intent: INTENT.GREETING, query: '' };
     }
     if (/(precio|cuanto cuesta|cuanto vale|valor|cuanto es|cuanto sale|a cuanto)/.test(t)) {
-        const query = t
-            .replace(/^.*?(precio|cuanto cuesta|cuanto vale|valor|cuanto es|cuanto sale|a cuanto)\s*(de|del|la|el|los|las|un|una)?\s*/i, '')
-            .trim();
+        const query = extractQuery(t, 'precio|cuanto cuesta|cuanto vale|valor|cuanto es|cuanto sale|a cuanto');
         return { intent: INTENT.PRICE, query };
     }
     if (/(stock|hay|disponible|tienen|existe|tienes|cuantos hay|cuantas hay|disponibilidad)/.test(t)) {
-        const query = t
-            .replace(/^.*?(stock|hay|disponible|tienen|existe|tienes|cuantos hay|cuantas hay|disponibilidad)\s*(de|del|la|el|los|las|un|una)?\s*/i, '')
-            .trim();
+        const query = extractQuery(t, 'stock|hay|disponible|tienen|existe|tienes|cuantos hay|cuantas hay|disponibilidad');
         return { intent: INTENT.STOCK, query };
     }
     if (/(pedir|quiero|comprar|ordenar|pedido|necesito|dame|me puedes dar|apartar)/.test(t)) {
-        const query = t
-            .replace(/^.*?(pedir|quiero|comprar|ordenar|pedido|necesito|dame|me puedes dar|apartar)\s*(de|del|la|el|los|las|un|una)?\s*/i, '')
-            .trim();
+        const query = extractQuery(t, 'pedir|quiero|comprar|ordenar|pedido|necesito|dame|me puedes dar|apartar');
         return { intent: INTENT.ORDER, query };
     }
     if (/(ayuda|menu|opciones|que puedes hacer|como funciona|info|informacion)/.test(t)) {

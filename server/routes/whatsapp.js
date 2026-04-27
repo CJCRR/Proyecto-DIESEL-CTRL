@@ -31,7 +31,9 @@ router.get('/webhook', (req, res) => {
 
     if (mode === 'subscribe' && token === verifyToken) {
         logger.info('whatsapp/webhook: verificación exitosa');
-        return res.status(200).send(challenge);
+        // Devolver solo el valor numérico del challenge para evitar XSS reflejado
+        const safeChallenge = String(challenge || '').replace(/[^0-9]/g, '');
+        return res.status(200).send(safeChallenge);
     }
 
     logger.warn('whatsapp/webhook: token de verificación inválido', { received: token });

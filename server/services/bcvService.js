@@ -30,7 +30,7 @@ function fetchText(url) {
             res.on('end', () => resolve(data));
         });
         req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('BCV request timeout')); });
+        req.on('timeout', () => { req.destroy(); reject(new Error('BCV request timeout after 10000ms')); });
     });
 }
 
@@ -43,14 +43,21 @@ function fetchText(url) {
 async function fetchRateFromBCV() {
     try {
         const html = await fetchText('https://www.bcv.org.ve/');
-        // Buscar el bloque del dólar
-        const match = html.match(/id=["']dolar["'][^>]*>[\s]*([\d.,]+)[\s]*</i)
-            || html.match(/USD[^<]*<[^>]+>\s*([\d.,]+)\s*<\//i);
+        // Patrón 1: <strong id="dolar">  36,56 </strong>
+        const primary = html.match(/id=["']dolar["'][^>]*>[\s]*([\d.,]+)[\s]*</i);
+        if (!primary) {
+            logger.warn('bcvService: patrón primario no encontró el bloque dólar; intentando patrón alternativo');
+        }
+        // Patrón 2: fallback – busca "USD" seguido de un valor en una etiqueta adyacente
+        const match = primary || html.match(/USD[^<]*<[^>]+>\s*([\d.,]+)\s*<\//i);
         if (match) {
             // BCV usa coma como separador decimal en Venezuela
             const raw = match[1].replace(/\./g, '').replace(',', '.');
             const rate = parseFloat(raw);
             if (!isNaN(rate) && rate > 0) return rate;
+            logger.warn('bcvService: valor encontrado pero no es un número válido', { raw: match[1] });
+        } else {
+            logger.warn('bcvService: ningún patrón encontró la tasa en el HTML de bcv.org.ve');
         }
     } catch (err) {
         logger.warn('bcvService: no se pudo obtener tasa de bcv.org.ve', { message: err.message });
