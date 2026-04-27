@@ -12,11 +12,18 @@ const comprasDetallesCache = {};
 let compraExpandidaId = null;
 let modalNuevoProducto;
 let modalNuevoProductoMsg;
+let modalAnularCompra;
+let modalAnularCompraCancelar;
+let modalAnularCompraConfirmar;
 let depositosComprasCargados = false;
 let categoriasCompras = [];
 let marcasCompras = [];
 let compraFocusId = null;
 let compraGuardando = false;
+let compraPendienteAnulacionId = null;
+let compraAnulando = false;
+let compraDraftPendiente = null;
+const COMPRA_DRAFT_STORAGE_PREFIX = 'compras_draft_v1';
 const ES_ADMIN_EMPRESA = (window.Auth && typeof window.Auth.isAdmin === 'function') ? !!window.Auth.isAdmin() : false;
 
 function setCompraGuardando(isLoading) {
@@ -34,6 +41,239 @@ function setCompraGuardando(isLoading) {
     btn.classList.toggle('opacity-60', !!isLoading);
     btn.classList.toggle('cursor-not-allowed', !!isLoading);
   }
+}
+
+function setModalAnularCompraLoading(isLoading) {
+  compraAnulando = !!isLoading;
+
+  if (modalAnularCompraCancelar) {
+    modalAnularCompraCancelar.disabled = !!isLoading;
+    modalAnularCompraCancelar.classList.toggle('opacity-60', !!isLoading);
+    modalAnularCompraCancelar.classList.toggle('cursor-not-allowed', !!isLoading);
+  }
+
+  if (modalAnularCompraConfirmar) {
+    modalAnularCompraConfirmar.disabled = !!isLoading;
+    modalAnularCompraConfirmar.classList.toggle('opacity-70', !!isLoading);
+    modalAnularCompraConfirmar.classList.toggle('cursor-not-allowed', !!isLoading);
+    modalAnularCompraConfirmar.innerHTML = isLoading
+      ? '<i class="fas fa-spinner fa-spin text-[11px]"></i> Anulando...'
+      : '<i class="fas fa-trash-can text-[11px]"></i> Anular compra';
+  }
+}
+
+function abrirModalAnularCompra(compraId) {
+  if (!modalAnularCompra || !compraId) return;
+  compraPendienteAnulacionId = compraId;
+  setModalAnularCompraLoading(false);
+  modalAnularCompra.classList.remove('hidden');
+}
+
+function cerrarModalAnularCompra(force = false) {
+  if (!modalAnularCompra || (compraAnulando && !force)) return;
+  modalAnularCompra.classList.add('hidden');
+  compraPendienteAnulacionId = null;
+  setModalAnularCompraLoading(false);
+}
+
+async function ejecutarAnulacionCompra(compraId) {
+  await apiFetchJson(`/api/compras/${encodeURIComponent(compraId)}`, { method: 'DELETE' });
+  showToast('Compra anulada y stock revertido.', 'success');
+  await cargarHistorialCompras();
+}
+
+async function solicitarAnulacionCompra(compraId) {
+  if (!compraId) return;
+
+  if (modalAnularCompra) {
+    abrirModalAnularCompra(compraId);
+    return;
+  }
+
+  const ok = window.confirm('¿Anular completamente esta compra? Esto revertirá el stock asociado. Esta acción no se puede deshacer.');
+  if (!ok) return;
+
+  try {
+    await ejecutarAnulacionCompra(compraId);
+  } catch (err) {
+    console.error('Error anulando compra', err);
+    showToast(err.message || 'Error al anular la compra.', 'error');
+  }
+}
+
+async function confirmarAnulacionCompra() {
+  if (!compraPendienteAnulacionId || compraAnulando) return;
+
+  const compraId = compraPendienteAnulacionId;
+  setModalAnularCompraLoading(true);
+
+  try {
+    await ejecutarAnulacionCompra(compraId);
+    cerrarModalAnularCompra(true);
+  } catch (err) {
+    console.error('Error anulando compra', err);
+    showToast(err.message || 'Error al anular la compra.', 'error');
+    setModalAnularCompraLoading(false);
+  }
+}
+
+function getCompraDraftStorageKey() {
+  try {
+    const authUser = (window.Auth && typeof window.Auth.getUser === 'function')
+      ? window.Auth.getUser()
+      : JSON.parse(localStorage.getItem('auth_user') || 'null');
+    const empresaRef = authUser && (authUser.empresa_id || authUser.empresa_codigo)
+      ? (authUser.empresa_id || authUser.empresa_codigo)
+      : 'global';
+    const usuarioRef = authUser && (authUser.id || authUser.username)
+      ? (authUser.id || authUser.username)
+      : 'anon';
+    return `${COMPRA_DRAFT_STORAGE_PREFIX}_${empresaRef}_${usuarioRef}`;
+  } catch {
+    return `${COMPRA_DRAFT_STORAGE_PREFIX}_global`;
+  }
+}
+
+function getCompraDraftFormState() {
+  return {
+    proveedor_id: document.getElementById('c_proveedor')?.value || '',
+    fecha: document.getElementById('c_fecha')?.value || '',
+    numero: document.getElementById('c_numero')?.value || '',
+    tasa_bcv: document.getElementById('c_tasa')?.value || '',
+    deposito_id: document.getElementById('c_deposito')?.value || '',
+  };
+}
+
+function hasMeaningfulCompraDraftContent(draft) {
+  if (!draft || typeof draft !== 'object') return false;
+  if (Array.isArray(draft.items) && draft.items.length > 0) return true;
+  const form = draft.form && typeof draft.form === 'object' ? draft.form : null;
+  if (!form) return false;
+  return Boolean(
+    (form.proveedor_id && String(form.proveedor_id).trim())
+    || (form.numero && String(form.numero).trim())
+    || (form.deposito_id && String(form.deposito_id).trim())
+  );
+}
+
+function persistCompraDraft() {
+  try {
+    const draft = {
+      items,
+      form: getCompraDraftFormState(),
+      updated_at: new Date().toISOString(),
+    };
+    const key = getCompraDraftStorageKey();
+    if (!hasMeaningfulCompraDraftContent(draft)) {
+      localStorage.removeItem(key);
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(draft));
+  } catch (err) {
+    console.warn('No se pudo guardar el borrador de compras en localStorage:', err);
+  }
+}
+
+function clearCompraDraft() {
+  compraDraftPendiente = null;
+  try {
+    localStorage.removeItem(getCompraDraftStorageKey());
+  } catch (err) {
+    console.warn('No se pudo limpiar el borrador de compras:', err);
+  }
+}
+
+function readCompraDraft() {
+  try {
+    const raw = localStorage.getItem(getCompraDraftStorageKey());
+    if (!raw) return null;
+    const draft = JSON.parse(raw);
+    return draft && typeof draft === 'object' ? draft : null;
+  } catch (err) {
+    console.warn('No se pudo leer el borrador de compras:', err);
+    return null;
+  }
+}
+
+function normalizeCompraDraftItem(rawItem) {
+  if (!rawItem || typeof rawItem !== 'object') return null;
+  const codigo = (rawItem.codigo || '').toString().trim();
+  const cantidad = Number(rawItem.cantidad);
+  if (!codigo || !Number.isFinite(cantidad) || cantidad <= 0) return null;
+
+  const costoNum = Number(rawItem.costo);
+  const precioNum = rawItem.precio == null || rawItem.precio === '' ? null : Number(rawItem.precio);
+  const depositoId = rawItem.deposito_id == null || rawItem.deposito_id === ''
+    ? null
+    : parseInt(rawItem.deposito_id, 10);
+
+  return {
+    codigo,
+    descripcion: (rawItem.descripcion || '').toString(),
+    marca: (rawItem.marca || '').toString(),
+    cantidad,
+    costo: Number.isFinite(costoNum) ? costoNum : 0,
+    usarCostoAnterior: !!rawItem.usarCostoAnterior,
+    precio: Number.isFinite(precioNum) ? precioNum : null,
+    usarPrecioAnterior: rawItem.usarPrecioAnterior !== false,
+    lote: (rawItem.lote || '').toString(),
+    observaciones: rawItem.observaciones,
+    deposito_id: Number.isFinite(depositoId) ? depositoId : null,
+    deposito_nombre: (rawItem.deposito_nombre || '').toString(),
+  };
+}
+
+function restoreCompraDraftSelectValue(selectId, value) {
+  const select = document.getElementById(selectId);
+  if (!select || value == null) return;
+  const normalizedValue = String(value);
+  if (!normalizedValue) {
+    select.value = '';
+    return;
+  }
+  const optionExists = Array.from(select.options || []).some((option) => option.value === normalizedValue);
+  if (optionExists) {
+    select.value = normalizedValue;
+  }
+}
+
+function applyPendingCompraDraftSelects() {
+  if (!compraDraftPendiente || typeof compraDraftPendiente !== 'object') return;
+  restoreCompraDraftSelectValue('c_proveedor', compraDraftPendiente.proveedor_id);
+  restoreCompraDraftSelectValue('c_deposito', compraDraftPendiente.deposito_id);
+}
+
+function restoreCompraDraft() {
+  const draft = readCompraDraft();
+  if (!hasMeaningfulCompraDraftContent(draft)) return false;
+
+  const restoredItems = Array.isArray(draft.items)
+    ? draft.items.map(normalizeCompraDraftItem).filter(Boolean)
+    : [];
+
+  items = restoredItems;
+  productoSeleccionado = null;
+  renderProductoInfo();
+
+  const form = draft.form && typeof draft.form === 'object' ? draft.form : null;
+  if (form) {
+    compraDraftPendiente = form;
+    const fechaInput = document.getElementById('c_fecha');
+    const numeroInput = document.getElementById('c_numero');
+    const tasaInput = document.getElementById('c_tasa');
+    if (fechaInput) fechaInput.value = form.fecha || fechaInput.value || getLocalDateInputValue();
+    if (numeroInput) numeroInput.value = form.numero || '';
+    if (tasaInput && form.tasa_bcv != null) tasaInput.value = form.tasa_bcv || '';
+  }
+
+  const fechaInput = document.getElementById('c_fecha');
+  if (fechaInput && !fechaInput.value) {
+    fechaInput.value = getLocalDateInputValue();
+  }
+
+  renderItems();
+  renderResumen();
+  return true;
 }
 
 async function cargarCategoriasCompras() {
@@ -160,7 +400,8 @@ function getLocalDateInputValue(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function limpiarFormularioCompra() {
+function limpiarFormularioCompra(options = {}) {
+  const keepDraft = !!options.keepDraft;
   const hoy = getLocalDateInputValue();
   document.getElementById('c_fecha').value = hoy;
   document.getElementById('c_numero').value = '';
@@ -175,6 +416,9 @@ function limpiarFormularioCompra() {
   items = [];
   renderItems();
   renderResumen();
+  if (!keepDraft) {
+    clearCompraDraft();
+  }
 }
 
 function renderProductoInfo() {
@@ -250,6 +494,7 @@ function renderItems() {
         items.splice(idx, 1);
         renderItems();
         renderResumen();
+        persistCompraDraft();
       }
     });
   });
@@ -371,6 +616,7 @@ async function cargarDepositosCompras() {
     if (cDeposito) {
       cDeposito.innerHTML = '<option value="">Depósito destino (opcional)</option>' + optionsHtml;
     }
+    applyPendingCompraDraftSelects();
     depositosComprasCargados = true;
   } catch (err) {
     console.error(err);
@@ -387,6 +633,7 @@ async function cargarProveedoresParaSelect() {
     const selFiltro = document.getElementById('c_filtro_proveedor');
     sel.innerHTML = '<option value="">(Sin proveedor)</option>' + proveedores.map(p => `<option value="${p.id}">${escapeHtml(p.nombre || '')}</option>`).join('');
     selFiltro.innerHTML = '<option value="">Todos los proveedores</option>' + proveedores.map(p => `<option value="${p.id}">${escapeHtml(p.nombre || '')}</option>`).join('');
+    applyPendingCompraDraftSelects();
 
     try {
       initCustomSelect('c_proveedor');
@@ -485,6 +732,7 @@ function agregarItemDesdeFormulario() {
   if (sug) sug.classList.add('hidden');
   renderItems();
   renderResumen();
+  persistCompraDraft();
 }
 
 async function guardarCompra() {
@@ -854,19 +1102,10 @@ async function toggleDetalleCompra(id) {
   if (ES_ADMIN_EMPRESA) {
     const btnAnular = cont.querySelector('[data-anular-compra]');
     if (btnAnular) {
-      btnAnular.addEventListener('click', async (ev) => {
+      btnAnular.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        const ok = window.confirm('¿Anular completamente esta compra? Esto revertirá el stock asociado. Esta acción no se puede deshacer.');
-        if (!ok) return;
-        try {
-          await apiFetchJson(`/api/compras/${encodeURIComponent(id)}`, { method: 'DELETE' });
-          showToast('Compra anulada y stock revertido.', 'success');
-          // Recargar historial para reflejar el nuevo estado
-          await cargarHistorialCompras();
-        } catch (err) {
-          console.error('Error anulando compra', err);
-          showToast(err.message || 'Error al anular la compra.', 'error');
-        }
+        const compraId = btnAnular.getAttribute('data-anular-compra') || id;
+        solicitarAnulacionCompra(compraId);
       });
     }
   }
@@ -903,6 +1142,7 @@ function setupUI() {
     tasaInput.addEventListener('input', () => {
       renderItems();
       renderResumen();
+      persistCompraDraft();
     });
   }
   const codigoInput = document.getElementById('c_codigo');
@@ -923,10 +1163,37 @@ function setupUI() {
       cargarHistorialCompras();
     });
   }
+  const proveedorInput = document.getElementById('c_proveedor');
+  if (proveedorInput) {
+    proveedorInput.addEventListener('change', () => {
+      persistCompraDraft();
+    });
+  }
+  const fechaInput = document.getElementById('c_fecha');
+  if (fechaInput) {
+    fechaInput.addEventListener('change', () => {
+      persistCompraDraft();
+    });
+  }
+  const numeroInput = document.getElementById('c_numero');
+  if (numeroInput) {
+    numeroInput.addEventListener('input', () => {
+      persistCompraDraft();
+    });
+  }
+  const depositoInput = document.getElementById('c_deposito');
+  if (depositoInput) {
+    depositoInput.addEventListener('change', () => {
+      persistCompraDraft();
+    });
+  }
 
   // Modal nuevo producto
   modalNuevoProducto = document.getElementById('modal-nuevo-producto');
   modalNuevoProductoMsg = document.getElementById('modal-nuevo-producto-msg');
+  modalAnularCompra = document.getElementById('modal-anular-compra');
+  modalAnularCompraCancelar = document.getElementById('modal-anular-cancelar');
+  modalAnularCompraConfirmar = document.getElementById('modal-anular-confirmar');
   const btnNuevoProducto = document.getElementById('btnNuevoProducto');
   const btnCerrarModal = document.getElementById('modal-nuevo-producto-cerrar');
   const btnCancelarModal = document.getElementById('modal-nuevo-producto-cancelar');
@@ -953,6 +1220,31 @@ function setupUI() {
   if (formNuevoProducto) {
     formNuevoProducto.addEventListener('submit', crearProductoDesdeCompras);
   }
+
+  if (modalAnularCompra) {
+    modalAnularCompra.addEventListener('click', (ev) => {
+      if (ev.target === modalAnularCompra) {
+        cerrarModalAnularCompra();
+      }
+    });
+  }
+  if (modalAnularCompraCancelar) {
+    modalAnularCompraCancelar.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      cerrarModalAnularCompra();
+    });
+  }
+  if (modalAnularCompraConfirmar) {
+    modalAnularCompraConfirmar.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      confirmarAnulacionCompra();
+    });
+  }
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && modalAnularCompra && !modalAnularCompra.classList.contains('hidden')) {
+      cerrarModalAnularCompra();
+    }
+  });
 
   // Cargar depósitos para el modal de nuevo producto
   cargarDepositosCompras();
@@ -1046,7 +1338,10 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   } catch {}
   setupUI();
-  limpiarFormularioCompra();
+  const restoredDraft = restoreCompraDraft();
+  if (!restoredDraft) {
+    limpiarFormularioCompra({ keepDraft: true });
+  }
   cargarProveedoresParaSelect();
   cargarHistorialCompras();
   cargarCategoriasCompras();
