@@ -26,6 +26,7 @@ const comprasRoutes = require('./routes/compras');
 const { router: alertasRoutes } = require('./routes/alertas');
 const presupuestosRoutes = require('./routes/presupuestos');
 const depositosRoutes = require('./routes/depositos');
+const whatsappRoutes = require('./routes/whatsapp');
 
 const app = express();
 // Enforce HTTPS y Helmet sólo en producción
@@ -186,6 +187,7 @@ app.use('/cobranzas', cobranzasRoutes);
 app.use('/alertas', alertasRoutes);
 app.use('/presupuestos', presupuestosRoutes);
 app.use('/sync', syncRoutes);
+app.use('/whatsapp', whatsappRoutes);
 
 // Middleware 404: rutas no encontradas
 app.use((req, res, next) => {
