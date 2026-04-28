@@ -579,6 +579,112 @@ router.get('/marcas', requireAuth, (req, res) => {
 router.get('/export', requireAuth, (req, res) => {
     try {
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+
+        const parseMultiValue = (value) => {
+            if (value === undefined || value === null || value === '') return [];
+            const rawValues = Array.isArray(value) ? value : [value];
+            return rawValues
+                .flatMap((entry) => String(entry).split(','))
+                .map((entry) => entry.trim())
+                .filter(Boolean);
+        };
+
+        const q = req.query.q ? String(req.query.q).trim().toLowerCase() : null;
+        const categoria = req.query.categoria ? String(req.query.categoria).trim() : null;
+        const stockState = req.query.stock ? String(req.query.stock).trim().toLowerCase() : '';
+        const stockLt = req.query.stock_lt !== undefined ? parseFloat(req.query.stock_lt) : null;
+        const stockGt = req.query.stock_gt !== undefined ? parseFloat(req.query.stock_gt) : null;
+        const incompletos = req.query.incompletos === '1' || req.query.incompletos === 'true';
+        const depositoIds = parseMultiValue(req.query.deposito_id !== undefined ? req.query.deposito_id : req.query.deposito_ids)
+            .map((entry) => parseInt(entry, 10))
+            .filter((entry) => !Number.isNaN(entry) && entry > 0);
+        const alertasSeleccionadas = parseMultiValue(req.query.alerta !== undefined ? req.query.alerta : req.query.alertas)
+            .map((entry) => entry.toLowerCase());
+        const alertas = alertasSeleccionadas.length
+            ? alertasSeleccionadas
+            : (incompletos ? ['sin_costo', 'sin_precio', 'sin_categoria', 'sin_marca', 'sin_deposito', 'sin_stock_def'] : []);
+        const totalStockExpr = `COALESCE((
+            SELECT SUM(sd_total.cantidad)
+            FROM stock_por_deposito sd_total
+            WHERE sd_total.producto_id = p.id
+        ), p.stock, 0)`;
+
+        const where = ['p.empresa_id = ?', 'p.activo = 1'];
+        const params = [empresaId];
+
+        if (q) {
+            where.push(`(
+                lower(p.codigo) LIKE ?
+                OR lower(p.descripcion) LIKE ?
+                OR lower(COALESCE(p.categoria, '')) LIKE ?
+                OR lower(COALESCE(p.marca, '')) LIKE ?
+            )`);
+            params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+        }
+
+        if (categoria) {
+            where.push("TRIM(COALESCE(p.categoria, '')) = ?");
+            params.push(categoria);
+        }
+
+        if (depositoIds.length) {
+            const placeholders = depositoIds.map(() => '?').join(', ');
+            where.push(`EXISTS (
+                SELECT 1
+                FROM stock_por_deposito sd_filter
+                WHERE sd_filter.producto_id = p.id
+                  AND sd_filter.deposito_id IN (${placeholders})
+                  AND sd_filter.cantidad > 0
+            )`);
+            params.push(...depositoIds);
+        }
+
+        if (stockState === 'out') {
+            where.push(`${totalStockExpr} < 1`);
+        } else if (stockState === 'low') {
+            where.push(`${totalStockExpr} < 5`);
+        } else if (stockState === 'medium') {
+            where.push(`${totalStockExpr} < 20`);
+        } else if (stockState === 'over') {
+            where.push(`${totalStockExpr} > 100`);
+        } else {
+            if (stockLt !== null && !Number.isNaN(stockLt)) {
+                where.push(`${totalStockExpr} < ?`);
+                params.push(stockLt);
+            }
+            if (stockGt !== null && !Number.isNaN(stockGt)) {
+                where.push(`${totalStockExpr} > ?`);
+                params.push(stockGt);
+            }
+        }
+
+        if (alertas.length) {
+            const alertConditions = [];
+            if (alertas.includes('sin_costo')) alertConditions.push('(p.costo_usd IS NULL OR p.costo_usd <= 0)');
+            if (alertas.includes('sin_precio')) alertConditions.push('(p.precio_usd IS NULL OR p.precio_usd <= 0)');
+            if (alertas.includes('sin_categoria')) alertConditions.push("(p.categoria IS NULL OR TRIM(p.categoria) = '')");
+            if (alertas.includes('sin_marca')) {
+                alertConditions.push(`(
+                    (p.marca IS NULL OR TRIM(p.marca) = '')
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM stock_por_deposito_marca spdm_alerta
+                        WHERE spdm_alerta.producto_id = p.id
+                          AND spdm_alerta.cantidad > 0
+                          AND spdm_alerta.marca IS NOT NULL
+                          AND TRIM(spdm_alerta.marca) != ''
+                    )
+                )`);
+            }
+            if (alertas.includes('sin_deposito')) alertConditions.push('p.deposito_id IS NULL');
+            if (alertas.includes('sin_stock_def')) alertConditions.push('p.stock IS NULL');
+
+            if (alertConditions.length) {
+                where.push(`(${alertConditions.join(' OR ')})`);
+            }
+        }
+
+        const whereSQL = 'WHERE ' + where.join(' AND ');
         const rows = db.prepare(`
             SELECT
                 p.codigo,
@@ -592,7 +698,16 @@ router.get('/export', requireAuth, (req, res) => {
                 ), p.stock) AS stock,
                 p.categoria,
                 p.marca,
-                d.codigo AS deposito_codigo,
+                COALESCE((
+                    SELECT GROUP_CONCAT(dep_codigo, ' / ')
+                    FROM (
+                        SELECT DISTINCT TRIM(COALESCE(d2.codigo, d2.nombre)) AS dep_codigo
+                        FROM stock_por_deposito sd2
+                        JOIN depositos d2 ON d2.id = sd2.deposito_id
+                        WHERE sd2.producto_id = p.id AND sd2.cantidad > 0
+                        ORDER BY lower(dep_codigo) ASC
+                    ) dep_codigos
+                ), COALESCE(d.codigo, d.nombre, '')) AS deposito_codigo,
                 (
                     SELECT GROUP_CONCAT(
                         d2.codigo || ':' || COALESCE(TRIM(spdm.marca), '') || '=' || (
@@ -610,9 +725,9 @@ router.get('/export', requireAuth, (req, res) => {
                 ) AS stock_marca_detalle
             FROM productos p
             LEFT JOIN depositos d ON d.id = p.deposito_id
-            WHERE p.empresa_id = ? AND p.activo = 1
+            ${whereSQL}
             ORDER BY p.codigo
-        `).all(empresaId);
+        `).all(...params);
         // Allow delimiter selection: comma (default), semicolon or tab
         // Default delimiter: semicolon (works better with Excel in many locales)
         const delimParam = (req.query.delim || 'semicolon').toString().toLowerCase();

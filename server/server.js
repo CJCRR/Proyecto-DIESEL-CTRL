@@ -26,6 +26,7 @@ const comprasRoutes = require('./routes/compras');
 const { router: alertasRoutes } = require('./routes/alertas');
 const presupuestosRoutes = require('./routes/presupuestos');
 const depositosRoutes = require('./routes/depositos');
+const whatsappRoutes = require('./routes/whatsapp');
 
 const app = express();
 // Enforce HTTPS y Helmet sólo en producción
@@ -35,7 +36,14 @@ if (process.env.NODE_ENV === 'production') {
 }
 app.use(cookieParser());
 // Ampliar límite para subir imágenes base64 desde ajustes
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+    limit: '10mb',
+    verify: (req, res, buf) => {
+        if (buf && buf.length) {
+            req.rawBody = buf.toString('utf8');
+        }
+    },
+}));
 // Permitir parsing de bodies de texto (usado para importar CSV como text/plain)
 app.use(express.text({ type: ['text/*', 'application/csv'], limit: '10mb' }));
 
@@ -186,6 +194,7 @@ app.use('/cobranzas', cobranzasRoutes);
 app.use('/alertas', alertasRoutes);
 app.use('/presupuestos', presupuestosRoutes);
 app.use('/sync', syncRoutes);
+app.use('/whatsapp', whatsappRoutes);
 
 // Middleware 404: rutas no encontradas
 app.use((req, res, next) => {

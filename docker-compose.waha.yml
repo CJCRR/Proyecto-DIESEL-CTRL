@@ -1,0 +1,30 @@
+version: '3.9'
+
+services:
+  diesel-ctrl-app:
+    depends_on:
+      - waha
+    environment:
+      - WHATSAPP_PROVIDER=waha
+      - WHATSAPP_EMPRESA_ID=1
+      - WHATSAPP_NIVEL_PRECIO=1
+      - WAHA_BASE_URL=http://waha:3000
+      - WAHA_API_KEY=9f1b5f3d7c1e4a2d9a8b6c5e4f3a2b1c
+      - WAHA_SESSION=default
+      - WAHA_WEBHOOK_HMAC_KEY=336786978008856345353
+
+  waha:
+    image: devlikeapro/waha
+    container_name: diesel-ctrl-waha
+    ports:
+      - "3001:3000"
+    environment:
+      - WAHA_API_KEY=9f1b5f3d7c1e4a2d9a8b6c5e4f3a2b1c
+      - WAHA_DASHBOARD_USERNAME=admin
+      - WAHA_DASHBOARD_PASSWORD=ADMIN123
+      - WHATSAPP_HOOK_URL=http://diesel-ctrl-app:3000/whatsapp/waha
+      - WHATSAPP_HOOK_EVENTS=message
+      - WHATSAPP_HOOK_HMAC_KEY=336786978008856345353
+    volumes:
+      - ./waha/sessions:/app/.sessions
+    restart: unless-stopped

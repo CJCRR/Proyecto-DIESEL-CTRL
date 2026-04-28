@@ -61,6 +61,7 @@ if (stockMarcaModal && stockMarcaModal.parentElement !== document.body) {
 
 let categoriasInventario = [];
 let marcasInventario = [];
+let depositosInventario = [];
 let codigoOriginalSeleccionado = null;
 
 // Determinar rol de usuario para habilitar o no edición de stock desde inventario
@@ -154,6 +155,279 @@ function setInventarioImportLoading(isLoading) {
         importPreviewCancel.classList.toggle('cursor-not-allowed', !!isLoading);
     }
 }
+
+const exportModal = document.createElement('div');
+exportModal.id = 'inventarioExportModal';
+exportModal.className = 'fixed inset-0 hidden items-center justify-center z-50';
+exportModal.innerHTML = `
+<div class="absolute inset-0 bg-black bg-opacity-40 modal-backdrop opacity-0"></div>
+<div class="relative bg-white p-4 rounded-2xl shadow w-11/12 max-w-2xl modal-panel border border-slate-200">
+    <div class="flex items-start justify-between gap-3 mb-4">
+        <div>
+            <h3 class="text-sm font-black text-slate-900">Exportar inventario</h3>
+            <p class="text-[11px] text-slate-500 mt-1">Filtra por depósito, categoría, stock y alertas antes de descargar el CSV.</p>
+        </div>
+        <button id="exportModalClose" type="button" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <label class="block">
+            <span class="block text-[11px] font-semibold text-slate-600 mb-1">Depósito</span>
+            <select id="exportFilterDeposito" class="w-full p-2 border rounded-xl text-sm bg-white text-slate-700">
+                <option value="">Todos los depósitos</option>
+            </select>
+        </label>
+        <label class="block">
+            <span class="block text-[11px] font-semibold text-slate-600 mb-1">Categoría</span>
+            <select id="exportFilterCategoria" class="w-full p-2 border rounded-xl text-sm bg-white text-slate-700">
+                <option value="">Todas las categorías</option>
+            </select>
+        </label>
+        <label class="block md:col-span-2">
+            <span class="block text-[11px] font-semibold text-slate-600 mb-1">Stock</span>
+            <select id="exportFilterStock" class="w-full p-2 border rounded-xl text-sm bg-white text-slate-700">
+                <option value="all">Todos</option>
+                <option value="out">Solo 0 stock</option>
+                <option value="low">Stock bajo (&lt;5)</option>
+                <option value="medium">Stock medio (&lt;20)</option>
+                <option value="over">Sobre stock (&gt;100)</option>
+            </select>
+        </label>
+    </div>
+    <div class="mb-4">
+        <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="text-[11px] font-semibold text-slate-600">Alertas</span>
+            <span class="text-[10px] text-slate-400">Si marcas varias, se incluyen productos con cualquiera de esas alertas.</span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <label class="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] text-slate-700 cursor-pointer">
+                <input type="checkbox" name="exportAlertas" value="sin_costo" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                <span>Sin costo</span>
+            </label>
+            <label class="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] text-slate-700 cursor-pointer">
+                <input type="checkbox" name="exportAlertas" value="sin_precio" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                <span>Sin precio</span>
+            </label>
+            <label class="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] text-slate-700 cursor-pointer">
+                <input type="checkbox" name="exportAlertas" value="sin_marca" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                <span>Sin marca</span>
+            </label>
+            <label class="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] text-slate-700 cursor-pointer">
+                <input type="checkbox" name="exportAlertas" value="sin_categoria" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                <span>Sin categoría</span>
+            </label>
+            <label class="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] text-slate-700 cursor-pointer">
+                <input type="checkbox" name="exportAlertas" value="sin_deposito" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                <span>Sin depósito</span>
+            </label>
+            <label class="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] text-slate-700 cursor-pointer">
+                <input type="checkbox" name="exportAlertas" value="sin_stock_def" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                <span>Sin stock definido</span>
+            </label>
+        </div>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 mb-4">
+        <div class="text-[11px] font-semibold text-slate-700 mb-1">Resumen de exportación</div>
+        <p id="exportFilterSummary" class="text-[11px] text-slate-500">Se exportará todo el inventario activo.</p>
+    </div>
+    <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 relative z-10">
+        <button id="exportModalReset" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wide py-2.5 px-4 transition-all duration-150">
+            <i class="fas fa-rotate-left text-[11px]"></i> Limpiar filtros
+        </button>
+        <div class="flex justify-end gap-2">
+            <button id="exportModalCancel" type="button" class="p-2 px-4 bg-slate-200 rounded-xl text-xs font-semibold text-slate-700">Cancelar</button>
+            <button id="exportModalConfirm" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wide py-2.5 px-4 shadow-sm shadow-emerald-200 transition-all duration-150">
+                <i class="fas fa-file-arrow-down text-[11px]"></i> Exportar CSV
+            </button>
+        </div>
+    </div>
+    <div id="exportLoader" class="hidden absolute inset-0 z-20 bg-slate-100/90 rounded-2xl flex flex-col items-center justify-center">
+        <div class="h-10 w-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin mb-3"></div>
+        <p class="text-xs font-semibold text-slate-700">Preparando archivo de exportación...</p>
+        <p class="text-[10px] text-slate-500 mt-1">Espera a que termine la descarga.</p>
+    </div>
+</div>
+`;
+document.body.appendChild(exportModal);
+const exportModalClose = exportModal.querySelector('#exportModalClose');
+const exportModalCancel = exportModal.querySelector('#exportModalCancel');
+const exportModalConfirm = exportModal.querySelector('#exportModalConfirm');
+const exportModalReset = exportModal.querySelector('#exportModalReset');
+const exportFilterDeposito = exportModal.querySelector('#exportFilterDeposito');
+const exportFilterCategoria = exportModal.querySelector('#exportFilterCategoria');
+const exportFilterStock = exportModal.querySelector('#exportFilterStock');
+const exportFilterSummary = exportModal.querySelector('#exportFilterSummary');
+const exportLoaderEl = exportModal.querySelector('#exportLoader');
+let exportInProgress = false;
+
+function getExportAlertInputs() {
+    return Array.from(exportModal.querySelectorAll('input[name="exportAlertas"]'));
+}
+
+function setInventarioExportLoading(isLoading) {
+    exportInProgress = !!isLoading;
+    if (exportLoaderEl) {
+        if (isLoading) exportLoaderEl.classList.remove('hidden');
+        else exportLoaderEl.classList.add('hidden');
+    }
+    [exportModalConfirm, exportModalCancel, exportModalReset, exportModalClose].forEach((el) => {
+        if (!el) return;
+        el.disabled = !!isLoading;
+        el.classList.toggle('opacity-60', !!isLoading);
+        el.classList.toggle('cursor-not-allowed', !!isLoading);
+    });
+    [exportFilterDeposito, exportFilterCategoria, exportFilterStock, ...getExportAlertInputs()].forEach((el) => {
+        if (!el) return;
+        el.disabled = !!isLoading;
+    });
+}
+
+function fillExportDepositosOptions(selectedValue = '') {
+    if (!exportFilterDeposito) return;
+    const desired = String(selectedValue || exportFilterDeposito.value || '');
+    exportFilterDeposito.innerHTML = '<option value="">Todos los depósitos</option>' +
+        depositosInventario.map((dep) => {
+            const label = dep && dep.codigo ? `${dep.nombre} (${dep.codigo})` : (dep && dep.nombre ? dep.nombre : 'Depósito');
+            return `<option value="${dep.id}">${escapeHtml(label)}</option>`;
+        }).join('');
+    const hasDesired = Array.from(exportFilterDeposito.options).some((opt) => opt.value === desired);
+    exportFilterDeposito.value = hasDesired ? desired : '';
+}
+
+function fillExportCategoriasOptions(selectedValue = '') {
+    if (!exportFilterCategoria) return;
+    const desired = String(selectedValue || exportFilterCategoria.value || '');
+    exportFilterCategoria.innerHTML = '<option value="">Todas las categorías</option>' +
+        categoriasInventario.map((cat) => `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`).join('');
+    const hasDesired = Array.from(exportFilterCategoria.options).some((opt) => opt.value === desired);
+    exportFilterCategoria.value = hasDesired ? desired : '';
+}
+
+function getExportFiltersState() {
+    return {
+        depositoId: exportFilterDeposito ? String(exportFilterDeposito.value || '') : '',
+        depositoLabel: exportFilterDeposito && exportFilterDeposito.selectedIndex >= 0
+            ? exportFilterDeposito.options[exportFilterDeposito.selectedIndex].textContent.trim()
+            : '',
+        categoria: exportFilterCategoria ? String(exportFilterCategoria.value || '').trim() : '',
+        stock: exportFilterStock ? String(exportFilterStock.value || 'all') : 'all',
+        alertas: getExportAlertInputs()
+            .filter((input) => input.checked)
+            .map((input) => ({
+                valor: input.value,
+                label: input.closest('label') ? input.closest('label').textContent.trim().replace(/\s+/g, ' ') : input.value,
+            })),
+    };
+}
+
+function updateExportSummary() {
+    if (!exportFilterSummary) return;
+    const state = getExportFiltersState();
+    const parts = [];
+    const stockLabels = {
+        out: 'solo productos con 0 stock',
+        low: 'stock bajo (<5)',
+        medium: 'stock medio (<20)',
+        over: 'sobre stock (>100)',
+    };
+
+    if (state.depositoId) parts.push(`depósito ${state.depositoLabel}`);
+    if (state.categoria) parts.push(`categoría ${state.categoria}`);
+    if (state.stock && state.stock !== 'all' && stockLabels[state.stock]) parts.push(stockLabels[state.stock]);
+    if (state.alertas.length) parts.push(`alertas: ${state.alertas.map((item) => item.label).join(', ')}`);
+
+    exportFilterSummary.textContent = parts.length
+        ? `Se exportarán productos filtrados por ${parts.join(' · ')}.`
+        : 'Se exportará todo el inventario activo.';
+}
+
+function resetExportFilters() {
+    fillExportDepositosOptions(filterDeposito ? filterDeposito.value : '');
+    fillExportCategoriasOptions(topFilterCategoria ? topFilterCategoria.value : '');
+    if (exportFilterStock) exportFilterStock.value = topFilterStock ? (topFilterStock.value || 'all') : 'all';
+    getExportAlertInputs().forEach((input) => {
+        input.checked = false;
+    });
+    updateExportSummary();
+}
+
+async function openExportModal() {
+    if (!depositosInventario.length) {
+        try { await cargarDepositos(); } catch {}
+    }
+    if (!categoriasInventario.length) {
+        try { await cargarCategorias(); } catch {}
+    }
+    resetExportFilters();
+    exportModal.classList.remove('hidden');
+    requestAnimationFrame(() => {
+        exportModal.classList.add('modal-open');
+        exportModal.style.display = 'flex';
+    });
+}
+
+function closeExportModal(force = false) {
+    if (exportInProgress && !force) return;
+    exportModal.classList.remove('modal-open');
+    setTimeout(() => {
+        exportModal.classList.add('hidden');
+        exportModal.style.display = '';
+    }, 200);
+}
+
+async function ejecutarExportacionInventario() {
+    const state = getExportFiltersState();
+    const params = new URLSearchParams();
+    if (state.depositoId) params.append('deposito_id', state.depositoId);
+    if (state.categoria) params.set('categoria', state.categoria);
+    if (state.stock && state.stock !== 'all') params.set('stock', state.stock);
+    state.alertas.forEach((item) => params.append('alerta', item.valor));
+
+    try {
+        setInventarioExportLoading(true);
+        const url = '/admin/productos/export' + (params.toString() ? `?${params.toString()}` : '');
+        const res = await fetch(url, {
+            credentials: 'same-origin'
+        });
+        if (!res.ok) throw new Error('Export failed');
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = params.toString() ? 'productos-filtrados.csv' : 'productos.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objectUrl);
+        closeExportModal(true);
+        showToast(params.toString() ? 'CSV exportado con filtros' : 'CSV exportado', 'info');
+    } catch (err) {
+        console.error(err);
+        showToast('Error exportando CSV', 'error');
+    } finally {
+        setInventarioExportLoading(false);
+    }
+}
+
+[exportFilterDeposito, exportFilterCategoria, exportFilterStock].forEach((el) => {
+    if (!el) return;
+    el.addEventListener('change', updateExportSummary);
+});
+getExportAlertInputs().forEach((input) => {
+    input.addEventListener('change', updateExportSummary);
+});
+if (exportModalReset) exportModalReset.addEventListener('click', resetExportFilters);
+if (exportModalCancel) exportModalCancel.addEventListener('click', () => closeExportModal());
+if (exportModalClose) exportModalClose.addEventListener('click', () => closeExportModal());
+if (exportModalConfirm) exportModalConfirm.addEventListener('click', ejecutarExportacionInventario);
+if (exportModal) {
+    exportModal.addEventListener('click', (e) => {
+        const target = e.target;
+        if (target === exportModal || (target && target.classList && target.classList.contains('modal-backdrop'))) {
+            closeExportModal();
+        }
+    });
+}
+updateExportSummary();
 
 let productosCache = [];
 let currentPage = 0;
@@ -735,26 +1009,9 @@ const csvFile = document.getElementById('csvFile');
 const btnImportCsv = document.getElementById('btnImportCsv');
 const btnExportCsv = document.getElementById('btnExportCsv');
 
-btnExportCsv.addEventListener('click', async () => {
-    try {
-        const res = await fetch('/admin/productos/export', {
-            credentials: 'same-origin'
-        });
-        if (!res.ok) throw new Error('Export failed');
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'productos.csv';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        showToast('CSV exportado', 'info');
-    } catch (err) {
-        console.error(err);
-        showToast('Error exportando CSV', 'error');
-    }
+btnExportCsv.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await openExportModal();
 });
 
 // Búsqueda con fallback a cache local
@@ -1228,11 +1485,12 @@ cargarAjustes();
 
 // Cargar depósitos para el selector
 async function cargarDepositos() {
-    if (!f_deposito && !filterDeposito && !movDepDestino) return;
+    if (!f_deposito && !filterDeposito && !movDepDestino && !exportFilterDeposito) return;
     try {
         const res = await fetch('/depositos?soloActivos=1', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Error depósitos');
         const items = await res.json();
+        depositosInventario = Array.isArray(items) ? items : [];
         if (f_deposito) {
             f_deposito.innerHTML = '<option value="">(Elegir Depósito)</option>' +
                 items.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
@@ -1248,9 +1506,12 @@ async function cargarDepositos() {
                 items.map(d => `<option value="${d.id}">${d.nombre}</option>`).join('');
             try { initCustomSelect('mov_deposito_destino'); } catch {}
         }
+        fillExportDepositosOptions(exportFilterDeposito ? exportFilterDeposito.value : '');
     } catch (err) {
         console.error(err);
+        depositosInventario = [];
         if (f_deposito) f_deposito.innerHTML = '<option value="">(Elegir Depósito)</option>';
+        fillExportDepositosOptions('');
     }
 }
 
@@ -1279,6 +1540,7 @@ async function cargarCategorias() {
             renderCategoriaSugerencias(categoriasInventario);
             categoriaSugList.classList.add('hidden');
         }
+        fillExportCategoriasOptions(exportFilterCategoria ? exportFilterCategoria.value : '');
     } catch (err) {
         console.error(err);
     }

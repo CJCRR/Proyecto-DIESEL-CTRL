@@ -9,5 +9,7 @@ service-account.json
 
 # Backups/artefactos locales
 server/backups/
+server/logs/
+waha/sessions/
 *.sqlite
 *.db

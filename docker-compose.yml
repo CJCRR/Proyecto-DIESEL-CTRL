@@ -11,6 +11,8 @@ services:
       - PORT=3000
       # Ruta/nombre del archivo de base de datos dentro del contenedor
       - DB_PATH=database.sqlite
+      # Secreto JWT para arranque local con Docker; en despliegue real conviene sobreescribirlo
+      - JWT_SECRET=DieselCtrl_2026_Staging_ClaveSuperLarga_!9f8sd7F6
       # Usuario admin inicial (solo se usa si no existen usuarios)
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=admin123
@@ -20,6 +22,8 @@ services:
       - SQL_VERBOSE=false
       - NODE_ENV=production
     volumes:
+      # Montar la base SQLite viva para que el bot use el mismo catalogo del host
+      - ./database.sqlite:/app/database.sqlite
       # Persistencia de base de datos y backups en el host
       - ./data:/app/data
       - ./server/backups:/app/server/backups
