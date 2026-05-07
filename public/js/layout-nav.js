@@ -3,7 +3,7 @@
 const NAV_LINKS = [
   { id: 'pos', href: '/pos', icon: 'fa-cash-register', iconColor: 'text-blue-600', label: 'Punto de Venta' },
   { id: 'inventario', href: '/inventario', icon: 'fa-boxes-stacked', iconColor: 'text-amber-600', label: 'Inventario' },
-  { id: 'dashboard', href: '/dashboard', icon: 'fa-chart-line', iconColor: 'text-emerald-600', label: 'Dashboard', adminOnly: true },
+  { id: 'dashboard', href: '/dashboard', icon: 'fa-chart-line', iconColor: 'text-emerald-600', label: 'Dashboard' },
   { id: 'clientes', href: '/clientes', icon: 'fa-users', iconColor: 'text-indigo-600', label: 'Clientes' },
   { id: 'reportes', href: '/reportes', icon: 'fa-file-invoice', iconColor: 'text-rose-600', label: 'Reportes' },
   { id: 'cobranzas', href: '/cobranzas', icon: 'fa-money-check-dollar', iconColor: 'text-emerald-600', label: 'Cobranzas' },
@@ -17,7 +17,7 @@ function buildNavHtml(activeId) {
     const baseClasses = 'flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition';
     const activeClass = isActive ? ' bg-slate-100' : '';
     const adminClass = link.adminOnly ? ' admin-only-nav' : '';
-    return `<a href="${link.href}" class="${baseClasses}${activeClass}${adminClass}">
+    return `<a href="${link.href}" id="nav-${link.id}" data-module-key="${link.id}" class="${baseClasses}${activeClass}${adminClass}">
       <i class="fas ${link.icon} ${link.iconColor}"></i>
       ${link.label}
     </a>`;

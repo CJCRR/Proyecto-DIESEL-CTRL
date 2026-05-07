@@ -1,6 +1,7 @@
 // Sistema de autenticación
 import { apiFetchJson } from './app-api.js';
 import { borrarDatosLocales } from './db-local.js';
+import { getFirstAllowedRoute } from './modules/access-control.js';
 
 const loginForm = document.getElementById('loginForm');
 const usernameInput = document.getElementById('username');
@@ -106,7 +107,7 @@ async function verificarSesion() {
       if (data.usuario && data.usuario.rol === 'superadmin') {
         window.location.href = '/admin-empresas';
       } else {
-        window.location.href = '/pos';
+        window.location.href = getFirstAllowedRoute(data.usuario);
       }
     } else {
       localStorage.removeItem('auth_user');
@@ -213,7 +214,7 @@ async function intentarLogin(body, opciones = {}) {
           if (data.usuario && data.usuario.rol === 'superadmin') {
             window.location.href = '/admin-empresas';
         } else {
-            window.location.href = '/pos';
+            window.location.href = getFirstAllowedRoute(data.usuario);
         }
       }, 800);
     } else {

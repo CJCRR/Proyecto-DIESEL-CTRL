@@ -146,6 +146,7 @@ const schema = `
     password TEXT NOT NULL,
     nombre_completo TEXT,
     rol TEXT DEFAULT 'vendedor',
+    permisos_modulos TEXT,
     activo INTEGER DEFAULT 1,
     creado_en TEXT DEFAULT (datetime('now')),
     ultimo_login TEXT,
@@ -1136,6 +1137,14 @@ const migrations = [
       // Email de contacto de la empresa
       if (!columnExists('empresas', 'email')) {
         db.prepare("ALTER TABLE empresas ADD COLUMN email TEXT").run();
+      }
+    }
+  },
+  {
+    id: '032_usuarios_permisos_modulos',
+    up: () => {
+      if (!columnExists('usuarios', 'permisos_modulos')) {
+        db.prepare("ALTER TABLE usuarios ADD COLUMN permisos_modulos TEXT").run();
       }
     }
   }

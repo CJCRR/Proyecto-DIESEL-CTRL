@@ -5,6 +5,23 @@ const { requireAuth, requireRole } = require('./auth');
 const bcrypt = require('bcryptjs');
 const { registrarEventoNegocio } = require('../services/eventosService');
 const { registrarAuditoria } = require('../services/auditLogService');
+const { attachEffectiveModulePermissions, sanitizePermissionOverrides } = require('../services/modulePermissions');
+
+function serializarPermisosModulos(rawPermissions) {
+  if (rawPermissions === undefined) {
+    return undefined;
+  }
+
+  return JSON.stringify(sanitizePermissionOverrides(rawPermissions));
+}
+
+function normalizarUsuarioRespuesta(usuario) {
+  if (!usuario) {
+    return usuario;
+  }
+
+  return attachEffectiveModulePermissions(usuario);
+}
 
 // GET /admin/usuarios - Listar usuarios de la empresa (solo admin de empresa)
 router.get('/', requireAuth, requireRole('admin'), (req, res) => {
@@ -17,12 +34,12 @@ router.get('/', requireAuth, requireRole('admin'), (req, res) => {
       params.push(empresaId);
     }
     const usuarios = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, creado_en, ultimo_login, comision_pct, email
+      SELECT id, username, nombre_completo, rol, permisos_modulos, activo, creado_en, ultimo_login, comision_pct, email
       FROM usuarios
       ${where}
       ORDER BY creado_en DESC
     `).all(...params);
-    res.json(usuarios);
+    res.json(usuarios.map(normalizarUsuarioRespuesta));
   } catch (err) {
     console.error('Error listando usuarios:', err);
     res.status(500).json({ error: 'Error al listar usuarios' });
@@ -55,7 +72,7 @@ router.get('/vendedores-list', requireAuth, (req, res) => {
 
 // POST /admin/usuarios - Crear nuevo usuario (solo admin)
 router.post('/', requireAuth, requireRole('admin'), (req, res) => {
-  const { username, password, nombre_completo, rol, comision_pct, email } = req.body;
+  const { username, password, nombre_completo, rol, comision_pct, email, permisos_modulos } = req.body;
 
   // Validaciones
   if (!username || !password) {
@@ -81,6 +98,8 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
   if (Number.isNaN(comisionNum) || comisionNum < 0 || comisionNum > 100) {
     return res.status(400).json({ error: 'La comisión debe ser un número entre 0 y 100' });
   }
+
+  const permisosSerializados = serializarPermisosModulos(permisos_modulos);
 
   // Validar correo solo si viene y solo se usa para admins principales
   const emailRaw = (email || '').toString().trim().toLowerCase();
@@ -111,14 +130,14 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
       return res.status(400).json({ error: 'Usuario sin empresa asociada' });
     }
     const result = db.prepare(`
-      INSERT INTO usuarios (username, password, nombre_completo, rol, empresa_id, comision_pct, email)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(username, hash, nombre_completo || username, rol || 'vendedor', empresaId, comisionNum, emailFinal);
+      INSERT INTO usuarios (username, password, nombre_completo, rol, empresa_id, comision_pct, email, permisos_modulos)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(username, hash, nombre_completo || username, rol || 'vendedor', empresaId, comisionNum, emailFinal, permisosSerializados === undefined ? null : permisosSerializados);
 
-    const nuevoUsuario = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, creado_en, comision_pct, email
+    const nuevoUsuario = normalizarUsuarioRespuesta(db.prepare(`
+      SELECT id, username, nombre_completo, rol, permisos_modulos, activo, creado_en, comision_pct, email
       FROM usuarios WHERE id = ?
-    `).get(result.lastInsertRowid);
+    `).get(result.lastInsertRowid));
     try {
       registrarAuditoria({
         usuario: req.usuario,
@@ -168,7 +187,7 @@ router.post('/', requireAuth, requireRole('admin'), (req, res) => {
 // PUT /admin/usuarios/:id - Actualizar usuario (solo admin)
 router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
   const { id } = req.params;
-  const { nombre_completo, rol, password, comision_pct, email } = req.body;
+  const { nombre_completo, rol, password, comision_pct, email, permisos_modulos } = req.body;
 
   try {
     // Verificar que el usuario existe
@@ -201,6 +220,15 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
         return res.status(400).json({ error: 'La comisión debe ser un número entre 0 y 100' });
       }
     }
+
+    const permisosSerializados = serializarPermisosModulos(permisos_modulos);
+    if (parseInt(id, 10) === usuarioActual.id && permisosSerializados !== undefined) {
+      const permisosActualizados = sanitizePermissionOverrides(permisos_modulos);
+      if (permisosActualizados.usuarios === false) {
+        return res.status(400).json({ error: 'No puedes quitarte a ti mismo el acceso al módulo de usuarios' });
+      }
+    }
+
     // Construir query de actualización
     const updates = [];
     const params = [];
@@ -247,6 +275,11 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
       params.push(emailFinal);
     }
 
+    if (permisosSerializados !== undefined) {
+      updates.push('permisos_modulos = ?');
+      params.push(permisosSerializados);
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No hay campos para actualizar' });
     }
@@ -259,10 +292,10 @@ router.put('/:id', requireAuth, requireRole('admin'), (req, res) => {
       WHERE id = ?
     `).run(...params);
 
-    const usuarioActualizado = db.prepare(`
-      SELECT id, username, nombre_completo, rol, activo, creado_en, comision_pct, email
+    const usuarioActualizado = normalizarUsuarioRespuesta(db.prepare(`
+      SELECT id, username, nombre_completo, rol, permisos_modulos, activo, creado_en, comision_pct, email
       FROM usuarios WHERE id = ?
-    `).get(id);
+    `).get(id));
 
     try {
       registrarAuditoria({

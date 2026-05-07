@@ -2,6 +2,7 @@ import { apiFetchJson } from './app-api.js';
 import { formatNumber } from './format-utils.js';
 import { upsertUsuarioFirebase, deleteUsuarioFirebase } from './firebase-sync.js';
 import { initCustomSelect } from './modules/ui.js';
+import { MODULE_DEFINITIONS, getEffectiveModulePermissions, getRoleBasePermissions } from './modules/access-control.js';
 
 // Intentar cargar utilidades centralizadas para toasts si no están disponibles
 (async () => {
@@ -38,6 +39,9 @@ const inputComision = document.getElementById('usuario-comision');
 const passwordHint = document.getElementById('password-hint');
 const inputEmail = document.getElementById('usuario-email');
 const emailGroup = document.getElementById('usuario-email-group');
+const permisosGrid = document.getElementById('usuario-permisos-grid');
+const permisosResumen = document.getElementById('usuario-permisos-resumen');
+const btnAplicarPermisosRol = document.getElementById('usuario-aplicar-rol');
 
 // Modal de confirmación de acciones (activar / desactivar / eliminar)
 const modalConfirmUsuario = document.getElementById('modal-confirm-usuario');
@@ -46,8 +50,90 @@ const ucMessage = document.getElementById('uc-message');
 const ucCancelar = document.getElementById('uc-cancelar');
 const ucConfirmar = document.getElementById('uc-confirmar');
 let currentUsuarioConfirmAction = null;
+const MODULOS_EDITABLES = MODULE_DEFINITIONS.filter((moduleDef) => moduleDef.key !== 'admin_empresas');
 
 try { initCustomSelect('usuario-rol'); } catch {}
+
+function renderPermisosModulos() {
+  if (!permisosGrid) return;
+
+  permisosGrid.innerHTML = MODULOS_EDITABLES.map((moduleDef) => `
+    <label class="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 hover:border-blue-200 hover:bg-blue-50/40 transition cursor-pointer">
+      <input type="checkbox" value="${moduleDef.key}" name="usuario-permisos-modulos" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-semibold text-slate-800 group-hover:text-blue-700">${moduleDef.label}</div>
+        <p class="mt-1 text-xs leading-5 text-slate-500">${moduleDef.description}</p>
+      </div>
+    </label>
+  `).join('');
+
+  permisosGrid.querySelectorAll('input[name="usuario-permisos-modulos"]').forEach((input) => {
+    input.addEventListener('change', actualizarResumenPermisos);
+  });
+}
+
+function getPermisosSeleccionados() {
+  return MODULOS_EDITABLES.reduce((acumulador, moduleDef) => {
+    const input = permisosGrid ? permisosGrid.querySelector(`input[value="${moduleDef.key}"]`) : null;
+    acumulador[moduleDef.key] = !!(input && input.checked);
+    return acumulador;
+  }, {});
+}
+
+function setPermisosSeleccionados(permisos) {
+  const valores = permisos && typeof permisos === 'object' ? permisos : {};
+  MODULOS_EDITABLES.forEach((moduleDef) => {
+    const input = permisosGrid ? permisosGrid.querySelector(`input[value="${moduleDef.key}"]`) : null;
+    if (input) {
+      input.checked = !!valores[moduleDef.key];
+    }
+  });
+  actualizarResumenPermisos();
+}
+
+function aplicarPermisosSugeridosPorRol() {
+  const role = inputRol && inputRol.value ? inputRol.value : 'vendedor';
+  setPermisosSeleccionados(getRoleBasePermissions(role));
+}
+
+function actualizarResumenPermisos() {
+  if (!permisosResumen) return;
+
+  const permisos = getPermisosSeleccionados();
+  const seleccionados = MODULOS_EDITABLES.filter((moduleDef) => permisos[moduleDef.key]);
+
+  if (!seleccionados.length) {
+    permisosResumen.textContent = 'Este usuario no tendrá módulos visibles. Si inicia sesión, será redirigido fuera de las páginas restringidas.';
+    return;
+  }
+
+  const nombres = seleccionados.map((moduleDef) => moduleDef.label);
+  permisosResumen.textContent = `Módulos activos (${seleccionados.length}): ${nombres.join(', ')}`;
+}
+
+function sincronizarSesionUsuarioActual(usuarioActualizado) {
+  if (!usuarioActualizado) return;
+
+  const authUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
+  if (!authUser || Number(authUser.id) !== Number(usuarioActualizado.id)) {
+    return;
+  }
+
+  const siguienteUsuario = {
+    ...authUser,
+    rol: usuarioActualizado.rol,
+    nombre: usuarioActualizado.nombre_completo || authUser.nombre,
+    nombre_completo: usuarioActualizado.nombre_completo || authUser.nombre_completo,
+    permisos_modulos: usuarioActualizado.permisos_modulos || authUser.permisos_modulos,
+    email: usuarioActualizado.email || authUser.email || null
+  };
+
+  localStorage.setItem('auth_user', JSON.stringify(siguienteUsuario));
+
+  if (window.Auth && typeof window.Auth.applyNavGuards === 'function') {
+    window.Auth.applyNavGuards();
+  }
+}
 
 function actualizarVisibilidadEmail() {
   if (!emailGroup) return;
@@ -59,7 +145,14 @@ function actualizarVisibilidadEmail() {
 }
 
 if (inputRol) {
-  inputRol.addEventListener('change', actualizarVisibilidadEmail);
+  inputRol.addEventListener('change', () => {
+    actualizarVisibilidadEmail();
+    aplicarPermisosSugeridosPorRol();
+  });
+}
+
+if (btnAplicarPermisosRol) {
+  btnAplicarPermisosRol.addEventListener('click', aplicarPermisosSugeridosPorRol);
 }
 
 // Cargar usuarios
@@ -98,6 +191,9 @@ function renderUsuarios() {
       'vendedor': '<span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">Vendedor</span>',
       'lectura': '<span class="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-semibold">Lectura</span>'
     };
+    const permisosActivos = u.permisos_modulos && typeof u.permisos_modulos === 'object'
+      ? Object.values(u.permisos_modulos).filter(Boolean).length
+      : 0;
 
     const estadoBadge = u.activo
       ? '<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Activo</span>'
@@ -116,7 +212,7 @@ function renderUsuarios() {
     html += '<tr class="hover:bg-slate-50 transition">';
     html += '<td class="p-4"><div class="flex items-center gap-2"><div class="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center"><i class="fas fa-user text-slate-600"></i></div><div><div class="font-semibold text-slate-800">' + (u.username || '') + '</div>' + (esMismoUsuario ? '<span class="text-xs text-blue-600">(Tú)</span>' : '') + '</div></div></td>';
     html += '<td class="p-4 text-slate-600">' + (u.nombre_completo || '-') + '</td>';
-    html += '<td class="p-4">' + (rolBadge[u.rol] || (u.rol || '')) + '</td>';
+    html += '<td class="p-4">' + (rolBadge[u.rol] || (u.rol || '')) + '<div class="mt-1 text-xs text-slate-400">' + permisosActivos + ' módulos activos</div></td>';
     html += '<td class="p-4 text-slate-600">' + comisionTexto + '</td>';
     html += '<td class="p-4">' + estadoBadge + '</td>';
     html += '<td class="p-4 text-sm text-slate-500">' + ultimoLogin + '</td>';
@@ -152,8 +248,10 @@ function nuevoUsuario() {
   inputPassword.required = true;
   passwordHint.textContent = 'Mínimo 6 caracteres';
   if (inputComision) inputComision.value = '';
-   if (inputEmail) inputEmail.value = '';
-   actualizarVisibilidadEmail();
+  if (inputEmail) inputEmail.value = '';
+  if (inputRol) inputRol.value = 'vendedor';
+  actualizarVisibilidadEmail();
+  aplicarPermisosSugeridosPorRol();
   abrirModal();
 }
 
@@ -179,6 +277,7 @@ function editarUsuario(id) {
     : '';
 
   actualizarVisibilidadEmail();
+  setPermisosSeleccionados(getEffectiveModulePermissions(usuario));
   abrirModal();
 }
 
@@ -191,7 +290,8 @@ async function guardarUsuario(e) {
     password: inputPassword.value,
     nombre_completo: inputNombre.value.trim(),
     rol: inputRol.value,
-    comision_pct: inputComision && inputComision.value !== '' ? parseFloat(inputComision.value) : 0
+    comision_pct: inputComision && inputComision.value !== '' ? parseFloat(inputComision.value) : 0,
+    permisos_modulos: getPermisosSeleccionados()
   };
 
   if (inputRol && inputRol.value === 'admin' && inputEmail) {
@@ -212,6 +312,7 @@ async function guardarUsuario(e) {
       const resp = await apiFetchJson(`/admin/usuarios/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
       // Sincronizar perfil ligero a Firebase (mejor esfuerzo)
       if (resp && resp.usuario) {
+        sincronizarSesionUsuarioActual(resp.usuario);
         try {
           await upsertUsuarioFirebase(resp.usuario);
         } catch (syncErr) {
@@ -221,6 +322,7 @@ async function guardarUsuario(e) {
     } else {
       const resp = await apiFetchJson('/admin/usuarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
       if (resp && resp.usuario) {
+        sincronizarSesionUsuarioActual(resp.usuario);
         try {
           await upsertUsuarioFirebase(resp.usuario);
         } catch (syncErr) {
@@ -366,13 +468,22 @@ async function eliminarUsuario(id) {
 function abrirModal() {
   modal.classList.remove('hidden');
   modal.classList.add('flex');
-  setTimeout(() => inputUsername.focus(), 100);
+  setTimeout(() => {
+    if (!inputUsername.disabled) {
+      inputUsername.focus();
+    } else {
+      inputNombre.focus();
+    }
+  }, 100);
 }
 
 function cerrarModal() {
   modal.classList.add('hidden');
   modal.classList.remove('flex');
   form.reset();
+  if (inputRol) inputRol.value = 'vendedor';
+  actualizarVisibilidadEmail();
+  aplicarPermisosSugeridosPorRol();
 }
 
 // Event listeners
@@ -412,6 +523,8 @@ if (modalConfirmUsuario && ucConfirmar) {
 }
 
 // Cargar usuarios al iniciar
+renderPermisosModulos();
+aplicarPermisosSugeridosPorRol();
 cargarUsuarios();
 
 // Hacer funciones globales para onclick
@@ -477,7 +590,13 @@ if (window.GuidedTour) {
     {
       selector: '#usuario-rol-group',
       title: 'Rol y permisos',
-      text: 'El rol define qué puede hacer el usuario: vendedor, administrador o solo lectura.',
+      text: 'El rol marca la base del acceso, pero ahora puedes afinarlo módulo por módulo.',
+      placement: 'bottom',
+    },
+    {
+      selector: '#usuario-permisos-group',
+      title: 'Permisos por módulo',
+      text: 'Aquí decides exactamente qué páginas puede abrir este usuario: cobranzas, compras, inventario, reportes y más.',
       placement: 'bottom',
     },
     {

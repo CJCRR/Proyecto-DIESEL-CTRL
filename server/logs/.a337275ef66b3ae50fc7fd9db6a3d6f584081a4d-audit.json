@@ -6,26 +6,6 @@
     "auditLog": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\.a337275ef66b3ae50fc7fd9db6a3d6f584081a4d-audit.json",
     "files": [
         {
-            "date": 1776256861018,
-            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-15.log",
-            "hash": "3ec5793e839b010c83cff40952df817ee5a25cb24f1384a09ba08d7c5e360864"
-        },
-        {
-            "date": 1776436046918,
-            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-17.log",
-            "hash": "406063c8b6c1c8aea1e9d7659a7f6f5e508bbc8c9cefb121b56092d9bdf532a6"
-        },
-        {
-            "date": 1776779361539,
-            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-21.log",
-            "hash": "53ef2f564daf2719167f7a4f15b0b30f5e8f52d64b204593d8e5aa8877da0a28"
-        },
-        {
-            "date": 1776867064728,
-            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-22.log",
-            "hash": "ebadbe680e23526b6127ebac69a6735fbcb611d5b70daa660ac4b0556427b8da"
-        },
-        {
             "date": 1777304128559,
             "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-27.log",
             "hash": "71c8809a1345ed6ccaeefbb4178a64e5ac42d6ee251377a2fc425dc03c390aac"
@@ -34,6 +14,16 @@
             "date": 1777396654816,
             "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-28.log",
             "hash": "819653ad118e3e50840096665898af5f3207a700305d4db29cb581cef5a83f8b"
+        },
+        {
+            "date": 1777492756564,
+            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-04-29.log",
+            "hash": "3b6f3297d37db0ac00a7df8e1bbe41d285eeb6db8a73550cb48c590df463f745"
+        },
+        {
+            "date": 1778160166546,
+            "name": "C:\\Users\\ALPHA DIESEL\\Documents\\Diesel-CTRL\\server\\logs\\app-2026-05-07.log",
+            "hash": "21dafa40ba3c14747a15219f43b564dd233df8c8dab9839d916e1af9b2f26293"
         }
     ],
     "hashType": "sha256"

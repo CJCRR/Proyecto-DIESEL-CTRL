@@ -1,4 +1,5 @@
 import { apiFetchJson } from './app-api.js';
+import { getFirstAllowedRoute, getRouteModuleKey, userHasModulePermission } from './modules/access-control.js';
 
 // Protección de autenticación para todas las páginas
 (function () {
@@ -43,6 +44,32 @@ import { apiFetchJson } from './app-api.js';
 
   const isEmpresaAdminRole = (rol) => rol === 'admin' || rol === 'admin_empresa';
   const isSuperAdminRole = (rol) => rol === 'superadmin';
+
+  function getRedirectRouteForUser(user) {
+    if (isSuperAdminRole(user && user.rol)) {
+      return '/admin-empresas';
+    }
+    return getFirstAllowedRoute(user);
+  }
+
+  function setElementVisible(element, visible) {
+    if (!element) return;
+    if (visible) {
+      element.style.removeProperty('display');
+    } else {
+      element.style.display = 'none';
+    }
+  }
+
+  function applyModuleVisibilityToNav(drawer, currentUser) {
+    if (!drawer || !currentUser) return;
+    const navLinks = drawer.querySelectorAll('nav a[href]');
+    navLinks.forEach((link) => {
+      const moduleKey = link.dataset.moduleKey || getRouteModuleKey(link.getAttribute('href') || '');
+      if (!moduleKey) return;
+      setElementVisible(link, userHasModulePermission(currentUser, moduleKey));
+    });
+  }
 
   function clearTrialSessionFlags() {
     try {
@@ -418,7 +445,7 @@ import { apiFetchJson } from './app-api.js';
       const esPanelEmpresas = path.startsWith('/admin-empresas');
       const esAjustes = path.startsWith('/ajustes');
       if (!esPanelEmpresas && !esAjustes) {
-        window.location.href = '/admin-empresas';
+        window.location.href = getRedirectRouteForUser(u);
         return false;
       }
       return true;
@@ -427,13 +454,18 @@ import { apiFetchJson } from './app-api.js';
     const esPanelEmpresas = path.startsWith('/admin-empresas');
     if (esPanelEmpresas) {
       // Panel master solo para superadmin
-      window.location.href = '/pos';
+      window.location.href = getRedirectRouteForUser(u);
       return false;
     }
 
-    // Dashboard solo para administradores de empresa
-    if (path.startsWith('/dashboard') && !isEmpresaAdminRole(u.rol)) {
-      window.location.href = '/pos';
+    if (path.startsWith('/usuarios') && !isEmpresaAdminRole(u.rol)) {
+      window.location.href = getRedirectRouteForUser(u);
+      return false;
+    }
+
+    const moduleKey = getRouteModuleKey(path);
+    if (moduleKey && !userHasModulePermission(u, moduleKey)) {
+      window.location.href = getRedirectRouteForUser(u);
       return false;
     }
 
@@ -482,32 +514,39 @@ import { apiFetchJson } from './app-api.js';
     if (drawer && currentUser) {
       const isEmpresaAdmin = isEmpresaAdminRole(currentUser.rol);
       const isSuperAdmin = isSuperAdminRole(currentUser.rol);
+      const canAccessAjustes = userHasModulePermission(currentUser, 'ajustes');
+      const canAccessUsuarios = userHasModulePermission(currentUser, 'usuarios');
+      const canAccessDashboard = userHasModulePermission(currentUser, 'dashboard');
 
       // Superadmin: menú especial para panel master y ajustes de cuenta
       if (isSuperAdmin) {
         const nav = drawer.querySelector('nav');
         if (nav) {
-          nav.innerHTML = `
-            <a href="/pages/admin-empresas.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+          const menuItems = [];
+          if (userHasModulePermission(currentUser, 'admin_empresas')) {
+            menuItems.push(`
+            <a href="/pages/admin-empresas.html" data-module-key="admin_empresas" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
               <i class="fas fa-building text-blue-600"></i>
               Empresas (Master)
             </a>
-            <a href="/pages/ajustes.html" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+            `);
+          }
+          if (canAccessAjustes) {
+            menuItems.push(`
+            <a href="/pages/ajustes.html" data-module-key="ajustes" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
               <i class="fas fa-shield-alt text-emerald-600"></i>
               Seguridad / 2FA
             </a>
-          `;
+            `);
+          }
+          nav.innerHTML = menuItems.join('');
         }
       }
 
       // Mostrar/ocultar accesos solo admin (engranes de ajustes)
       const gearButtons = document.querySelectorAll('.admin-only-gear');
       gearButtons.forEach((btn) => {
-        if (isEmpresaAdmin || isSuperAdmin) {
-          btn.style.removeProperty('display');
-        } else {
-          btn.style.display = 'none';
-        }
+        setElementVisible(btn, canAccessAjustes);
       });
 
       // Ocultar enlaces marcados solo para admin
@@ -521,7 +560,7 @@ import { apiFetchJson } from './app-api.js';
       });
 
       // Mostrar link de usuarios solo para admins de empresa
-      if (isEmpresaAdmin) {
+      if (isEmpresaAdmin && canAccessUsuarios) {
         const nav = drawer.querySelector('nav');
         if (nav) {
           const existingUsuariosLink = nav.querySelector('#nav-usuarios') || nav.querySelector('a[href="/usuarios"]');
@@ -530,6 +569,7 @@ import { apiFetchJson } from './app-api.js';
             usuariosLink.href = '/usuarios';
             usuariosLink.className = 'flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition';
             usuariosLink.id = 'nav-usuarios';
+            usuariosLink.dataset.moduleKey = 'usuarios';
             usuariosLink.innerHTML = '<i class="fas fa-user-shield text-purple-600"></i>Usuarios';
             nav.appendChild(usuariosLink);
           }
@@ -537,12 +577,14 @@ import { apiFetchJson } from './app-api.js';
       }
 
       // Ocultar dashboard para roles que no sean admin de empresa
-      if (!isEmpresaAdmin) {
+      if (!canAccessDashboard) {
         const dashboardLinks = document.querySelectorAll('a[href="/pages/dashboard.html"]');
         dashboardLinks.forEach((link) => {
           link.style.display = 'none';
         });
       }
+
+      applyModuleVisibilityToNav(drawer, currentUser);
 
       // Evitar duplicados del bloque de logout
       let logoutSection = document.getElementById('auth-logout-section');
@@ -601,11 +643,13 @@ import { apiFetchJson } from './app-api.js';
   window.Auth = {
     getUser: () => JSON.parse(localStorage.getItem('auth_user') || 'null'),
     getToken: () => null,
+    canAccessModule: (moduleKey) => userHasModulePermission(JSON.parse(localStorage.getItem('auth_user') || 'null'), moduleKey),
     isAdmin: () => {
       const user = JSON.parse(localStorage.getItem('auth_user') || 'null');
       return user && (user.rol === 'admin' || user.rol === 'admin_empresa');
     },
     applyNavGuards,
+    getRedirectRoute: () => getRedirectRouteForUser(JSON.parse(localStorage.getItem('auth_user') || 'null')),
     logout: () => {
       try {
         apiFetchJson('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })

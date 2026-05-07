@@ -16,6 +16,11 @@ const reportesRoutes = require('./routes/reportes');
 const busquedaRoutes = require('./routes/busqueda');
 const backupRoutes = require('./routes/backup');
 const authRoutes = require('./routes/auth');
+const {
+    requireAuth,
+    requireModulePermission,
+    requireAnyModulePermission,
+} = authRoutes;
 const usuariosRoutes = require('./routes/usuarios');
 const empresasAdminRoutes = require('./routes/empresas_admin');
 const syncRoutes = require('./routes/sync');
@@ -175,22 +180,49 @@ Object.entries(prettyRoutes).forEach(([route, page]) => {
 // Registro de Rutas API
 // Nota: La ruta /ventas ahora deberá estar preparada para recibir un array de items
 app.use('/auth', authRoutes);
-app.use('/admin/productos', productosAdmin);
-app.use('/admin/ajustes', ajustesRoutes);
-app.use('/admin/usuarios', usuariosRoutes);
+app.use('/admin/productos', requireAuth, requireModulePermission('inventario'), productosAdmin);
+app.use('/admin/ajustes', requireAuth, (req, res, next) => {
+    if ((req.method === 'GET' || req.method === 'POST') && req.path === '/') {
+        return requireAnyModulePermission('inventario', 'ajustes')(req, res, next);
+    }
+
+    if (req.method === 'GET' && (req.path === '/config' || req.path === '/tasa-bcv')) {
+        return next();
+    }
+
+    if (req.method === 'POST' && req.path === '/config') {
+        return requireAnyModulePermission('pos', 'ajustes')(req, res, next);
+    }
+
+    if (req.method === 'POST' && (req.path === '/tasa-bcv' || req.path === '/tasa-bcv/actualizar')) {
+        return requireAnyModulePermission('pos', 'dashboard', 'ajustes')(req, res, next);
+    }
+
+    if (req.method === 'POST' && req.path === '/rebuild-stock') {
+        return requireAnyModulePermission('inventario', 'ajustes')(req, res, next);
+    }
+
+    return requireModulePermission('ajustes')(req, res, next);
+}, ajustesRoutes);
+app.use('/admin/usuarios', requireAuth, (req, res, next) => {
+    if (req.path === '/vendedores-list') {
+        return requireAnyModulePermission('pos', 'usuarios')(req, res, next);
+    }
+    return requireModulePermission('usuarios')(req, res, next);
+}, usuariosRoutes);
 app.use('/admin/empresas', empresasAdminRoutes);
 // Rutas API bajo prefijo /api para no colisionar con las vistas limpias
-app.use('/api/proveedores', proveedoresRoutes);
-app.use('/depositos', depositosRoutes);
-app.use('/api/compras', comprasRoutes);
-app.use('/productos', productosRoutes);
-app.use('/ventas', ventasRoutes);
-app.use('/nota', notasRoutes);
-app.use('/reportes', reportesRoutes);
+app.use('/api/proveedores', requireAuth, requireModulePermission('proveedores'), proveedoresRoutes);
+app.use('/depositos', requireAuth, requireAnyModulePermission('inventario', 'compras'), depositosRoutes);
+app.use('/api/compras', requireAuth, requireModulePermission('compras'), comprasRoutes);
+app.use('/productos', requireAuth, requireAnyModulePermission('pos', 'inventario', 'compras', 'reportes'), productosRoutes);
+app.use('/ventas', requireAuth, requireAnyModulePermission('pos', 'reportes'), ventasRoutes);
+app.use('/nota', requireAuth, requireAnyModulePermission('pos', 'reportes'), notasRoutes);
+app.use('/reportes', requireAuth, requireAnyModulePermission('reportes', 'dashboard'), reportesRoutes);
 app.use('/devoluciones', devolucionesRoutes);
 app.use('/buscar', busquedaRoutes);
 app.use('/backup', backupRoutes);
-app.use('/cobranzas', cobranzasRoutes);
+app.use('/cobranzas', requireAuth, requireModulePermission('cobranzas'), cobranzasRoutes);
 app.use('/alertas', alertasRoutes);
 app.use('/presupuestos', presupuestosRoutes);
 app.use('/sync', syncRoutes);

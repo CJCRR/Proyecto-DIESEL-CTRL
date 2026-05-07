@@ -10,10 +10,50 @@ const { isHttpsEnforced } = require('../middleware/security');
 const { registrarEventoNegocio } = require('../services/eventosService');
 const { registrarAuditoria } = require('../services/auditLogService');
 const { sendPasswordResetEmail } = require('../services/emailService');
+const { attachEffectiveModulePermissions, canAccessModule } = require('../services/modulePermissions');
 
 // Generar token único
 function generarToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+function enrichUserPermissionsFromDb(user) {
+  if (!user || !user.id) {
+    return user;
+  }
+
+  try {
+    const row = db.prepare(`
+      SELECT u.rol, u.permisos_modulos,
+             e.codigo AS empresa_codigo,
+             e.estado AS empresa_estado,
+             e.proximo_cobro AS empresa_proximo_cobro,
+             e.dias_gracia AS empresa_dias_gracia,
+             e.plan AS empresa_plan
+      FROM usuarios u
+      LEFT JOIN empresas e ON e.id = u.empresa_id
+      WHERE u.id = ?
+    `).get(user.id);
+
+    if (!row) {
+      return attachEffectiveModulePermissions(user);
+    }
+
+    return attachEffectiveModulePermissions({
+      ...user,
+      rol: row.rol || user.rol,
+      permisos_modulos: row.permisos_modulos,
+      empresa_codigo: user.empresa_codigo || row.empresa_codigo || null,
+      empresa_estado: user.empresa_estado || row.empresa_estado || null,
+      empresa_proximo_cobro: user.empresa_proximo_cobro !== undefined ? user.empresa_proximo_cobro : (row.empresa_proximo_cobro || null),
+      empresa_dias_gracia: user.empresa_dias_gracia !== undefined
+        ? user.empresa_dias_gracia
+        : (row.empresa_dias_gracia != null ? Number(row.empresa_dias_gracia) : null),
+      empresa_plan: user.empresa_plan || row.empresa_plan || null
+    });
+  } catch (_) {
+    return attachEffectiveModulePermissions(user);
+  }
 }
 
 const loginLimiter = rateLimit({
@@ -92,6 +132,7 @@ router.post('/login', loginLimiter, (req, res) => {
       ? db.prepare(`
              SELECT u.id, u.username, u.nombre_completo, u.rol, u.activo, u.password,
                u.failed_attempts, u.locked_until, u.must_change_password, u.twofa_enabled, u.twofa_secret,
+               u.permisos_modulos,
                u.empresa_id,
                e.codigo AS empresa_codigo, e.estado AS empresa_estado,
                e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia,
@@ -103,6 +144,7 @@ router.post('/login', loginLimiter, (req, res) => {
       : db.prepare(`
              SELECT u.id, u.username, u.nombre_completo, u.rol, u.activo, u.password,
                u.failed_attempts, u.locked_until, u.must_change_password, u.twofa_enabled, u.twofa_secret,
+               u.permisos_modulos,
                u.empresa_id,
                e.codigo AS empresa_codigo, e.estado AS empresa_estado,
                e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia,
@@ -237,20 +279,23 @@ router.post('/login', loginLimiter, (req, res) => {
       }
     }
 
+    const usuarioConPermisos = attachEffectiveModulePermissions(usuario);
+
     const jwtPayload = {
-      id: usuario.id,
-      username: usuario.username,
-      nombre: usuario.nombre_completo,
-      rol: usuario.rol,
-      empresa_id: usuario.empresa_id || null,
-      empresa_codigo: usuario.empresa_codigo || null,
+      id: usuarioConPermisos.id,
+      username: usuarioConPermisos.username,
+      nombre: usuarioConPermisos.nombre_completo,
+      rol: usuarioConPermisos.rol,
+      empresa_id: usuarioConPermisos.empresa_id || null,
+      empresa_codigo: usuarioConPermisos.empresa_codigo || null,
       empresa_estado: empresaEstadoSesion,
-      empresa_proximo_cobro: usuario.empresa_proximo_cobro || null,
-      empresa_dias_gracia: (usuario.empresa_dias_gracia != null ? Number(usuario.empresa_dias_gracia) : null),
-      empresa_plan: usuario.empresa_plan || null,
+      empresa_proximo_cobro: usuarioConPermisos.empresa_proximo_cobro || null,
+      empresa_dias_gracia: (usuarioConPermisos.empresa_dias_gracia != null ? Number(usuarioConPermisos.empresa_dias_gracia) : null),
+      empresa_plan: usuarioConPermisos.empresa_plan || null,
       empresa_trial: empresaTrialInfo,
-      must_change_password: !!usuario.must_change_password,
-      twofa_enabled: !!usuario.twofa_enabled
+      must_change_password: !!usuarioConPermisos.must_change_password,
+      twofa_enabled: !!usuarioConPermisos.twofa_enabled,
+      permisos_modulos: usuarioConPermisos.permisos_modulos
     };
     const jwtToken = signJwt(jwtPayload);
     const secureCookies = isHttpsEnforced();
@@ -309,26 +354,7 @@ router.get('/verificar', (req, res) => {
   if (jwtToken) {
     const user = verifyJwt(jwtToken);
     if (user) {
-      const missingLicenciaData = user.empresa_id && (user.empresa_proximo_cobro === undefined || user.empresa_dias_gracia === undefined);
-      if (missingLicenciaData) {
-        try {
-          const empresaRow = db.prepare('SELECT codigo, estado, proximo_cobro, dias_gracia FROM empresas WHERE id = ?').get(user.empresa_id);
-          if (empresaRow) {
-            const enriched = {
-              ...user,
-              empresa_codigo: user.empresa_codigo || empresaRow.codigo || null,
-              empresa_estado: user.empresa_estado || empresaRow.estado || null,
-              empresa_proximo_cobro: empresaRow.proximo_cobro || null,
-              empresa_dias_gracia: empresaRow.dias_gracia != null ? Number(empresaRow.dias_gracia) : null,
-            };
-            return res.json({ valido: true, usuario: enriched, via: 'jwt' });
-          }
-        } catch (err) {
-          const logger = require('../services/logger');
-          logger.warn('No se pudo enriquecer payload JWT con datos de licencia', { message: err.message });
-        }
-      }
-      return res.json({ valido: true, usuario: user, via: 'jwt' });
+      return res.json({ valido: true, usuario: enrichUserPermissionsFromDb(user), via: 'jwt' });
     }
   }
 
@@ -781,7 +807,7 @@ function requireAuth(req, res, next) {
   if (jwtToken) {
     const user = verifyJwt(jwtToken);
     if (user) {
-      req.usuario = user;
+      req.usuario = enrichUserPermissionsFromDb(user);
       return next();
     }
   }
@@ -792,7 +818,8 @@ function requireAuth(req, res, next) {
   }
   try {
     const sesion = db.prepare(`
-      SELECT s.*, u.username, u.rol, u.empresa_id, e.codigo AS empresa_codigo, e.estado AS empresa_estado
+      SELECT s.*, u.username, u.rol, u.empresa_id, u.permisos_modulos,
+             e.codigo AS empresa_codigo, e.estado AS empresa_estado
       FROM sesiones s
       JOIN usuarios u ON u.id = s.usuario_id
       LEFT JOIN empresas e ON e.id = u.empresa_id
@@ -801,14 +828,15 @@ function requireAuth(req, res, next) {
     if (!sesion) {
       return res.status(401).json({ error: 'Sesión inválida' });
     }
-    req.usuario = {
+    req.usuario = attachEffectiveModulePermissions({
       id: sesion.usuario_id,
       username: sesion.username,
       rol: sesion.rol,
       empresa_id: sesion.empresa_id || null,
       empresa_codigo: sesion.empresa_codigo || null,
-      empresa_estado: sesion.empresa_estado || null
-    };
+      empresa_estado: sesion.empresa_estado || null,
+      permisos_modulos: sesion.permisos_modulos
+    });
     next();
   } catch (err) {
     const logger = require('../services/logger');
@@ -832,6 +860,37 @@ function requireRole(...rolesPermitidos) {
   };
 }
 
+function requireModulePermission(moduleKey) {
+  return (req, res, next) => {
+    if (!req.usuario) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    if (!canAccessModule(req.usuario, moduleKey)) {
+      return res.status(403).json({ error: 'No tienes acceso a este módulo' });
+    }
+
+    next();
+  };
+}
+
+function requireAnyModulePermission(...moduleKeys) {
+  return (req, res, next) => {
+    if (!req.usuario) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    const autorizado = moduleKeys.some((moduleKey) => canAccessModule(req.usuario, moduleKey));
+    if (!autorizado) {
+      return res.status(403).json({ error: 'No tienes acceso a este recurso' });
+    }
+
+    next();
+  };
+}
+
 module.exports = router;
 module.exports.requireAuth = requireAuth;
 module.exports.requireRole = requireRole;
+module.exports.requireModulePermission = requireModulePermission;
+module.exports.requireAnyModulePermission = requireAnyModulePermission;
