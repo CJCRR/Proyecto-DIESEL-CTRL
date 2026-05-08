@@ -15,6 +15,7 @@ function resetVentasData() {
   db.prepare('DELETE FROM ventas').run();
   db.prepare('DELETE FROM cuentas_cobrar').run();
   db.prepare('DELETE FROM productos').run();
+  db.prepare("DELETE FROM config WHERE clave = 'empresa_config' OR clave LIKE 'empresa_config:empresa:%'").run();
 }
 
 describe('Rutas HTTP /ventas', () => {
@@ -120,5 +121,18 @@ describe('Rutas HTTP /ventas', () => {
 
     expect(res.status).toBe(403);
     expect(res.body).toHaveProperty('code', 'LICENCIA_SUSPENDIDA');
+  });
+
+  test('DELETE /ventas/:id bloquea la anulación cuando la función está desactivada', async () => {
+    const empresaId = 1;
+    const { token } = createTestUserAndToken({ empresaId });
+    const app = buildApp();
+
+    const res = await request(app)
+      .delete('/ventas/999')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toHaveProperty('code', 'VENTA_ANULAR_DESHABILITADA');
   });
 });

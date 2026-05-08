@@ -5,8 +5,41 @@ const { requireAuth, requireRole } = require('./auth');
 const bcrypt = require('bcryptjs');
 const { registrarEventoNegocio } = require('../services/eventosService');
 const { registrarAuditoria } = require('../services/auditLogService');
-const { listarPagosLicenciaEmpresa, actualizarEstadoPagoLicencia } = require('../services/ajustesService');
-const { purgeTransactionalData } = require('../services/ajustesService');
+const {
+  listarPagosLicenciaEmpresa,
+  actualizarEstadoPagoLicencia,
+  purgeTransactionalData,
+  obtenerConfigGeneral,
+  guardarConfigGeneral,
+} = require('../services/ajustesService');
+
+function parseToggleValue(value) {
+  if (value === true || value === 1 || value === '1' || value === 'true') return true;
+  if (value === false || value === 0 || value === '0' || value === 'false') return false;
+  return null;
+}
+
+function attachEmpresaFlags(empresa) {
+  if (!empresa) return empresa;
+
+  let empresaConfig = {};
+  if (empresa.empresa_config_raw) {
+    try {
+      const parsed = JSON.parse(empresa.empresa_config_raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        empresaConfig = parsed;
+      }
+    } catch (_err) {
+      empresaConfig = {};
+    }
+  }
+
+  const { empresa_config_raw, ...rest } = empresa;
+  return {
+    ...rest,
+    permitir_anular_venta: parseToggleValue(empresaConfig.permitir_anular_venta) === true,
+  };
+}
 
 // GET /admin/empresas - Listar empresas con filtros básicos (solo superadmin)
 router.get('/', requireAuth, requireRole('superadmin'), (req, res) => {
@@ -17,24 +50,26 @@ router.get('/', requireAuth, requireRole('superadmin'), (req, res) => {
     const params = [];
 
     if (estado && ['activa', 'morosa', 'suspendida'].includes(estado)) {
-      where.push('estado = ?');
+      where.push('e.estado = ?');
       params.push(estado);
     }
 
     if (q && q.trim()) {
-      where.push('(nombre LIKE ? OR codigo LIKE ?)');
+      where.push('(e.nombre LIKE ? OR e.codigo LIKE ?)');
       params.push(`%${q.trim()}%`, `%${q.trim()}%`);
     }
 
-    let sql = `SELECT id, nombre, codigo, estado, plan, monto_mensual, fecha_alta, fecha_corte, dias_gracia,
-              ultimo_pago_en, proximo_cobro, nota_interna, rif, telefono, direccion
-                FROM empresas`;
+    let sql = `SELECT e.id, e.nombre, e.codigo, e.estado, e.plan, e.monto_mensual, e.fecha_alta, e.fecha_corte, e.dias_gracia,
+              e.ultimo_pago_en, e.proximo_cobro, e.nota_interna, e.rif, e.telefono, e.direccion,
+              cfg.valor AS empresa_config_raw
+                FROM empresas e
+                LEFT JOIN config cfg ON cfg.clave = ('empresa_config:empresa:' || e.id)`;
     if (where.length) {
       sql += ' WHERE ' + where.join(' AND ');
     }
-    sql += ' ORDER BY fecha_alta DESC, id DESC';
+    sql += ' ORDER BY e.fecha_alta DESC, e.id DESC';
 
-    const empresas = db.prepare(sql).all(...params);
+    const empresas = db.prepare(sql).all(...params).map(attachEmpresaFlags);
     res.json(empresas);
   } catch (err) {
     const logger = require('../services/logger');
@@ -107,17 +142,18 @@ router.post('/', requireAuth, requireRole('superadmin'), (req, res) => {
       FROM empresas
       WHERE id = ?
     `).get(info.lastInsertRowid);
+    const nuevaConFlags = attachEmpresaFlags({ ...nueva, empresa_config_raw: null });
     try {
       registrarAuditoria({
         usuario: req.usuario,
         accion: 'EMPRESA_CREADA',
         entidad: 'empresa',
-        entidadId: nueva.id,
+        entidadId: nuevaConFlags.id,
         detalle: {
-          codigo: nueva.codigo,
-          nombre: nueva.nombre,
-          plan: nueva.plan,
-          monto_mensual: nueva.monto_mensual,
+          codigo: nuevaConFlags.codigo,
+          nombre: nuevaConFlags.nombre,
+          plan: nuevaConFlags.plan,
+          monto_mensual: nuevaConFlags.monto_mensual,
         },
         ip: req.ip,
         userAgent: req.headers['user-agent'],
@@ -129,9 +165,9 @@ router.post('/', requireAuth, requireRole('superadmin'), (req, res) => {
       registrarEventoNegocio(nueva.id, {
         tipo: 'empresa_creada',
         entidad: 'empresa',
-        entidadId: nueva.id,
+        entidadId: nuevaConFlags.id,
         origen: 'panel-master',
-        payload: nueva,
+        payload: nuevaConFlags,
       });
     } catch (_err) {
       // No romper flujo si falla el registro del evento
@@ -139,7 +175,7 @@ router.post('/', requireAuth, requireRole('superadmin'), (req, res) => {
 
     res.status(201).json({
       message: 'Empresa creada correctamente',
-      empresa: nueva,
+      empresa: nuevaConFlags,
     });
   } catch (err) {
     const logger = require('../services/logger');
@@ -160,6 +196,7 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
     ultimo_pago_en,
     proximo_cobro,
     nota_interna,
+    permitir_anular_venta,
     // Opcionales para registrar historial de pago de licencia
     registrar_pago_licencia,
     referencia_pago,
@@ -170,6 +207,13 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(id);
     if (!empresa) {
       return res.status(404).json({ error: 'Empresa no encontrada' });
+    }
+
+    const permitirAnularVenta = permitir_anular_venta !== undefined
+      ? parseToggleValue(permitir_anular_venta)
+      : undefined;
+    if (permitir_anular_venta !== undefined && permitirAnularVenta === null) {
+      return res.status(400).json({ error: 'permitir_anular_venta debe ser booleano' });
     }
 
     const updates = [];
@@ -233,24 +277,41 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
       params.push(nota_interna || null);
     }
 
-    if (updates.length === 0) {
+    if (updates.length === 0 && permitir_anular_venta === undefined) {
       return res.status(400).json({ error: 'No hay campos para actualizar' });
     }
 
-    params.push(id);
+    const updateParams = updates.length ? [...params, id] : [];
 
-    db.prepare(`
-      UPDATE empresas
-      SET ${updates.join(', ')}, actualizado_en = datetime('now')
-      WHERE id = ?
-    `).run(...params);
+    db.transaction(() => {
+      if (updates.length) {
+        db.prepare(`
+          UPDATE empresas
+          SET ${updates.join(', ')}, actualizado_en = datetime('now')
+          WHERE id = ?
+        `).run(...updateParams);
+      }
 
-    const empresaActualizada = db.prepare(`
-      SELECT id, nombre, codigo, estado, plan, monto_mensual, fecha_alta, fecha_corte, dias_gracia,
-             ultimo_pago_en, proximo_cobro, nota_interna
-      FROM empresas
-      WHERE id = ?
-    `).get(id);
+      if (permitir_anular_venta !== undefined) {
+        const configActual = obtenerConfigGeneral(empresa.id);
+        guardarConfigGeneral({
+          ...configActual,
+          empresa: {
+            ...(configActual && configActual.empresa ? configActual.empresa : {}),
+            permitir_anular_venta: permitirAnularVenta,
+          },
+        }, empresa.id);
+      }
+    })();
+
+    const empresaActualizada = attachEmpresaFlags(db.prepare(`
+      SELECT e.id, e.nombre, e.codigo, e.estado, e.plan, e.monto_mensual, e.fecha_alta, e.fecha_corte, e.dias_gracia,
+             e.ultimo_pago_en, e.proximo_cobro, e.nota_interna, e.rif, e.telefono, e.direccion,
+             cfg.valor AS empresa_config_raw
+      FROM empresas e
+      LEFT JOIN config cfg ON cfg.clave = ('empresa_config:empresa:' || e.id)
+      WHERE e.id = ?
+    `).get(id));
 
     // Si se indicó registrar pago de licencia (explícitamente o implícito por actualizar ultimo_pago_en),
     // crear una fila en pagos_licencia para que el historial de "Plan y pagos" se alimente solo.

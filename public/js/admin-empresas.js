@@ -228,11 +228,16 @@ function renderEmpresas() {
   empresas.forEach(e => {
     const estadoLicencia = calcularEstadoLicencia(e);
     const esTrial = e.plan && String(e.plan).toUpperCase().startsWith('TRIAL');
+    const permitirAnularVenta = !!e.permitir_anular_venta;
     const planBase = (e.plan || '—') + (e.monto_mensual ? ` / $${formatNumber(e.monto_mensual, 2)}` : '');
     const planTexto = esTrial ? `${planBase} · TRIAL` : planBase;
     const textoGracia = `${e.dias_gracia || 0} días de gracia`;
     const proximo = e.proximo_cobro ? formatFechaCortaLocal(e.proximo_cobro) : '—';
     const ultimoPago = e.ultimo_pago_en ? formatFechaCortaLocal(e.ultimo_pago_en) : '—';
+    const toggleAnularLabel = permitirAnularVenta ? 'Anular venta: ON' : 'Anular venta: OFF';
+    const toggleAnularClass = permitirAnularVenta
+      ? 'bg-rose-600 text-white hover:bg-rose-500'
+      : 'bg-slate-100 text-slate-700 hover:bg-slate-200';
 
     let rowClasses = 'hover:bg-slate-50 transition';
     if (estadoLicencia === 'morosa') rowClasses += ' bg-amber-50';
@@ -265,6 +270,7 @@ function renderEmpresas() {
     html += `<button class="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200" onclick="window.__registrarPago(${e.id})">Registrar pago</button>`;
     html += `<button class="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200" onclick="window.__verPagosLicencia(${e.id})">Pagos plan</button>`;
     html += `<button class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="window.__editarCiclo(${e.id})">Días de gracia</button>`;
+    html += `<button class="px-2 py-1 rounded-lg ${toggleAnularClass}" onclick="window.__toggleAnularVenta(${e.id}, ${permitirAnularVenta ? 'false' : 'true'})"><i class="fas ${permitirAnularVenta ? 'fa-toggle-on' : 'fa-toggle-off'} mr-1"></i>${toggleAnularLabel}</button>`;
 
     // Botón para crear usuario admin de empresa
     if (e.id !== 1 && e.codigo !== 'LOCAL') {
@@ -562,6 +568,33 @@ window.__editarCiclo = function (id) {
   modalCiclo.classList.remove('hidden');
   modalCiclo.classList.add('flex');
   setTimeout(() => ecGracia.focus(), 50);
+};
+
+window.__toggleAnularVenta = function (id, habilitar) {
+  const empresa = empresas.find(e => e.id === id);
+  if (!empresa) return;
+
+  const activar = !!habilitar;
+  const titulo = activar ? 'Habilitar anulación de ventas' : 'Desactivar anulación de ventas';
+  const mensaje = activar
+    ? `¿Habilitar la anulación total de ventas para "${empresa.nombre}"? Esto mostrará el botón de anular venta en reportes a los administradores de esa empresa.`
+    : `¿Desactivar la anulación total de ventas para "${empresa.nombre}"? El botón dejará de mostrarse y la API rechazará nuevas anulaciones.`;
+  const okMessage = activar
+    ? 'Anulación total de ventas habilitada.'
+    : 'Anulación total de ventas desactivada.';
+
+  if (!modalConfirm) {
+    patchEmpresa(id, { permitir_anular_venta: activar }, okMessage);
+    return;
+  }
+
+  mcTitle.textContent = titulo;
+  mcMessage.textContent = mensaje;
+  currentConfirmAction = () => {
+    patchEmpresa(id, { permitir_anular_venta: activar }, okMessage);
+  };
+  modalConfirm.classList.remove('hidden');
+  modalConfirm.classList.add('flex');
 };
 
 btnBuscar.addEventListener('click', () => {

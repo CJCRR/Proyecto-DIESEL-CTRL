@@ -9,6 +9,10 @@ function resetAjustesData() {
   db.prepare('DELETE FROM ajustes_stock').run();
   db.prepare('DELETE FROM productos').run();
   db.prepare("DELETE FROM config WHERE clave = 'tasa_bcv'").run();
+  db.prepare("DELETE FROM config WHERE clave = 'empresa_config' OR clave LIKE 'empresa_config:empresa:%'").run();
+  db.prepare("DELETE FROM config WHERE clave = 'descuentos_volumen' OR clave LIKE 'descuentos_volumen:empresa:%'").run();
+  db.prepare("DELETE FROM config WHERE clave = 'devolucion_politica' OR clave LIKE 'devolucion_politica:empresa:%'").run();
+  db.prepare("DELETE FROM config WHERE clave = 'nota_config' OR clave LIKE 'nota_config:empresa:%'").run();
 }
 
 describe('ajustesService', () => {
@@ -51,5 +55,26 @@ describe('ajustesService', () => {
     expect(cfg.empresa).toBeDefined();
     expect(cfg.devolucion).toBeDefined();
     expect(cfg.nota).toBeDefined();
+    expect(cfg.empresa.permitir_anular_venta).toBe(false);
+  });
+
+  test('guardarConfigGeneral persiste permitir_anular_venta por empresa', () => {
+    const empresaId = 77;
+
+    const guardado = ajustesService.guardarConfigGeneral({
+      empresa: {
+        nombre: 'Empresa Riesgo',
+        permitir_anular_venta: true,
+      },
+    }, empresaId);
+
+    expect(guardado.ok).toBe(true);
+    expect(guardado.empresa.permitir_anular_venta).toBe(true);
+
+    const cfgEmpresa = ajustesService.obtenerConfigGeneral(empresaId);
+    expect(cfgEmpresa.empresa.permitir_anular_venta).toBe(true);
+
+    const cfgOtraEmpresa = ajustesService.obtenerConfigGeneral(empresaId + 1);
+    expect(cfgOtraEmpresa.empresa.permitir_anular_venta).toBe(false);
   });
 });

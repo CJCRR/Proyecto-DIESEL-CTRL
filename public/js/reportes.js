@@ -31,6 +31,7 @@ let focusVentaId = null;
 let focusVentaFecha = null;
 const ES_ADMIN_EMPRESA = (window.Auth && typeof window.Auth.isAdmin === 'function') ? !!window.Auth.isAdmin() : false;
 let cambioVendVentaId = null;
+let permitirAnularVenta = false;
 const escapeHtml = (window.escapeHtml) ? window.escapeHtml : (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -61,6 +62,16 @@ function buildReportParams() {
     if (vendedor) params.set('vendedor', vendedor);
     if (metodo) params.set('metodo', metodo);
     return params;
+}
+
+async function cargarBanderaAnularVenta() {
+    try {
+        const cfg = await apiFetchJson('/admin/ajustes/config');
+        permitirAnularVenta = !!(cfg && cfg.empresa && cfg.empresa.permitir_anular_venta);
+    } catch (err) {
+        permitirAnularVenta = false;
+        console.warn('No se pudo cargar la configuración de anulación de ventas', err);
+    }
 }
 
 function setupReportesTabs() {
@@ -192,9 +203,9 @@ function renderReporte() {
         detRow.id = `venta-det-${r.id}`;
             const adminBtnsHtml = ES_ADMIN_EMPRESA
                 ? `<button type="button" class="ml-2 px-2 py-1 text-[11px] border border-slate-300 rounded bg-white text-slate-700 hover:bg-slate-50" data-cambiar-vendedor="${r.id}"><i class="fas fa-user-edit mr-1"></i>Cambiar vendedor</button>`
-                // Botón de "Anular venta" deshabilitado por defecto para evitar usos accidentales.
-                // Para habilitarlo en emergencias, descomenta el siguiente bloque y el listener más abajo.
-                   + ` <button type="button" class="ml-2 px-2 py-1 text-[11px] border border-rose-300 rounded bg-rose-50 text-rose-700 hover:bg-rose-100" data-anular-venta="${r.id}"><i class="fas fa-ban mr-1"></i>Anular venta</button>`
+                    + (permitirAnularVenta
+                        ? ` <button type="button" class="ml-2 px-2 py-1 text-[11px] border border-rose-300 rounded bg-rose-50 text-rose-700 hover:bg-rose-100" data-anular-venta="${r.id}"><i class="fas fa-ban mr-1"></i>Anular venta</button>`
+                        : '')
                 : '';
         detRow.innerHTML = `<td colspan="7" class="p-2 bg-slate-50">
             <div class="flex items-center justify-between">
@@ -217,30 +228,28 @@ function renderReporte() {
                         });
                     }
 
-                    // Listener para "Anular venta" deshabilitado por defecto.
-                    // Para reactivarlo, descomenta este bloque junto con el botón en adminBtnsHtml.
-                     const btnAnular = detRow.querySelector('[data-anular-venta]');
-                     if (btnAnular) {
-                         btnAnular.addEventListener('click', async (ev) => {
-                             ev.stopPropagation();
-                             const ok = window.confirm('¿Anular completamente esta venta? Esto revertirá el inventario y eliminará cualquier cuenta por cobrar asociada. Esta acción no se puede deshacer.');
-                             if (!ok) return;
-                             try {
-                                 await apiFetchJson(`/ventas/${encodeURIComponent(r.id)}`, { method: 'DELETE' });
-                                 if (window.showToast) {
-                                     window.showToast('Venta anulada y revertida.', 'success');
-                                 }
-                                 await cargarReporte();
-                             } catch (err) {
-                                 console.error('Error anulando venta', err);
-                                 if (window.showToast) {
-                                     window.showToast(err.message || 'Error al anular la venta.', 'error');
-                                 } else {
-                                     alert(err.message || 'Error al anular la venta.');
-                                 }
-                             }
-                         });
-                     }
+                    const btnAnular = detRow.querySelector('[data-anular-venta]');
+                    if (btnAnular) {
+                        btnAnular.addEventListener('click', async (ev) => {
+                            ev.stopPropagation();
+                            const ok = window.confirm('¿Anular completamente esta venta? Esto revertirá el inventario y eliminará cualquier cuenta por cobrar asociada. Esta acción no se puede deshacer.');
+                            if (!ok) return;
+                            try {
+                                await apiFetchJson(`/ventas/${encodeURIComponent(r.id)}`, { method: 'DELETE' });
+                                if (window.showToast) {
+                                    window.showToast('Venta anulada y revertida.', 'success');
+                                }
+                                await cargarReporte();
+                            } catch (err) {
+                                console.error('Error anulando venta', err);
+                                if (window.showToast) {
+                                    window.showToast(err.message || 'Error al anular la venta.', 'error');
+                                } else {
+                                    alert(err.message || 'Error al anular la venta.');
+                                }
+                            }
+                        });
+                    }
                 }
 
         tr.addEventListener('click', async () => {
@@ -1293,8 +1302,9 @@ document.addEventListener('DOMContentLoaded', () => {
         initCustomSelect('rpt-metodo');
     } catch {}
     // Dar tiempo para que auth-guard configure el token
-    setTimeout(() => {
-        cargarReporte();
+    setTimeout(async () => {
+        await cargarBanderaAnularVenta();
+        await cargarReporte();
     }, 100);
 });
 

@@ -6,6 +6,7 @@ const logger = require('../services/logger');
 const db = require('../db');
 const { registrarVenta, cambiarVendedorVenta, anularVenta } = require('../services/ventasService');
 const { registrarAuditoria } = require('../services/auditLogService');
+const { obtenerConfigGeneral } = require('../services/ajustesService');
 
 // El superadmin no debe registrar ventas de ninguna empresa
 function forbidSuperadmin(req, res, next) {
@@ -168,6 +169,14 @@ router.delete('/:id', requireAuth, requireRole('admin', 'admin_empresa'), (req, 
         }
         if (!empresaId) {
             return res.status(400).json({ error: 'Usuario sin empresa asociada' });
+        }
+
+        const configGeneral = obtenerConfigGeneral(empresaId);
+        if (!configGeneral || !configGeneral.empresa || !configGeneral.empresa.permitir_anular_venta) {
+            return res.status(403).json({
+                error: 'La anulación total de ventas no está habilitada para esta empresa.',
+                code: 'VENTA_ANULAR_DESHABILITADA',
+            });
         }
 
         const result = anularVenta({ ventaId, empresaId });

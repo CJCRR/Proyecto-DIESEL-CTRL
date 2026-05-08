@@ -796,6 +796,7 @@ const DEFAULT_EMPRESA = {
   color_primario: '#2563eb',
   color_secundario: '#0f172a',
   color_acento: '#f97316',
+  permitir_anular_venta: false,
   // Redondeo opcional de niveles de precio a múltiplos de 5
   precio_redondeo_0_5: false,
   // Umbral mínimo de precio base (USD) para aplicar el redondeo
@@ -897,6 +898,10 @@ function guardarConfigGeneral(payload = {}, empresaId) {
     color_primario: empresa.color_primario || DEFAULT_EMPRESA.color_primario,
     color_secundario: empresa.color_secundario || DEFAULT_EMPRESA.color_secundario,
     color_acento: empresa.color_acento || DEFAULT_EMPRESA.color_acento,
+    permitir_anular_venta: empresa.permitir_anular_venta === true
+      || empresa.permitir_anular_venta === 1
+      || empresa.permitir_anular_venta === '1'
+      || empresa.permitir_anular_venta === 'true',
     rif: (empresa.rif || '').toString().slice(0, 120),
     telefonos: (empresa.telefonos || '').toString().slice(0, 200),
     ubicacion: (empresa.ubicacion || '').toString().slice(0, 240),

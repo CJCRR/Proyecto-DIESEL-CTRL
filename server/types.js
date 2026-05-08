@@ -104,6 +104,7 @@
  * @property {string} [color_primario]
  * @property {string} [color_secundario]
  * @property {string} [color_acento]
+ * @property {boolean} [permitir_anular_venta]
  * @property {string} [rif]
  * @property {string} [telefonos]
  * @property {string} [ubicacion]
@@ -113,6 +114,8 @@
  * @property {number} [precio2_pct]
  * @property {string} [precio3_nombre]
  * @property {number} [precio3_pct]
+ * @property {boolean} [precio_redondeo_0_5]
+ * @property {number} [precio_redondeo_umbral]
  */
 
 /**
