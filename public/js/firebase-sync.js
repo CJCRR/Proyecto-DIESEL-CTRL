@@ -14,6 +14,13 @@ let retryTimer = null;
 let retryDelayMs = 5_000;
 const MAX_RETRY_DELAY = 5 * 60 * 1_000; // 5 minutos
 
+function getFirebaseDb() {
+    if (!db) {
+        throw new Error('Firebase no está configurado en esta instancia. Configure public/config/firebase-config.js o las variables FIREBASE_* del servidor.');
+    }
+    return db;
+}
+
 async function apiPostJson(url, body) {
     return await apiFetchJson(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
@@ -50,7 +57,8 @@ function getEmpresaSubcollection(nombreSubcoleccion) {
     if (!scope.empresa_codigo) {
         throw new Error('No hay empresa_codigo en auth_user para Firebase');
     }
-    const ref = collection(db, 'empresas', scope.empresa_codigo, nombreSubcoleccion);
+    const dbRef = getFirebaseDb();
+    const ref = collection(dbRef, 'empresas', scope.empresa_codigo, nombreSubcoleccion);
     return { ref, scope };
 }
 
@@ -58,12 +66,13 @@ function getEmpresaSubcollection(nombreSubcoleccion) {
 // Crear o actualizar el documento empresas/{codigo} con datos básicos
 async function upsertEmpresaFirebase(empresa) {
     try {
+        const dbRef = getFirebaseDb();
         const codigo = (empresa && empresa.codigo ? String(empresa.codigo) : '').trim().toUpperCase();
         if (!codigo) {
             throw new Error('Código de empresa vacío');
         }
 
-        const ref = doc(db, 'empresas', codigo);
+        const ref = doc(dbRef, 'empresas', codigo);
         const nowIso = new Date().toISOString();
 
         const payload = {

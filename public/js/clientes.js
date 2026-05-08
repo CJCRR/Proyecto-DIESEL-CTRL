@@ -73,7 +73,10 @@ async function loadClientes() {
         clientes = await obtenerClientesFirebase();
     } catch (err) {
         console.error('No se pudieron obtener clientes', err);
-        showToast('No se pudieron obtener clientes', 'error');
+        const msg = err && err.message
+            ? err.message
+            : 'No se pudieron obtener clientes';
+        showToast(msg, 'error');
     }
     renderTabla(buscar.value.trim());
 }

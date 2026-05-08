@@ -67,7 +67,11 @@ function applyNoStoreHeaders(res) {
 }
 
 app.get('/config/firebase-config.js', (req, res) => {
-    applyNoStoreHeaders(res);
+    // Nunca cachear este módulo: puede cambiar por archivo privado o por envs en runtime.
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
     res.type('application/javascript; charset=utf-8');
 
     try {
