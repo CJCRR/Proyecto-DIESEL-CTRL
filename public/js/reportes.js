@@ -194,7 +194,7 @@ function renderReporte() {
                 ? `<button type="button" class="ml-2 px-2 py-1 text-[11px] border border-slate-300 rounded bg-white text-slate-700 hover:bg-slate-50" data-cambiar-vendedor="${r.id}"><i class="fas fa-user-edit mr-1"></i>Cambiar vendedor</button>`
                 // Botón de "Anular venta" deshabilitado por defecto para evitar usos accidentales.
                 // Para habilitarlo en emergencias, descomenta el siguiente bloque y el listener más abajo.
-                //   + ` <button type="button" class="ml-2 px-2 py-1 text-[11px] border border-rose-300 rounded bg-rose-50 text-rose-700 hover:bg-rose-100" data-anular-venta="${r.id}"><i class="fas fa-ban mr-1"></i>Anular venta</button>`
+                   + ` <button type="button" class="ml-2 px-2 py-1 text-[11px] border border-rose-300 rounded bg-rose-50 text-rose-700 hover:bg-rose-100" data-anular-venta="${r.id}"><i class="fas fa-ban mr-1"></i>Anular venta</button>`
                 : '';
         detRow.innerHTML = `<td colspan="7" class="p-2 bg-slate-50">
             <div class="flex items-center justify-between">
@@ -219,28 +219,28 @@ function renderReporte() {
 
                     // Listener para "Anular venta" deshabilitado por defecto.
                     // Para reactivarlo, descomenta este bloque junto con el botón en adminBtnsHtml.
-                    // const btnAnular = detRow.querySelector('[data-anular-venta]');
-                    // if (btnAnular) {
-                    //     btnAnular.addEventListener('click', async (ev) => {
-                    //         ev.stopPropagation();
-                    //         const ok = window.confirm('¿Anular completamente esta venta? Esto revertirá el inventario y eliminará cualquier cuenta por cobrar asociada. Esta acción no se puede deshacer.');
-                    //         if (!ok) return;
-                    //         try {
-                    //             await apiFetchJson(`/ventas/${encodeURIComponent(r.id)}`, { method: 'DELETE' });
-                    //             if (window.showToast) {
-                    //                 window.showToast('Venta anulada y revertida.', 'success');
-                    //             }
-                    //             await cargarReporte();
-                    //         } catch (err) {
-                    //             console.error('Error anulando venta', err);
-                    //             if (window.showToast) {
-                    //                 window.showToast(err.message || 'Error al anular la venta.', 'error');
-                    //             } else {
-                    //                 alert(err.message || 'Error al anular la venta.');
-                    //             }
-                    //         }
-                    //     });
-                    // }
+                     const btnAnular = detRow.querySelector('[data-anular-venta]');
+                     if (btnAnular) {
+                         btnAnular.addEventListener('click', async (ev) => {
+                             ev.stopPropagation();
+                             const ok = window.confirm('¿Anular completamente esta venta? Esto revertirá el inventario y eliminará cualquier cuenta por cobrar asociada. Esta acción no se puede deshacer.');
+                             if (!ok) return;
+                             try {
+                                 await apiFetchJson(`/ventas/${encodeURIComponent(r.id)}`, { method: 'DELETE' });
+                                 if (window.showToast) {
+                                     window.showToast('Venta anulada y revertida.', 'success');
+                                 }
+                                 await cargarReporte();
+                             } catch (err) {
+                                 console.error('Error anulando venta', err);
+                                 if (window.showToast) {
+                                     window.showToast(err.message || 'Error al anular la venta.', 'error');
+                                 } else {
+                                     alert(err.message || 'Error al anular la venta.');
+                                 }
+                             }
+                         });
+                     }
                 }
 
         tr.addEventListener('click', async () => {
