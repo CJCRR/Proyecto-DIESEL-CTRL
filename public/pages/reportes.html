@@ -12,11 +12,11 @@
   <script src="/js/disable-autocomplete.js"></script>
 </head>
 
-<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+<body class="app-shell-body bg-slate-50 text-slate-900 min-h-screen flex flex-col">
   <nav
-    class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/40 border-b border-slate-800/60">
-    <div class="container mx-auto px-4 py-3 flex justify-between items-center gap-4">
-      <div class="flex items-center gap-3">
+    class="app-shell-nav bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/40 border-b border-slate-800/60">
+    <div class="app-shell-nav__inner container mx-auto px-4 py-3 flex justify-between items-center gap-4">
+      <div class="app-shell-brand-group flex items-center gap-3">
         <button id="btn-menu"
           class="h-11 w-11 rounded-2xl bg-white/5 hover:bg-white/10 transition flex items-center justify-center text-white shadow-lg shadow-black/40 ring-1 ring-white/10">
           <label class="burger" for="nav-burger">
@@ -26,12 +26,12 @@
             <span></span>
           </label>
         </button>
-        <div class="flex items-center gap-3">
+        <div class="app-shell-brand-group flex items-center gap-3 min-w-0">
           <div
             class="h-10 w-10 rounded-2xl bg-blue-500/15 flex items-center justify-center ring-1 ring-blue-400/40 shadow-md shadow-blue-900/40">
             <i class="fas fa-chart-line text-lg text-blue-400"></i>
           </div>
-          <div>
+          <div class="app-shell-brand-copy min-w-0">
             <h1 id="brand-main-title" class="text-base sm:text-lg font-extrabold tracking-tight">NEXA <span
                 class="text-blue-400">CTRL</span></h1>
             <p class="hidden sm:block text-[11px] uppercase tracking-[0.2em] text-slate-300/80 font-semibold">Reportes
@@ -39,7 +39,7 @@
           </div>
         </div>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="app-shell-actions flex items-center gap-3">
         <div id="app-session-status"
           class="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full border border-slate-600/60 bg-slate-900/60 text-[11px] font-medium text-slate-100">
           <span id="app-session-status-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-inner"></span>
@@ -56,7 +56,7 @@
   <!-- Drawer de navegación -->
   <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-40"></div>
   <aside id="drawer"
-    class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
+    class="app-drawer fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">
     <div class="p-5 flex items-center justify-between border-b border-slate-100">
       <div>
         <p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>
@@ -74,7 +74,7 @@
     </div>
   </aside>
 
-  <main class="flex-1 container mx-auto p-6 space-y-6">
+  <main class="reportes-page flex-1 container mx-auto px-4 pb-10 pt-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6">
 
     <!-- <div id="reportes-header" class="flex items-center justify-between mb-3">
       <div>
@@ -84,10 +84,10 @@
     </div>-->
 
     <!-- Tabs de navegación de reportes -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 px-5 pt-4 pb-0">
-      <div class="flex items-center justify-between gap-2 mb-1">
+    <div class="reportes-panel bg-white rounded-2xl shadow-sm border border-slate-200 px-5 pt-4 pb-0">
+      <div class="reportes-tabs-toolbar flex items-center justify-between gap-2 mb-1">
         <nav id="reportes-tabs-nav"
-          class="flex flex-wrap gap-4 border-b border-slate-200 text-xs sm:text-sm font-semibold text-slate-500">
+          class="reportes-tabs-nav flex gap-2 sm:gap-4 border-b border-slate-200 text-xs sm:text-sm font-semibold text-slate-500 overflow-x-auto whitespace-nowrap">
           <button type="button" data-rpt-tab="ventas"
             class="rpt-tab rpt-tab-default px-1 sm:px-3 pb-3 border-b-2 border-transparent hover:text-slate-900">
             Ventas
@@ -106,19 +106,20 @@
           </button>
         </nav>
         <button id="btnReportesTour" type="button"
-          class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
+          class="reportes-chip-button text-[11px] font-semibold text-slate-500 hover:text-slate-800 inline-flex items-center gap-2">
           <i class="fas fa-circle-question text-slate-400"></i>
-          <span>Guía rápida de reportes</span>
+          <span class="hidden sm:inline">Guía rápida de reportes</span>
+          <span class="sm:hidden">Guía rápida</span>
         </button>
       </div>
     </div>
 
     <!-- Filtros generales (aplican a todas las secciones) -->
-    <div id="reportes-filtros" class="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-      <div class="flex items-center justify-between mb-3">
+    <div id="reportes-filtros" class="reportes-panel reportes-filtros-card mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+      <div class="reportes-filtros-toolbar flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
         <h2 class="text-sm font-black text-slate-700">Filtros</h2>
-        <div class="flex items-center gap-2">
-          <div class="hidden md:inline-flex items-center gap-1 text-[11px] text-slate-500">
+        <div class="reportes-filtros-toolbar-actions flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div class="reportes-period-controls flex items-center gap-1 text-[11px] text-slate-500">
             <button id="rpt-periodo-prev" type="button"
               class="px-2 py-1 border rounded-lg text-slate-600 bg-white hover:bg-slate-50 flex items-center gap-1">
               <i class="fas fa-chevron-left text-[10px]"></i>
@@ -129,30 +130,31 @@
               <span>Período siguiente</span>
               <i class="fas fa-chevron-right text-[10px]"></i>
             </button>
+            <span id="rpt-periodo-label" class="reportes-period-label text-[11px] text-slate-500 ml-1"></span>
           </div>
           <button id="btn-reportes-filtros" type="button"
-            class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-lg text-slate-600 bg-white shadow-sm">
+            class="reportes-chip-button inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-lg text-slate-600 bg-white shadow-sm">
             <i class="fas fa-sliders-h text-[11px]"></i>
             <span>Ocultar</span>
           </button>
         </div>
       </div>
-      <div id="reportes-filtros-body" class="flex flex-wrap md:flex-nowrap gap-2 text-sm items-center">
-        <input id="rpt-desde" type="date" class="p-2 border rounded-xl flex-none w-full md:w-48 text-sm" placeholder="Desde">
-        <input id="rpt-hasta" type="date" class="p-2 border rounded-xl flex-none w-full md:w-48 text-sm" placeholder="Hasta">
-        <div class="relative flex-none w-full md:w-48">
+      <div id="reportes-filtros-body" class="reportes-filtros-body grid grid-cols-2 md:grid-cols-12 gap-2 text-sm items-center">
+        <input id="rpt-desde" type="date" class="reportes-field reportes-field--half col-span-1 p-2 border rounded-xl md:col-span-2 w-full text-sm bg-white" placeholder="Desde">
+        <input id="rpt-hasta" type="date" class="reportes-field reportes-field--half col-span-1 p-2 border rounded-xl md:col-span-2 w-full text-sm bg-white" placeholder="Hasta">
+        <div class="reportes-field reportes-field--half col-span-1 relative md:col-span-3 w-full">
           <input id="rpt-cliente" class="p-2 border rounded-xl w-full text-sm" placeholder="Cliente" autocomplete="off">
           <ul id="rpt-clientes-list"
             class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
           </ul>
         </div>
-        <div class="relative flex-none w-full md:w-48">
+        <div class="reportes-field reportes-field--half col-span-1 relative md:col-span-3 w-full">
           <input id="rpt-vendedor" class="p-2 border rounded-xl w-full text-sm" placeholder="Vendedor" autocomplete="off">
           <ul id="rpt-vendedores-list"
             class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
           </ul>
         </div>
-        <div class="flex-none w-full md:w-48">
+        <div class="reportes-field reportes-field--full col-span-2 md:col-span-2 w-full">
           <select id="rpt-metodo" class="select-pos text-sm w-full">
             <option value="">Método (todos)</option>
             <option value="efectivo">Efectivo</option>
@@ -161,10 +163,10 @@
             <option value="pago_movil">Pago Móvil</option>
           </select>
         </div>
-        <div class="flex flex-wrap gap-2 flex-none items-center">
-          <div class="relative">
+        <div class="reportes-field reportes-field--full reportes-quick-actions col-span-2 md:col-span-12 grid grid-cols-3 gap-2 items-stretch sm:flex sm:flex-row sm:flex-nowrap sm:items-center">
+          <div class="relative min-w-0 w-full sm:w-auto">
             <button id="btn-rango-rapido" type="button"
-              class="inline-flex items-center gap-2 px-3 py-2 border rounded-xl text-xs sm:text-sm text-slate-700 bg-white hover:bg-slate-50 shadow-sm">
+              class="reportes-action-button inline-flex items-center justify-center gap-2 w-full sm:w-auto px-3 py-2 border rounded-xl text-xs sm:text-sm text-slate-700 bg-white hover:bg-slate-50 shadow-sm">
               <i class="fas fa-calendar-alt text-[11px] text-slate-500"></i>
               <span id="rango-rapido-label">Hoy</span>
               <i class="fas fa-angle-down text-[10px] text-slate-500"></i>
@@ -183,14 +185,14 @@
                 anterior</button>
             </div>
           </div>
-          <button id="rpt-filtrar" class="inline-flex items-center gap-2 bg-blue-600 text-white rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold hover:bg-blue-700 transition"><i class="fas fa-filter text-[11px]"></i> Filtrar</button>
-          <button id="rpt-export" class="inline-flex items-center gap-2 px-3 py-2 border rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"><i class="fas fa-file-arrow-down text-[11px]"></i> Export CSV</button>
+          <button id="rpt-filtrar" class="reportes-action-button inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-blue-600 text-white rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold hover:bg-blue-700 transition"><i class="fas fa-filter text-[11px]"></i> Filtrar</button>
+          <button id="rpt-export" class="reportes-action-button inline-flex items-center justify-center gap-2 w-full sm:w-auto px-3 py-2 border rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"><i class="fas fa-file-arrow-down text-[11px]"></i> Export CSV</button>
         </div>
       </div>
     </div>
 
     <section id="rpt-sec-ventas" data-rpt-section="ventas"
-      class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+      class="reportes-panel reportes-section bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <h3 class="text-sm font-black text-slate-600">Reporte de ventas</h3>
@@ -206,9 +208,9 @@
         </select>
       </div>
       <div id="ventas-panel" class="space-y-2">
-        <div id="rpt-resumen" class="text-xs text-slate-500">Seleccione rango para ver resultados.</div>
-        <div class="overflow-auto max-h-[70vh] border rounded-xl">
-          <table class="w-full text-xs">
+        <div id="rpt-resumen" class="reportes-summary text-xs text-slate-500">Seleccione rango para ver resultados.</div>
+        <div class="reportes-table-wrap overflow-auto max-h-[70vh] border rounded-xl">
+          <table class="reportes-table w-full text-xs">
             <thead class="bg-slate-100 text-slate-500 uppercase">
               <tr>
                 <th class="p-2 text-left">Fecha</th>
@@ -253,7 +255,7 @@
     </section>
 
     <section id="rpt-sec-devoluciones" data-rpt-section="devoluciones"
-      class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mt-5 hidden">
+      class="reportes-panel reportes-section bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mt-5 hidden">
       <div class="flex items-center justify-between mb-2">
         <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Devoluciones</div>
         <button id="dev-toggle" class="inline-flex items-center gap-1 px-2 py-1 border rounded-xl text-[11px] text-slate-600 hover:bg-slate-50 transition">
@@ -267,7 +269,7 @@
     </section>
 
     <section id="rpt-sec-presupuestos" data-rpt-section="presupuestos"
-      class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mt-5 hidden">
+      class="reportes-panel reportes-section bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mt-5 hidden">
       <div class="flex items-center justify-between mb-2">
         <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Presupuestos</div>
         <button id="pres-toggle" class="inline-flex items-center gap-1 px-2 py-1 border rounded-xl text-[11px] text-slate-600 hover:bg-slate-50 transition">
@@ -281,7 +283,7 @@
     </section>
 
     <section id="rpt-sec-comisiones" data-rpt-section="comisiones"
-      class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mt-5 hidden">
+      class="reportes-panel reportes-section bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mt-5 hidden">
       <div class="flex items-center justify-between mb-2">
         <div>
           <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Comisiones por vendedor</div>
@@ -295,7 +297,7 @@
           </button>
         </div>
       </div>
-      <div id="comisiones-contenedor" class="border rounded-xl max-h-64 overflow-auto text-xs p-1">
+      <div id="comisiones-contenedor" class="reportes-subtable-wrap border rounded-xl max-h-64 overflow-auto text-xs p-1">
         <div class="p-2 text-[11px] text-slate-400">Sin datos. Ajusta el rango de fechas y filtros.</div>
       </div>
     </section>
@@ -329,7 +331,7 @@
     </div>
   </div>
 
-  <footer class="border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">
+  <footer class="app-shell-footer border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">
     <div class="container mx-auto px-4 relative flex items-center justify-center">
       <p id="global-footer-branding" class="text-center">© 2026 Nexa CTRL. Sistema de gestión de ventas.</p>
       <p class="hidden sm:block absolute right-0 text-right">

@@ -163,6 +163,14 @@ function applyRange(kind, anchorStart) {
     document.getElementById('rpt-hasta').value = formatDateInput(hasta);
 }
 
+function formatVentaFechaParts(value) {
+    const fecha = new Date(value);
+    return {
+        fecha: fecha.toLocaleDateString(),
+        hora: fecha.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+}
+
 function renderReporte() {
     const tbody = document.getElementById('rpt-tabla');
     tbody.innerHTML = '';
@@ -184,22 +192,40 @@ function renderReporte() {
             ? '<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 uppercase tracking-wide">DEVOLUCIÓN</span>'
             : '';
         const nro = r.nro_nota || '';
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-50 cursor-pointer';
+        const { fecha, hora } = formatVentaFechaParts(r.fecha);
+        const metaMobile = [r.vendedor || '', r.metodo_pago || ''].filter(Boolean).join(' · ');
+        const tr = document.createElement('tr');
+        tr.className = 'reportes-sale-row hover:bg-slate-50 cursor-pointer';
         tr.dataset.id = String(r.id);
-                tr.innerHTML = `
-            <td class="p-2 whitespace-nowrap"><i id="venta-toggle-icon-${r.id}" class="fas fa-chevron-down mr-2 text-slate-500"></i>${new Date(r.fecha).toLocaleString()}${nro ? ` · <span class="text-[11px] text-slate-500 font-semibold">${nro}</span>` : ''}${badgeDev}</td>
-      <td class="p-2">${r.cliente || ''}</td>
+        tr.innerHTML = `
+            <td class="p-2">
+                <div class="reportes-sale-date min-w-0">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <i id="venta-toggle-icon-${r.id}" class="fas fa-chevron-down text-slate-500 shrink-0"></i>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-slate-700">${fecha}</div>
+                            <div class="text-[10px] text-slate-400">${hora}${nro ? ` · <span class="font-semibold">${nro}</span>` : ''}</div>
+                        </div>
+                    </div>
+                    ${badgeDev}
+                </div>
+            </td>
+            <td class="p-2">
+                <div class="min-w-0">
+                    <div class="font-semibold text-slate-700 truncate">${r.cliente || ''}</div>
+                    ${metaMobile ? `<div class="text-[10px] text-slate-400 sm:hidden truncate">${metaMobile}</div>` : ''}
+                </div>
+            </td>
             <td class="p-2 hidden sm:table-cell">${r.vendedor || ''}</td>
             <td class="p-2 hidden sm:table-cell">${r.metodo_pago || ''}</td>
             <td class="p-2 text-slate-600 text-xs hidden md:table-cell">${r.referencia || '—'}</td>
-    <td class="p-2 text-right font-semibold">${formatNumber(t)}</td>
-    <td class="p-2 text-right text-blue-700 font-semibold">${formatNumber(m)}</td>
+            <td class="p-2 text-right font-semibold text-slate-700">${formatNumber(t)}</td>
+            <td class="p-2 text-right text-blue-700 font-semibold">${formatNumber(m)}</td>
     `;
         tbody.appendChild(tr);
 //
         const detRow = document.createElement('tr');
-        detRow.className = 'hidden';
+        detRow.className = 'reportes-detail-row hidden';
         detRow.id = `venta-det-${r.id}`;
             const adminBtnsHtml = ES_ADMIN_EMPRESA
                 ? `<button type="button" class="ml-2 px-2 py-1 text-[11px] border border-slate-300 rounded bg-white text-slate-700 hover:bg-slate-50" data-cambiar-vendedor="${r.id}"><i class="fas fa-user-edit mr-1"></i>Cambiar vendedor</button>`
@@ -207,7 +233,7 @@ function renderReporte() {
                         ? ` <button type="button" class="ml-2 px-2 py-1 text-[11px] border border-rose-300 rounded bg-rose-50 text-rose-700 hover:bg-rose-100" data-anular-venta="${r.id}"><i class="fas fa-ban mr-1"></i>Anular venta</button>`
                         : '')
                 : '';
-        detRow.innerHTML = `<td colspan="7" class="p-2 bg-slate-50">
+        detRow.innerHTML = `<td colspan="7" class="reportes-detail-cell p-2 bg-slate-50">
             <div class="flex items-center justify-between">
                             <div class="text-[10px] uppercase text-slate-400 font-black">Detalles de la venta</div>
                             <div class="flex items-center gap-2">
@@ -304,7 +330,7 @@ function renderReporte() {
                             ? `<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700 uppercase tracking-wide">DEVUELTO ${d.devuelto_cant || ''}</span>`
                             : '');
                     const descUpper = (d.descripcion || '').toString().toUpperCase();
-                    return `<div class="flex items-center justify-between border-b pb-1">
+                    return `<div class="reportes-detail-item flex items-center justify-between border-b pb-1">
                         <div class="truncate">${codePart}<span class="text-slate-600">${descUpper}</span>${devTag}</div>
                         <div class="text-right min-w-[160px]"><span class="text-xs text-slate-500">Cant ${d.cantidad}</span> • <span class="font-semibold">${monto}</span></div>
                     </div>`;
@@ -468,14 +494,14 @@ function renderPresupuestos() {
                     ? Number(p.total_usd_iva)
                     : Number(p.total_usd || 0);
                 return `
-                <div class="p-2 border rounded flex items-center justify-between">
-                    <div>
-                        <div class="font-semibold">${escapeHtml(p.cliente || '')}</div>
-                        <div class="text-[10px] text-slate-500">#${escapeHtml(p.id)} • ${escapeHtml(new Date(p.fecha).toLocaleString())}</div>
+                <div class="reportes-list-card reportes-pres-card p-3 border border-slate-200 rounded-2xl bg-white/90">
+                    <div class="reportes-pres-main">
+                        <div class="reportes-pres-client font-semibold">${escapeHtml(p.cliente || '')}</div>
+                        <div class="reportes-pres-meta text-[10px] text-slate-500">#${escapeHtml(p.id)} • ${escapeHtml(new Date(p.fecha).toLocaleString())}</div>
                     </div>
-                    <div class="text-right">
-                        <div class="font-black text-blue-600">$${formatNumber(totalUsdConImpuestos || 0, 2)}</div>
-                        <div class="mt-1 flex gap-1 justify-end items-center">
+                    <div class="reportes-pres-side text-right">
+                        <div class="reportes-pres-total font-black text-blue-600">$${formatNumber(totalUsdConImpuestos || 0, 2)}</div>
+                        <div class="reportes-pres-actions flex gap-1 justify-end items-center">
                             <button class="px-2 py-1 text-[10px] border border-slate-300 text-slate-700 rounded bg-white hover:bg-slate-50" data-pres-ver="${p.id}">Ver</button>
                             <button class="px-2 py-1 text-[10px] bg-blue-600 text-white rounded" data-pres-pos="${p.id}">Usar en POS</button>
                             <button class="btn-trash" data-pres-del="${p.id}" title="Eliminar presupuesto">
@@ -1033,8 +1059,8 @@ function renderDevoluciones() {
                     ? (d.venta_nro_emp != null ? `Venta #${d.venta_nro_emp}` : `Venta #${d.venta_original_id}`)
                     : 'Sin venta asociada';
         return `
-        <div class="border-b">
-          <div class="p-2 flex items-center justify-between text-xs cursor-pointer" data-dev-toggle="${d.id}">
+                <div class="reportes-list-card border border-slate-200 rounded-2xl bg-white/90 overflow-hidden">
+                    <div class="p-3 flex items-center justify-between gap-3 text-xs cursor-pointer" data-dev-toggle="${d.id}">
             <div>
               <div class="font-semibold text-slate-700">${d.cliente || ''}</div>
               <div class="text-[11px] text-slate-500">DEV-${nro} • ${fechaTxt} • Ref: ${ventaInfo}</div>
@@ -1045,7 +1071,7 @@ function renderDevoluciones() {
               ${d.venta_original_id ? `<button class="mt-1 px-2 py-1 text-[10px] bg-blue-600 text-white rounded" data-ver-venta="${d.venta_original_id}">Ver venta</button>` : ''}
             </div>
           </div>
-          <div id="dev-det-${d.id}" class="hidden bg-slate-50 p-2 text-[11px] text-slate-700">Productos devueltos...</div>
+                    <div id="dev-det-${d.id}" class="hidden bg-slate-50/90 p-3 text-[11px] text-slate-700">Productos devueltos...</div>
         </div>`;
     }).join('');
 
@@ -1088,7 +1114,7 @@ function renderDevoluciones() {
                 const montoBs = d.subtotal_bs != null ? Number(d.subtotal_bs || 0) : (montoUsd * (tasa || 1));
                 const monto = MONEDA === 'USD' ? fmt(montoUsd) + ' USD' : fmt(montoBs) + ' Bs';
                 const codePart = codigo ? `<span class="font-semibold">${codigo}</span> — ` : '';
-                return `<div class="flex items-center justify-between border-b pb-1">
+                return `<div class="reportes-detail-item flex items-center justify-between border-b pb-1">
                     <div class="truncate">${codePart}<span class="text-slate-600">${(d.descripcion || '').toString().toUpperCase()}</span></div>
                     <div class="text-right min-w-[160px]"><span class="text-xs text-slate-500">Cant ${d.cantidad}</span> • <span class="font-semibold">${monto}</span></div>
                 </div>`;

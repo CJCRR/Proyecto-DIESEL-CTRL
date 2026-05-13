@@ -41,6 +41,8 @@ const panelEditor = document.getElementById('panel-editor');
 const toggleEditorBtn = document.getElementById('toggle-editor');
 const filtrosInventario = document.getElementById('filtros-inventario');
 const btnMobileFiltros = document.getElementById('btn-mobile-filtros');
+const INVENTARIO_EDITOR_TRANSITION_MS = 280;
+let inventarioEditorHideTimer = null;
 // Movimiento entre depósitos
 const movCodigo = document.getElementById('mov_codigo');
 const movInfo = document.getElementById('mov_info');
@@ -73,6 +75,26 @@ let depositosInventario = [];
 let codigoOriginalSeleccionado = null;
 let stockPorDepositoBase = [];
 let rebuildHistoryLoaded = false;
+
+function updateMobileFiltersButton() {
+    if (!btnMobileFiltros || !filtrosInventario) return;
+    const expanded = !filtrosInventario.classList.contains('hidden');
+    btnMobileFiltros.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    btnMobileFiltros.innerHTML = `
+        <i class="fas fa-sliders-h text-[11px]"></i>
+        <span>${expanded ? 'Ocultar filtros' : 'Filtros'}</span>
+    `;
+}
+
+function updateEditorToggleButton(visible) {
+    if (!toggleEditorBtn) return;
+    toggleEditorBtn.setAttribute('aria-expanded', visible ? 'true' : 'false');
+    toggleEditorBtn.setAttribute('aria-label', visible ? 'Ocultar panel editor' : 'Mostrar panel editor');
+    toggleEditorBtn.innerHTML = `
+        <span class="hidden xl:inline">${visible ? '' : ''}</span>
+        <i class="fas fa-chevron-${visible ? 'right' : 'left'} text-[11px]"></i>
+    `;
+}
 
 // Determinar rol de usuario para habilitar o no edición de stock desde inventario
 let esEmpresaAdmin = false;
@@ -1148,7 +1170,9 @@ function renderList(items) {
         const margenPct = precio ? (margenVal / precio) * 100 : null;
         const margenCls = margenVal >= 0 ? 'text-emerald-700' : 'text-rose-700';
         const el = document.createElement('div');
-        el.className = 'p-1 border rounded flex justify-between items-start gap-1 hover:bg-slate-50 cursor-pointer';
+        const isSelected = !!codigoOriginalSeleccionado && codigoOriginalSeleccionado === p.codigo;
+        el.className = `inventory-product-card group p-3 border border-slate-200 rounded-2xl bg-white flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 cursor-pointer transition ${isSelected ? 'inventory-product-card--selected' : 'hover:bg-slate-50 hover:border-slate-300'}`;
+        el.dataset.codigo = p.codigo || '';
         const depositoDetalle = p.stock_detalle || '';
         const totalStock = Number(p.stock || 0);
         let depositoLabel = '';
@@ -1192,8 +1216,8 @@ function renderList(items) {
         const marcasStockUpper = (p.marcas_stock || '').toString().toUpperCase();
         const marcaPrincipalUpper = (p.marca || '').toString().toUpperCase();
         const marcaTexto = marcasStockUpper || marcaPrincipalUpper;
-        el.innerHTML = `<div><div class="font-bold">${p.codigo} <span class="text-xs ">${descUpper}</span></div><div class="text-xs text-slate-400">${catUpper}${marcaTexto ? ` · Marca: ${marcaTexto}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400">${depositoLabel}</div>` : ''}${incompletosBadges}</div>
-            <div class="text-right space-y-0.5 min-w-[170px]">
+        el.innerHTML = `<div class="min-w-0"><div class="font-bold break-words">${p.codigo} <span class="text-xs">${descUpper}</span></div><div class="text-xs text-slate-400 break-words">${catUpper}${marcaTexto ? ` · Marca: ${marcaTexto}` : ''}</div>${depositoLabel ? `<div class="text-xs text-slate-400 break-words">${depositoLabel}</div>` : ''}${incompletosBadges}</div>
+            <div class="inventory-product-summary text-left sm:text-right space-y-1 min-w-[170px]">
                 <div class="text-sm font-black">Stock: ${p.stock || 0}${badgeHtml}</div>
                 <div class="text-xs text-slate-600">Precio $${formatNumber(precio, 2)}</div>
             </div>`;
@@ -1203,6 +1227,8 @@ function renderList(items) {
             // <div class="text-xs ${margenCls}">Margen $${margenVal.toFixed(2)}${margenPct !== null ? ` (${margenPct.toFixed(1)}%)` : ''}</div>
 
         el.addEventListener('click', () => {
+            lista.querySelectorAll('.inventory-product-card--selected').forEach((node) => node.classList.remove('inventory-product-card--selected'));
+            el.classList.add('inventory-product-card--selected');
             // Click en la tarjeta → cargar datos en el formulario
             codigoOriginalSeleccionado = p.codigo || null;
             f_codigo.value = p.codigo;
@@ -1224,6 +1250,13 @@ function renderList(items) {
             if (movCodigo) {
                 movCodigo.value = p.codigo;
                 cargarProductoParaMovimiento();
+            }
+
+            if (window.innerWidth < 1024) {
+                setEditorVisible(true);
+                requestAnimationFrame(() => {
+                    panelEditor?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
             }
 
             // Cargar desglose de stock por depósito y marca para este producto
@@ -1293,7 +1326,9 @@ if (filterIncompletosTipo) filterIncompletosTipo.addEventListener('change', () =
 if (btnMobileFiltros && filtrosInventario) {
     btnMobileFiltros.addEventListener('click', () => {
         filtrosInventario.classList.toggle('hidden');
+        updateMobileFiltersButton();
     });
+    updateMobileFiltersButton();
 }
 
 // Import / Export CSV handlers
@@ -1769,24 +1804,50 @@ nextPage.addEventListener('click', () => { const limit = parseInt(pageSize.value
 pageSize.addEventListener('change', () => { currentPage = 0; cargarProductos(); });
 
 // Panel Crear / Editar retraible
-function setEditorVisible(visible) {
+function setEditorVisible(visible, options = {}) {
     if (!layoutInventario || !panelEditor || !productosSection) return;
+    const immediate = !!options.immediate;
+
+    if (inventarioEditorHideTimer) {
+        window.clearTimeout(inventarioEditorHideTimer);
+        inventarioEditorHideTimer = null;
+    }
+
     if (visible) {
-        panelEditor.classList.remove('inv-editor-collapsed', 'hidden');
+        panelEditor.classList.remove('hidden');
         productosSection.classList.remove('lg:col-span-3');
         if (!productosSection.classList.contains('lg:col-span-2')) {
             productosSection.classList.add('lg:col-span-2');
         }
-        if (toggleEditorBtn) toggleEditorBtn.textContent = '>';
+        if (immediate) {
+            panelEditor.classList.remove('inv-editor-collapsed');
+        } else {
+            panelEditor.classList.add('inv-editor-collapsed');
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    panelEditor.classList.remove('inv-editor-collapsed');
+                });
+            });
+        }
     } else {
         panelEditor.classList.add('inv-editor-collapsed');
-        panelEditor.classList.add('hidden');
-        productosSection.classList.remove('lg:col-span-2');
-        if (!productosSection.classList.contains('lg:col-span-3')) {
-            productosSection.classList.add('lg:col-span-3');
+
+        const finalizeHide = () => {
+            panelEditor.classList.add('hidden');
+            productosSection.classList.remove('lg:col-span-2');
+            if (!productosSection.classList.contains('lg:col-span-3')) {
+                productosSection.classList.add('lg:col-span-3');
+            }
+            inventarioEditorHideTimer = null;
+        };
+
+        if (immediate) {
+            finalizeHide();
+        } else {
+            inventarioEditorHideTimer = window.setTimeout(finalizeHide, INVENTARIO_EDITOR_TRANSITION_MS);
         }
-        if (toggleEditorBtn) toggleEditorBtn.textContent = '<';
     }
+    updateEditorToggleButton(visible);
 }
 
 try {
@@ -1799,7 +1860,7 @@ if (toggleEditorBtn && layoutInventario && panelEditor && productosSection) {
         const saved = localStorage.getItem('inventario_editor_visible');
         if (saved === '0') visible = false;
     } catch {}
-    setEditorVisible(visible);
+    setEditorVisible(visible, { immediate: true });
     toggleEditorBtn.addEventListener('click', () => {
         visible = !visible;
         setEditorVisible(visible);

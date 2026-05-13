@@ -297,8 +297,18 @@ export function initCustomSelect(id) {
 	}
 
 	const originalClasses = (select.className || '').split(/\s+/).filter(Boolean);
-	const layoutClasses = originalClasses.filter(c => {
-		return c.startsWith('col-span-') || c === 'w-full' || c.startsWith('w-') || c.startsWith('min-w-') || c.startsWith('max-w-');
+	const layoutClasses = originalClasses.filter((token) => {
+		const utility = token.includes(':') ? token.split(':').pop() : token;
+		return utility.startsWith('col-span-')
+			|| utility === 'w-full'
+			|| utility === 'flex-1'
+			|| utility.startsWith('w-')
+			|| utility.startsWith('min-w-')
+			|| utility.startsWith('max-w-')
+			|| utility.startsWith('basis-')
+			|| utility.startsWith('grow')
+			|| utility.startsWith('shrink')
+			|| utility.startsWith('order-');
 	});
 
 	const parent = select.parentElement;

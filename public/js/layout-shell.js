@@ -76,9 +76,9 @@
         const subtitle = config.subtitle || 'Sistema de gestión de ventas';
         const iconClass = config.iconClass || 'fa-truck';
         return (
-            '<nav class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/40 border-b border-slate-800/60">' +
-            '<div class="container mx-auto px-4 py-3 flex items-center justify-between gap-4">' +
-            '<div class="flex items-center gap-3">' +
+            '<nav class="app-shell-nav bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-white shadow-lg shadow-slate-900/40 border-b border-slate-800/60">' +
+            '<div class="app-shell-nav__inner container mx-auto px-4 py-3 flex items-center justify-between gap-4">' +
+            '<div class="app-shell-brand-group flex items-center gap-3">' +
             '<button id="btn-menu"' +
             ' class="h-11 w-11 rounded-2xl bg-white/5 hover:bg-white/10 transition flex items-center justify-center text-white shadow-lg shadow-black/40 ring-1 ring-white/10">' +
             '<label class="burger" for="nav-burger">' +
@@ -88,13 +88,13 @@
             '<span></span>' +
             '</label>' +
             '</button>' +
-            '<div class="flex items-center gap-3">' +
+            '<div class="app-shell-brand-group flex items-center gap-3 min-w-0">' +
             '<div class="h-10 w-10 rounded-2xl bg-blue-500/15 flex items-center justify-center ring-1 ring-blue-400/40 shadow-md shadow-blue-900/40">' +
             '<i class="fas ' +
             iconClass +
             ' text-lg text-blue-400"></i>' +
             '</div>' +
-            '<div>' +
+            '<div class="app-shell-brand-copy min-w-0">' +
             '<h1 id="brand-main-title" class="text-base sm:text-lg font-extrabold tracking-tight">NEXA <span class="text-blue-400">CTRL</span></h1>' +
             '<p class="hidden sm:block text-[11px] uppercase tracking-[0.2em] text-slate-300/80 font-semibold">' +
             subtitle +
@@ -102,7 +102,7 @@
             '</div>' +
             '</div>' +
             '</div>' +
-            '<div class="flex items-center gap-3">' +
+            '<div class="app-shell-actions flex items-center gap-3">' +
             '<div id="dash-period-container" class="hidden sm:flex items-center gap-1 text-[11px] text-slate-100"></div>' +
             '<div id="app-session-status" class="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full border border-slate-600/60 bg-slate-900/60 text-[11px] font-medium text-slate-100">' +
             '<span id="app-session-status-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-inner"></span>' +
@@ -122,7 +122,7 @@
         return (
             '<div id="drawer-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-40"></div>' +
             '<aside id="drawer"' +
-            ' class="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">' +
+            ' class="app-drawer fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-white shadow-2xl shadow-black/30 -translate-x-full transition-transform duration-200 z-50 flex flex-col">' +
             '<div class="p-5 flex items-center justify-between border-b border-slate-100">' +
             '<div>' +
             '<p class="text-xs uppercase font-black text-slate-400 tracking-widest">Navegación</p>' +
@@ -144,7 +144,7 @@
 
     function buildFooterHtml() {
         return (
-            '<footer class="border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">' +
+            '<footer class="app-shell-footer border-t border-slate-200 mt-8 py-4 text-xs text-slate-400">' +
             '<div class="container mx-auto px-4 relative flex items-center justify-center">' +
             '<p id="global-footer-branding" class="text-center">© 2026 Nexa CTRL. Sistema de gestión de ventas.</p>' +
             '<p class="hidden sm:block absolute right-0 text-right">' +
@@ -161,7 +161,7 @@
         try {
             const body = document.body;
             if (!body) return;
-            const classes = ['bg-slate-50', 'text-slate-900', 'min-h-screen', 'flex', 'flex-col'];
+            const classes = ['app-shell-body', 'bg-slate-50', 'text-slate-900', 'min-h-screen', 'flex', 'flex-col'];
             classes.forEach((cls) => {
                 if (!body.classList.contains(cls)) body.classList.add(cls);
             });

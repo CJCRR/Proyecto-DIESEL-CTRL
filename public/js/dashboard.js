@@ -30,9 +30,9 @@ function renderTopProductos() {
         const margen = MONEDA === 'USD' ? t.margen_usd || 0 : t.margen_bs || 0;
         const costo = MONEDA === 'USD' ? t.costo_usd || 0 : t.costo_bs || 0;
         const row = document.createElement('div');
-        row.className = 'flex justify-between items-center p-2 border-b';
+        row.className = 'dashboard-list-row flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 border border-slate-200 rounded-2xl bg-slate-50/80';
         const descUpper = (t.descripcion || '').toString().toUpperCase();
-        row.innerHTML = `<div><div class="font-bold">${t.codigo} — ${descUpper}</div><div class="text-xs text-slate-400">Vendidos: ${t.total_qty}</div></div><div class="text-right"><div class="font-black">${formatNumber(monto, 2)} ${MONEDA}</div><div class="text-xs text-green-700">Margen: ${formatNumber(margen, 2)} ${MONEDA}</div><div class="text-[11px] text-slate-400">Costo: ${formatNumber(costo, 2)} ${MONEDA}</div></div>`;
+        row.innerHTML = `<div class="min-w-0"><div class="font-bold break-words">${t.codigo} — ${descUpper}</div><div class="text-xs text-slate-400">Vendidos: ${t.total_qty}</div></div><div class="dashboard-list-meta text-left sm:text-right"><div class="font-black">${formatNumber(monto, 2)} ${MONEDA}</div><div class="text-xs text-green-700">Margen: ${formatNumber(margen, 2)} ${MONEDA}</div></div>`;
         topEl.appendChild(row);
     });
 }
@@ -257,11 +257,11 @@ async function cargarDashboard() {
             ultEl.innerHTML = '';
             ultimas.forEach((u) => {
                 const d = document.createElement('div');
-                d.className = 'p-2 border rounded flex items-center justify-between';
+                d.className = 'dashboard-list-row flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 border border-slate-200 rounded-2xl bg-slate-50/80';
                 const left = `<div class="min-w-0"><div class="font-bold truncate">${u.cliente || '—'}</div><div class="text-[10px] text-slate-400">${new Date(u.fecha).toLocaleString()}</div></div>`;
                 const montoBs = u.total_bs != null ? `${formatNumber(u.total_bs, 2)} Bs` : '-- Bs';
                 const montoUsd = u.tasa_bcv != null && u.tasa_bcv !== 0 ? `${formatNumber(u.total_bs / u.tasa_bcv, 2)} USD` : '-- USD';
-                const right = `<div class="text-right ml-4 w-36"><div class="text-sm font-black">${montoBs}</div><div class="text-xs text-slate-400">${montoUsd}</div></div>`;
+                const right = `<div class="dashboard-list-meta text-left sm:text-right sm:ml-4 sm:w-36"><div class="text-sm font-black">${montoBs}</div><div class="text-xs text-slate-400">${montoUsd}</div></div>`;
                 d.innerHTML = left + right;
                 ultEl.appendChild(d);
             });
@@ -380,7 +380,7 @@ async function cargarVendedores() {
         const margen = MONEDA === 'USD' ? v.margen_usd : v.margen_bs;
         const roi = v.roi != null ? `${(v.roi * 100).toFixed(1)}%` : '—';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="p-2">${v.vendedor}</td><td class="p-2 text-right">${v.ventas}</td><td class="p-2 text-right">${formatNumber(total || 0, 2)}</td><td class="p-2 text-right">${formatNumber(margen || 0, 2)}</td><td class="p-2 text-right ${v.roi != null && v.roi >= 0 ? 'text-emerald-700' : 'text-amber-700'}">${roi}</td>`;
+        tr.innerHTML = `<td data-label="Vendedor" class="p-2 font-semibold text-slate-700">${v.vendedor}</td><td data-label="Ventas" class="p-2 text-right">${v.ventas}</td><td data-label="Total" class="p-2 text-right font-semibold">${formatNumber(total || 0, 2)}</td><td data-label="Margen" class="p-2 text-right">${formatNumber(margen || 0, 2)}</td><td data-label="ROI" class="p-2 text-right ${v.roi != null && v.roi >= 0 ? 'text-emerald-700' : 'text-amber-700'}">${roi}</td>`;
         tb.appendChild(tr);
     });
 

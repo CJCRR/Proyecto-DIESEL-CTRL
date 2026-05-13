@@ -22,7 +22,7 @@
 
         </div>-->
         <section id="compra-panel"
-            class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4 relative">
+            class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-0 relative">
             <div class="flex items-center justify-between gap-2 mb-2">
                 <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest">Nueva compra / ingreso</h2>
                 <button id="btnComprasTour" type="button"
@@ -35,19 +35,19 @@
                     <i class="fas fa-eraser"></i><span>Limpiar</span>
                 </button>--> 
             </div>
-            <div id="compras-datos-compra" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                <div>
+            <div id="compras-datos-compra" class="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 mb-3">
+                <div class="col-span-1">
                     <label class="text-[11px] font-semibold text-slate-500"></label>
                     <select id="c_proveedor" class="w-full select-pos text-sm"></select>
                 </div>
-                <div>
+                <div class="col-span-1">
                     <label class="text-[11px] font-semibold text-slate-500"></label>
                     <div class="inv-input-group">
                         <input id="c_fecha" type="date" class="inv-input" placeholder=" " />
                         <label for="c_fecha" class="inv-label">Fecha</label>
                     </div>
                 </div>
-                <div>
+                <div class="col-span-2 md:col-span-1">
                     <label class="text-[11px] font-semibold text-slate-500"></label>
                     <div class="inv-input-group">
                         <input id="c_numero" class="inv-input" placeholder=" " />
@@ -55,9 +55,9 @@
                     </div>
                 </div>
             </div>
-            <div id="compras-buscar-producto" class="grid grid-cols-1 gap-3 mb-4">
+            <div id="compras-buscar-producto" class="grid grid-cols-1 gap-1 sm:gap-1.5 mb-2">
                 <div>
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between mb-1">
                         <label class="text-[11px] font-semibold text-slate-500"></label>
                         <button id="btnNuevoProducto" type="button"
                             class="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
@@ -72,40 +72,40 @@
                             class="absolute left-0 right-0 mt-1 border rounded-xl hidden bg-white shadow-2xl max-h-60 overflow-y-auto z-50 text-sm">
                         </ul>
                     </div>
-                    <div id="c_producto_info" class="mt-1 text-[11px] text-slate-500 min-h-[1.5rem]"></div>
+                    <div id="c_producto_info" class="mt-0 text-[11px] text-slate-500 min-h-0"></div>
                 </div>
 
             </div>
-            <div id="compras-producto-detalle" class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
-                <div>
+            <div id="compras-producto-detalle" class="grid grid-cols-4 md:grid-cols-5 gap-2 sm:gap-3 mb-3">
+                <div class="col-span-1">
                     <label class="text-[11px] font-semibold text-slate-500"></label>
                     <div class="inv-input-group">
                         <input id="c_tasa" type="number" step="0.01" class="inv-input" placeholder=" " />
                         <label for="c_tasa" class="inv-label">Tasa BCV</label>
                     </div>
                 </div>
-                <div>
+                <div class="col-span-1">
                     <label class="text-[11px] font-semibold text-slate-500"></label>
                     <div class="inv-input-group">
                         <input id="c_cantidad" type="number" class="inv-input" placeholder=" " />
                         <label for="c_cantidad" class="inv-label">Cantidad</label>
                     </div>
                 </div>
-                <div>
+                <div class="col-span-1">
                     <label class="text-[11px] font-semibold text-slate-500"></label>
                     <div class="inv-input-group">
                         <input id="c_costo" type="number" step="0.01" class="inv-input" placeholder=" " />
                         <label for="c_costo" class="inv-label">Costo USD</label>
                     </div>
                 </div>
-                <div>
+                <div class="col-span-1">
                     <label class="text-[11px] font-semibold text-slate-500"></label>
                     <div class="inv-input-group">
                         <input id="c_precio" type="number" step="0.01" class="inv-input" placeholder=" " />
                         <label for="c_precio" class="inv-label">Precio USD</label>
                     </div>
                 </div>
-                <div>
+                <div class="col-span-2 md:col-span-1">
                     <label class="text-[11px] font-semibold text-slate-500"></label>
                     <div class="inv-input-group relative">
                         <input id="c_lote" class="inv-input" placeholder=" " autocomplete="off" />
@@ -113,9 +113,7 @@
                         <ul id="cMarcaSug" class="compras-cat-suggestions hidden"></ul>
                     </div>
                 </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                <div>
+                <div class="col-span-2 md:col-span-1">
                     <label class="text-[11px] font-semibold text-slate-500"></label>
                     <div class="inv-input-group">
                         <select id="c_deposito" class="inv-input">
@@ -125,13 +123,13 @@
                     </div>
                 </div>
             </div>
-            <div class="flex justify-end mb-4">
+            <div class="flex justify-end pb-4 sm:pb-4">
                 <button id="btnAgregarItemCompra"
                     class="px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 flex items-center gap-2">
                     <i class="fas fa-plus"></i><span>Agregar item</span>
                 </button>
             </div>
-            <div id="compras-items-wrapper" class="overflow-auto max-h-[50vh] border rounded-xl mb-4">
+            <div id="compras-items-wrapper" class="overflow-auto max-h-[50vh] border rounded-xl mb-0">
                 <table class="w-full text-sm">
                     <thead class="bg-slate-100 text-[11px] uppercase text-slate-500">
                         <tr>
@@ -148,7 +146,7 @@
                     <tbody id="c_items" class="divide-y"></tbody>
                 </table>
             </div>
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between pt-4 sm:pt-4">
                 <div class="text-xs text-slate-500" id="c_resumen"></div>
                 <button id="btnGuardarCompra"
                     class="px-5 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 flex items-center gap-2 text-sm">

@@ -13,35 +13,38 @@
 </head>
 
 <body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
-    <main class="flex-1 container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <main class="cobranzas-page flex-1 container mx-auto px-4 pb-10 pt-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         <!--<div id="cobranzas-header" class="lg:col-span-12 flex items-center justify-between mb-2">
             <div>
                 <h1 class="text-sm sm:text-base font-black text-slate-800">Cobranzas y cuentas por cobrar</h1>
                 <p class="text-[11px] text-slate-500">Aquí ves quién te debe, cuánto y registras los pagos.</p>
             </div>
         </div>-->
-        <section class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-sm">
+        <section class="cobranzas-panel lg:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-sm">
             <div id="cobranzas-filtros-bar"
-                class="p-4 border-b bg-slate-50 flex flex-wrap gap-3 items-center justify-between">
-                <div class="flex items-center gap-2 text-slate-500 text-xs font-black uppercase tracking-widest">
+                class="cobranzas-filtros-bar p-4 border-b bg-slate-50">
+                <div class="cobranzas-filtros-header flex items-center gap-2 text-slate-500 text-xs font-black uppercase tracking-widest mb-3">
                     <i class="fas fa-list"></i>
                     <span>Listado</span>
                 </div>
-                <div class="flex gap-2 flex-wrap items-center">
-                    <input id="f_buscar" class="p-2 px-3 border rounded-xl text-sm" placeholder="Buscar cliente o doc">
-                    <select id="f_estado" class="p-2 px-3 border rounded-xl text-sm">
+                <div class="cobranzas-filtros-stack space-y-3">
+                    <div class="cobranzas-filtros-main grid grid-cols-1 sm:grid-cols-12 gap-2 items-stretch">
+                    <input id="f_buscar" class="sm:col-span-6 lg:col-span-5 p-2.5 px-3 border rounded-xl text-sm bg-white" placeholder="Buscar cliente o doc">
+                    <select id="f_estado" class="sm:col-span-3 lg:col-span-3 p-2.5 px-3 border rounded-xl text-sm bg-white">
                         <option value="">Todos</option>
                         <option value="pendiente">Pendiente</option>
                         <option value="parcial">Parcial</option>
                         <option value="vencido">Vencido</option>
                         <option value="cancelado">Cancelado</option>
                     </select>
-                    <select id="f_mora" class="p-2 px-3 border rounded-xl text-sm">
+                    <select id="f_mora" class="sm:col-span-3 lg:col-span-4 p-2.5 px-3 border rounded-xl text-sm bg-white">
                         <option value="">Mora: Todas</option>
                         <option value="1">Mora ≥ 1 día</option>
                         <option value="7">Mora ≥ 7 días</option>
                         <option value="30">Mora ≥ 30 días</option>
                     </select>
+                    </div>
+                    <div class="cobranzas-filtros-periodo flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div id="cob-periodo-controls" class="flex items-center gap-1">
                         <button id="cob-periodo-prev" type="button"
                             class="px-3 py-2 border rounded-xl text-[11px] text-slate-600 bg-white hover:bg-slate-50 flex items-center gap-1">
@@ -56,13 +59,14 @@
                         <span id="cob-periodo-label" class="hidden sm:inline text-[11px] text-slate-500 ml-1"></span>
                     </div>
                     <button id="f_refrescar"
-                        class="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">
+                        class="cobranzas-refresh-btn px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">
                         <i class="fas fa-rotate"></i>
                     </button>
+                    </div>
                 </div>
             </div>
-            <div id="cobranzas-tabla-wrapper" class="overflow-x-auto">
-                <table class="w-full text-sm">
+            <div id="cobranzas-tabla-wrapper" class="cobranzas-tabla-wrapper overflow-x-auto">
+                <table class="w-full text-sm cobranzas-table">
                     <thead class="bg-white text-[10px] uppercase text-slate-400 font-black border-b">
                         <tr>
                             <th class="p-3 text-left">Cliente</th>
@@ -79,7 +83,7 @@
         </section>
 
         <section class="lg:col-span-4 space-y-4">
-            <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4" id="panel-resumen">
+            <div class="cobranzas-panel bg-white border border-slate-200 rounded-2xl shadow-sm p-4" id="panel-resumen">
                 <div class="flex items-center justify-between gap-2 mb-1">
                     <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Resumen</div>
                     <button id="btnCobranzasTour" type="button"
@@ -92,7 +96,7 @@
                 <div class="grid grid-cols-2 gap-3" id="resumen-cards"></div>
             </div>
 
-            <div class="bg-white border border-slate-200 rounded-2xl shadow-sm" id="panel-detalle">
+            <div class="cobranzas-panel bg-white border border-slate-200 rounded-2xl shadow-sm" id="panel-detalle">
                 <div class="p-4 border-b bg-slate-50 flex items-center justify-between">
                     <div>
                         <div class="text-[10px] font-black text-slate-400 uppercase">Detalle</div>

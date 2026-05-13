@@ -49,6 +49,22 @@ function badgeEstado(estado) {
     return `<span class="${base} bg-slate-100 text-slate-600">Pendiente</span>`;
 }
 
+function estadoDot(estado) {
+    let colorClass = 'bg-slate-400';
+    let label = 'Pendiente';
+    if (estado === 'vencido') {
+        colorClass = 'bg-rose-500';
+        label = 'Vencido';
+    } else if (estado === 'parcial') {
+        colorClass = 'bg-amber-400';
+        label = 'Parcial';
+    } else if (estado === 'cancelado') {
+        colorClass = 'bg-emerald-500';
+        label = 'Cancelado';
+    }
+    return `<span class="inline-block sm:hidden h-2.5 w-2.5 rounded-full ${colorClass} shadow-sm shrink-0 mt-1" title="${label}" aria-label="${label}"></span>`;
+}
+
 function renderResumen(rows = []) {
     const cont = document.getElementById('resumen-cards');
     if (!cont) return;
@@ -107,21 +123,26 @@ function renderTabla(list = []) {
         return;
     }
     list.forEach(c => {
+        const isSelected = !!cuentaSeleccionada && cuentaSeleccionada.id === c.id;
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-50 cursor-pointer';
-        tr.onclick = () => cargarDetalle(c.id);
+        tr.className = `cobranzas-row hover:bg-slate-50 cursor-pointer transition-colors ${isSelected ? 'cobranzas-row--active' : ''}`;
+        tr.onclick = () => {
+            tbody.querySelectorAll('.cobranzas-row--active').forEach((row) => row.classList.remove('cobranzas-row--active'));
+            tr.classList.add('cobranzas-row--active');
+            cargarDetalle(c.id);
+        };
         const estado = c.estado_calc || c.estado;
         const diasMora = typeof c.dias_mora === 'number' ? c.dias_mora : 0;
         tr.innerHTML = `
-            <td class="p-3 font-semibold text-slate-800">${c.cliente_nombre || 'Cliente'}</td>
-            <td class="p-3 text-slate-500">${c.nro_nota ? ` ${c.nro_nota}` : (c.cliente_doc || '')}</td>
-            <td class="p-3 text-center text-sm">
+            <td data-label="Cliente" class="p-3 font-semibold text-slate-800"><div class="flex items-start justify-between gap-2"><span>${c.cliente_nombre || 'Cliente'}</span>${estadoDot(estado)}</div></td>
+            <td data-label="Documento" class="p-3 text-slate-500">${c.nro_nota ? ` ${c.nro_nota}` : (c.cliente_doc || '')}</td>
+            <td data-label="Vence" class="p-3 text-center text-sm">
                 ${c.fecha_vencimiento || ''}
                 ${estado === 'vencido' && diasMora > 0 ? `<div class="text-[10px] text-rose-600">${diasMora} días de mora</div>` : ''}
             </td>
-            <td class="p-3 text-right font-mono text-slate-500">$${formatNumber(c.total_usd || 0, 2)}</td>
-            <td class="p-3 text-right font-mono font-bold text-blue-600">$${formatNumber(c.saldo_usd || 0, 2)}</td>
-            <td class="p-3 text-center">${badgeEstado(estado)}</td>
+            <td data-label="Total $" class="p-3 text-right font-mono text-slate-500">$${formatNumber(c.total_usd || 0, 2)}</td>
+            <td data-label="Saldo $" class="p-3 text-right font-mono font-bold text-blue-600">$${formatNumber(c.saldo_usd || 0, 2)}</td>
+            <td data-label="Estado" class="p-3 text-center">${badgeEstado(estado)}</td>
         `;
         tbody.appendChild(tr);
     });
