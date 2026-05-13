@@ -790,8 +790,10 @@ section {
   width: 150px;
   height: 48px;
   cursor: pointer;
+  position: relative;
   display: flex;
   align-items: center;
+  overflow: hidden;
   background: #2563eb;
   border: none;
   border-radius: 10px;
