@@ -2,10 +2,41 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth, requireRole } = require('./auth');
+const { registrarAuditoria } = require('../services/auditLogService');
 const { body, query, validate } = require('../middleware/validation');
 
 const MAX_IMPORT_ROWS = 5000;
 const MAX_FIELD_LEN = 200;
+
+function normalizeStockPorDeposito(items = []) {
+    const result = new Map();
+    for (const raw of items) {
+        const depositoId = raw && raw.deposito_id != null ? parseInt(raw.deposito_id, 10) || 0 : 0;
+        const cantidad = Number(raw && raw.cantidad != null ? raw.cantidad : 0);
+        if (!depositoId || !Number.isFinite(cantidad) || cantidad < 0) continue;
+        result.set(depositoId, cantidad);
+    }
+    return result;
+}
+
+function stockMapToRows(stockMap) {
+    return Array.from(stockMap.entries())
+        .map(([deposito_id, cantidad]) => ({ deposito_id: Number(deposito_id), cantidad: Number(cantidad || 0) || 0 }))
+        .sort((a, b) => a.deposito_id - b.deposito_id);
+}
+
+function sumStockRows(rows = []) {
+    return rows.reduce((acc, row) => acc + (Number(row && row.cantidad || 0) || 0), 0);
+}
+
+function safeJsonParse(raw, fallback = null) {
+    if (!raw) return fallback;
+    try {
+        return JSON.parse(raw);
+    } catch (_err) {
+        return fallback;
+    }
+}
 
 // POST /admin/productos - Crear nuevo producto
 router.post(
@@ -193,6 +224,227 @@ router.get('/actividad', requireAuth, (req, res) => {
     }
 });
 
+// GET /admin/productos/trazabilidad?codigo=XXX - Historial completo de eventos del producto
+router.get('/trazabilidad', requireAuth, (req, res) => {
+    try {
+        const codigoRaw = req.query.codigo ? String(req.query.codigo).trim() : '';
+        const limitRaw = parseInt(req.query.limit, 10);
+        const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 10), 200) : 80;
+        if (!codigoRaw) {
+            return res.status(400).json({ error: 'Debe indicar el código del producto.' });
+        }
+
+        const codigo = codigoRaw.toUpperCase();
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+        const prod = db.prepare(`
+            SELECT id, codigo, descripcion
+            FROM productos
+            WHERE codigo = ? AND empresa_id = ?
+        `).get(codigo, empresaId);
+
+        if (!prod) {
+            return res.status(404).json({ error: 'Producto no encontrado en esta empresa.' });
+        }
+
+        const compras = db.prepare(`
+            SELECT c.id AS referencia_id,
+                   c.fecha,
+                   cd.cantidad,
+                   cd.costo_usd,
+                   cd.lote,
+                   cd.observaciones,
+                   COALESCE(p.nombre, '') AS proveedor_nombre
+            FROM compra_detalle cd
+            JOIN compras c ON c.id = cd.compra_id
+            LEFT JOIN proveedores p ON p.id = c.proveedor_id
+            WHERE cd.producto_id = ?
+              AND c.empresa_id = ?
+            ORDER BY datetime(c.fecha) DESC, c.id DESC
+            LIMIT ?
+        `).all(prod.id, empresaId, limit).map((row) => ({
+            tipo: 'compra',
+            fecha: row.fecha,
+            referencia_id: row.referencia_id,
+            cantidad: Number(row.cantidad || 0) || 0,
+            resumen: `Compra${row.proveedor_nombre ? ` a ${row.proveedor_nombre}` : ''}`,
+            detalle: [
+                row.costo_usd != null ? `Costo $${Number(row.costo_usd || 0).toFixed(2)}` : '',
+                row.lote ? `Lote ${row.lote}` : '',
+                row.observaciones ? String(row.observaciones).trim() : '',
+            ].filter(Boolean).join(' · '),
+            url: `/pages/compras.html?compra_id=${encodeURIComponent(row.referencia_id)}`,
+        }));
+
+        const ventas = db.prepare(`
+            SELECT v.id AS referencia_id,
+                   v.fecha,
+                   v.cliente,
+                   vd.cantidad,
+                   vd.marca,
+                   vd.deposito_id,
+                   d.nombre AS deposito_nombre
+            FROM venta_detalle vd
+            JOIN ventas v ON v.id = vd.venta_id
+            JOIN usuarios u ON u.id = v.usuario_id
+            LEFT JOIN depositos d ON d.id = vd.deposito_id
+            WHERE vd.producto_id = ?
+              AND u.empresa_id = ?
+            ORDER BY datetime(v.fecha) DESC, v.id DESC
+            LIMIT ?
+        `).all(prod.id, empresaId, limit).map((row) => {
+            const fechaIso = row.fecha ? new Date(row.fecha).toISOString().slice(0, 10) : '';
+            const query = fechaIso
+                ? `?venta_id=${encodeURIComponent(row.referencia_id)}&venta_fecha=${encodeURIComponent(fechaIso)}`
+                : `?venta_id=${encodeURIComponent(row.referencia_id)}`;
+            return {
+                tipo: 'venta',
+                fecha: row.fecha,
+                referencia_id: row.referencia_id,
+                cantidad: Number(row.cantidad || 0) || 0,
+                resumen: `Venta${row.cliente ? ` a ${row.cliente}` : ''}`,
+                detalle: [
+                    row.deposito_nombre ? `Depósito ${row.deposito_nombre}` : '',
+                    row.marca ? `Marca ${row.marca}` : '',
+                ].filter(Boolean).join(' · '),
+                url: `/pages/reportes.html${query}`,
+            };
+        });
+
+        const devoluciones = db.prepare(`
+            SELECT d.id AS referencia_id,
+                   d.fecha,
+                   d.cliente,
+                   d.motivo,
+                   d.venta_original_id,
+                   dd.cantidad
+            FROM devolucion_detalle dd
+            JOIN devoluciones d ON d.id = dd.devolucion_id
+            LEFT JOIN usuarios u ON u.id = d.usuario_id
+            WHERE dd.producto_id = ?
+              AND (u.empresa_id = ? OR u.empresa_id IS NULL)
+            ORDER BY datetime(d.fecha) DESC, d.id DESC
+            LIMIT ?
+        `).all(prod.id, empresaId, limit).map((row) => ({
+            tipo: 'devolucion',
+            fecha: row.fecha,
+            referencia_id: row.referencia_id,
+            cantidad: Number(row.cantidad || 0) || 0,
+            resumen: `Devolución${row.cliente ? ` de ${row.cliente}` : ''}`,
+            detalle: [
+                row.motivo ? String(row.motivo).trim() : '',
+                row.venta_original_id ? `Venta origen #${row.venta_original_id}` : '',
+            ].filter(Boolean).join(' · '),
+            url: null,
+        }));
+
+        const ajustes = db.prepare(`
+            SELECT id AS referencia_id, fecha, diferencia, motivo
+            FROM ajustes_stock
+            WHERE producto_id = ?
+            ORDER BY datetime(fecha) DESC, id DESC
+            LIMIT ?
+        `).all(prod.id, limit).map((row) => ({
+            tipo: 'ajuste',
+            fecha: row.fecha,
+            referencia_id: row.referencia_id,
+            cantidad: Number(row.diferencia || 0) || 0,
+            resumen: 'Ajuste manual de stock',
+            detalle: row.motivo ? String(row.motivo).trim() : '',
+            url: null,
+        }));
+
+        const movimientos = db.prepare(`
+            SELECT m.id AS referencia_id,
+                   m.creado_en AS fecha,
+                   m.cantidad,
+                   m.motivo,
+                   do.nombre AS deposito_origen_nombre,
+                   dd.nombre AS deposito_destino_nombre
+            FROM movimientos_deposito m
+            LEFT JOIN depositos do ON do.id = m.deposito_origen_id
+            LEFT JOIN depositos dd ON dd.id = m.deposito_destino_id
+            WHERE m.empresa_id = ?
+              AND m.producto_id = ?
+            ORDER BY datetime(m.creado_en) DESC, m.id DESC
+            LIMIT ?
+        `).all(empresaId, prod.id, limit).map((row) => ({
+            tipo: 'movimiento',
+            fecha: row.fecha,
+            referencia_id: row.referencia_id,
+            cantidad: Number(row.cantidad || 0) || 0,
+            resumen: 'Movimiento entre depósitos',
+            detalle: [
+                `${row.deposito_origen_nombre || '—'} → ${row.deposito_destino_nombre || '—'}`,
+                row.motivo ? String(row.motivo).trim() : '',
+            ].filter(Boolean).join(' · '),
+            url: null,
+        }));
+
+        const auditorias = db.prepare(`
+            SELECT id AS referencia_id, fecha, accion, entidad, entidad_id, detalle
+            FROM auditoria
+            WHERE empresa_id = ?
+              AND entidad = 'producto'
+              AND entidad_id = ?
+              AND accion IN ('AJUSTE_STOCK_DEPOSITOS', 'REBUILD_STOCK_PRODUCTO')
+            ORDER BY datetime(fecha) DESC, id DESC
+            LIMIT ?
+        `).all(empresaId, prod.id, limit)
+            .map((row) => ({ row, payload: safeJsonParse(row.detalle, {}) }))
+            .map(({ row, payload }) => {
+                const stockAnterior = Number(payload && payload.stock_anterior || 0) || 0;
+                const stockNuevo = Number(payload && payload.stock_nuevo || 0) || 0;
+                const diff = stockNuevo - stockAnterior;
+                const antes = Array.isArray(payload && payload.antes) ? payload.antes : [];
+                const despues = Array.isArray(payload && payload.despues) ? payload.despues : [];
+                const resumenAntes = antes.map((item) => `D${item.deposito_id}:${item.cantidad}`).join(', ');
+                const resumenDespues = despues.map((item) => `D${item.deposito_id}:${item.cantidad}`).join(', ');
+                if (row.accion === 'REBUILD_STOCK_PRODUCTO') {
+                    return {
+                        tipo: 'rebuild_stock',
+                        fecha: row.fecha,
+                        referencia_id: row.referencia_id,
+                        cantidad: diff,
+                        resumen: 'Rebuild desde depósitos',
+                        detalle: [
+                            payload && payload.motivo ? String(payload.motivo).trim() : 'Recalculo manual desde depósitos',
+                            `${stockAnterior} -> ${stockNuevo}`,
+                        ].filter(Boolean).join(' · '),
+                        url: null,
+                    };
+                }
+                return {
+                    tipo: 'correccion_stock_depositos',
+                    fecha: row.fecha,
+                    referencia_id: row.referencia_id,
+                    cantidad: diff,
+                    resumen: 'Corrección manual por depósitos',
+                    detalle: [
+                        payload && payload.motivo ? String(payload.motivo).trim() : '',
+                        resumenAntes || resumenDespues ? `${resumenAntes || 'sin detalle'} -> ${resumenDespues || 'sin detalle'}` : '',
+                    ].filter(Boolean).join(' · '),
+                    url: null,
+                };
+            });
+
+        const items = [...compras, ...ventas, ...devoluciones, ...ajustes, ...movimientos, ...auditorias]
+            .sort((a, b) => {
+                const ta = a && a.fecha ? new Date(a.fecha).getTime() : 0;
+                const tb = b && b.fecha ? new Date(b.fecha).getTime() : 0;
+                return tb - ta;
+            })
+            .slice(0, limit);
+
+        res.json({
+            producto: prod,
+            items,
+        });
+    } catch (err) {
+        console.error('Error obteniendo trazabilidad de producto:', err);
+        res.status(500).json({ error: 'Error al obtener trazabilidad del producto.' });
+    }
+});
+
 // GET /admin/productos/marcas-por-producto?codigo=XXX - Marcas históricas usadas en compras para un producto
 router.get('/marcas-por-producto', requireAuth, (req, res) => {
     try {
@@ -353,6 +605,206 @@ router.post('/stock-marca', requireAuth, (req, res) => {
     } catch (err) {
         console.error('Error actualizando stock por marca de producto:', err);
         res.status(500).json({ error: 'Error al actualizar stock por marca del producto.' });
+    }
+});
+
+// POST /admin/productos/stock-depositos - Ajustar stock exacto por depósito para un producto
+router.post('/stock-depositos', requireAuth, requireRole('admin', 'admin_empresa', 'superadmin'), (req, res) => {
+    try {
+        const codigoRaw = req.body && req.body.codigo ? String(req.body.codigo).trim() : '';
+        const motivoRaw = req.body && req.body.motivo ? String(req.body.motivo).trim() : '';
+        const depositoPrincipalRaw = req.body && req.body.deposito_principal_id != null
+            ? parseInt(req.body.deposito_principal_id, 10) || null
+            : null;
+        const stockPorDeposito = normalizeStockPorDeposito(
+            Array.isArray(req.body && req.body.stock_por_deposito) ? req.body.stock_por_deposito : []
+        );
+
+        if (!codigoRaw) {
+            return res.status(400).json({ error: 'Debe indicar el código del producto.' });
+        }
+        if (!stockPorDeposito.size) {
+            return res.status(400).json({ error: 'Debe indicar al menos una línea válida de stock por depósito.' });
+        }
+
+        const codigo = codigoRaw.toUpperCase();
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+        const prod = db.prepare(`
+            SELECT id, codigo, stock, deposito_id, marca, empresa_id
+            FROM productos
+            WHERE codigo = ? AND empresa_id = ? AND activo = 1
+        `).get(codigo, empresaId);
+
+        if (!prod) {
+            return res.status(404).json({ error: 'Producto no encontrado en esta empresa.' });
+        }
+
+        const depositosIds = Array.from(stockPorDeposito.keys());
+        const placeholders = depositosIds.map(() => '?').join(',');
+        const depositosValidos = db.prepare(`
+            SELECT id, nombre
+            FROM depositos
+            WHERE empresa_id = ?
+              AND id IN (${placeholders})
+        `).all(empresaId, ...depositosIds);
+        if (depositosValidos.length !== depositosIds.length) {
+            return res.status(400).json({ error: 'Uno o más depósitos no pertenecen a la empresa.' });
+        }
+
+        const currentRowsDb = db.prepare(`
+            SELECT deposito_id, cantidad
+            FROM stock_por_deposito
+            WHERE producto_id = ?
+        `).all(prod.id);
+        const currentStockMap = new Map();
+        currentRowsDb.forEach((row) => {
+            currentStockMap.set(Number(row.deposito_id), Number(row.cantidad || 0) || 0);
+        });
+        if (!currentStockMap.size && prod.deposito_id) {
+            currentStockMap.set(Number(prod.deposito_id), Number(prod.stock || 0) || 0);
+        }
+
+        const targetStockMap = new Map(currentStockMap);
+        stockPorDeposito.forEach((cantidad, depositoId) => {
+            targetStockMap.set(Number(depositoId), Number(cantidad || 0) || 0);
+        });
+
+        const beforeRows = stockMapToRows(currentStockMap);
+        const afterRows = stockMapToRows(targetStockMap);
+        const totalAnterior = beforeRows.length ? sumStockRows(beforeRows) : (Number(prod.stock || 0) || 0);
+        const totalNuevo = sumStockRows(afterRows);
+        const huboCambios = beforeRows.length !== afterRows.length || beforeRows.some((row, idx) => {
+            const next = afterRows[idx];
+            return !next || next.deposito_id !== row.deposito_id || next.cantidad !== row.cantidad;
+        });
+
+        if (huboCambios && !motivoRaw) {
+            return res.status(400).json({ error: 'Debe indicar un motivo para ajustar el stock por depósito.' });
+        }
+
+        const selectMarcas = db.prepare(`
+            SELECT marca, cantidad
+            FROM stock_por_deposito_marca
+            WHERE producto_id = ? AND deposito_id = ?
+        `);
+        const deleteMarcas = db.prepare(`
+            DELETE FROM stock_por_deposito_marca
+            WHERE producto_id = ? AND deposito_id = ?
+        `);
+        const updateUnaMarca = db.prepare(`
+            UPDATE stock_por_deposito_marca
+            SET cantidad = ?, actualizado_en = datetime('now')
+            WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+        `);
+        const deleteStockDep = db.prepare(`
+            DELETE FROM stock_por_deposito
+            WHERE producto_id = ? AND deposito_id = ?
+        `);
+        const updateStockDep = db.prepare(`
+            UPDATE stock_por_deposito
+            SET cantidad = ?, actualizado_en = datetime('now')
+            WHERE producto_id = ? AND deposito_id = ?
+        `);
+        const insertStockDep = db.prepare(`
+            INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+            VALUES (?, ?, ?, ?)
+        `);
+        const updateProducto = db.prepare(`
+            UPDATE productos
+            SET stock = ?, deposito_id = ?
+            WHERE id = ?
+        `);
+        const insertAjuste = db.prepare(`
+            INSERT INTO ajustes_stock (producto_id, diferencia, motivo, fecha)
+            VALUES (?, ?, ?, ?)
+        `);
+
+        const positiveRows = afterRows.filter((row) => row.cantidad > 0);
+        let depositoPrincipalNuevo = null;
+        if (depositoPrincipalRaw && targetStockMap.has(depositoPrincipalRaw) && (targetStockMap.get(depositoPrincipalRaw) || 0) > 0) {
+            depositoPrincipalNuevo = depositoPrincipalRaw;
+        } else if ((targetStockMap.get(prod.deposito_id) || 0) > 0) {
+            depositoPrincipalNuevo = Number(prod.deposito_id);
+        } else if (positiveRows.length) {
+            const mayor = [...positiveRows].sort((a, b) => {
+                if (b.cantidad !== a.cantidad) return b.cantidad - a.cantidad;
+                return a.deposito_id - b.deposito_id;
+            })[0];
+            depositoPrincipalNuevo = mayor ? mayor.deposito_id : null;
+        }
+
+        const depositosConMarcaReseteada = [];
+
+        const tx = db.transaction(() => {
+            targetStockMap.forEach((cantidad, depositoId) => {
+                const actual = Number(currentStockMap.get(depositoId) || 0) || 0;
+                const nuevo = Number(cantidad || 0) || 0;
+                if (nuevo <= 0) {
+                    deleteStockDep.run(prod.id, depositoId);
+                    deleteMarcas.run(prod.id, depositoId);
+                    return;
+                }
+
+                if (currentStockMap.has(depositoId)) {
+                    updateStockDep.run(nuevo, prod.id, depositoId);
+                } else {
+                    insertStockDep.run(prod.empresa_id || empresaId, prod.id, depositoId, nuevo);
+                }
+
+                if (actual !== nuevo) {
+                    const marcas = selectMarcas.all(prod.id, depositoId) || [];
+                    if (marcas.length === 1 && marcas[0].marca) {
+                        updateUnaMarca.run(nuevo, prod.id, depositoId, marcas[0].marca);
+                    } else if (marcas.length > 0) {
+                        deleteMarcas.run(prod.id, depositoId);
+                        depositosConMarcaReseteada.push(depositoId);
+                    }
+                }
+            });
+
+            updateProducto.run(totalNuevo, depositoPrincipalNuevo, prod.id);
+
+            const diferenciaTotal = totalNuevo - totalAnterior;
+            if (diferenciaTotal !== 0 && motivoRaw) {
+                insertAjuste.run(prod.id, diferenciaTotal, motivoRaw.slice(0, 400), new Date().toISOString());
+            }
+        });
+
+        tx();
+
+        if (huboCambios) {
+            registrarAuditoria({
+                usuario: req.usuario,
+                accion: 'AJUSTE_STOCK_DEPOSITOS',
+                entidad: 'producto',
+                entidadId: prod.id,
+                detalle: {
+                    codigo,
+                    motivo: motivoRaw,
+                    stock_anterior: totalAnterior,
+                    stock_nuevo: totalNuevo,
+                    deposito_principal_anterior: prod.deposito_id || null,
+                    deposito_principal_nuevo: depositoPrincipalNuevo,
+                    antes: beforeRows,
+                    despues: afterRows,
+                    depositos_marca_reseteados: depositosConMarcaReseteada,
+                },
+                ip: req.ip,
+                userAgent: req.headers['user-agent'],
+            });
+        }
+
+        return res.json({
+            message: huboCambios ? 'Stock por depósito actualizado.' : 'No hubo cambios en el stock por depósito.',
+            codigo,
+            stock_anterior: totalAnterior,
+            stock_nuevo: totalNuevo,
+            deposito_principal_id: depositoPrincipalNuevo,
+            depositos_marca_reseteados: depositosConMarcaReseteada,
+        });
+    } catch (err) {
+        console.error('Error actualizando stock por depósito:', err);
+        return res.status(500).json({ error: 'Error actualizando stock por depósito.' });
     }
 });
 

@@ -76,10 +76,92 @@ router.post('/rebuild-stock', requireAuth, requireRole('admin', 'admin_empresa',
   try {
     const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
     const info = reconciliarStockEmpresa(empresaId);
+    try {
+      registrarAuditoria({
+        usuario: req.usuario,
+        accion: 'REBUILD_STOCK_EMPRESA',
+        entidad: 'inventario',
+        entidadId: null,
+        detalle: {
+          totalProductos: info.totalProductos,
+          actualizados: info.actualizados,
+          negativos: Array.isArray(info.negativos) ? info.negativos.length : 0,
+          sinStockPorDeposito: Array.isArray(info.sinStockPorDeposito) ? info.sinStockPorDeposito.length : 0,
+          corregidos: Array.isArray(info.mismatches) ? info.mismatches.slice(0, 50) : [],
+          truncado: Array.isArray(info.mismatches) ? info.mismatches.length > 50 : false,
+        },
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      (Array.isArray(info.mismatches) ? info.mismatches : []).forEach((item) => {
+        if (!item || !item.producto_id) return;
+        registrarAuditoria({
+          usuario: req.usuario,
+          accion: 'REBUILD_STOCK_PRODUCTO',
+          entidad: 'producto',
+          entidadId: item.producto_id,
+          detalle: {
+            codigo: item.codigo,
+            motivo: 'Rebuild manual desde inventario',
+            stock_anterior: item.stock_anterior,
+            stock_nuevo: item.stock_nuevo,
+          },
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+        });
+      });
+    } catch (_auditErr) {
+      // no romper flujo si auditoría falla
+    }
     res.json(info);
   } catch (err) {
     console.error('Error reconciliando stock de inventario:', err.message);
     res.status(500).json({ error: 'Error al recalcular stock de inventario' });
+  }
+});
+
+// GET /admin/ajustes/rebuild-stock/history - Historial global de rebuilds guardado en auditoría
+router.get('/rebuild-stock/history', requireAuth, requireRole('admin', 'admin_empresa', 'superadmin'), (req, res) => {
+  try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+    const limitRaw = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 20) : 10;
+    const db = require('../db');
+
+    const rows = db.prepare(`
+      SELECT id, fecha, detalle
+      FROM auditoria
+      WHERE empresa_id = ?
+        AND accion = 'REBUILD_STOCK_EMPRESA'
+      ORDER BY datetime(fecha) DESC, id DESC
+      LIMIT ?
+    `).all(empresaId, limit);
+
+    const items = rows.map((row) => {
+      let payload = {};
+      try {
+        payload = row.detalle ? JSON.parse(row.detalle) : {};
+      } catch (_err) {
+        payload = {};
+      }
+      return {
+        id: row.id,
+        fecha: row.fecha,
+        totalProductos: Number(payload.totalProductos || 0) || 0,
+        actualizados: Number(payload.actualizados || 0) || 0,
+        mismatches: Array.isArray(payload.corregidos) ? payload.corregidos.length : 0,
+        sinStockPorDeposito: Number(payload.sinStockPorDeposito || 0) || 0,
+        negativos: Number(payload.negativos || 0) || 0,
+        truncado: !!payload.truncado,
+        corregidos: Array.isArray(payload.corregidos) ? payload.corregidos : [],
+      };
+    });
+
+    res.json({ items });
+  } catch (err) {
+    console.error('Error listando historial de rebuilds:', err);
+    res.status(500).json({ error: 'Error al listar historial de rebuilds' });
   }
 });
 

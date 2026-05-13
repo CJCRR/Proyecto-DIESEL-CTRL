@@ -192,7 +192,7 @@ function reconciliarStockEmpresa(empresaId) {
       }
 
       if (totalDep !== stockActual) {
-        resultado.mismatches.push({ codigo: prod.codigo, stock_anterior: stockActual, stock_nuevo: totalDep });
+        resultado.mismatches.push({ producto_id: prod.id, codigo: prod.codigo, stock_anterior: stockActual, stock_nuevo: totalDep });
         stmtUpdate.run(totalDep, prod.id);
         resultado.actualizados += 1;
       }

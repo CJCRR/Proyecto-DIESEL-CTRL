@@ -15,6 +15,9 @@ const f_precio = document.getElementById('f_precio');
 const f_costo = document.getElementById('f_costo');
 const f_stock = document.getElementById('f_stock');
 const f_motivoAjuste = document.getElementById('f_motivo_ajuste');
+const stockDepositosPanel = document.getElementById('stock-depositos-panel');
+const stockDepositosHelpEl = document.getElementById('stock-depositos-help');
+const stockPorDepositoEditorEl = document.getElementById('stock-por-deposito-editor');
 const f_marca = document.getElementById('f_marca');
 const f_deposito = document.getElementById('f_deposito');
 const msg = document.getElementById('msg');
@@ -28,6 +31,10 @@ const filterDeposito = document.getElementById('filterDeposito');
 const filterIncompletosTipo = document.getElementById('filterIncompletosTipo');
 const btnRebuildStock = document.getElementById('btnRebuildStock');
 const rebuildStockMsg = document.getElementById('rebuildStockMsg');
+const rebuildHistoryPanel = document.getElementById('rebuildHistoryPanel');
+const btnToggleRebuildHistory = document.getElementById('btnToggleRebuildHistory');
+const rebuildHistoryBody = document.getElementById('rebuildHistoryBody');
+const rebuildHistoryList = document.getElementById('rebuildHistoryList');
 const layoutInventario = document.getElementById('inventario-layout');
 const productosSection = document.getElementById('productos-section');
 const panelEditor = document.getElementById('panel-editor');
@@ -49,6 +56,7 @@ const f_categoria = document.getElementById('f_categoria');
 const categoriaSugList = document.getElementById('categoria_sugerencias');
 const marcaSugList = document.getElementById('marca_sugerencias');
 const actividadProductoEl = document.getElementById('actividad-producto');
+const trazabilidadListEl = document.getElementById('trazabilidad-list');
 const stockMarcaEditorEl = document.getElementById('stock-marca-editor');
 const btnEditarMarcas = document.getElementById('btnEditarMarcas');
 let stockMarcaModal = document.getElementById('stock-marca-modal');
@@ -63,6 +71,8 @@ let categoriasInventario = [];
 let marcasInventario = [];
 let depositosInventario = [];
 let codigoOriginalSeleccionado = null;
+let stockPorDepositoBase = [];
+let rebuildHistoryLoaded = false;
 
 // Determinar rol de usuario para habilitar o no edición de stock desde inventario
 let esEmpresaAdmin = false;
@@ -80,6 +90,392 @@ try {
 }
 const puedeEditarStockDesdeInventario = esEmpresaAdmin || esSuperAdmin;
 const puedeEditarDesgloseMarca = esEmpresaAdmin || esSuperAdmin || esVendedor;
+
+function getVisibleExistenciasRows(rows = [], preferredDepositoId = null) {
+    const items = Array.isArray(rows) ? rows.filter((row) => row && row.deposito_id != null) : [];
+    const withPositiveStock = items.filter((row) => (Number(row.cantidad || 0) || 0) > 0);
+    if (withPositiveStock.length > 0) {
+        return withPositiveStock;
+    }
+    if (!items.length) return [];
+    if (preferredDepositoId != null) {
+        const preferred = items.find((row) => Number(row.deposito_id) === Number(preferredDepositoId));
+        if (preferred) return [preferred];
+    }
+    return items;
+}
+
+function reconcileMarcaRowsWithTotal(totalDep, marcas = []) {
+    const totalEsperado = Number(totalDep || 0) || 0;
+    let rows = (Array.isArray(marcas) ? marcas : []).map((item) => ({
+        marca: item && item.marca != null ? String(item.marca) : '',
+        cantidad: Math.max(0, Number(item && item.cantidad != null ? item.cantidad : 0) || 0),
+    }));
+
+    if (!rows.length) {
+        if (totalEsperado <= 0) {
+            return { rows: [], adjusted: false };
+        }
+        return {
+            rows: [{ marca: '', cantidad: totalEsperado }],
+            adjusted: true,
+        };
+    }
+
+    const originalSnapshot = JSON.stringify(rows);
+    const currentTotal = rows.reduce((acc, row) => acc + (Number(row.cantidad || 0) || 0), 0);
+
+    if (currentTotal < totalEsperado) {
+        let targetIndex = rows.length - 1;
+        for (let idx = rows.length - 1; idx >= 0; idx--) {
+            if (String(rows[idx].marca || '').trim()) {
+                targetIndex = idx;
+                break;
+            }
+        }
+        rows[targetIndex].cantidad = (Number(rows[targetIndex].cantidad || 0) || 0) + (totalEsperado - currentTotal);
+    } else if (currentTotal > totalEsperado) {
+        let exceso = currentTotal - totalEsperado;
+        for (let idx = rows.length - 1; idx >= 0 && exceso > 0; idx--) {
+            const disponible = Number(rows[idx].cantidad || 0) || 0;
+            if (disponible <= 0) continue;
+            const aReducir = Math.min(disponible, exceso);
+            rows[idx].cantidad = disponible - aReducir;
+            exceso -= aReducir;
+        }
+    }
+
+    rows = rows.filter((row) => (Number(row.cantidad || 0) || 0) > 0);
+    if (!rows.length && totalEsperado > 0) {
+        rows = [{ marca: '', cantidad: totalEsperado }];
+    }
+
+    return {
+        rows,
+        adjusted: JSON.stringify(rows) !== originalSnapshot,
+    };
+}
+
+function normalizeStockPorDepositoRows(rows = []) {
+    return (Array.isArray(rows) ? rows : [])
+        .map((row) => ({
+            deposito_id: row && row.deposito_id != null ? parseInt(row.deposito_id, 10) || 0 : 0,
+            deposito_nombre: row && row.deposito_nombre ? String(row.deposito_nombre) : '',
+            cantidad: Number(row && row.cantidad != null ? row.cantidad : 0) || 0,
+        }))
+        .filter((row) => row.deposito_id > 0 && row.cantidad >= 0)
+        .sort((a, b) => a.deposito_id - b.deposito_id);
+}
+
+function sumStockPorDepositoRows(rows = []) {
+    return normalizeStockPorDepositoRows(rows).reduce((acc, row) => acc + (Number(row.cantidad || 0) || 0), 0);
+}
+
+function stockPorDepositoRowsEqual(a = [], b = []) {
+    const left = normalizeStockPorDepositoRows(a);
+    const right = normalizeStockPorDepositoRows(b);
+    if (left.length !== right.length) return false;
+    return left.every((row, idx) => {
+        const other = right[idx];
+        return other && other.deposito_id === row.deposito_id && Number(other.cantidad || 0) === Number(row.cantidad || 0);
+    });
+}
+
+function getDepositoNombreById(depositoId) {
+    const item = depositosInventario.find((dep) => Number(dep.id) === Number(depositoId));
+    if (!item) return `Depósito ${depositoId}`;
+    return item.codigo ? `${item.nombre} (${item.codigo})` : item.nombre;
+}
+
+function setStockTotalReadOnly(readOnly) {
+    if (!f_stock) return;
+    f_stock.readOnly = !!readOnly;
+    f_stock.classList.toggle('bg-slate-50', !!readOnly);
+    f_stock.classList.toggle('text-slate-600', !!readOnly);
+    if (!readOnly) {
+        f_stock.removeAttribute('title');
+        return;
+    }
+    f_stock.setAttribute('title', 'El stock total se calcula a partir del detalle por depósito.');
+}
+
+function clearStockPorDepositoEditor(message = 'Selecciona un producto para editar su stock por depósito.') {
+    stockPorDepositoBase = [];
+    if (stockDepositosPanel) stockDepositosPanel.classList.add('hidden');
+    if (stockDepositosHelpEl) stockDepositosHelpEl.textContent = message;
+    if (stockPorDepositoEditorEl) {
+        stockPorDepositoEditorEl.innerHTML = `<div class="text-[11px] text-slate-400">${escapeHtml(message)}</div>`;
+    }
+    setStockTotalReadOnly(false);
+}
+
+function getStockPorDepositoFromEditor() {
+    if (!stockPorDepositoEditorEl) return [];
+    return Array.from(stockPorDepositoEditorEl.querySelectorAll('[data-stock-deposito-id]')).map((row) => {
+        const depositoId = parseInt(row.getAttribute('data-stock-deposito-id') || '0', 10) || 0;
+        const input = row.querySelector('input[data-stock-input]');
+        const cantidad = input ? (parseInt(input.value, 10) || 0) : 0;
+        const label = row.getAttribute('data-stock-deposito-nombre') || getDepositoNombreById(depositoId);
+        return {
+            deposito_id: depositoId,
+            deposito_nombre: label,
+            cantidad,
+        };
+    }).filter((row) => row.deposito_id > 0);
+}
+
+function syncStockTotalFromDepositos() {
+    const rows = getStockPorDepositoFromEditor();
+    if (f_stock) {
+        f_stock.value = String(sumStockPorDepositoRows(rows));
+    }
+}
+
+function renderStockPorDepositoEditor(producto) {
+    if (!stockPorDepositoEditorEl || !stockDepositosPanel) return;
+    const baseRows = normalizeStockPorDepositoRows(
+        Array.isArray(producto && producto.existencias_por_deposito) && producto.existencias_por_deposito.length
+            ? getVisibleExistenciasRows(producto.existencias_por_deposito, producto && producto.deposito_id)
+            : (producto && producto.deposito_id
+                ? [{
+                    deposito_id: producto.deposito_id,
+                    deposito_nombre: producto.deposito_nombre || getDepositoNombreById(producto.deposito_id),
+                    cantidad: Number(producto.stock || 0) || 0,
+                }]
+                : [])
+    );
+
+    stockPorDepositoBase = baseRows;
+    stockDepositosPanel.classList.remove('hidden');
+    setStockTotalReadOnly(baseRows.length > 0 && !!codigoOriginalSeleccionado);
+
+    if (!baseRows.length) {
+        if (stockDepositosHelpEl) {
+            stockDepositosHelpEl.textContent = 'Este producto no tiene detalle por depósito. Guarda el producto y usa movimientos o recálculo para generar el desglose.';
+        }
+        stockPorDepositoEditorEl.innerHTML = '<div class="text-[11px] text-slate-400">Sin detalle por depósito.</div>';
+        return;
+    }
+
+    if (stockDepositosHelpEl) {
+        stockDepositosHelpEl.textContent = puedeEditarStockDesdeInventario
+            ? 'Edita cada depósito por separado. El stock total se recalcula solo.'
+            : 'Vista solo lectura del stock distribuido por depósito.';
+    }
+
+    stockPorDepositoEditorEl.innerHTML = baseRows.map((row) => {
+        const depositoNombre = row.deposito_nombre || getDepositoNombreById(row.deposito_id);
+        const esPrincipal = producto && Number(producto.deposito_id || 0) === Number(row.deposito_id);
+        return `
+            <div class="rounded-xl border border-slate-200 bg-white px-3 py-2" data-stock-deposito-id="${row.deposito_id}" data-stock-deposito-nombre="${escapeHtml(depositoNombre)}">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                    <div class="text-[11px] font-semibold text-slate-700">${escapeHtml(depositoNombre)}${esPrincipal ? ' <span class="text-[10px] text-blue-600">· Principal</span>' : ''}</div>
+                    <div class="text-[10px] text-slate-400">Depósito ID ${row.deposito_id}</div>
+                </div>
+                <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value="${row.cantidad}"
+                    data-stock-input
+                    class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm ${puedeEditarStockDesdeInventario ? 'bg-white text-slate-800' : 'bg-slate-50 text-slate-500'}"
+                    ${puedeEditarStockDesdeInventario ? '' : 'disabled'}
+                />
+            </div>
+        `;
+    }).join('');
+
+    if (puedeEditarStockDesdeInventario) {
+        stockPorDepositoEditorEl.querySelectorAll('input[data-stock-input]').forEach((input) => {
+            input.addEventListener('input', syncStockTotalFromDepositos);
+        });
+    }
+    syncStockTotalFromDepositos();
+}
+
+async function cargarStockPorDepositoEditor(codigo) {
+    if (!codigo) {
+        clearStockPorDepositoEditor();
+        return;
+    }
+    if (stockDepositosHelpEl) {
+        stockDepositosHelpEl.textContent = 'Cargando stock por depósito...';
+    }
+    if (stockPorDepositoEditorEl) {
+        stockPorDepositoEditorEl.innerHTML = '<div class="text-[11px] text-slate-400">Cargando stock por depósito...</div>';
+    }
+    try {
+        const res = await fetch('/productos/' + encodeURIComponent(codigo), { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('No se pudo cargar el stock por depósito');
+        const prod = await res.json();
+        renderStockPorDepositoEditor(prod);
+    } catch (err) {
+        console.error(err);
+        clearStockPorDepositoEditor('Error cargando stock por depósito.');
+    }
+}
+
+function clearTrazabilidadProducto(message = 'Selecciona un producto para ver su historial completo.') {
+    if (!trazabilidadListEl) return;
+    trazabilidadListEl.innerHTML = `<div class="text-[11px] text-slate-400">${escapeHtml(message)}</div>`;
+}
+
+function setRebuildHistoryExpanded(expanded) {
+    if (!rebuildHistoryBody || !btnToggleRebuildHistory) return;
+    rebuildHistoryBody.classList.toggle('hidden', !expanded);
+    const icon = btnToggleRebuildHistory.querySelector('i');
+    if (icon) {
+        icon.classList.toggle('fa-chevron-down', !expanded);
+        icon.classList.toggle('fa-chevron-up', expanded);
+    }
+}
+
+function renderRebuildHistory(items = []) {
+    if (!rebuildHistoryList) return;
+    if (!Array.isArray(items) || !items.length) {
+        rebuildHistoryList.innerHTML = '<div class="text-[11px] text-slate-400">No hay rebuilds registrados todavía.</div>';
+        return;
+    }
+
+    rebuildHistoryList.innerHTML = items.map((item, idx) => {
+        const fecha = item && item.fecha ? new Date(item.fecha).toLocaleString() : '—';
+        const corregidos = Array.isArray(item.corregidos) ? item.corregidos : [];
+        const corregidosHtml = corregidos.length
+            ? `
+                <div class="mt-2 pt-2 border-t border-slate-200 space-y-1">
+                    ${corregidos.map((row) => `
+                        <div class="flex items-center justify-between gap-2 text-[11px] text-slate-600">
+                            <span class="font-semibold text-slate-700">${escapeHtml(row.codigo || '—')}</span>
+                            <span>${escapeHtml(String(row.stock_anterior ?? '—'))} → ${escapeHtml(String(row.stock_nuevo ?? '—'))}</span>
+                        </div>
+                    `).join('')}
+                    ${item.truncado ? '<div class="text-[10px] text-slate-400">La lista fue truncada; hubo más productos corregidos en esa corrida.</div>' : ''}
+                </div>
+            `
+            : '<div class="mt-2 pt-2 border-t border-slate-200 text-[11px] text-slate-400">Esa corrida no corrigió productos.</div>';
+
+        return `
+            <div class="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <button type="button" class="w-full text-left" data-rebuild-history-index="${idx}">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <div class="text-[11px] font-semibold text-slate-700">${escapeHtml(fecha)}</div>
+                            <div class="text-[10px] text-slate-500">Productos: ${escapeHtml(String(item.totalProductos || 0))} · Actualizados: ${escapeHtml(String(item.actualizados || 0))}</div>
+                            <div class="text-[10px] text-slate-400">Desajustes: ${escapeHtml(String(item.mismatches || 0))} · Sin detalle: ${escapeHtml(String(item.sinStockPorDeposito || 0))} · Negativos: ${escapeHtml(String(item.negativos || 0))}</div>
+                        </div>
+                        <i class="fas fa-chevron-down text-[10px] text-slate-400"></i>
+                    </div>
+                </button>
+                <div class="hidden" data-rebuild-history-detail="${idx}">
+                    ${corregidosHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    rebuildHistoryList.querySelectorAll('[data-rebuild-history-index]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const idx = btn.getAttribute('data-rebuild-history-index');
+            const detail = rebuildHistoryList.querySelector(`[data-rebuild-history-detail="${idx}"]`);
+            const icon = btn.querySelector('i');
+            if (!detail) return;
+            const nextHidden = !detail.classList.contains('hidden');
+            detail.classList.toggle('hidden', nextHidden);
+            if (icon) {
+                icon.classList.toggle('fa-chevron-down', nextHidden);
+                icon.classList.toggle('fa-chevron-up', !nextHidden);
+            }
+        });
+    });
+}
+
+async function cargarHistorialRebuild(force = false) {
+    if (!rebuildHistoryList) return;
+    if (rebuildHistoryLoaded && !force) return;
+    rebuildHistoryList.innerHTML = '<div class="text-[11px] text-slate-400">Cargando historial...</div>';
+    try {
+        const res = await fetch('/admin/ajustes/rebuild-stock/history?limit=10', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('No se pudo cargar el historial de rebuilds');
+        const data = await res.json();
+        renderRebuildHistory(Array.isArray(data.items) ? data.items : []);
+        rebuildHistoryLoaded = true;
+    } catch (err) {
+        console.error(err);
+        rebuildHistoryList.innerHTML = '<div class="text-[11px] text-rose-500">Error cargando historial de rebuilds.</div>';
+    }
+}
+
+function renderTrazabilidadProducto(items = []) {
+    if (!trazabilidadListEl) return;
+    if (!Array.isArray(items) || !items.length) {
+        clearTrazabilidadProducto('Sin eventos registrados para este producto.');
+        return;
+    }
+    const tipoMeta = {
+        compra: { label: 'Compra', cls: 'bg-emerald-100 text-emerald-700' },
+        venta: { label: 'Venta', cls: 'bg-rose-100 text-rose-700' },
+        devolucion: { label: 'Devolución', cls: 'bg-cyan-100 text-cyan-700' },
+        ajuste: { label: 'Ajuste', cls: 'bg-amber-100 text-amber-700' },
+        movimiento: { label: 'Movimiento', cls: 'bg-sky-100 text-sky-700' },
+        correccion_stock_depositos: { label: 'Corrección', cls: 'bg-indigo-100 text-indigo-700' },
+        rebuild_stock: { label: 'Rebuild', cls: 'bg-violet-100 text-violet-700' },
+    };
+
+    trazabilidadListEl.innerHTML = items.map((item) => {
+        const meta = tipoMeta[item.tipo] || { label: item.tipo || 'Evento', cls: 'bg-slate-100 text-slate-700' };
+        const fecha = item && item.fecha ? new Date(item.fecha).toLocaleString() : '—';
+        const cantidad = Number(item && item.cantidad != null ? item.cantidad : 0) || 0;
+        const signo = item.tipo === 'venta' ? '-' : (cantidad > 0 ? '+' : '');
+        const cantidadHtml = item.tipo === 'movimiento'
+            ? `Cant. ${Math.abs(cantidad)}`
+            : `${signo}${cantidad}`;
+        const actionHtml = item.url
+            ? `<button type="button" class="mt-2 px-2 py-1 text-[11px] rounded bg-slate-100 hover:bg-slate-200 text-slate-700" data-trace-url="${escapeHtml(item.url)}">Ver detalle</button>`
+            : '';
+        return `
+            <div class="px-3 py-2 border-b last:border-b-0 bg-white odd:bg-slate-50">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${meta.cls}">${meta.label}</span>
+                            <span class="text-[10px] text-slate-400">${escapeHtml(fecha)}</span>
+                        </div>
+                        <div class="text-[12px] font-semibold text-slate-700">${escapeHtml(item.resumen || meta.label)}</div>
+                        <div class="text-[11px] text-slate-500 whitespace-pre-wrap">${escapeHtml(item.detalle || 'Sin detalle adicional.')}</div>
+                        ${actionHtml}
+                    </div>
+                    <div class="shrink-0 text-[11px] font-bold ${item.tipo === 'venta' ? 'text-rose-600' : 'text-slate-700'}">${escapeHtml(cantidadHtml)}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    trazabilidadListEl.querySelectorAll('[data-trace-url]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const url = btn.getAttribute('data-trace-url');
+            if (url) window.location.href = url;
+        });
+    });
+}
+
+async function cargarTrazabilidadProducto(codigo) {
+    if (!codigo) {
+        clearTrazabilidadProducto();
+        return;
+    }
+    clearTrazabilidadProducto('Cargando trazabilidad...');
+    try {
+        const res = await fetch('/admin/productos/trazabilidad?limit=80&codigo=' + encodeURIComponent(codigo), {
+            credentials: 'same-origin'
+        });
+        if (!res.ok) throw new Error('No se pudo cargar la trazabilidad del producto');
+        const data = await res.json();
+        renderTrazabilidadProducto(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+        console.error(err);
+        clearTrazabilidadProducto('Error cargando trazabilidad del producto.');
+    }
+}
 
 // Select dinámico para elegir depósito origen cuando hay stock en varios depósitos
 let movDepOrigenSelect = null;
@@ -629,6 +1025,7 @@ async function cargarProductos() {
 // cargar historial de ajustes
 async function cargarAjustes() {
     const el = document.getElementById('ajustes-list');
+    if (!el) return;
     try {
         const res = await fetch('/admin/ajustes?limit=50', {
             credentials: 'same-origin'
@@ -829,115 +1226,10 @@ function renderList(items) {
                 cargarProductoParaMovimiento();
             }
 
-            // Cargar historial de ajustes filtrado por código
-            (async () => {
-                const elHist = document.getElementById('ajustes-list');
-                if (!elHist) return;
-                elHist.innerHTML = 'Cargando ajustes...';
-                try {
-                    const res = await fetch('/admin/ajustes?limit=50&codigo=' + encodeURIComponent(p.codigo), { credentials: 'same-origin' });
-                    if (!res.ok) throw new Error('Error ajustes');
-                    const rows = await res.json();
-                    if (!rows.length) {
-                        elHist.innerHTML = '<div class="text-xs text-slate-400">Sin ajustes para este producto.</div>';
-                    } else {
-                        elHist.innerHTML = '';
-                        rows.forEach(r => {
-                            const d = document.createElement('div');
-                            d.className = 'p-2 border-b last:border-b-0';
-                            d.innerHTML = `<div class="font-bold text-xs">${r.codigo || p.codigo} <span class="text-slate-400">(${r.diferencia > 0 ? '+' : ''}${r.diferencia})</span></div><div class="text-[10px] text-slate-500">${r.motivo || ''} — ${new Date(r.fecha).toLocaleString()}</div>`;
-                            elHist.appendChild(d);
-                        });
-                    }
-                } catch (err) {
-                    console.error(err);
-                    elHist.innerHTML = '<div class="text-xs text-rose-500">Error cargando ajustes para este producto.</div>';
-                }
-            })();
-
             // Cargar desglose de stock por depósito y marca para este producto
+            cargarStockPorDepositoEditor(p.codigo);
             cargarStockMarcaEditor(p.codigo);
-
-            // Cargar actividad de compras y ventas para este producto
-            (async () => {
-                if (!actividadProductoEl) return;
-                actividadProductoEl.innerHTML = '<div class="text-[11px] text-slate-400">Cargando actividad...</div>';
-                try {
-                    const res = await fetch(`/admin/productos/actividad?codigo=${encodeURIComponent(p.codigo)}`, { credentials: 'same-origin' });
-                    if (!res.ok) {
-                        actividadProductoEl.innerHTML = '<div class="text-[11px] text-rose-500">No se pudo cargar la actividad del producto.</div>';
-                        return;
-                    }
-                    const data = await res.json();
-                    const comp = data.ultima_compra || null;
-                    const vent = data.ultima_venta || null;
-                    if (!comp && !vent) {
-                        actividadProductoEl.innerHTML = '<div class="text-[11px] text-slate-400">Sin movimientos de compra o venta registrados para este producto.</div>';
-                        return;
-                    }
-
-                    const partes = [];
-                    if (comp) {
-                        const fechaC = comp.fecha ? new Date(comp.fecha).toLocaleString() : '';
-                        const cantC = comp.cantidad != null ? comp.cantidad : '';
-                        const prov = comp.proveedor_nombre || '';
-                        partes.push(`
-                            <div class="flex items-center justify-between gap-2">
-                                <div>
-                                    <div class="font-semibold text-[11px] text-slate-700">Última compra</div>
-                                    <div class="text-[11px] text-slate-500">${fechaC || '—'}${cantC !== '' ? ` · Cant: ${cantC}` : ''}${prov ? ` · Prov: ${prov}` : ''}</div>
-                                </div>
-                                <button type="button" class="px-2 py-1 text-[11px] rounded bg-slate-100 hover:bg-slate-200 text-slate-700" data-actividad-compra="${comp.id}">Ver compra</button>
-                            </div>
-                        `);
-                    }
-                    if (vent) {
-                        const fechaV = vent.fecha ? new Date(vent.fecha).toLocaleString() : '';
-                        const cantV = vent.cantidad != null ? vent.cantidad : '';
-                        const cli = vent.cliente || '';
-                        partes.push(`
-                            <div class="flex items-center justify-between gap-2 mt-2">
-                                <div>
-                                    <div class="font-semibold text-[11px] text-slate-700">Última venta</div>
-                                    <div class="text-[11px] text-slate-500">${fechaV || '—'}${cantV !== '' ? ` · Cant: ${cantV}` : ''}${cli ? ` · Cliente: ${cli}` : ''}</div>
-                                </div>
-                                <button type="button" class="px-2 py-1 text-[11px] rounded bg-blue-100 hover:bg-blue-200 text-blue-700" data-actividad-venta="${vent.id}" data-actividad-venta-fecha="${vent.fecha || ''}">Ver venta</button>
-                            </div>
-                        `);
-                    }
-
-                    actividadProductoEl.innerHTML = `<div class="space-y-1">${partes.join('')}</div>`;
-
-                    actividadProductoEl.querySelectorAll('[data-actividad-compra]').forEach(btn => {
-                        btn.addEventListener('click', () => {
-                            const idStr = btn.getAttribute('data-actividad-compra');
-                            if (!idStr) return;
-                            const url = `/pages/compras.html?compra_id=${encodeURIComponent(idStr)}`;
-                            window.location.href = url;
-                        });
-                    });
-
-                    actividadProductoEl.querySelectorAll('[data-actividad-venta]').forEach(btn => {
-                        btn.addEventListener('click', () => {
-                            const idStr = btn.getAttribute('data-actividad-venta');
-                            const fechaStr = btn.getAttribute('data-actividad-venta-fecha') || '';
-                            if (!idStr) return;
-                            let url = `/pages/reportes.html?venta_id=${encodeURIComponent(idStr)}`;
-                            if (fechaStr) {
-                                const d = new Date(fechaStr);
-                                if (!Number.isNaN(d.getTime())) {
-                                    const iso = d.toISOString().slice(0, 10);
-                                    url += `&venta_fecha=${encodeURIComponent(iso)}`;
-                                }
-                            }
-                            window.location.href = url;
-                        });
-                    });
-                } catch (err) {
-                    console.error(err);
-                    actividadProductoEl.innerHTML = '<div class="text-[11px] text-rose-500">Error cargando actividad del producto.</div>';
-                }
-            })();
+            cargarTrazabilidadProducto(p.codigo);
 
             // Cargar historial de movimientos filtrado por código
             (async () => {
@@ -1210,12 +1502,16 @@ btnImportCsv.addEventListener('click', async () => {
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const codigoActual = f_codigo.value.trim().toUpperCase();
+    const estaEditando = !!codigoOriginalSeleccionado;
+    const stockRowsActuales = estaEditando ? getStockPorDepositoFromEditor() : [];
+    const stockRowsBase = estaEditando ? normalizeStockPorDepositoRows(stockPorDepositoBase) : [];
+    const stockTotalFormulario = stockRowsActuales.length ? sumStockPorDepositoRows(stockRowsActuales) : (parseInt(f_stock.value, 10) || 0);
     let body = {
         codigo: codigoActual,
         descripcion: f_desc.value.trim().toUpperCase(),
         precio_usd: parseFloat(f_precio.value),
         costo_usd: parseFloat(f_costo.value) || 0,
-        stock: parseInt(f_stock.value) || 0,
+        stock: stockTotalFormulario,
         categoria: (document.getElementById('f_categoria') && document.getElementById('f_categoria').value.trim()) || '',
         marca: (f_marca && f_marca.value.trim()) || '',
         deposito_id: (f_deposito && f_deposito.value) ? parseInt(f_deposito.value, 10) : null,
@@ -1224,7 +1520,9 @@ form.addEventListener('submit', async (e) => {
     const prodExistente = codigoOriginalSeleccionado
         ? productosCache.find(p => p.codigo === codigoOriginalSeleccionado)
         : productosCache.find(p => p.codigo === body.codigo);
-    const oldStock = prodExistente ? Number(prodExistente.stock || 0) : 0;
+    const oldStock = stockRowsBase.length
+        ? sumStockPorDepositoRows(stockRowsBase)
+        : (prodExistente ? Number(prodExistente.stock || 0) : 0);
     const existeProducto = !!prodExistente;
     // Si el usuario no es admin, no debe poder ajustar stock desde este formulario
     if (!puedeEditarStockDesdeInventario) {
@@ -1234,8 +1532,8 @@ form.addEventListener('submit', async (e) => {
         };
     }
     const diffStock = body.stock - oldStock;
-
-    const estaEditando = !!codigoOriginalSeleccionado;
+    const usaEditorStockPorDeposito = puedeEditarStockDesdeInventario && estaEditando && stockRowsActuales.length > 0;
+    const cambioStockPorDeposito = usaEditorStockPorDeposito && !stockPorDepositoRowsEqual(stockRowsActuales, stockRowsBase);
 
     // Decide POST (create) or PUT (update) basado en si hay producto seleccionado
     try {
@@ -1253,7 +1551,7 @@ form.addEventListener('submit', async (e) => {
             msg.innerText = 'Producto creado.';
         } else {
             // Si se intenta cambiar el stock, exigir motivo de ajuste para admins
-            if (puedeEditarStockDesdeInventario && diffStock !== 0 && !motivoAjuste) {
+            if (puedeEditarStockDesdeInventario && (cambioStockPorDeposito || (!usaEditorStockPorDeposito && diffStock !== 0)) && !motivoAjuste) {
                 msg.innerText = 'Para cambiar el stock debes indicar un motivo de ajuste.';
                 showToast('Para cambiar el stock debes indicar un motivo de ajuste.', 'error');
                 return;
@@ -1284,8 +1582,34 @@ form.addEventListener('submit', async (e) => {
 
             const codigoParaAjuste = nuevoCodigo || codigoOriginal;
 
-            // Si cambió el stock y hay motivo, registrar ajuste de stock
-            if (diffStock !== 0 && motivoAjuste) {
+            if (usaEditorStockPorDeposito) {
+                try {
+                    const ajusteRes = await fetch('/admin/productos/stock-depositos', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            codigo: codigoParaAjuste,
+                            motivo: motivoAjuste,
+                            deposito_principal_id: body.deposito_id,
+                            stock_por_deposito: stockRowsActuales.map((row) => ({
+                                deposito_id: row.deposito_id,
+                                cantidad: row.cantidad,
+                            })),
+                        })
+                    });
+                    const adjData = await ajusteRes.json();
+                    if (!ajusteRes.ok || adjData.error) {
+                        throw new Error(adjData.error || 'Error registrando ajuste');
+                    }
+                    if (Array.isArray(adjData.depositos_marca_reseteados) && adjData.depositos_marca_reseteados.length) {
+                        showToast('El stock se actualizó. Revisa las marcas de los depósitos corregidos.', 'warning', 5000);
+                    }
+                } catch (errAdj) {
+                    console.error(errAdj);
+                    showToast('Error registrando ajuste de stock: ' + (errAdj.message || ''), 'error');
+                }
+            } else if (diffStock !== 0 && motivoAjuste) {
                 try {
                     const ajusteRes = await fetch('/admin/ajustes', {
                         method: 'POST',
@@ -1341,6 +1665,8 @@ form.addEventListener('submit', async (e) => {
             if (f_deposito) f_deposito.value = '';
             if (f_motivoAjuste) f_motivoAjuste.value = '';
             msg.innerText = '';
+            clearStockPorDepositoEditor();
+            clearTrazabilidadProducto();
         }
         showToast(!estaEditando ? 'Producto creado.' : 'Producto actualizado.', 'success');
     } catch (err) {
@@ -1372,6 +1698,8 @@ btnBorrar.addEventListener('click', () => {
             msg.innerText = 'Producto eliminado.';
             f_codigo.value = f_desc.value = f_precio.value = f_stock.value = '';
             codigoOriginalSeleccionado = null;
+            clearStockPorDepositoEditor();
+            clearTrazabilidadProducto();
             showToast('Producto eliminado.', 'success');
             // Intentar eliminar también en Firebase (best-effort, no bloqueante)
             try {
@@ -1482,6 +1810,8 @@ if (toggleEditorBtn && layoutInventario && panelEditor && productosSection) {
 // Inicializar
 cargarProductos();
 cargarAjustes();
+clearStockPorDepositoEditor();
+clearTrazabilidadProducto();
 
 // Cargar depósitos para el selector
 async function cargarDepositos() {
@@ -1580,16 +1910,20 @@ async function cargarStockMarcaEditor(codigo) {
         const res = await fetch('/productos/' + encodeURIComponent(codigo), { credentials: 'same-origin' });
         if (!res.ok) throw new Error('No se pudo cargar el producto');
         const prod = await res.json();
-        const existencias = Array.isArray(prod.existencias_por_deposito) ? prod.existencias_por_deposito : [];
+        const existencias = getVisibleExistenciasRows(
+            Array.isArray(prod.existencias_por_deposito) ? prod.existencias_por_deposito : [],
+            prod && prod.deposito_id
+        );
         if (!existencias.length) {
             stockMarcaEditorEl.innerHTML = '<div class="text-[11px] text-slate-400">Este producto no tiene stock detallado por depósito.</div>';
             return;
         }
 
         let html = '';
-        existencias.forEach((e, idx) => {
+        existencias.forEach((e) => {
             const totalDep = Number(e.cantidad || 0) || 0;
-            const marcas = Array.isArray(e.marcas) && e.marcas.length ? e.marcas : [{ marca: '', cantidad: totalDep }];
+            const normalized = reconcileMarcaRowsWithTotal(totalDep, Array.isArray(e.marcas) ? e.marcas : []);
+            const marcas = normalized.rows.length ? normalized.rows : [{ marca: '', cantidad: totalDep }];
             const depNombre = e.deposito_nombre || 'Depósito';
             html += `
                 <div class="mb-3 border rounded p-2 bg-slate-50" data-deposito-id="${e.deposito_id}" data-total-cantidad="${totalDep}">
@@ -1614,6 +1948,7 @@ async function cargarStockMarcaEditor(codigo) {
                         <button type="button" class="px-2 py-0.5 text-[11px] rounded bg-slate-200 hover:bg-slate-300 text-slate-700 js-add-marca">Agregar marca</button>
                         <span class="text-[10px] text-slate-400">La suma por depósito debe ser igual a ${totalDep}.</span>
                     </div>
+                    ${normalized.adjusted ? '<div class="mt-1 text-[10px] text-amber-600">Se autoajustó el desglose para coincidir con el stock actual del depósito. Guarda para persistirlo.</div>' : ''}
                 </div>
             `;
         });
@@ -1963,7 +2298,9 @@ if (btnRebuildStock) {
     if (!(esEmpresaAdmin || esSuperAdmin)) {
         btnRebuildStock.classList.add('hidden');
         if (rebuildStockMsg) rebuildStockMsg.classList.add('hidden');
+        if (rebuildHistoryPanel) rebuildHistoryPanel.classList.add('hidden');
     } else {
+        if (rebuildHistoryPanel) rebuildHistoryPanel.classList.remove('hidden');
         btnRebuildStock.addEventListener('click', async () => {
             const confirmar = window.confirm('Esto recalculará el stock total de todos los productos a partir de los depósitos. ¿Continuar?');
             if (!confirmar) return;
@@ -1983,19 +2320,34 @@ if (btnRebuildStock) {
                 const mismatches = Array.isArray(data.mismatches) ? data.mismatches.length : 0;
                 const sinDep = Array.isArray(data.sinStockPorDeposito) ? data.sinStockPorDeposito.length : 0;
                 const negativos = Array.isArray(data.negativos) ? data.negativos.length : 0;
+                const previewCorregidos = Array.isArray(data.mismatches) && data.mismatches.length
+                    ? data.mismatches.slice(0, 5).map((item) => `${item.codigo} (${item.stock_anterior}→${item.stock_nuevo})`).join(', ')
+                    : '';
 
                 if (rebuildStockMsg) {
-                    rebuildStockMsg.textContent = `Productos: ${total}, actualizados: ${actualizados}. Anomalías → desajustes: ${mismatches}, sin detalle por depósito: ${sinDep}, negativos: ${negativos}.`;
+                    rebuildStockMsg.textContent = `Productos: ${total}, actualizados: ${actualizados}. Anomalías → desajustes: ${mismatches}, sin detalle por depósito: ${sinDep}, negativos: ${negativos}.${previewCorregidos ? ` Corregidos: ${previewCorregidos}${data.mismatches.length > 5 ? '...' : ''}.` : ''}`;
                 }
                 showToast('Recalculo de stock completado.', 'success');
                 currentPage = 0;
                 cargarProductos();
+                await cargarHistorialRebuild(true);
             } catch (err) {
                 console.error(err);
                 if (rebuildStockMsg) rebuildStockMsg.textContent = 'Error: ' + (err.message || 'No se pudo recalcular el stock');
                 showToast('Error al recalcular stock de inventario', 'error');
             }
         });
+
+        if (btnToggleRebuildHistory) {
+            setRebuildHistoryExpanded(false);
+            btnToggleRebuildHistory.addEventListener('click', async () => {
+                const willExpand = rebuildHistoryBody ? rebuildHistoryBody.classList.contains('hidden') : false;
+                setRebuildHistoryExpanded(willExpand);
+                if (willExpand) {
+                    await cargarHistorialRebuild(false);
+                }
+            });
+        }
     }
 }
 
