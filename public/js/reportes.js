@@ -320,10 +320,12 @@ function renderReporte() {
                 const fmt = (v) => formatNumber(v || 0, 2);
                 cont.innerHTML = detalles.map(d => {
                     const codigo = d.codigo || d.producto_codigo || d.codigo_producto || d.producto || d.producto_id || '';
+                    const depositoCodigo = (d.deposito_codigo || d.deposito_nombre || '').toString().trim();
+                    const codigoConDeposito = codigo && depositoCodigo ? `${codigo}-${depositoCodigo}` : codigo;
                     const montoUsd = Number(d.precio_usd || 0) * Number(d.cantidad || 0);
                     const montoBs = d.subtotal_bs != null ? Number(d.subtotal_bs || 0) : (montoUsd * (tasa || 1));
                     const monto = MONEDA === 'USD' ? fmt(montoUsd) + ' USD' : fmt(montoBs) + ' Bs';
-                    const codePart = codigo ? `<span class=\"font-semibold\">${codigo}</span> — ` : '';
+                    const codePart = codigoConDeposito ? `<span class="font-semibold">${codigoConDeposito}</span> — ` : '';
                     const devTag = d.devuelto_total
                         ? '<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-rose-100 text-rose-700 uppercase tracking-wide">DEVUELTO</span>'
                         : (d.devuelto_parcial

@@ -794,9 +794,11 @@ function getVentaConDetalles(id, empresaId) {
   });
 
   const detalles = db.prepare(`
-    SELECT vd.producto_id, p.codigo, p.descripcion, vd.cantidad, vd.precio_usd, vd.subtotal_bs
+    SELECT vd.producto_id, p.codigo, p.descripcion, vd.cantidad, vd.precio_usd, vd.subtotal_bs,
+           COALESCE(dep.codigo, dep.nombre, '') AS deposito_codigo
     FROM venta_detalle vd
     JOIN productos p ON p.id = vd.producto_id
+    LEFT JOIN depositos dep ON dep.id = vd.deposito_id
     WHERE vd.venta_id = ?
   `).all(id).map(d => {
     const devCant = devMap.get(d.producto_id) || 0;
