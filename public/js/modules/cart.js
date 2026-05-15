@@ -517,8 +517,16 @@ export function vaciarCarritoYForm() {
 
 	// Reset vendedor (primer opción si existe)
 	const vendedor = document.getElementById('v_vendedor');
-	if (vendedor && vendedor.options.length) {
-		vendedor.selectedIndex = 0;
+	if (vendedor) {
+		const authUser = typeof window !== 'undefined' && window.Auth ? window.Auth.getUser() : null;
+		const authUserId = authUser && authUser.id != null ? String(authUser.id) : '';
+		const tieneAuthUser = authUserId && Array.from(vendedor.options).some((opt) => opt.value === authUserId);
+		if (tieneAuthUser) {
+			vendedor.value = authUserId;
+		} else if (vendedor.options.length) {
+			vendedor.selectedIndex = 0;
+		}
+		vendedor.dispatchEvent(new Event('change', { bubbles: true }));
 	}
 
 	// Reset descuento automático por volumen

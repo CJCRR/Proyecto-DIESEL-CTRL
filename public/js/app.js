@@ -1023,7 +1023,20 @@ function finalizarVentaUI() {
     carrito.length = 0;
     actualizarTabla();
     document.getElementById('v_cliente').value = '';
-    if (document.getElementById('v_vendedor')) document.getElementById('v_vendedor').value = '';
+    const vendedorEl = document.getElementById('v_vendedor');
+    if (vendedorEl) {
+        const authUser = window.Auth ? window.Auth.getUser() : null;
+        const authUserId = authUser && authUser.id != null ? String(authUser.id) : '';
+        const tieneAuthUser = authUserId && Array.from(vendedorEl.options).some((opt) => opt.value === authUserId);
+        if (tieneAuthUser) {
+            vendedorEl.value = authUserId;
+        } else if (vendedorEl.options.length) {
+            vendedorEl.selectedIndex = 0;
+        } else {
+            vendedorEl.value = '';
+        }
+        vendedorEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     if (document.getElementById('v_cedula')) document.getElementById('v_cedula').value = '';
     if (document.getElementById('v_telefono')) document.getElementById('v_telefono').value = '';
     if (document.getElementById('v_desc')) document.getElementById('v_desc').value = '';
