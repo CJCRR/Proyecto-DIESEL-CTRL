@@ -5,9 +5,17 @@ let periodoAnchor = null; // inicio del mes actual mostrado
 let periodoDesde = null;  // YYYY-MM-DD
 let periodoHasta = null;  // YYYY-MM-DD
 let resumenGlobal = null; // resumen histórico sin filtro de período
+let registrandoPago = false;
 import { apiFetchJson } from './app-api.js';
 import { formatNumber } from './format-utils.js';
 import { initCustomSelect } from './modules/ui.js';
+
+function generarPagoIdempotencyKey() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return `ccp-${window.crypto.randomUUID()}`;
+    }
+    return `ccp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 // Intentar cargar utilidades centralizadas para páginas que no usan módulos
 (async () => {
@@ -339,6 +347,7 @@ async function prefijarTasa() {
 
 async function registrarPago(evt) {
     evt.preventDefault();
+    if (registrandoPago) return;
     if (!cuentaSeleccionada) { showToast('Seleccione una cuenta', 'error'); return; }
     const monto = parseFloat(document.getElementById('p_monto').value || '0');
     const moneda = document.getElementById('p_moneda').value || 'USD';
@@ -347,14 +356,33 @@ async function registrarPago(evt) {
     const referencia = document.getElementById('p_ref').value || '';
     const notas = document.getElementById('p_notas').value || '';
     if (!monto || monto <= 0) { showToast('Monto inválido', 'error'); return; }
+
+    const formPago = document.getElementById('form-pago');
+    const submitBtn = formPago ? formPago.querySelector('button[type="submit"]') : null;
+    const idempotencyKey = formPago
+        ? (formPago.dataset.idempotencyKey || generarPagoIdempotencyKey())
+        : generarPagoIdempotencyKey();
+    if (formPago) {
+        formPago.dataset.idempotencyKey = idempotencyKey;
+    }
+    registrandoPago = true;
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalText = submitBtn.textContent || 'Guardar pago';
+        submitBtn.textContent = 'Guardando...';
+    }
+
     try {
         const j = await apiFetchJson(`/cobranzas/${cuentaSeleccionada.id}/pago`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ monto, moneda, tasa_bcv: tasa, metodo, referencia, notas })
+            body: JSON.stringify({ monto, moneda, tasa_bcv: tasa, metodo, referencia, notas, idempotency_key: idempotencyKey })
         });
         showToast('Pago registrado', 'success');
         document.getElementById('form-pago').reset();
+        if (formPago) {
+            delete formPago.dataset.idempotencyKey;
+        }
         renderDetalle(j);
         await cargarCuentas();
         await cargarResumen();
@@ -362,6 +390,12 @@ async function registrarPago(evt) {
     } catch (err) {
         console.error(err);
         showToast(err.message, 'error');
+    } finally {
+        registrandoPago = false;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = submitBtn.dataset.originalText || 'Guardar pago';
+        }
     }
 }
 

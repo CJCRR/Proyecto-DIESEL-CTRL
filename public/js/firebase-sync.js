@@ -13,6 +13,7 @@ function emitSyncEvent(detail) {
 let retryTimer = null;
 let retryDelayMs = 5_000;
 const MAX_RETRY_DELAY = 5 * 60 * 1_000; // 5 minutos
+let syncVentasEnCurso = null;
 
 function getFirebaseDb() {
     if (!db) {
@@ -349,11 +350,18 @@ async function eliminarProductoFirebasePorCodigo(codigo) {
 async function enviarVentaAFirebase(venta) {
     try {
         const { ref: ventasRef, scope } = getEmpresaSubcollection('ventas');
-        const docRef = await addDoc(ventasRef, {
+        const ventaDocId = venta && venta.id_global ? String(venta.id_global) : '';
+        const payload = {
             ...venta,
             ...scope,
             sincronizado_en: new Date().toISOString()
-        });
+        };
+        if (ventaDocId) {
+            await setDoc(doc(db, 'empresas', scope.empresa_codigo, 'ventas', ventaDocId), payload, { merge: true });
+            console.log('✅ Venta sincronizada a Firebase:', ventaDocId);
+            return ventaDocId;
+        }
+        const docRef = await addDoc(ventasRef, payload);
         console.log('✅ Venta sincronizada a Firebase:', docRef.id);
         return docRef.id;
     } catch (err) {
@@ -376,6 +384,11 @@ async function obtenerVentasDeFirebase() {
 
 // Sincronizar todas las ventas pendientes de IndexedDB a Firebase
 async function sincronizarVentasPendientes({ isRetry = false } = {}) {
+    if (syncVentasEnCurso) {
+        return syncVentasEnCurso;
+    }
+
+    syncVentasEnCurso = (async () => {
     try {
         const indexedDB_obj = await abrirIndexedDB();
         const ventasPendientes = await obtenerVentasPendientes(indexedDB_obj);
@@ -501,6 +514,13 @@ async function sincronizarVentasPendientes({ isRetry = false } = {}) {
         console.error('❌ Error en sincronización:', err);
         emitSyncEvent({ type: 'error', message: 'Error general en sync' });
         scheduleRetry('error general');
+    }
+    })();
+
+    try {
+        return await syncVentasEnCurso;
+    } finally {
+        syncVentasEnCurso = null;
     }
 }
 

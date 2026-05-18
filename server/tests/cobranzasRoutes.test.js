@@ -104,6 +104,51 @@ describe('Rutas HTTP /cobranzas', () => {
     expect(pagoRes.body.cuenta.saldo_usd).toBeCloseTo(0);
   });
 
+  test('POST /cobranzas/:id/pago con misma idempotency_key no duplica el abono', async () => {
+    const { token, userId } = createTestUserAndToken();
+    const app = buildApp();
+
+    const ventaInfo = db
+      .prepare(`INSERT INTO ventas (fecha, cliente, vendedor, metodo_pago, total_bs, tasa_bcv, usuario_id)
+                VALUES (datetime('now'), 'Cliente Pago Dedupe', 'Vend Pago', 'EFECTIVO', 500, 10, ?)`)
+      .run(userId);
+
+    const createRes = await request(app)
+      .post('/cobranzas')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        cliente_nombre: 'Cliente Pago Dedupe',
+        cliente_doc: 'V-66666666',
+        venta_id: ventaInfo.lastInsertRowid,
+        total_usd: 50,
+        tasa_bcv: 10,
+        fecha_vencimiento: '2030-01-01',
+      });
+
+    expect(createRes.status).toBe(200);
+    const cuentaId = createRes.body.id;
+
+    const payload = { monto: 20, moneda: 'USD', tasa_bcv: 10, idempotency_key: 'cc-http-idem-001' };
+
+    const primera = await request(app)
+      .post(`/cobranzas/${cuentaId}/pago`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(payload);
+
+    const segunda = await request(app)
+      .post(`/cobranzas/${cuentaId}/pago`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(payload);
+
+    expect(primera.status).toBe(200);
+    expect(segunda.status).toBe(200);
+    expect(segunda.body).toHaveProperty('cuenta');
+    expect(segunda.body.cuenta.saldo_usd).toBeCloseTo(30);
+
+    const pagosDb = db.prepare('SELECT id FROM pagos_cc WHERE cuenta_id = ?').all(cuentaId);
+    expect(pagosDb).toHaveLength(1);
+  });
+
   test('GET /cobranzas rechaza superadmin con 403', async () => {
     const { token } = createTestUserAndToken({ rol: 'superadmin', empresaId: null });
     const app = buildApp();

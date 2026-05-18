@@ -55,6 +55,33 @@ describe('cobranzasService cuentas por cobrar', () => {
     expect(cuentaActualizada.estado_calc).toBe('cancelado');
   });
 
+  test('registrarPago es idempotente con la misma llave', () => {
+    const cuenta = cobranzasService.crearCuenta({
+      cliente_nombre: 'Cliente Test Dedupe',
+      total_usd: 50,
+      tasa_bcv: 10,
+      empresaId: null,
+    });
+
+    const payload = {
+      monto: 20,
+      moneda: 'USD',
+      tasa_bcv: 10,
+      metodo: 'EFECTIVO',
+      idempotency_key: 'cc-idem-001',
+    };
+
+    const primera = cobranzasService.registrarPago(cuenta.id, null, payload);
+    const segunda = cobranzasService.registrarPago(cuenta.id, null, payload);
+
+    expect(primera.pagos.length).toBe(1);
+    expect(segunda.pagos.length).toBe(1);
+    expect(segunda.cuenta.saldo_usd).toBeCloseTo(30);
+
+    const pagosDb = db.prepare('SELECT id FROM pagos_cc WHERE cuenta_id = ?').all(cuenta.id);
+    expect(pagosDb).toHaveLength(1);
+  });
+
   test('listCuentas filtra por cliente', () => {
     cobranzasService.crearCuenta({
       cliente_nombre: 'Juan Perez',

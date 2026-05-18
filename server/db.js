@@ -35,6 +35,7 @@ const schema = `
 
   CREATE TABLE IF NOT EXISTS ventas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_global TEXT,
     fecha TEXT,
     cliente TEXT,
     vendedor TEXT,
@@ -127,6 +128,7 @@ const schema = `
   CREATE TABLE IF NOT EXISTS pagos_cc (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cuenta_id INTEGER NOT NULL,
+    idempotency_key TEXT,
     fecha TEXT,
     monto_usd REAL DEFAULT 0,
     moneda TEXT DEFAULT 'USD',
@@ -263,6 +265,17 @@ const migrations = [
     up: () => {
       if (!columnExists('ventas', 'igtf_pct')) {
         db.prepare("ALTER TABLE ventas ADD COLUMN igtf_pct REAL DEFAULT 0").run();
+      }
+    }
+  },
+  {
+    id: '042_ventas_id_global_idempotencia',
+    up: () => {
+      if (!columnExists('ventas', 'id_global')) {
+        db.prepare("ALTER TABLE ventas ADD COLUMN id_global TEXT").run();
+      }
+      if (!indexExists('idx_ventas_id_global_unique')) {
+        db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_id_global_unique ON ventas (id_global)').run();
       }
     }
   },
@@ -1117,6 +1130,22 @@ const migrations = [
       // Índice para pagos de cuentas por cobrar: filtros por empresa y fecha en reportes de cobranzas
       if (!indexExists('idx_pagos_cc_empresa_fecha')) {
         db.prepare('CREATE INDEX IF NOT EXISTS idx_pagos_cc_empresa_fecha ON pagos_cc (empresa_id, fecha)').run();
+      }
+    }
+  },
+  {
+    id: '043_pagos_cc_idempotencia',
+    up: () => {
+      if (!columnExists('pagos_cc', 'idempotency_key')) {
+        db.prepare('ALTER TABLE pagos_cc ADD COLUMN idempotency_key TEXT').run();
+      }
+
+      if (!indexExists('idx_pagos_cc_cuenta_idempotency_unique')) {
+        db.prepare(`
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_pagos_cc_cuenta_idempotency_unique
+          ON pagos_cc (cuenta_id, idempotency_key)
+          WHERE idempotency_key IS NOT NULL
+        `).run();
       }
     }
   },

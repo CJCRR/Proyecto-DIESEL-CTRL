@@ -8,6 +8,7 @@ const MAX_TEXT = 120;
 const MAX_DOC = 40;
 const MAX_REF = 120;
 const MAX_METODO = 40;
+const MAX_ID_GLOBAL = 120;
 
 function isValidDateString(val) {
     if (!val) return false;
@@ -25,6 +26,19 @@ function normalizeMarca(v) {
     return String(v).trim().toUpperCase();
 }
 
+function getVentaRegistradaPorIdGlobal(idGlobal, empresaId) {
+    if (!idGlobal || !empresaId) return null;
+
+    return db.prepare(`
+        SELECT v.id AS ventaId, cc.id AS cuentaCobrarId
+        FROM ventas v
+        LEFT JOIN cuentas_cobrar cc ON cc.venta_id = v.id
+        LEFT JOIN usuarios u ON u.id = v.usuario_id
+        WHERE v.id_global = ? AND u.empresa_id = ?
+        LIMIT 1
+    `).get(idGlobal, empresaId) || null;
+}
+
 /**
  * Registra una venta en la base de datos, actualiza inventario
  * y opcionalmente crea una cuenta por cobrar cuando es a crédito.
@@ -34,6 +48,7 @@ function normalizeMarca(v) {
  */
 function registrarVenta(payload) {
     const {
+        id_global = null,
         items,
         cliente,
         vendedor = '',
@@ -90,6 +105,7 @@ function registrarVenta(payload) {
     const referenciaSafe = safeStr(referencia, MAX_REF);
     const metodoSafe = safeStr(metodoPagoFinal, MAX_METODO);
     const clienteDocSafe = safeStr(cliente_doc, MAX_DOC);
+    const idGlobalSafe = safeStr(id_global, MAX_ID_GLOBAL);
 
     const ivaPctNum = Math.max(0, Math.min(100, parseFloat(iva_pct) || 0));
     const igtfPctNum = Math.max(0, Math.min(100, parseFloat(igtf_pct) || 0));
@@ -117,6 +133,16 @@ function registrarVenta(payload) {
         throw new Error('empresa_id es requerido para registrar la venta');
     }
 
+    if (idGlobalSafe) {
+        const ventaExistente = getVentaRegistradaPorIdGlobal(idGlobalSafe, empresa_id);
+        if (ventaExistente) {
+            return {
+                ventaId: ventaExistente.ventaId,
+                cuentaCobrarId: ventaExistente.cuentaCobrarId || null,
+            };
+        }
+    }
+
     const fecha = new Date().toISOString();
     let totalGeneralBs = 0;
     let totalGeneralUsd = 0;
@@ -127,9 +153,9 @@ function registrarVenta(payload) {
     const transaction = db.transaction(() => {
         // Crear la cabecera de la venta con total 0 inicialmente, guardando descuento y metodo_pago
         const ventaResult = db.prepare(`
-                INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, iva_pct, igtf_pct, total_bs_iva, total_usd_iva, usuario_id, comision_pct, comision_bs, comision_usd)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, 0, 0, 0)
-            `).run(fecha, clienteSafe, vendedorSafe, cedulaSafe, telefonoSafe, tasa_bcv, descuentoMontoUsd, metodoSafe, referenciaSafe, usuario_id);
+                INSERT INTO ventas (id_global, fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, iva_pct, igtf_pct, total_bs_iva, total_usd_iva, usuario_id, comision_pct, comision_bs, comision_usd)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, 0, 0, 0)
+            `).run(idGlobalSafe || null, fecha, clienteSafe, vendedorSafe, cedulaSafe, telefonoSafe, tasa_bcv, descuentoMontoUsd, metodoSafe, referenciaSafe, usuario_id);
 
         const ventaId = ventaResult.lastInsertRowid;
 
@@ -280,7 +306,24 @@ function registrarVenta(payload) {
         return { ventaId, cuentaCobrarId };
     });
 
-    return transaction();
+    try {
+        return transaction();
+    } catch (error) {
+        const esDuplicadoIdGlobal = idGlobalSafe
+            && error
+            && typeof error.message === 'string'
+            && error.message.includes('UNIQUE constraint failed: ventas.id_global');
+        if (esDuplicadoIdGlobal) {
+            const ventaExistente = getVentaRegistradaPorIdGlobal(idGlobalSafe, empresa_id);
+            if (ventaExistente) {
+                return {
+                    ventaId: ventaExistente.ventaId,
+                    cuentaCobrarId: ventaExistente.cuentaCobrarId || null,
+                };
+            }
+        }
+        throw error;
+    }
 }
 
 /**

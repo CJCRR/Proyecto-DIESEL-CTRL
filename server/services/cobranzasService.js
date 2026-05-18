@@ -5,6 +5,7 @@ const MAX_TEXT = 120;
 const MAX_DOC = 40;
 const MAX_REF = 120;
 const MAX_NOTAS = 400;
+const MAX_IDEMPOTENCY_KEY = 120;
 
 function safeStr(v, max) {
   if (v === null || v === undefined) return '';
@@ -50,6 +51,13 @@ function mapCuenta(row) {
     }
   }
   return { ...row, estado_calc, dias_mora };
+}
+
+function buildCuentaPagoResponse(cuentaId) {
+  const updated = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(cuentaId);
+  if (!updated) return null;
+  const pagos = db.prepare('SELECT * FROM pagos_cc WHERE cuenta_id = ? ORDER BY date(fecha) DESC, id DESC').all(cuentaId);
+  return { cuenta: mapCuenta(updated), pagos };
 }
 
 /**
@@ -276,7 +284,7 @@ function crearCuenta(payload = {}) {
  *
  * @param {number|string} id
  * @param {number|null} empresaId
- * @param {{monto:number,moneda?:"USD"|"BS",tasa_bcv?:number,metodo?:string,referencia?:string,notas?:string,usuario?:string}} payload
+ * @param {{monto:number,moneda?:"USD"|"BS",tasa_bcv?:number,metodo?:string,referencia?:string,notas?:string,usuario?:string,idempotency_key?:string}} payload
  * @returns {{cuenta: import('../types').CuentaPorCobrar, pagos: import('../types').PagoCuentaCobrar[]}|null}
  */
 function registrarPago(id, empresaId, payload = {}) {
@@ -293,7 +301,7 @@ function registrarPago(id, empresaId, payload = {}) {
     }
   }
 
-  const { monto, moneda = 'USD', tasa_bcv, metodo, referencia, notas, usuario } = payload;
+  const { monto, moneda = 'USD', tasa_bcv, metodo, referencia, notas, usuario, idempotency_key } = payload;
   const m = Number(monto || 0);
   if (!m || Number.isNaN(m) || m <= 0) {
     throw new Error('Monto inválido');
@@ -312,27 +320,67 @@ function registrarPago(id, empresaId, payload = {}) {
   const referenciaSafe = safeStr(referencia || '', MAX_REF);
   const notasSafe = safeStr(notas || '', MAX_NOTAS);
   const usuarioSafe = safeStr(usuario || '', MAX_TEXT);
+  const idempotencyKeySafe = safeStr(idempotency_key || '', MAX_IDEMPOTENCY_KEY);
 
-  db.prepare(`
-      INSERT INTO pagos_cc (cuenta_id, fecha, monto_usd, moneda, tasa_bcv, monto_moneda, metodo, referencia, notas, usuario)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(cuenta.id, fecha, monto_usd, moneda, tasa, m, metodoSafe || null, referenciaSafe || null, notasSafe || null, usuarioSafe || null);
-
-  const saldoActual = Number(cuenta.saldo_usd || 0);
-  let nuevoSaldo = saldoActual - monto_usd;
-  // Ajustar por redondeos: si el saldo queda muy cercano a 0,
-  // considerarlo cancelado y guardar 0 exacto.
-  if (Math.abs(nuevoSaldo) < SALDO_EPSILON) {
-    nuevoSaldo = 0;
+  if (idempotencyKeySafe) {
+    const pagoExistente = db.prepare(`
+      SELECT id FROM pagos_cc
+      WHERE cuenta_id = ? AND idempotency_key = ?
+      LIMIT 1
+    `).get(cuenta.id, idempotencyKeySafe);
+    if (pagoExistente) {
+      return buildCuentaPagoResponse(cuenta.id);
+    }
   }
-  if (nuevoSaldo < 0) nuevoSaldo = 0;
-  const estado = computeEstado({ ...cuenta, saldo_usd: nuevoSaldo });
-  db.prepare('UPDATE cuentas_cobrar SET saldo_usd = ?, estado = ?, actualizado_en = ? WHERE id = ?')
-    .run(nuevoSaldo, estado, fecha, cuenta.id);
 
-  const updated = db.prepare('SELECT * FROM cuentas_cobrar WHERE id = ?').get(cuenta.id);
-  const pagos = db.prepare('SELECT * FROM pagos_cc WHERE cuenta_id = ? ORDER BY date(fecha) DESC, id DESC').all(cuenta.id);
-  return { cuenta: mapCuenta(updated), pagos };
+  const tx = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO pagos_cc (cuenta_id, idempotency_key, fecha, monto_usd, moneda, tasa_bcv, monto_moneda, metodo, referencia, notas, usuario, empresa_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      cuenta.id,
+      idempotencyKeySafe || null,
+      fecha,
+      monto_usd,
+      moneda,
+      tasa,
+      m,
+      metodoSafe || null,
+      referenciaSafe || null,
+      notasSafe || null,
+      usuarioSafe || null,
+      empresaId != null ? empresaId : (cuenta.empresa_id != null ? cuenta.empresa_id : null)
+    );
+
+    const saldoActual = Number(cuenta.saldo_usd || 0);
+    let nuevoSaldo = saldoActual - monto_usd;
+    // Ajustar por redondeos: si el saldo queda muy cercano a 0,
+    // considerarlo cancelado y guardar 0 exacto.
+    if (Math.abs(nuevoSaldo) < SALDO_EPSILON) {
+      nuevoSaldo = 0;
+    }
+    if (nuevoSaldo < 0) nuevoSaldo = 0;
+    const estado = computeEstado({ ...cuenta, saldo_usd: nuevoSaldo });
+    db.prepare('UPDATE cuentas_cobrar SET saldo_usd = ?, estado = ?, actualizado_en = ? WHERE id = ?')
+      .run(nuevoSaldo, estado, fecha, cuenta.id);
+
+    return buildCuentaPagoResponse(cuenta.id);
+  });
+
+  try {
+    return tx();
+  } catch (error) {
+    const esDuplicadoIdempotente = idempotencyKeySafe
+      && error
+      && typeof error.message === 'string'
+      && error.message.includes('UNIQUE constraint failed: pagos_cc.cuenta_id, pagos_cc.idempotency_key');
+
+    if (esDuplicadoIdempotente) {
+      return buildCuentaPagoResponse(cuenta.id);
+    }
+
+    throw error;
+  }
 }
 
 /**
