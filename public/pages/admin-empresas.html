@@ -66,55 +66,81 @@
     </div>
   </aside>
 
-  <main class="flex-1 container mx-auto p-6 max-w-6xl">
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
-      <div>
-        <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest">Empresas / Licencias</h2>
-        <p class="text-sm text-slate-500 mt-1">Panel solo para superadmin. Administre estados de licencia y ciclo de facturación.</p>
-      </div>
-      <div class="flex flex-wrap items-center gap-3">
-        <select id="filtro-estado" class="border rounded-xl px-3 py-2 text-sm">
-          <option value="">Todos los estados</option>
-          <option value="activa">Activa</option>
-          <option value="morosa">Morosa</option>
-          <option value="suspendida">Suspendida</option>
-        </select>
-        <input id="busqueda" type="text" placeholder="Buscar por nombre o código"
-          class="border rounded-xl px-3 py-2 text-sm w-48">
-        <button id="btn-buscar"
-          class="bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-800 transition text-sm flex items-center gap-2">
-          <i class="fas fa-search"></i>
-          Buscar
-        </button>
-        <button id="btn-nueva-empresa"
-          class="bg-emerald-600 text-white px-4 py-2 rounded-xl hover:bg-emerald-500 transition text-sm flex items-center gap-2">
-          <i class="fas fa-plus"></i>
-          Nueva empresa
-        </button>
-      </div>
-    </div>
+  <main class="flex-1 container mx-auto px-4 py-6 sm:px-6 max-w-7xl">
+    <section class="relative overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
+      <div class="absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-slate-950 via-slate-900 to-sky-900"></div>
+      <div class="relative p-5 sm:p-7">
+        <div class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div class="max-w-2xl">
+            <span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-slate-100">
+              <i class="fas fa-shield-halved text-[10px]"></i>
+              Panel master
+            </span>
+            <h2 class="mt-4 text-2xl sm:text-3xl font-black tracking-tight text-white">Empresas y licencias</h2>
+            <p class="mt-2 max-w-xl text-sm leading-relaxed text-slate-200/80">Supervise estados de licencia, próximos cobros y controles críticos desde una vista más limpia y operativa.</p>
+          </div>
 
-    <!-- Lista de empresas -->
-    <div class="bg-white rounded-2xl shadow-sm border overflow-x-auto">
-      <table class="w-full min-w-[720px] text-sm">
-        <thead class="bg-slate-100 text-slate-600 uppercase">
-          <tr>
-            <th class="p-3 text-left">Empresa</th>
-            <th class="p-3 text-left">Código</th>
-            <th class="p-3 text-left">Estado</th>
-            <th class="p-3 text-left">Plan / Monto</th>
-            <th class="p-3 text-left">Días de gracia</th>
-            <th class="p-3 text-left">Próximo cobro</th>
-            <th class="p-3 text-right">Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="empresas-tbody" class="divide-y divide-slate-100">
-          <tr>
-            <td colspan="7" class="p-8 text-center text-slate-400">Cargando empresas...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+          <div class="w-full xl:max-w-3xl rounded-[28px] border border-slate-200 bg-slate-50/90 p-3 shadow-inner shadow-white/70">
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[220px_minmax(0,1fr)_auto_auto]">
+              <label class="flex flex-col gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">
+                Estado
+                <select id="filtro-estado" class="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200">
+                  <option value="">Todos los estados</option>
+                  <option value="activa">Activa</option>
+                  <option value="morosa">Morosa</option>
+                  <option value="suspendida">Suspendida</option>
+                </select>
+              </label>
+
+              <label class="flex flex-col gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">
+                Búsqueda
+                <input id="busqueda" type="text" placeholder="Buscar por nombre o código"
+                  class="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200">
+              </label>
+
+              <button id="btn-buscar"
+                class="h-12 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-800 flex items-center justify-center gap-2">
+                <i class="fas fa-search text-[13px]"></i>
+                Buscar
+              </button>
+
+              <button id="btn-nueva-empresa"
+                class="h-12 rounded-2xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500 flex items-center justify-center gap-2">
+                <i class="fas fa-plus text-[13px]"></i>
+                Nueva empresa
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="empresas-resumen" class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-[24px] border border-white/10 bg-white/10 p-4 text-white backdrop-blur-sm">
+            <div class="text-[11px] font-black uppercase tracking-[0.24em] text-slate-200/70">Cargando</div>
+            <div class="mt-3 text-3xl font-black tracking-tight">...</div>
+            <p class="mt-2 text-xs text-slate-200/70">Preparando resumen del panel.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-6">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-black tracking-tight text-slate-900">Empresas registradas</h3>
+          <p class="text-sm text-slate-500">Acciones organizadas por estado, facturación y control.</p>
+        </div>
+        <div class="hidden lg:inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 shadow-sm">
+          <i class="fas fa-grid-2 text-[10px]"></i>
+          Vista compacta por tarjetas
+        </div>
+      </div>
+
+      <div id="empresas-tbody" class="grid gap-5 xl:grid-cols-2">
+        <div class="rounded-[28px] border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-400 shadow-sm">
+          Cargando empresas...
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Modal nueva empresa -->

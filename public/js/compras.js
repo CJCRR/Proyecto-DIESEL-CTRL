@@ -26,6 +26,24 @@ let compraDraftPendiente = null;
 const COMPRA_DRAFT_STORAGE_PREFIX = 'compras_draft_v1';
 const ES_ADMIN_EMPRESA = (window.Auth && typeof window.Auth.isAdmin === 'function') ? !!window.Auth.isAdmin() : false;
 
+function getCompraCorrelativo(compra) {
+  const correlativoBackend = Number(compra && compra.correlativo_empresa);
+  if (correlativoBackend > 0) return correlativoBackend;
+
+  const compraId = Number(compra && compra.id);
+  if (!(compraId > 0)) return compra && compra.id ? compra.id : '';
+
+  const historialOrdenado = comprasHistorial
+    .filter((row) => Number(row && row.id) > 0)
+    .slice()
+    .sort((left, right) => Number(left.id || 0) - Number(right.id || 0));
+
+  const posicion = historialOrdenado.findIndex((row) => Number(row.id) === compraId);
+  if (posicion >= 0) return posicion + 1;
+
+  return compraId;
+}
+
 function setCompraGuardando(isLoading) {
   compraGuardando = !!isLoading;
   const overlay = document.getElementById('c_compra_loader');
@@ -1038,10 +1056,11 @@ async function toggleDetalleCompra(id) {
     : (esAnulada
       ? '<span class="ml-2 inline-flex items-center px-2 py-0.5 text-[10px] rounded-full bg-rose-50 text-rose-700 border border-rose-200">Compra anulada</span>'
       : '');
+  const compraCorrelativo = getCompraCorrelativo(compra);
   const header = `
     <div class="flex justify-between items-center mb-2">
       <div>
-        <div class="font-semibold text-slate-700">Compra #${compra.id || ''} ${compra.numero ? `- ${escapeHtml(compra.numero)}` : ''}</div>
+        <div class="font-semibold text-slate-700">Compra #${compraCorrelativo} ${compra.numero ? `- ${escapeHtml(compra.numero)}` : ''}</div>
         <div class="text-[11px] text-slate-500">Tasa BCV: ${compra.tasa_bcv || 1} ${compra.notas ? `| Notas: ${escapeHtml(compra.notas)}` : ''}</div>
         <div class="text-[10px] text-slate-400 mt-1">Estado: ${escapeHtml(estadoLabel)}</div>
       </div>

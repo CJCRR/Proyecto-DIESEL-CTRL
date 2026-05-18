@@ -84,4 +84,38 @@ describe('comprasService.crearCompra', () => {
     expect(prodDb.stock).toBe(3);
     expect(prodDb.costo_usd).toBeCloseTo(20);
   });
+
+  test('calcula correlativo de compra por empresa aunque los ids globales se intercalen', () => {
+    const empresaA = 101;
+    const empresaB = 202;
+
+    const userA = db
+      .prepare(
+        'INSERT INTO usuarios (username, password, rol, activo, empresa_id) VALUES (?,?,?,?,?)'
+      )
+      .run('compras_seq_a', 'testpass', 'admin', 1, empresaA);
+
+    const userB = db
+      .prepare(
+        'INSERT INTO usuarios (username, password, rol, activo, empresa_id) VALUES (?,?,?,?,?)'
+      )
+      .run('compras_seq_b', 'testpass', 'admin', 1, empresaB);
+
+    const insertCompra = db.prepare(
+      'INSERT INTO compras (proveedor_id, fecha, numero, tasa_bcv, total_bs, total_usd, estado, notas, usuario_id, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    const compraA1 = insertCompra.run(null, '2026-05-18T10:00:00.000Z', '', 1, 10, 10, 'recibida', '', userA.lastInsertRowid, empresaA).lastInsertRowid;
+    const compraB1 = insertCompra.run(null, '2026-05-18T10:01:00.000Z', '', 1, 20, 20, 'recibida', '', userB.lastInsertRowid, empresaB).lastInsertRowid;
+    const compraA2 = insertCompra.run(null, '2026-05-18T10:02:00.000Z', '', 1, 30, 30, 'recibida', '', userA.lastInsertRowid, empresaA).lastInsertRowid;
+
+    const comprasEmpresaA = comprasService.listCompras({ limit: 10, empresaId: empresaA });
+    expect(comprasEmpresaA).toHaveLength(2);
+    expect(comprasEmpresaA.map((compra) => compra.id)).toEqual([compraA2, compraA1]);
+    expect(comprasEmpresaA.map((compra) => compra.correlativo_empresa)).toEqual([2, 1]);
+
+    const detalleCompraEmpresaB = comprasService.getCompra(compraB1, empresaB);
+    expect(detalleCompraEmpresaB).toBeDefined();
+    expect(detalleCompraEmpresaB.compra.correlativo_empresa).toBe(1);
+  });
 });

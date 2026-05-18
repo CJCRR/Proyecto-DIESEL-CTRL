@@ -16,6 +16,7 @@ import { initCustomSelect } from './modules/ui.js';
 })();
 
 const tbody = document.getElementById('empresas-tbody');
+const resumenEmpresas = document.getElementById('empresas-resumen');
 const filtroEstado = document.getElementById('filtro-estado');
 const inputBusqueda = document.getElementById('busqueda');
 const btnBuscar = document.getElementById('btn-buscar');
@@ -90,6 +91,249 @@ const DEFAULT_BRAND_DRAWER = 'Diesel Ctrl';
 
 let empresas = [];
 
+function escapeText(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderStatePanel(message, tone = 'slate') {
+  const tones = {
+    slate: 'border-slate-200 bg-white text-slate-500',
+    rose: 'border-rose-200 bg-rose-50 text-rose-600',
+  };
+  const toneClass = tones[tone] || tones.slate;
+  return `<div class="rounded-[28px] border ${toneClass} px-6 py-10 text-center text-sm font-medium shadow-sm">${escapeText(message)}</div>`;
+}
+
+function renderLoadingEmpresas() {
+  if (resumenEmpresas) {
+    resumenEmpresas.innerHTML = Array.from({ length: 4 }).map(() => `
+      <div class="animate-pulse rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50">
+        <div class="h-3 w-24 rounded-full bg-slate-200"></div>
+        <div class="mt-4 h-8 w-16 rounded-2xl bg-slate-200"></div>
+        <div class="mt-3 h-3 w-36 rounded-full bg-slate-100"></div>
+      </div>
+    `).join('');
+  }
+
+  if (tbody) {
+    tbody.innerHTML = Array.from({ length: 3 }).map(() => `
+      <article class="animate-pulse rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/50">
+        <div class="h-1.5 w-full rounded-full bg-slate-100"></div>
+        <div class="mt-5 flex items-start gap-3">
+          <div class="h-12 w-12 rounded-2xl bg-slate-100"></div>
+          <div class="flex-1">
+            <div class="h-5 w-40 rounded-full bg-slate-200"></div>
+            <div class="mt-3 h-3 w-28 rounded-full bg-slate-100"></div>
+            <div class="mt-4 h-3 w-3/4 rounded-full bg-slate-100"></div>
+          </div>
+        </div>
+        <div class="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+          <div class="h-24 rounded-[22px] bg-slate-50"></div>
+          <div class="h-24 rounded-[22px] bg-slate-50"></div>
+          <div class="h-24 rounded-[22px] bg-slate-50"></div>
+          <div class="h-24 rounded-[22px] bg-slate-50"></div>
+        </div>
+        <div class="mt-5 grid gap-3 2xl:grid-cols-3">
+          <div class="h-36 rounded-[22px] bg-slate-50"></div>
+          <div class="h-36 rounded-[22px] bg-slate-50"></div>
+          <div class="h-36 rounded-[22px] bg-slate-50"></div>
+        </div>
+      </article>
+    `).join('');
+  }
+}
+
+function renderResumenEmpresas(items = []) {
+  if (!resumenEmpresas) return;
+
+  const counts = items.reduce((acc, empresa) => {
+    const estado = calcularEstadoLicencia(empresa);
+    acc.total += 1;
+    if (estado === 'activa') acc.activa += 1;
+    if (estado === 'morosa') acc.morosa += 1;
+    if (estado === 'suspendida') acc.suspendida += 1;
+    if (empresa.plan && String(empresa.plan).toUpperCase().startsWith('TRIAL')) acc.trial += 1;
+    return acc;
+  }, { total: 0, activa: 0, morosa: 0, suspendida: 0, trial: 0 });
+
+  const cards = [
+    {
+      label: 'Total empresas',
+      value: counts.total,
+      hint: `${counts.trial} en periodo de prueba`,
+      cardClass: 'border-slate-900/10 bg-slate-900 text-white shadow-slate-900/20',
+      labelClass: 'text-slate-300/70',
+      valueClass: 'text-white',
+      hintClass: 'text-slate-300/80',
+      iconWrap: 'bg-white/10 text-white ring-1 ring-white/10',
+      icon: 'fa-layer-group',
+    },
+    {
+      label: 'Activas',
+      value: counts.activa,
+      hint: 'Licencias al día',
+      cardClass: 'border-emerald-200 bg-emerald-50',
+      labelClass: 'text-emerald-700/80',
+      valueClass: 'text-emerald-900',
+      hintClass: 'text-emerald-700',
+      iconWrap: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200',
+      icon: 'fa-circle-check',
+    },
+    {
+      label: 'Morosas',
+      value: counts.morosa,
+      hint: 'Dentro de la gracia',
+      cardClass: 'border-amber-200 bg-amber-50',
+      labelClass: 'text-amber-700/80',
+      valueClass: 'text-amber-900',
+      hintClass: 'text-amber-700',
+      iconWrap: 'bg-amber-100 text-amber-700 ring-1 ring-amber-200',
+      icon: 'fa-hourglass-half',
+    },
+    {
+      label: 'Suspendidas',
+      value: counts.suspendida,
+      hint: 'Requieren reactivación',
+      cardClass: 'border-rose-200 bg-rose-50',
+      labelClass: 'text-rose-700/80',
+      valueClass: 'text-rose-900',
+      hintClass: 'text-rose-700',
+      iconWrap: 'bg-rose-100 text-rose-700 ring-1 ring-rose-200',
+      icon: 'fa-ban',
+    },
+  ];
+
+  resumenEmpresas.innerHTML = cards.map((card) => `
+    <article class="rounded-[24px] border ${card.cardClass} p-4 shadow-sm shadow-slate-200/50">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="text-[11px] font-black uppercase tracking-[0.24em] ${card.labelClass}">${card.label}</div>
+          <div class="mt-3 text-3xl font-black tracking-tight ${card.valueClass}">${card.value}</div>
+        </div>
+        <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl ${card.iconWrap}">
+          <i class="fas ${card.icon}"></i>
+        </span>
+      </div>
+      <p class="mt-2 text-xs ${card.hintClass}">${card.hint}</p>
+    </article>
+  `).join('');
+}
+
+function getEstadoVisual(estado) {
+  const themes = {
+    activa: {
+      card: 'border-emerald-200/80',
+      accent: 'from-emerald-500 via-emerald-400 to-teal-400',
+      iconWrap: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200/80',
+      summary: 'border-emerald-100 bg-emerald-50/80',
+      summaryLabel: 'text-emerald-700',
+      icon: 'fa-circle-check',
+    },
+    morosa: {
+      card: 'border-amber-200/80',
+      accent: 'from-amber-500 via-amber-400 to-orange-400',
+      iconWrap: 'bg-amber-100 text-amber-700 ring-1 ring-amber-200/80',
+      summary: 'border-amber-100 bg-amber-50/80',
+      summaryLabel: 'text-amber-700',
+      icon: 'fa-hourglass-half',
+    },
+    suspendida: {
+      card: 'border-rose-200/80',
+      accent: 'from-rose-500 via-rose-400 to-pink-400',
+      iconWrap: 'bg-rose-100 text-rose-700 ring-1 ring-rose-200/80',
+      summary: 'border-rose-100 bg-rose-50/80',
+      summaryLabel: 'text-rose-700',
+      icon: 'fa-ban',
+    },
+  };
+  return themes[estado] || themes.activa;
+}
+
+function renderInfoTile({ label, value, hint, icon, tone = 'slate' }) {
+  const tones = {
+    slate: {
+      card: 'border-slate-200 bg-slate-50/70',
+      label: 'text-slate-400',
+      value: 'text-slate-900',
+      hint: 'text-slate-500',
+      iconWrap: 'bg-white text-slate-600 ring-1 ring-slate-200',
+    },
+    sky: {
+      card: 'border-sky-200 bg-sky-50/80',
+      label: 'text-sky-700/80',
+      value: 'text-sky-950',
+      hint: 'text-sky-700',
+      iconWrap: 'bg-white text-sky-700 ring-1 ring-sky-200',
+    },
+    indigo: {
+      card: 'border-indigo-200 bg-indigo-50/80',
+      label: 'text-indigo-700/80',
+      value: 'text-indigo-950',
+      hint: 'text-indigo-700',
+      iconWrap: 'bg-white text-indigo-700 ring-1 ring-indigo-200',
+    },
+    amber: {
+      card: 'border-amber-200 bg-amber-50/80',
+      label: 'text-amber-700/80',
+      value: 'text-amber-950',
+      hint: 'text-amber-700',
+      iconWrap: 'bg-white text-amber-700 ring-1 ring-amber-200',
+    },
+    rose: {
+      card: 'border-rose-200 bg-rose-50/80',
+      label: 'text-rose-700/80',
+      value: 'text-rose-950',
+      hint: 'text-rose-700',
+      iconWrap: 'bg-white text-rose-700 ring-1 ring-rose-200',
+    },
+  };
+  const theme = tones[tone] || tones.slate;
+  return `
+    <div class="rounded-[22px] border ${theme.card} p-4 shadow-sm shadow-slate-200/40">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="text-[11px] font-black uppercase tracking-[0.22em] ${theme.label}">${escapeText(label)}</div>
+          <div class="mt-2.5 text-base font-black tracking-tight ${theme.value}">${escapeText(value)}</div>
+        </div>
+        <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl ${theme.iconWrap}">
+          <i class="fas ${icon}"></i>
+        </span>
+      </div>
+      <p class="mt-2.5 text-xs leading-relaxed ${theme.hint}">${escapeText(hint)}</p>
+    </div>
+  `;
+}
+
+function renderActionButton({ label, icon, tone = 'slate', onClick }) {
+  const tones = {
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+    rose: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
+    sky: 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100',
+    indigo: 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
+    slate: 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100',
+    blue: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100',
+  };
+  const toneClass = tones[tone] || tones.slate;
+  return `<button type="button" class="inline-flex min-h-[46px] w-full items-center justify-center gap-2.5 rounded-2xl border px-3.5 py-2.5 text-center text-[12px] font-semibold leading-tight shadow-sm transition ${toneClass}" onclick="${onClick}"><i class="fas ${icon} text-[11px]"></i><span>${escapeText(label)}</span></button>`;
+}
+
+function renderCompactActionButton({ label, icon, tone = 'slate', onClick }) {
+  const tones = {
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+    rose: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
+    slate: 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100',
+  };
+  const toneClass = tones[tone] || tones.slate;
+  return `<button type="button" class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-semibold leading-none shadow-sm transition ${toneClass}" onclick="${onClick}"><i class="fas ${icon} text-[10px]"></i><span>${escapeText(label)}</span></button>`;
+}
+
 function aplicarBrandingEnVista(branding) {
   const titulo = (branding && branding.titulo ? String(branding.titulo).trim() : '') || DEFAULT_BRAND_TITULO;
   const drawerNombre = (branding && branding.drawer_nombre ? String(branding.drawer_nombre).trim() : '') || DEFAULT_BRAND_DRAWER;
@@ -128,6 +372,7 @@ async function cargarBranding() {
 
 async function cargarEmpresas() {
   try {
+    renderLoadingEmpresas();
     const params = new URLSearchParams();
     if (filtroEstado.value) params.set('estado', filtroEstado.value);
     if (inputBusqueda.value.trim()) params.set('q', inputBusqueda.value.trim());
@@ -147,7 +392,8 @@ async function cargarEmpresas() {
       window.location.href = '/login';
       return;
     }
-    tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-red-500">Error cargando empresas</td></tr>';
+    renderResumenEmpresas([]);
+    tbody.innerHTML = renderStatePanel('Error cargando empresas', 'rose');
   }
 }
 
@@ -218,8 +464,10 @@ function badgeEstado(estado) {
 }
 
 function renderEmpresas() {
+  renderResumenEmpresas(empresas);
+
   if (!Array.isArray(empresas) || empresas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-slate-400">No hay empresas registradas</td></tr>';
+    tbody.innerHTML = renderStatePanel('No hay empresas registradas');
     return;
   }
 
@@ -227,63 +475,134 @@ function renderEmpresas() {
 
   empresas.forEach(e => {
     const estadoLicencia = calcularEstadoLicencia(e);
+    const visual = getEstadoVisual(estadoLicencia);
     const esTrial = e.plan && String(e.plan).toUpperCase().startsWith('TRIAL');
+    const esLocal = e.id === 1 || e.codigo === 'LOCAL';
     const permitirAnularVenta = !!e.permitir_anular_venta;
     const planBase = (e.plan || '—') + (e.monto_mensual ? ` / $${formatNumber(e.monto_mensual, 2)}` : '');
     const planTexto = esTrial ? `${planBase} · TRIAL` : planBase;
     const textoGracia = `${e.dias_gracia || 0} días de gracia`;
     const proximo = e.proximo_cobro ? formatFechaCortaLocal(e.proximo_cobro) : '—';
     const ultimoPago = e.ultimo_pago_en ? formatFechaCortaLocal(e.ultimo_pago_en) : '—';
-    const toggleAnularLabel = permitirAnularVenta ? 'Anular venta: ON' : 'Anular venta: OFF';
-    const toggleAnularClass = permitirAnularVenta
-      ? 'bg-rose-600 text-white hover:bg-rose-500'
-      : 'bg-slate-100 text-slate-700 hover:bg-slate-200';
+    const notaInterna = e.nota_interna
+      ? escapeText(e.nota_interna)
+      : (esLocal
+        ? 'Empresa local base. Use este espacio para referencia interna del panel.'
+        : 'Sin nota interna registrada para esta empresa.');
+    const resumenCobro = proximo === '—'
+      ? 'Sin próximo cobro configurado'
+      : `${proximo}${esTrial ? ' · fin de prueba' : ''}`;
 
-    let rowClasses = 'hover:bg-slate-50 transition';
-    if (estadoLicencia === 'morosa') rowClasses += ' bg-amber-50';
-    if (estadoLicencia === 'suspendida') rowClasses += ' bg-rose-50';
-
-    html += `<tr class="${rowClasses}">`;
-    html += `<td class="p-3 align-top"><div class="font-semibold text-slate-800">${e.nombre || ''}</div><div class="text-xs text-slate-400 mt-1">ID ${e.id}</div>${e.nota_interna ? `<div class=\"text-xs text-slate-500 mt-1\">${e.nota_interna}</div>` : ''}</td>`;
-    html += `<td class="p-3 align-top text-slate-600">${e.codigo || ''}</td>`;
-    html += `<td class="p-3 align-top">${badgeEstado(estadoLicencia)}</td>`;
-    html += `<td class="p-3 align-top text-slate-600">${planTexto}</td>`;
-    html += `<td class="p-3 align-top text-slate-600">${textoGracia}</td>`;
-    html += `<td class="p-3 align-top text-slate-600">
-      <div>Próximo: ${proximo}${esTrial ? ' (fin prueba)' : ''}</div>
-      <div class="text-xs text-slate-400 mt-1">Último pago: ${ultimoPago}</div>
-    </td>`;
-
-    html += '<td class="p-3 align-top"><div class="flex flex-wrap gap-2 justify-end text-xs">';
-
+    const accionesEstado = [];
     if (estadoLicencia !== 'activa') {
-      html += `<button class="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200" onclick="window.__activarEmpresa(${e.id})">Activar</button>`;
+      accionesEstado.push({ label: 'Activar', icon: 'fa-check', tone: 'emerald', onClick: `window.__activarEmpresa(${e.id})` });
     }
     if (estadoLicencia !== 'suspendida') {
-      html += `<button class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200" onclick="window.__suspenderEmpresa(${e.id})">Suspender</button>`;
+      accionesEstado.push({ label: 'Suspender', icon: 'fa-ban', tone: 'rose', onClick: `window.__suspenderEmpresa(${e.id})` });
     }
     if (estadoLicencia === 'activa') {
-      html += `<button class="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200" onclick="window.__marcarMorosa(${e.id})">Marcar morosa</button>`;
+      accionesEstado.push({ label: 'Marcar morosa', icon: 'fa-triangle-exclamation', tone: 'amber', onClick: `window.__marcarMorosa(${e.id})` });
     }
 
-    html += `<button class="px-2 py-1 rounded-lg bg-sky-100 text-sky-700 hover:bg-sky-200" onclick="window.__editarPlan(${e.id})">Plan / Monto</button>`;
-    html += `<button class="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200" onclick="window.__registrarPago(${e.id})">Registrar pago</button>`;
-    html += `<button class="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200" onclick="window.__verPagosLicencia(${e.id})">Pagos plan</button>`;
-    html += `<button class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="window.__editarCiclo(${e.id})">Días de gracia</button>`;
-    html += `<button class="px-2 py-1 rounded-lg ${toggleAnularClass}" onclick="window.__toggleAnularVenta(${e.id}, ${permitirAnularVenta ? 'false' : 'true'})"><i class="fas ${permitirAnularVenta ? 'fa-toggle-on' : 'fa-toggle-off'} mr-1"></i>${toggleAnularLabel}</button>`;
+    const accionesEstadoHeaderHtml = accionesEstado.length
+      ? `<div class="mt-4 flex flex-wrap gap-2">${accionesEstado.map((action) => renderCompactActionButton(action)).join('')}</div>`
+      : '';
 
-    // Botón para crear usuario admin de empresa
-    if (e.id !== 1 && e.codigo !== 'LOCAL') {
-      html += `<button class="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200" onclick="window.__abrirCrearAdmin(${e.id})">Usuario admin</button>`;
+    const accionesFacturacion = [
+      renderActionButton({ label: 'Plan y monto', icon: 'fa-wallet', tone: 'sky', onClick: `window.__editarPlan(${e.id})` }),
+      renderActionButton({ label: 'Registrar pago', icon: 'fa-credit-card', tone: 'indigo', onClick: `window.__registrarPago(${e.id})` }),
+      renderActionButton({ label: 'Historial pagos', icon: 'fa-receipt', tone: 'emerald', onClick: `window.__verPagosLicencia(${e.id})` }),
+      renderActionButton({ label: 'Días de gracia', icon: 'fa-calendar-plus', tone: 'slate', onClick: `window.__editarCiclo(${e.id})` }),
+    ].join('');
+
+    const accionesControl = [
+      renderActionButton({
+        label: permitirAnularVenta ? 'Anulación ventas ON' : 'Anulación ventas OFF',
+        icon: permitirAnularVenta ? 'fa-toggle-on' : 'fa-toggle-off',
+        tone: permitirAnularVenta ? 'rose' : 'slate',
+        onClick: `window.__toggleAnularVenta(${e.id}, ${permitirAnularVenta ? 'false' : 'true'})`,
+      }),
+    ];
+
+    if (!esLocal) {
+      accionesControl.push(renderActionButton({ label: 'Usuario admin', icon: 'fa-user-shield', tone: 'blue', onClick: `window.__abrirCrearAdmin(${e.id})` }));
+      accionesControl.push(renderActionButton({ label: 'Eliminar empresa', icon: 'fa-trash', tone: 'rose', onClick: `window.__eliminarEmpresa(${e.id})` }));
     }
 
-    // Botón para eliminar empresa (solo no LOCAL)
-    if (e.id !== 1 && e.codigo !== 'LOCAL') {
-      html += `<button class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200" onclick="window.__eliminarEmpresa(${e.id})">Eliminar</button>`;
-    }
+    const controlExtra = esLocal
+      ? '<div class="rounded-2xl border border-dashed border-slate-200 bg-white/80 px-4 py-4 text-center text-[12px] text-slate-400">Empresa protegida: no se muestran acciones destructivas.</div>'
+      : `<div class="grid gap-2 md:grid-cols-2">${accionesControl.slice(1).join('')}</div>`;
 
-    html += '</div></td>';
-    html += '</tr>';
+    html += `
+      <article class="relative overflow-hidden rounded-[28px] border ${visual.card} bg-white shadow-sm shadow-slate-200/60">
+        <div class="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${visual.accent}"></div>
+        <div class="p-5 sm:p-6">
+          <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start gap-4">
+                <span class="mt-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${visual.iconWrap}">
+                  <i class="fas ${visual.icon} text-lg"></i>
+                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h3 class="text-lg font-black tracking-tight text-slate-900">${escapeText(e.nombre || 'Empresa sin nombre')}</h3>
+                    ${badgeEstado(estadoLicencia)}
+                    ${esTrial ? '<span class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">Trial</span>' : ''}
+                    ${esLocal ? '<span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">Local</span>' : ''}
+                  </div>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+                      <i class="fas fa-hashtag text-[10px]"></i>
+                      ${escapeText(e.codigo || 'SIN-CODIGO')}
+                    </span>
+                    <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <i class="fas fa-fingerprint text-[10px]"></i>
+                      ID ${e.id}
+                    </span>
+                  </div>
+                  <p class="mt-3 max-w-2xl text-sm leading-relaxed ${e.nota_interna ? 'text-slate-500' : 'text-slate-400'}">${notaInterna}</p>
+                  ${accionesEstadoHeaderHtml}
+                </div>
+              </div>
+            </div>
+
+            <aside class="rounded-[22px] border ${visual.summary} px-4 py-4 lg:w-[210px] lg:shrink-0">
+              <div class="text-[11px] font-black uppercase tracking-[0.22em] ${visual.summaryLabel}">Resumen rápido</div>
+              <div class="mt-3 text-2xl font-black tracking-tight text-slate-900">${e.monto_mensual ? `$${formatNumber(e.monto_mensual, 2)}` : 'Sin monto'}</div>
+              <div class="mt-1 text-sm font-semibold text-slate-700">${escapeText(e.plan || 'Plan sin definir')}</div>
+              <p class="mt-3 text-xs leading-relaxed text-slate-500">${escapeText(resumenCobro)}</p>
+            </aside>
+          </div>
+
+          <div class="mt-5 grid gap-3 md:grid-cols-2">
+            ${renderInfoTile({ label: 'Plan actual', value: planTexto, hint: esTrial ? 'Empresa en periodo de prueba' : 'Configuración de facturación activa', icon: 'fa-wallet', tone: 'sky' })}
+            ${renderInfoTile({ label: 'Próximo cobro', value: proximo, hint: ultimoPago === '—' ? 'Sin pagos registrados' : `Último pago: ${ultimoPago}`, icon: 'fa-calendar-days', tone: 'indigo' })}
+            ${renderInfoTile({ label: 'Días de gracia', value: textoGracia, hint: estadoLicencia === 'morosa' ? 'Está consumiendo la ventana de gracia' : estadoLicencia === 'suspendida' ? 'La gracia ya expiró' : 'Todavía no entra en mora', icon: 'fa-hourglass-half', tone: 'amber' })}
+            ${renderInfoTile({ label: 'Control de ventas', value: permitirAnularVenta ? 'Anulación habilitada' : 'Anulación bloqueada', hint: permitirAnularVenta ? 'Los admins podrán anular desde reportes' : 'La anulación está protegida por licencia', icon: 'fa-shield-halved', tone: permitirAnularVenta ? 'rose' : 'slate' })}
+          </div>
+
+          <div class="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(250px,0.9fr)]">
+            <section class="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <div class="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">
+                <i class="fas fa-file-invoice-dollar text-[10px]"></i>
+                Facturación
+              </div>
+              <p class="mt-2 text-xs text-slate-500">Plan, cobro, historial y ventana de gracia.</p>
+              <div class="mt-4 grid gap-2 md:grid-cols-2">${accionesFacturacion}</div>
+            </section>
+
+            <section class="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
+              <div class="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">
+                <i class="fas fa-lock text-[10px]"></i>
+                Control
+              </div>
+              <p class="mt-2 text-xs text-slate-500">Permisos sensibles y acciones administrativas.</p>
+              <div class="mt-4 grid gap-2">${accionesControl[0]}${controlExtra}</div>
+            </section>
+          </div>
+        </div>
+      </article>
+    `;
   });
 
   tbody.innerHTML = html;

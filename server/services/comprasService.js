@@ -14,10 +14,24 @@ function normalizeMarca(v) {
   return String(v).trim().toUpperCase();
 }
 
+function compraCorrelativoSelect(alias = 'c') {
+  return `
+    CASE
+      WHEN ${alias}.empresa_id IS NULL THEN NULL
+      ELSE (
+        SELECT COUNT(*)
+        FROM compras c2
+        WHERE c2.empresa_id = ${alias}.empresa_id AND c2.id <= ${alias}.id
+      )
+    END AS correlativo_empresa
+  `;
+}
+
 function mapCompra(row) {
   if (!row) return null;
   return {
     id: row.id,
+    correlativo_empresa: row.correlativo_empresa != null ? Number(row.correlativo_empresa) : null,
     proveedor_id: row.proveedor_id,
     proveedor_nombre: row.proveedor_nombre || null,
     fecha: row.fecha,
@@ -45,7 +59,10 @@ function listCompras({ limit = 100, proveedor_id, empresaId } = {}) {
   where.push("COALESCE(c.estado, 'recibida') <> 'anulada'");
   const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = db.prepare(`
-    SELECT c.*, p.nombre AS proveedor_nombre
+    SELECT
+      c.*,
+      p.nombre AS proveedor_nombre,
+      ${compraCorrelativoSelect('c')}
     FROM compras c
     LEFT JOIN proveedores p ON p.id = c.proveedor_id
     ${whereSql}
@@ -57,7 +74,10 @@ function listCompras({ limit = 100, proveedor_id, empresaId } = {}) {
 
 function getCompra(id, empresaId) {
   const stmt = db.prepare(`
-    SELECT c.*, p.nombre AS proveedor_nombre
+    SELECT
+      c.*,
+      p.nombre AS proveedor_nombre,
+      ${compraCorrelativoSelect('c')}
     FROM compras c
     LEFT JOIN proveedores p ON p.id = c.proveedor_id
     WHERE c.id = ? ${empresaId ? 'AND c.empresa_id = ?' : ''}
