@@ -39,6 +39,68 @@ describe('Rutas HTTP /reportes', () => {
     expect(Array.isArray(res.body)).toBe(true);
   });
 
+  test('GET /reportes/ventas devuelve número de venta por empresa', async () => {
+    const app = buildApp();
+    db.prepare('DELETE FROM venta_detalle').run();
+    db.prepare('DELETE FROM ventas').run();
+
+    const empresaAId = 1;
+    const empresaBCode = `EMPB-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const infoEmpB = db
+      .prepare('INSERT INTO empresas (nombre, codigo, estado) VALUES (?, ?, ?)')
+      .run('Empresa Test B', empresaBCode, 'activa');
+    const empresaBId = infoEmpB.lastInsertRowid;
+
+    const { userId: userAId, token: tokenA } = createTestUserAndToken({ rol: 'admin', empresaId: empresaAId });
+    const { userId: userBId, token: tokenB } = createTestUserAndToken({ rol: 'admin', empresaId: empresaBId });
+
+    const prodA = db
+      .prepare('INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id) VALUES (?,?,?,?,?,?)')
+      .run('DEV-01', 'Producto Dev A', 10, 5, 100, empresaAId);
+    const prodB = db
+      .prepare('INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id) VALUES (?,?,?,?,?,?)')
+      .run('DEV-02', 'Producto Dev B', 12, 6, 100, empresaBId);
+
+    const ventaA = db
+      .prepare(`INSERT INTO ventas (fecha, cliente, vendedor, metodo_pago, total_bs, tasa_bcv, usuario_id)
+                VALUES (datetime('now'), 'Cliente A', 'Vend A', 'EFECTIVO', 100, 10, ?)`)
+      .run(userAId);
+    db
+      .prepare('INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs) VALUES (?,?,?,?,?,?)')
+      .run(ventaA.lastInsertRowid, prodA.lastInsertRowid, 1, 10, 5, 100);
+
+    const ventaB = db
+      .prepare(`INSERT INTO ventas (fecha, cliente, vendedor, metodo_pago, total_bs, tasa_bcv, usuario_id)
+                VALUES (datetime('now'), 'Cliente B', 'Vend B', 'EFECTIVO', 200, 10, ?)`)
+      .run(userBId);
+    db
+      .prepare('INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs) VALUES (?,?,?,?,?,?)')
+      .run(ventaB.lastInsertRowid, prodB.lastInsertRowid, 2, 12, 6, 200);
+
+    const resA = await request(app)
+      .get('/reportes/ventas')
+      .set('Authorization', `Bearer ${tokenA}`);
+
+    expect(resA.status).toBe(200);
+    expect(Array.isArray(resA.body)).toBe(true);
+    expect(resA.body.length).toBeGreaterThan(0);
+    expect(resA.body[0]).toHaveProperty('nro_nota');
+    expect(resA.body[0].nro_nota).toMatch(/^VENTA-/);
+    expect(resA.body[0].cliente).toBe('Cliente A');
+    expect(resA.body.some((row) => row.cliente === 'Cliente B')).toBe(false);
+
+    const resB = await request(app)
+      .get('/reportes/ventas')
+      .set('Authorization', `Bearer ${tokenB}`);
+
+    expect(resB.status).toBe(200);
+    expect(Array.isArray(resB.body)).toBe(true);
+    expect(resB.body.length).toBeGreaterThan(0);
+    expect(resB.body[0]).toHaveProperty('nro_nota');
+    expect(resB.body[0].cliente).toBe('Cliente B');
+    expect(resB.body.some((row) => row.cliente === 'Cliente A')).toBe(false);
+  });
+
   test('GET /reportes/ventas-rango solo devuelve ventas de la empresa del usuario', async () => {
     const app = buildApp();
 

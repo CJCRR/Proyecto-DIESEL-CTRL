@@ -194,8 +194,9 @@ function getVentasSinDevolucion(empresaId) {
   const whereSQL = 'WHERE ' + where.join(' AND ');
 
   const rows = db.prepare(`
-      SELECT v.id, v.fecha, v.cliente,
+      SELECT v.id, v.id_global, v.fecha, v.cliente,
         COALESCE(u.nombre_completo, u.username, v.vendedor) AS vendedor,
+        u.empresa_id AS empresa_id,
         v.cedula, v.telefono,
            v.total_bs, v.tasa_bcv, v.descuento, v.metodo_pago, v.referencia,
            v.iva_pct, v.total_bs_iva, v.total_usd_iva
@@ -206,6 +207,13 @@ function getVentasSinDevolucion(empresaId) {
     LIMIT 100
   `).all(...params);
 
+  const correlativoStmt = db.prepare(`
+      SELECT COUNT(*) AS n
+      FROM ventas v2
+      JOIN usuarios u2 ON u2.id = v2.usuario_id
+      WHERE u2.empresa_id = ? AND v2.id <= ?
+  `);
+
   return rows.map((v) => {
     const tasa = Number(v.tasa_bcv || 0) || 0;
     const baseBs = Number(v.total_bs || 0);
@@ -214,8 +222,14 @@ function getVentasSinDevolucion(empresaId) {
     const hasStoredIva = v.total_bs_iva != null && v.total_usd_iva != null && (Number(v.total_bs_iva) !== 0 || Number(v.total_usd_iva) !== 0);
     const totalBsIva = hasStoredIva ? Number(v.total_bs_iva) : baseBs;
     const totalUsdIva = hasStoredIva ? Number(v.total_usd_iva) : baseUsd;
+    const idGlobalSanitized = v.id_global && String(v.id_global).trim();
+    const useIdGlobal = idGlobalSanitized && /^VENTA\-/i.test(idGlobalSanitized);
+    const nroNota = useIdGlobal
+      ? idGlobalSanitized
+      : (v.empresa_id != null ? `VENTA-${(correlativoStmt.get(v.empresa_id, v.id) || {}).n || v.id}` : `VENTA-${v.id}`);
     return {
       ...v,
+      nro_nota: nroNota,
       iva_pct: ivaPct,
       total_bs_iva: totalBsIva,
       total_usd_iva: totalUsdIva,
