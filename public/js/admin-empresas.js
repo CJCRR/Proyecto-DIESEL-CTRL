@@ -645,6 +645,7 @@ async function cargarPagosLicenciaEmpresa(id) {
       plList.innerHTML = '<div class="py-2 text-slate-400">No hay pagos registrados para esta empresa.</div>';
       return;
     }
+    const empresaLocal = empresas.find(e => Number(e.id) === Number(id));
     let html = '';
     pagos.forEach((p) => {
       const fecha = formatFechaCortaLocal(p.fecha);
@@ -680,8 +681,21 @@ async function cargarPagosLicenciaEmpresa(id) {
       }
 
       if (estado === 'pendiente') {
+        // Sugerir meses a aplicar en función del monto y del monto_mensual de la empresa
+        let mesesSuggested = 1;
+        try {
+          if (empresaLocal && Number.isFinite(Number(empresaLocal.monto_mensual)) && Number(empresaLocal.monto_mensual) > 0) {
+            const monthly = Number(empresaLocal.monto_mensual) || 0;
+            const paid = Number(p.monto_usd) || 0;
+            const calc = Math.round(paid / monthly) || 1;
+            mesesSuggested = calc > 0 ? calc : 1;
+          }
+        } catch (e) {
+          mesesSuggested = 1;
+        }
+
         html += `<div class="mt-1 flex flex-wrap gap-2">
-          <button class="px-2 py-1 rounded bg-emerald-600 text-white text-[11px]" data-pl-accion="aplicar" data-pl-id="${p.id}">Marcar recibido (+1 mes)</button>
+          <button class="px-2 py-1 rounded bg-emerald-600 text-white text-[11px]" data-pl-accion="aplicar" data-pl-id="${p.id}" data-pl-meses="${mesesSuggested}">Marcar recibido (+${mesesSuggested} ${mesesSuggested>1 ? 'meses' : 'mes'})</button>
           <button class="px-2 py-1 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[11px]" data-pl-accion="rechazar" data-pl-id="${p.id}">Rechazar</button>
         </div>`;
       }
@@ -697,7 +711,8 @@ async function cargarPagosLicenciaEmpresa(id) {
         const idPago = btn.getAttribute('data-pl-id');
         if (!plEmpresaId || !idPago) return;
         const nuevoEstado = accion === 'aplicar' ? 'aplicado' : 'rechazado';
-        const meses = accion === 'aplicar' ? 1 : 0;
+        const mesesAttr = btn.getAttribute('data-pl-meses');
+        const meses = accion === 'aplicar' ? (mesesAttr ? Number(mesesAttr) : 1) : 0;
         try {
           await apiFetchJson(`/admin/empresas/${plEmpresaId}/pagos-licencia/${idPago}/estado`, {
             method: 'PATCH',
@@ -1151,7 +1166,7 @@ if (rpCancelar && modalPago) {
 }
 
 if (formPago && modalPago) {
-  formPago.addEventListener('submit', (e) => {
+  formPago.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!rpEmpresaId) return;
     const fechaStr = (rpFecha.value || '').trim();
@@ -1173,6 +1188,47 @@ if (formPago && modalPago) {
       rpMeses.focus();
       return;
     }
+
+    // Intentar encontrar un pago pendiente coincidente y marcarlo como aplicado con los meses indicados
+    try {
+      const empresaLocal = empresas.find(e => Number(e.id) === Number(rpEmpresaId));
+      let expectedAmount = null;
+      if (empresaLocal && Number.isFinite(Number(empresaLocal.monto_mensual)) && Number(empresaLocal.monto_mensual) > 0) {
+        expectedAmount = Number(empresaLocal.monto_mensual) * Number(meses);
+      }
+
+      let matchedPago = null;
+      if (expectedAmount != null) {
+        const pendientes = await apiFetchJson(`/admin/empresas/${rpEmpresaId}/pagos-licencia?estado=pendiente`);
+        if (Array.isArray(pendientes) && pendientes.length) {
+          matchedPago = pendientes.find(p => {
+            const paid = Number(p.monto_usd) || 0;
+            return Math.abs(paid - expectedAmount) < 0.01;
+          }) || null;
+        }
+      }
+
+      if (matchedPago) {
+        // Marcar el pago pendiente como aplicado y dejar que el backend actualice las fechas
+        await apiFetchJson(`/admin/empresas/${rpEmpresaId}/pagos-licencia/${matchedPago.id}/estado`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: 'aplicado', meses_pagados: meses }),
+        });
+        if (window.showToast) window.showToast('Pago aplicado y próximo cobro actualizado desde el pago pendiente', 'success');
+        modalPago.classList.add('hidden');
+        modalPago.classList.remove('flex');
+        await cargarPagosLicenciaEmpresa(rpEmpresaId);
+        await cargarEmpresas();
+        rpEmpresaId = null;
+        return;
+      }
+    } catch (err) {
+      console.error('Error buscando pagos pendientes:', err);
+      // Si falla la búsqueda, caeremos al comportamiento por defecto
+    }
+
+    // Si no se encontró pago pendiente coincidente, aplicar la actualización directa en la empresa
     const proximoCobroDate = addMonths(fechaPago, meses);
     const proximoCobroStr = formatDateInput(proximoCobroDate);
     modalPago.classList.add('hidden');

@@ -20,6 +20,7 @@ const {
   registrarSolicitudPagoLicencia,
   listarPagosLicenciaEmpresa,
   actualizarEstadoPagoLicencia,
+  actualizarPlanEmpresa,
   exportarDatosEmpresa,
 } = require('../services/ajustesService');
 
@@ -260,6 +261,20 @@ router.get('/plan-resumen', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Error obteniendo resumen de plan', err.message);
     res.status(500).json({ error: 'No se pudo obtener resumen de plan' });
+  }
+});
+
+router.post('/plan', requireAuth, (req, res) => {
+  try {
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const empresa = actualizarPlanEmpresa(empresaId, req.body || {});
+    res.json({ ok: true, empresa });
+  } catch (err) {
+    console.error('Error actualizando plan de empresa', err.message);
+    if (err.tipo === 'VALIDACION') {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'No se pudo actualizar el plan' });
   }
 });
 

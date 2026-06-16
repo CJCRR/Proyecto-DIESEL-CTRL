@@ -415,6 +415,36 @@ function obtenerResumenPlanEmpresa(empresaId) {
   };
 }
 
+function actualizarPlanEmpresa(empresaId, payload = {}) {
+  const eid = empresaId != null ? Number(empresaId) : null;
+  if (!Number.isFinite(eid) || eid <= 0) {
+    throw validationError('Empresa inválida para actualizar plan', 'PLAN_EMPRESA_INVALIDA');
+  }
+
+  const plan = String(payload.plan || '').trim();
+  const monto = Number(payload.monto_mensual);
+  if (!plan) {
+    throw validationError('El nombre del plan es requerido', 'PLAN_NOMBRE_REQUERIDO');
+  }
+  if (!Number.isFinite(monto) || monto <= 0) {
+    throw validationError('El monto mensual debe ser mayor a 0', 'PLAN_MONTO_INVALIDO');
+  }
+
+  const update = db.prepare(`
+    UPDATE empresas
+    SET plan = ?, monto_mensual = ?, actualizado_en = datetime('now')
+    WHERE id = ?
+  `);
+  update.run(plan, monto, eid);
+
+  return db.prepare(`
+    SELECT id, nombre, codigo, estado, plan, monto_mensual, fecha_alta, fecha_corte, dias_gracia,
+           ultimo_pago_en, proximo_cobro
+    FROM empresas
+    WHERE id = ?
+  `).get(eid);
+}
+
 // ===== BRANDING GLOBAL DEL PANEL (SUPERADMIN) =====
 
 const DEFAULT_APP_BRANDING = {
@@ -1187,4 +1217,5 @@ module.exports = {
   registrarSolicitudPagoLicencia,
   listarPagosLicenciaEmpresa,
   actualizarEstadoPagoLicencia,
+  actualizarPlanEmpresa,
 };

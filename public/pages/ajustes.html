@@ -7,6 +7,29 @@
     <title>Ajustes — Nexa CTRL</title>
     <link rel="icon" href="/img/nexa3.ico" />
     <link rel="stylesheet" href="/styles.css">
+    <style>
+        /* Animaciones modal selección de plan */
+        .plan-modal-content {
+            transform: translateY(8px) scale(.98);
+            opacity: 0;
+            transition: transform 220ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease;
+        }
+        .plan-modal-open {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+        .plan-modal-close {
+            transform: translateY(10px) scale(.98);
+            opacity: 0;
+        }
+        .plan-selection-backdrop {
+            opacity: 0;
+            transition: opacity 220ms ease;
+        }
+        .plan-selection-backdrop.show {
+            opacity: 1;
+        }
+    </style>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="/js/disable-autocomplete.js"></script>
@@ -545,13 +568,42 @@ https://...logo2.png"></textarea>
                         plan</button>
                 </div>
             </div>
+            <div class="mt-4 border-t border-slate-200 pt-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Planes disponibles</p>
+                        
+                    </div>
+                </div>
+            </div>
             <div class="space-y-4 text-sm">
                 <!-- Primera fila: tres tarjetas alineadas -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/60">
+                    <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/60 relative">
                         <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Plan actual</p>
                         <p id="plan_nombre" class="text-sm font-semibold text-slate-800 mt-1">—</p>
                         <p id="plan_monto_mensual" class="text-[11px] text-slate-500 mt-0.5">—</p>
+                        <p id="plan_monto_bs" class="text-[11px] text-slate-500 mt-0.5"></p>
+
+                        <button id="plan_cambiar_btn" type="button"
+                            class="absolute right-3 bottom-3 px-3 py-1.5 rounded-md bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition">Ver / cambiar plan</button>
+
+                        <!-- Panel centrado para selección de plan (modal) -->
+                        <div id="plan_selection_block" class="fixed inset-0 hidden items-center justify-center z-50">
+                            <div id="plan_selection_backdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm plan-selection-backdrop"></div>
+                            <div id="plan_selection_modal" class="plan-modal-content relative bg-white w-full max-w-2xl mx-4 rounded-2xl shadow-2xl p-6 z-10">
+                                <button id="plan_selection_close" aria-label="Cerrar" class="absolute right-4 top-4 text-slate-500 hover:text-slate-800 text-lg">✕</button>
+                                <h3 class="text-lg font-semibold text-slate-800 mb-3">Seleccionar plan</h3>
+                                <div id="plan_cards_list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                                <p class="text-[11px] text-slate-500 mt-3">El pago se calculará usando la tasa BCV actual. Si eliges el plan trimestral, el monto mostrado incluye los 3 meses a $20/mes.</p>
+                                <p id="plan_selection_error" class="text-[11px] text-rose-500 mt-2 hidden"></p>
+                                <div class="mt-4 flex items-center justify-between gap-3">
+                                    <p id="plan_selection_help" class="text-[11px] text-slate-500">Selecciona un plan y pulsa guardar para actualizar tu cuenta.</p>
+                                    <button id="plan_selection_save" type="button"
+                                        class="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition">Guardar plan</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/60">
                         <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Próximo cobro</p>
@@ -783,6 +835,7 @@ https://...logo2.png"></textarea>
                     <label class="text-xs font-semibold text-slate-500">Monto pagado (USD)</label>
                     <input id="plan_pago_monto" type="number" min="0" step="0.01"
                         class="w-full mt-1 p-2.5 border rounded-xl" placeholder="Ej: 25.00" />
+                    <p id="plan_pago_equivalente" class="text-[11px] text-slate-500 mt-1">Equivalente en Bs aparecerá aquí.</p>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500">Referencia del pago</label>

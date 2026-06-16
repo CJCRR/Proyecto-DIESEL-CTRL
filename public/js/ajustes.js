@@ -6,6 +6,15 @@ import { initCustomSelect } from './modules/ui.js';
 
 let configCache = { empresa: {}, descuentos_volumen: [], devolucion: {}, nota: {} };
 
+const PLAN_OPTIONS = [
+    { key: 'mensual', title: 'Mensual', monthlyUsd: 25, totalUsd: 25, months: 1, subtitle: 'Pago mensual de $25 USD por mes.' },
+    { key: 'trimestral', title: 'Trimestral', monthlyUsd: 20, totalUsd: 60, months: 3, subtitle: 'Pago trimestral de $20 USD por mes (total $60 USD).' },
+];
+
+let configBcvRate = 1;
+let selectedPlanKey = null;
+let currentPlanEmpresa = null;
+
 // Estado para depósitos
 let depositosCache = [];
 let depositoEditId = null;
@@ -56,6 +65,275 @@ function diasHasta(iso) {
     hoy.setHours(0, 0, 0, 0);
     const diffMs = d.getTime() - hoy.getTime();
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function getPlanOptionByKey(key) {
+    return PLAN_OPTIONS.find((option) => option.key === key) || null;
+}
+
+function getPlanKeyFromEmpresa(planName) {
+    const name = String(planName || '').toLowerCase();
+    if (name.includes('trimestral')) return 'trimestral';
+    if (name.includes('mensual')) return 'mensual';
+    return null;
+}
+
+function formatUsd(value) {
+    return `$${formatNumber(Number(value) || 0, 2)}`;
+}
+
+function computeBsAmount(usd) {
+    const amount = Number(usd);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    return amount * Number(configBcvRate || 1);
+}
+
+function formatBs(value) {
+    if (value == null || Number.isNaN(Number(value))) return '—';
+    return `Bs ${formatNumber(Number(value), 2)}`;
+}
+
+async function loadTasaBcv() {
+    try {
+        // Usar el endpoint admin para leer la misma tasa que configuran Dashboard/POS
+        const data = await apiFetchJson('/admin/ajustes/tasa-bcv');
+        configBcvRate = Number(data?.tasa_bcv) || 1;
+    } catch (err) {
+        configBcvRate = 1;
+    }
+}
+
+function renderPlanSelection() {
+    const cardsList = document.getElementById('plan_cards_list');
+    const selectionHelp = document.getElementById('plan_selection_help');
+    const errorEl = document.getElementById('plan_selection_error');
+    if (!cardsList) return;
+
+    cardsList.innerHTML = PLAN_OPTIONS.map((option) => {
+        const active = selectedPlanKey === option.key;
+        return `
+            <button type="button" data-plan-key="${option.key}"
+                class="w-full text-left p-4 border rounded-2xl transition ${active ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-400'}">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-800">${option.title}</p>
+                        <p class="text-[11px] text-slate-500 mt-1">${option.subtitle}</p>
+                    </div>
+                    <span class="text-xs font-semibold text-slate-700">${formatUsd(option.monthlyUsd)} / mes</span>
+                </div>
+                <div class="mt-3 text-[11px] text-slate-500">Total a pagar: ${formatUsd(option.totalUsd)}</div>
+            </button>
+        `;
+    }).join('');
+
+    cardsList.querySelectorAll('[data-plan-key]').forEach((button) => {
+        button.addEventListener('click', () => {
+            selectedPlanKey = button.dataset.planKey;
+            renderPlanSelection();
+            if (selectionHelp) {
+                selectionHelp.textContent = `Has seleccionado el plan ${getPlanOptionByKey(selectedPlanKey)?.title || ''}. Pulsa guardar para aplicar.`;
+            }
+        });
+    });
+
+    if (errorEl) {
+        errorEl.classList.add('hidden');
+        errorEl.textContent = '';
+    }
+}
+
+function openPlanSelection() {
+    const panel = document.getElementById('plan_selection_block');
+    const cambiarBtn = document.getElementById('plan_cambiar_btn');
+    const backdrop = document.getElementById('plan_selection_backdrop');
+    const modal = document.getElementById('plan_selection_modal');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    panel.classList.add('flex');
+    panel.style.display = 'flex';
+    renderPlanSelection();
+    // Animación de entrada
+    if (modal) {
+        modal.classList.remove('plan-modal-close');
+        // forzar reflow para reiniciar la animación
+        void modal.offsetWidth;
+        modal.classList.add('plan-modal-open');
+    }
+    if (backdrop) backdrop.classList.add('show');
+    if (cambiarBtn) cambiarBtn.textContent = 'Cerrar selector de plan';
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handlePlanSelectionEsc);
+}
+
+function closePlanSelection() {
+    const panel = document.getElementById('plan_selection_block');
+    const cambiarBtn = document.getElementById('plan_cambiar_btn');
+    const backdrop = document.getElementById('plan_selection_backdrop');
+    const modal = document.getElementById('plan_selection_modal');
+    if (!panel) return;
+    if (modal) {
+        modal.classList.remove('plan-modal-open');
+        modal.classList.add('plan-modal-close');
+        const onEnd = function () {
+            if (panel) {
+                panel.classList.add('hidden');
+                panel.classList.remove('flex');
+                panel.style.display = '';
+            }
+            if (backdrop) backdrop.classList.remove('show');
+            if (cambiarBtn) cambiarBtn.textContent = 'Ver / cambiar plan';
+            document.body.style.overflow = '';
+            window.removeEventListener('keydown', handlePlanSelectionEsc);
+            modal.removeEventListener('transitionend', onEnd);
+        };
+        modal.addEventListener('transitionend', onEnd);
+    } else {
+        panel.classList.add('hidden');
+        panel.classList.remove('flex');
+        panel.style.display = '';
+        if (backdrop) backdrop.classList.remove('show');
+        if (cambiarBtn) cambiarBtn.textContent = 'Ver / cambiar plan';
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handlePlanSelectionEsc);
+    }
+}
+
+function handlePlanSelectionEsc(e) {
+    if (e.key === 'Escape') closePlanSelection();
+}
+
+function getSuggestedPaymentAmount() {
+    if (selectedPlanKey) {
+        const plan = getPlanOptionByKey(selectedPlanKey);
+        return plan ? plan.totalUsd : null;
+    }
+    if (currentPlanEmpresa && Number.isFinite(Number(currentPlanEmpresa.monto_mensual))) {
+        const planKey = getPlanKeyFromEmpresa(currentPlanEmpresa.plan);
+        const monthly = Number(currentPlanEmpresa.monto_mensual) || 0;
+        return planKey === 'trimestral' ? monthly * 3 : monthly;
+    }
+    return null;
+}
+
+function updatePagoEquivalenteDisplay() {
+    const montoEl = document.getElementById('plan_pago_monto');
+    const equivalenteEl = document.getElementById('plan_pago_equivalente');
+    if (!equivalenteEl) return;
+    const monto = montoEl && montoEl.value ? parseFloat(montoEl.value) : 0;
+    if (!monto || Number.isNaN(monto) || monto <= 0) {
+        equivalenteEl.textContent = 'Equivalente en Bs aparecerá aquí.';
+        return;
+    }
+    const bs = computeBsAmount(monto);
+    equivalenteEl.textContent = `Equivalente en Bs: ${formatBs(bs)} (tasa BCV ${formatNumber(configBcvRate, 2)})`;
+}
+
+function prefillPlanPagoMonto() {
+    const montoEl = document.getElementById('plan_pago_monto');
+    let suggested = null;
+
+    // Preferir el plan guardado en la empresa (plan real), y como fallback usar la selección activa
+    if (currentPlanEmpresa) {
+        const planKey = getPlanKeyFromEmpresa(currentPlanEmpresa.plan);
+        if (planKey) {
+            const plan = getPlanOptionByKey(planKey);
+            if (plan) suggested = Number(plan.totalUsd);
+        } else if (Number.isFinite(Number(currentPlanEmpresa.monto_mensual))) {
+            const monthly = Number(currentPlanEmpresa.monto_mensual) || 0;
+            suggested = monthly;
+        }
+    }
+
+    // Si no se pudo obtener del registro de la empresa, usar la selección activa en el selector
+    if (suggested == null && selectedPlanKey) {
+        const plan = getPlanOptionByKey(selectedPlanKey);
+        if (plan) suggested = Number(plan.totalUsd);
+    }
+
+    if (montoEl && suggested != null) {
+        try {
+            montoEl.readOnly = true;
+            montoEl.valueAsNumber = Number(Number(suggested).toFixed(2));
+        } catch (err) {
+            // Fallback a asignación por string con punto decimal
+            montoEl.value = Number(suggested).toFixed(2);
+            montoEl.readOnly = true;
+        }
+        montoEl.classList.add('bg-slate-50', 'text-slate-700');
+    }
+
+    // Prefill fecha según el plan seleccionado: si es trimestral, sugerir fecha hasta dentro de 3 meses
+    const fechaEl = document.getElementById('plan_pago_fecha');
+    try {
+        if (fechaEl) {
+            const today = new Date();
+            const planKey = selectedPlanKey || getPlanKeyFromEmpresa(currentPlanEmpresa?.plan);
+            const months = planKey === 'trimestral' ? 3 : 0;
+            const target = new Date(today.getFullYear(), today.getMonth() + months, today.getDate());
+            fechaEl.value = target.toISOString().slice(0, 10);
+            // Limitar la fecha máxima que se puede seleccionar al mismo rango
+            const max = new Date(today.getFullYear(), today.getMonth() + months, today.getDate()).toISOString().slice(0, 10);
+            fechaEl.setAttribute('max', max);
+        }
+    } catch (e) {
+        // no bloquear si hay algún problema con fechas
+    }
+
+    updatePagoEquivalenteDisplay();
+}
+
+async function updatePlanMontoBsCard(empresa) {
+    const montoBsEl = document.getElementById('plan_monto_bs');
+    if (!montoBsEl) return;
+    const monthly = empresa && Number.isFinite(Number(empresa.monto_mensual)) ? Number(empresa.monto_mensual) : null;
+    if (!monthly || !configBcvRate) {
+        montoBsEl.textContent = '';
+        return;
+    }
+    montoBsEl.textContent = `Equivale a ${formatBs(monthly * configBcvRate)} / mes`; 
+}
+
+async function saveSelectedPlan() {
+    const errorEl = document.getElementById('plan_selection_error');
+    if (!selectedPlanKey) {
+        if (errorEl) {
+            errorEl.textContent = 'Selecciona un plan antes de guardar.';
+            errorEl.classList.remove('hidden');
+        }
+        return;
+    }
+    const plan = getPlanOptionByKey(selectedPlanKey);
+    if (!plan) return;
+
+    try {
+        await apiFetchJson('/admin/ajustes/plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                plan: plan.title,
+                monto_mensual: plan.monthlyUsd,
+            }),
+        });
+        showToast(`Plan ${plan.title} guardado.`, 'success');
+        await loadPlanResumen();
+        const selectionHelp = document.getElementById('plan_selection_help');
+        if (selectionHelp) selectionHelp.textContent = `El plan ${plan.title} está activo. Puedes cerrar esta sección.`;
+
+        // Cerrar panel de selección y actualizar texto del botón
+        if (typeof closePlanSelection === 'function') {
+            closePlanSelection();
+        } else {
+            const panel = document.getElementById('plan_selection_block');
+            const cambiarBtn = document.getElementById('plan_cambiar_btn');
+            if (panel) panel.classList.add('hidden');
+            if (cambiarBtn) cambiarBtn.textContent = 'Ver / cambiar plan';
+        }
+    } catch (err) {
+        if (errorEl) {
+            errorEl.textContent = err.message || 'No se pudo guardar el plan.';
+            errorEl.classList.remove('hidden');
+        }
+    }
 }
 
 // Renderizar niveles de descuento por volumen en el DOM
@@ -283,8 +561,16 @@ async function loadPlanResumen() {
     if (!badge && !nombreEl && !portalBtn) return;
 
     try {
+        await loadTasaBcv();
         const data = await apiFetchJson('/admin/ajustes/plan-resumen');
         const empresa = data && data.empresa ? data.empresa : data;
+        currentPlanEmpresa = empresa;
+        if (!selectedPlanKey) {
+            selectedPlanKey = getPlanKeyFromEmpresa(empresa.plan) || 'mensual';
+        }
+        if (empresa) {
+            await updatePlanMontoBsCard(empresa);
+        }
         if (!empresa) {
             if (errorEl) {
                 errorEl.textContent = 'No se encontró información de plan para esta empresa.';
@@ -393,6 +679,8 @@ async function loadPlanResumen() {
                 window.open(url, '_blank');
             });
         }
+
+        // Se eliminó la visualización redundante del plan en la sección superior.
     } catch (err) {
         if (errorEl) {
             errorEl.textContent = 'No se pudo cargar la información de plan por ahora. Intenta nuevamente más tarde.';
@@ -497,10 +785,14 @@ function setupUI() {
     const formPlanPago = document.getElementById('form-plan-pago');
     const planPagoCancelar = document.getElementById('plan_pago_cancelar');
     const planPagoSubir = document.getElementById('plan_pago_subir');
+    const planCambiarBtn = document.getElementById('plan_cambiar_btn');
+    const planSelectionBlock = document.getElementById('plan_selection_block');
+    const planSelectionSave = document.getElementById('plan_selection_save');
     if (planPagarBtn && modalPlanPago) {
         planPagarBtn.addEventListener('click', () => {
             modalPlanPago.classList.remove('hidden');
             modalPlanPago.classList.add('flex');
+            prefillPlanPagoMonto();
         });
     }
     if (planPagoCancelar && modalPlanPago) {
@@ -512,6 +804,27 @@ function setupUI() {
     if (planPagoSubir) {
         planPagoSubir.addEventListener('click', () => uploadHelper('plan_pago_comprobante'));
     }
+    const planPagoMontoInput = document.getElementById('plan_pago_monto');
+    if (planPagoMontoInput) {
+        planPagoMontoInput.addEventListener('input', updatePagoEquivalenteDisplay);
+    }
+    if (planCambiarBtn && planSelectionBlock) {
+        planCambiarBtn.addEventListener('click', () => {
+            const isHidden = planSelectionBlock.classList.contains('hidden');
+            if (isHidden) openPlanSelection();
+            else closePlanSelection();
+        });
+    }
+    if (planSelectionSave) {
+        planSelectionSave.addEventListener('click', async () => {
+            await saveSelectedPlan();
+        });
+    }
+    // Cerrar modal con X o clic en backdrop
+    const planSelectionClose = document.getElementById('plan_selection_close');
+    const planSelectionBackdrop = document.getElementById('plan_selection_backdrop');
+    if (planSelectionClose) planSelectionClose.addEventListener('click', closePlanSelection);
+    if (planSelectionBackdrop) planSelectionBackdrop.addEventListener('click', closePlanSelection);
     if (formPlanPago) {
         formPlanPago.addEventListener('submit', async (e) => {
             e.preventDefault();
