@@ -29,6 +29,13 @@
         .plan-selection-backdrop.show {
             opacity: 1;
         }
+        .plan-option-card {
+            transform: translateY(0);
+            transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
+        }
+        .plan-option-card:hover {
+            transform: translateY(-2px);
+        }
     </style>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -590,17 +597,43 @@ https://...logo2.png"></textarea>
 
                         <!-- Panel centrado para selección de plan (modal) -->
                         <div id="plan_selection_block" class="fixed inset-0 hidden items-center justify-center z-50">
-                            <div id="plan_selection_backdrop" class="absolute inset-0 bg-black/40 backdrop-blur-sm plan-selection-backdrop"></div>
-                            <div id="plan_selection_modal" class="plan-modal-content relative bg-white w-full max-w-2xl mx-4 rounded-2xl shadow-2xl p-6 z-10">
-                                <button id="plan_selection_close" aria-label="Cerrar" class="absolute right-4 top-4 text-slate-500 hover:text-slate-800 text-lg">✕</button>
-                                <h3 class="text-lg font-semibold text-slate-800 mb-3">Seleccionar plan</h3>
-                                <div id="plan_cards_list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-                                <p class="text-[11px] text-slate-500 mt-3">El pago se calculará usando la tasa BCV actual. Si eliges el plan trimestral, el monto mostrado incluye los 3 meses a $20/mes.</p>
-                                <p id="plan_selection_error" class="text-[11px] text-rose-500 mt-2 hidden"></p>
-                                <div class="mt-4 flex items-center justify-between gap-3">
-                                    <p id="plan_selection_help" class="text-[11px] text-slate-500">Selecciona un plan y pulsa guardar para actualizar tu cuenta.</p>
+                            <div id="plan_selection_backdrop" class="absolute inset-0 bg-slate-950/45 backdrop-blur-sm plan-selection-backdrop"></div>
+                            <div id="plan_selection_modal" class="plan-modal-content relative overflow-hidden bg-white w-full max-w-3xl mx-4 rounded-[28px] border border-slate-200 shadow-2xl shadow-slate-900/20 p-6 sm:p-7 z-10">
+                                <div class="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400"></div>
+                                <div class="pointer-events-none absolute -top-16 right-10 h-40 w-40 rounded-full bg-sky-100/70 blur-3xl"></div>
+                                <div class="pointer-events-none absolute -bottom-20 left-8 h-36 w-36 rounded-full bg-emerald-100/60 blur-3xl"></div>
+
+                                <button id="plan_selection_close" aria-label="Cerrar" class="absolute right-4 top-4 h-10 w-10 rounded-2xl border border-slate-200 bg-white/80 text-slate-500 hover:text-slate-800 hover:border-slate-300 transition flex items-center justify-center text-lg">✕</button>
+
+                                <div class="relative">
+                                    <p class="text-[10px] font-black uppercase tracking-[0.28em] text-blue-500">Facturación</p>
+                                    <h3 class="mt-2 text-xl font-black tracking-tight text-slate-900">Seleccionar plan</h3>
+                                    <p class="mt-2 max-w-2xl text-[13px] leading-6 text-slate-500">Elige el ciclo de pago que mejor se adapte a tu empresa. El sistema actualizará el monto del cobro y el valor a pagar según el plan activo.</p>
+                                </div>
+
+                                <div id="plan_cards_list" class="relative mt-6 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+                                <div class="relative mt-5 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-emerald-50 px-4 py-3.5">
+                                    <div class="flex items-start gap-3">
+                                        <span class="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-sky-600 ring-1 ring-sky-100 shadow-sm">
+                                            <i class="fa-solid fa-receipt text-sm"></i>
+                                        </span>
+                                        <div>
+                                            <p class="text-[11px] font-black uppercase tracking-[0.24em] text-sky-700">Cálculo del pago</p>
+                                            <p class="mt-1 text-[12px] leading-5 text-slate-600">El pago en bolívares se calcula con la tasa BCV activa del sistema. En el plan trimestral verás el total de los 3 meses en un solo cobro.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <p id="plan_selection_error" class="relative text-[11px] text-rose-500 mt-3 hidden"></p>
+
+                                <div class="relative mt-5 pt-4 border-t border-slate-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <p id="plan_selection_help" class="text-[12px] text-slate-500">Selecciona un plan y pulsa guardar para actualizar tu cuenta.</p>
                                     <button id="plan_selection_save" type="button"
-                                        class="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition">Guardar plan</button>
+                                        class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition">
+                                        <i class="fa-solid fa-check text-xs"></i>
+                                        Guardar plan
+                                    </button>
                                 </div>
                             </div>
                         </div>

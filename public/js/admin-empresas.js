@@ -85,11 +85,35 @@ const brandDrawerInput = document.getElementById('brand-drawer');
 const btnGuardarBranding = document.getElementById('btn-guardar-branding');
 const brandMainTitleEl = document.getElementById('brand-main-title');
 const drawerAppNameEl = document.getElementById('drawer-app-name');
+const tasaGeneralInput = document.getElementById('tasa-general-input');
+const tasaGeneralMeta = document.getElementById('tasa-general-meta');
+const tasaGeneralStatus = document.getElementById('tasa-general-status');
+const btnGuardarTasaGeneral = document.getElementById('btn-guardar-tasa-general');
+const btnRecargarTasaGeneral = document.getElementById('btn-recargar-tasa-general');
+const btnAutoTasaGeneral = document.getElementById('btn-auto-tasa-general');
+const licenciaAlertasList = document.getElementById('licencia-alertas-list');
+const licenciaAlertasBadge = document.getElementById('licencia-alertas-badge');
+const licenciaAlertasMeta = document.getElementById('licencia-alertas-meta');
+const btnRecargarLicenciaAlertas = document.getElementById('btn-recargar-licencia-alertas');
+const whatsappAdminDestinos = document.getElementById('whatsapp-admin-destinos');
+const whatsappAdminMeta = document.getElementById('whatsapp-admin-meta');
+const whatsappAdminStatus = document.getElementById('whatsapp-admin-status');
+const btnGuardarWhatsappAdmin = document.getElementById('btn-guardar-whatsapp-admin');
 
 const DEFAULT_BRAND_TITULO = 'DIESEL CTRL';
 const DEFAULT_BRAND_DRAWER = 'Diesel Ctrl';
+const FOCUS_EMPRESA_ID = (() => {
+  try {
+    const raw = new URLSearchParams(window.location.search).get('focus');
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  } catch (_err) {
+    return null;
+  }
+})();
 
 let empresas = [];
+let focusEmpresaApplied = false;
 
 function escapeText(value) {
   return String(value == null ? '' : value)
@@ -145,6 +169,354 @@ function renderLoadingEmpresas() {
         </div>
       </article>
     `).join('');
+  }
+}
+
+function formatFechaHoraPanel(iso) {
+  if (!iso) return 'sin registro';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  try {
+    return d.toLocaleString('es-VE');
+  } catch {
+    return d.toISOString();
+  }
+}
+
+function setTasaGeneralBusy(isBusy) {
+  [tasaGeneralInput, btnGuardarTasaGeneral, btnRecargarTasaGeneral, btnAutoTasaGeneral].forEach((el) => {
+    if (!el) return;
+    el.disabled = !!isBusy;
+  });
+
+  [btnGuardarTasaGeneral, btnRecargarTasaGeneral, btnAutoTasaGeneral].forEach((button) => {
+    if (!button) return;
+    button.classList.toggle('opacity-70', !!isBusy);
+    button.classList.toggle('cursor-not-allowed', !!isBusy);
+  });
+}
+
+async function cargarTasaGeneralPanel() {
+  if (!tasaGeneralInput) return;
+  setTasaGeneralBusy(true);
+  try {
+    const data = await apiFetchJson('/admin/empresas/tasa-general');
+    const tasa = Number(data && data.tasa_bcv);
+    if (Number.isFinite(tasa) && tasa > 0) {
+      tasaGeneralInput.value = tasa.toFixed(2);
+    }
+
+    if (tasaGeneralMeta) {
+      tasaGeneralMeta.textContent = `Última actualización global: ${formatFechaHoraPanel(data && data.actualizado_en)}`;
+    }
+    if (tasaGeneralStatus) {
+      tasaGeneralStatus.textContent = 'Puedes escribir una tasa manual o usar Auto BCV para traer la del día y replicarla a todas.';
+    }
+  } catch (err) {
+    if (tasaGeneralMeta) {
+      tasaGeneralMeta.textContent = 'No se pudo cargar la tasa general actual.';
+    }
+    if (tasaGeneralStatus) {
+      tasaGeneralStatus.textContent = 'Revisa tu conexión o intenta recargar el módulo de tasa general.';
+    }
+  } finally {
+    setTasaGeneralBusy(false);
+  }
+}
+
+async function actualizarTasaGeneralAutomaticaPanel() {
+  if (!btnAutoTasaGeneral) return;
+  setTasaGeneralBusy(true);
+  try {
+    const data = await apiFetchJson('/admin/empresas/tasa-general/actualizar', {
+      method: 'POST',
+    });
+
+    if (!data || data.ok !== true) {
+      throw new Error((data && data.error) || 'No se pudo obtener la tasa BCV automática.');
+    }
+
+    if (Number.isFinite(Number(data && data.tasa_bcv)) && tasaGeneralInput) {
+      tasaGeneralInput.value = Number(data.tasa_bcv).toFixed(2);
+    }
+    if (tasaGeneralMeta) {
+      tasaGeneralMeta.textContent = `Última actualización global: ${formatFechaHoraPanel(data && data.actualizado_en)}`;
+    }
+    if (tasaGeneralStatus) {
+      const total = Number(data && data.empresas_actualizadas) || 0;
+      tasaGeneralStatus.textContent = `BCV automática aplicada a ${total} empresa(s). Cada empresa puede seguir sobrescribiendo su propia tasa después.`;
+    }
+    if (window.showToast) window.showToast('Tasa BCV del día aplicada a todas las empresas.', 'success');
+    else alert('Tasa BCV del día aplicada a todas las empresas.');
+  } catch (err) {
+    if (tasaGeneralStatus) {
+      tasaGeneralStatus.textContent = err && err.message
+        ? err.message
+        : 'No se pudo traer y aplicar la tasa automática.';
+    }
+    if (window.showToast) window.showToast(err.message || 'Error actualizando tasa automática', 'error');
+    else alert(err.message || 'Error actualizando tasa automática');
+  } finally {
+    setTasaGeneralBusy(false);
+  }
+}
+
+async function guardarTasaGeneralPanel() {
+  if (!tasaGeneralInput) return;
+
+  const tasa = parseFloat((tasaGeneralInput.value || '').trim());
+  if (!Number.isFinite(tasa) || tasa <= 0) {
+    if (window.showToast) window.showToast('Debes indicar una tasa válida mayor a 0.', 'error');
+    else alert('Debes indicar una tasa válida mayor a 0.');
+    tasaGeneralInput.focus();
+    return;
+  }
+
+  setTasaGeneralBusy(true);
+  try {
+    const data = await apiFetchJson('/admin/empresas/tasa-general', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasa_bcv: tasa }),
+    });
+
+    if (Number.isFinite(Number(data && data.tasa_bcv))) {
+      tasaGeneralInput.value = Number(data.tasa_bcv).toFixed(2);
+    }
+    if (tasaGeneralMeta) {
+      tasaGeneralMeta.textContent = `Última actualización global: ${formatFechaHoraPanel(data && data.actualizado_en)}`;
+    }
+    if (tasaGeneralStatus) {
+      const total = Number(data && data.empresas_actualizadas) || 0;
+      tasaGeneralStatus.textContent = `Tasa aplicada correctamente a ${total} empresa(s). Cada empresa podrá volver a cambiar su propia tasa después si lo necesita.`;
+    }
+    if (window.showToast) window.showToast('Tasa general aplicada a todas las empresas.', 'success');
+    else alert('Tasa general aplicada a todas las empresas.');
+  } catch (err) {
+    if (tasaGeneralStatus) {
+      tasaGeneralStatus.textContent = err && err.message
+        ? err.message
+        : 'No se pudo aplicar la tasa general en este momento.';
+    }
+    if (window.showToast) window.showToast(err.message || 'Error guardando tasa general', 'error');
+    else alert(err.message || 'Error guardando tasa general');
+  } finally {
+    setTasaGeneralBusy(false);
+  }
+}
+
+function getPuntualidadTheme(key) {
+  const themes = {
+    al_dia: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    en_gracia: 'border-amber-200 bg-amber-50 text-amber-700',
+    atrasada: 'border-rose-200 bg-rose-50 text-rose-700',
+    suspendida: 'border-rose-200 bg-rose-50 text-rose-700',
+    sin_corte: 'border-slate-200 bg-slate-50 text-slate-600',
+  };
+  return themes[key] || themes.sin_corte;
+}
+
+function setWhatsappAdminBusy(isBusy) {
+  [whatsappAdminDestinos, btnGuardarWhatsappAdmin].forEach((el) => {
+    if (!el) return;
+    el.disabled = !!isBusy;
+  });
+
+  if (btnGuardarWhatsappAdmin) {
+    btnGuardarWhatsappAdmin.classList.toggle('opacity-70', !!isBusy);
+    btnGuardarWhatsappAdmin.classList.toggle('cursor-not-allowed', !!isBusy);
+  }
+}
+
+function renderLicenciaAlertasLoading() {
+  if (!licenciaAlertasList) return;
+  licenciaAlertasList.innerHTML = `
+    <div class="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">Cargando alertas de pagos pendientes...</div>
+  `;
+}
+
+async function cargarLicenciaAlertasPanel() {
+  if (!licenciaAlertasList) return;
+
+  renderLicenciaAlertasLoading();
+  if (licenciaAlertasMeta) {
+    licenciaAlertasMeta.textContent = 'Consultando solicitudes recientes...';
+  }
+
+  try {
+    const data = await apiFetchJson('/admin/empresas/licencia-alertas?limit=6');
+    const totalPendientes = Number(data && data.total_pendientes) || 0;
+    const pagos = Array.isArray(data && data.pagos) ? data.pagos : [];
+
+    if (licenciaAlertasBadge) {
+      licenciaAlertasBadge.textContent = String(totalPendientes);
+    }
+    if (licenciaAlertasMeta) {
+      licenciaAlertasMeta.textContent = totalPendientes > 0
+        ? `${totalPendientes} pago(s) pendiente(s) esperando validación del superadmin.`
+        : 'No hay pagos pendientes por revisar en este momento.';
+    }
+
+    if (!pagos.length) {
+      licenciaAlertasList.innerHTML = `
+        <div class="rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-5 text-sm text-emerald-700">
+          Todo al día. Cuando una empresa envíe un pago desde su portal, aparecerá aquí para revisarlo.
+        </div>
+      `;
+      return;
+    }
+
+    licenciaAlertasList.innerHTML = pagos.map((pago) => {
+      const puntualidadClass = getPuntualidadTheme(pago.puntualidad_estado);
+      const monto = Number.isFinite(Number(pago.monto_usd)) ? `$${formatNumber(Number(pago.monto_usd), 2)}` : '—';
+      const empresaNombre = escapeText(pago.empresa_nombre || `Empresa #${pago.empresa_id || 'N/D'}`);
+      const empresaCodigo = escapeText(pago.empresa_codigo || 'SIN-CODIGO');
+      const referencia = escapeText(pago.referencia || 'Sin referencia');
+      const tipo = escapeText(pago.tipo || 'No especificado');
+      const fecha = escapeText(formatFechaHoraPanel(pago.creado_en || pago.fecha));
+      const plan = escapeText(pago.plan || 'Sin plan');
+      const href = `/pages/admin-empresas.html?focus=${encodeURIComponent(String(pago.empresa_id || ''))}`;
+      const comprobanteHtml = pago.comprobante_url
+        ? `<a href="${pago.comprobante_url}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-sky-600 hover:underline"><i class="fas fa-image text-[10px]"></i> Captura</a>`
+        : '<span class="text-xs text-slate-400">Sin captura</span>';
+
+      return `
+        <article class="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4 shadow-sm shadow-slate-200/40">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <h4 class="text-sm font-black tracking-tight text-slate-900">${empresaNombre}</h4>
+                <span class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">${empresaCodigo}</span>
+                <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${puntualidadClass}">${escapeText(pago.puntualidad_label || 'Sin corte')}</span>
+              </div>
+              <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                <span><strong class="text-slate-700">Monto:</strong> ${monto}</span>
+                <span><strong class="text-slate-700">Tipo:</strong> ${tipo}</span>
+                <span><strong class="text-slate-700">Plan:</strong> ${plan}</span>
+              </div>
+              <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                <span><strong class="text-slate-700">Referencia:</strong> ${referencia}</span>
+                <span><strong class="text-slate-700">Recibido:</strong> ${fecha}</span>
+              </div>
+            </div>
+            <div class="flex shrink-0 items-center gap-3">
+              ${comprobanteHtml}
+              <a href="${href}" class="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-lg shadow-slate-900/15 transition hover:bg-slate-800">Revisar</a>
+            </div>
+          </div>
+        </article>
+      `;
+    }).join('');
+  } catch (err) {
+    if (licenciaAlertasBadge) {
+      licenciaAlertasBadge.textContent = '—';
+    }
+    if (licenciaAlertasMeta) {
+      licenciaAlertasMeta.textContent = 'No se pudieron cargar las alertas del panel.';
+    }
+    licenciaAlertasList.innerHTML = `
+      <div class="rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-5 text-sm text-rose-600">
+        ${escapeText(err && err.message ? err.message : 'No se pudieron cargar las alertas de licencia.')}
+      </div>
+    `;
+  }
+}
+
+async function cargarWhatsappAdminConfig() {
+  if (!whatsappAdminDestinos) return;
+
+  setWhatsappAdminBusy(true);
+  try {
+    const data = await apiFetchJson('/admin/empresas/licencia-notificaciones-whatsapp');
+    const raw = data && typeof data.raw === 'string' ? data.raw : '';
+    whatsappAdminDestinos.value = raw;
+
+    if (whatsappAdminMeta) {
+      whatsappAdminMeta.textContent = data && data.source === 'config'
+        ? `Configuración guardada en panel. Última edición: ${formatFechaHoraPanel(data.updated_at)}`
+        : data && data.source === 'env'
+          ? 'Usando número definido por variables de entorno del servidor.'
+          : 'Aún no hay un número configurado para avisos automáticos.';
+    }
+
+    if (whatsappAdminStatus) {
+      const totalTargets = Array.isArray(data && data.targets) ? data.targets.length : 0;
+      whatsappAdminStatus.textContent = totalTargets > 0
+        ? `Se enviarán avisos automáticos a ${totalTargets} destino(s) cuando una empresa reporte un pago.`
+        : 'Guarda al menos un número para recibir el aviso automático cuando llegue un pago nuevo.';
+    }
+  } catch (err) {
+    if (whatsappAdminMeta) {
+      whatsappAdminMeta.textContent = 'No se pudo leer la configuración de WhatsApp.';
+    }
+    if (whatsappAdminStatus) {
+      whatsappAdminStatus.textContent = err && err.message
+        ? err.message
+        : 'Error obteniendo la configuración de notificaciones.';
+    }
+  } finally {
+    setWhatsappAdminBusy(false);
+  }
+}
+
+async function guardarWhatsappAdminConfig() {
+  if (!whatsappAdminDestinos) return;
+
+  setWhatsappAdminBusy(true);
+  try {
+    const data = await apiFetchJson('/admin/empresas/licencia-notificaciones-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destinos: whatsappAdminDestinos.value || '' }),
+    });
+
+    whatsappAdminDestinos.value = data && typeof data.raw === 'string' ? data.raw : (whatsappAdminDestinos.value || '');
+
+    if (whatsappAdminMeta) {
+      whatsappAdminMeta.textContent = data && data.source === 'config'
+        ? `Configuración guardada en panel. Última edición: ${formatFechaHoraPanel(data.updated_at)}`
+        : 'Configuración actualizada.';
+    }
+    if (whatsappAdminStatus) {
+      const totalTargets = Array.isArray(data && data.targets) ? data.targets.length : 0;
+      whatsappAdminStatus.textContent = totalTargets > 0
+        ? `Avisos activos para ${totalTargets} destino(s).`
+        : 'No se guardaron destinos. Si existe una variable de entorno en el servidor, esa seguirá funcionando.';
+    }
+    if (window.showToast) window.showToast('Destino de WhatsApp guardado.', 'success');
+    else alert('Destino de WhatsApp guardado.');
+  } catch (err) {
+    if (whatsappAdminStatus) {
+      whatsappAdminStatus.textContent = err && err.message
+        ? err.message
+        : 'No se pudo guardar el destino de WhatsApp.';
+    }
+    if (window.showToast) window.showToast(err.message || 'Error guardando destino de WhatsApp', 'error');
+    else alert(err.message || 'Error guardando destino de WhatsApp');
+  } finally {
+    setWhatsappAdminBusy(false);
+  }
+}
+
+function applyFocusEmpresaFromQuery() {
+  if (!FOCUS_EMPRESA_ID || focusEmpresaApplied || !tbody) return;
+  const card = tbody.querySelector(`[data-empresa-id="${FOCUS_EMPRESA_ID}"]`);
+  if (!card) return;
+
+  focusEmpresaApplied = true;
+  card.classList.add('ring-2', 'ring-sky-300', 'ring-offset-2', 'ring-offset-slate-50');
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  window.setTimeout(() => {
+    card.classList.remove('ring-2', 'ring-sky-300', 'ring-offset-2', 'ring-offset-slate-50');
+  }, 4000);
+
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('focus');
+    window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+  } catch (_err) {
+    // no-op
   }
 }
 
@@ -534,7 +906,7 @@ function renderEmpresas() {
       : `<div class="grid gap-2 md:grid-cols-2">${accionesControl.slice(1).join('')}</div>`;
 
     html += `
-      <article class="relative overflow-hidden rounded-[28px] border ${visual.card} bg-white shadow-sm shadow-slate-200/60">
+      <article data-empresa-id="${e.id}" class="relative overflow-hidden rounded-[28px] border ${visual.card} bg-white shadow-sm shadow-slate-200/60 transition-shadow">
         <div class="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${visual.accent}"></div>
         <div class="p-5 sm:p-6">
           <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -606,6 +978,7 @@ function renderEmpresas() {
   });
 
   tbody.innerHTML = html;
+  applyFocusEmpresaFromQuery();
 }
 
 // Modernizar selects básicos
@@ -625,7 +998,10 @@ async function patchEmpresa(id, payload, successMessage) {
     } else {
       alert(successMessage || 'Empresa actualizada');
     }
-    await cargarEmpresas();
+    await Promise.all([
+      cargarEmpresas(),
+      cargarLicenciaAlertasPanel(),
+    ]);
   } catch (err) {
     console.error(err);
     if (window.showToast) {
@@ -722,6 +1098,7 @@ async function cargarPagosLicenciaEmpresa(id) {
           if (window.showToast) window.showToast('Estado de pago actualizado', 'success');
           await cargarPagosLicenciaEmpresa(plEmpresaId);
           await cargarEmpresas();
+          await cargarLicenciaAlertasPanel();
         } catch (err) {
           console.error(err);
           if (window.showToast) window.showToast(err.message || 'Error actualizando pago', 'error');
@@ -930,6 +1307,45 @@ window.__toggleAnularVenta = function (id, habilitar) {
   modalConfirm.classList.remove('hidden');
   modalConfirm.classList.add('flex');
 };
+
+if (btnGuardarTasaGeneral) {
+  btnGuardarTasaGeneral.addEventListener('click', () => {
+    guardarTasaGeneralPanel();
+  });
+}
+
+if (btnAutoTasaGeneral) {
+  btnAutoTasaGeneral.addEventListener('click', () => {
+    actualizarTasaGeneralAutomaticaPanel();
+  });
+}
+
+if (btnRecargarTasaGeneral) {
+  btnRecargarTasaGeneral.addEventListener('click', () => {
+    cargarTasaGeneralPanel();
+  });
+}
+
+if (btnRecargarLicenciaAlertas) {
+  btnRecargarLicenciaAlertas.addEventListener('click', () => {
+    cargarLicenciaAlertasPanel();
+  });
+}
+
+if (btnGuardarWhatsappAdmin) {
+  btnGuardarWhatsappAdmin.addEventListener('click', () => {
+    guardarWhatsappAdminConfig();
+  });
+}
+
+if (tasaGeneralInput) {
+  tasaGeneralInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      guardarTasaGeneralPanel();
+    }
+  });
+}
 
 btnBuscar.addEventListener('click', () => {
   cargarEmpresas();
@@ -1220,6 +1636,7 @@ if (formPago && modalPago) {
         modalPago.classList.remove('flex');
         await cargarPagosLicenciaEmpresa(rpEmpresaId);
         await cargarEmpresas();
+        await cargarLicenciaAlertasPanel();
         rpEmpresaId = null;
         return;
       }
@@ -1340,3 +1757,6 @@ window.__eliminarEmpresa = async function (id) {
 // Carga inicial
 cargarEmpresas();
 cargarBranding();
+cargarTasaGeneralPanel();
+cargarLicenciaAlertasPanel();
+cargarWhatsappAdminConfig();

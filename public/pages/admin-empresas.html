@@ -113,11 +113,120 @@
           </div>
         </div>
 
-        <div id="empresas-resumen" class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div class="rounded-[24px] border border-white/10 bg-white/10 p-4 text-white backdrop-blur-sm">
-            <div class="text-[11px] font-black uppercase tracking-[0.24em] text-slate-200/70">Cargando</div>
-            <div class="mt-3 text-3xl font-black tracking-tight">...</div>
-            <p class="mt-2 text-xs text-slate-200/70">Preparando resumen del panel.</p>
+        <div class="mt-6">
+          <div id="empresas-resumen" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-[24px] border border-white/10 bg-white/10 p-4 text-white backdrop-blur-sm">
+              <div class="text-[11px] font-black uppercase tracking-[0.24em] text-slate-200/70">Cargando</div>
+              <div class="mt-3 text-3xl font-black tracking-tight">...</div>
+              <p class="mt-2 text-xs text-slate-200/70">Preparando resumen del panel.</p>
+            </div>
+          </div>
+
+          <div class="mt-5">
+            <aside class="w-full rounded-[28px] border border-slate-200 bg-white/95 p-4 sm:p-5 text-slate-900 shadow-xl shadow-slate-900/10 backdrop-blur-md">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Tasa general</p>
+                  <h3 class="mt-1 text-lg font-black tracking-tight text-slate-900">BCV del sistema</h3>
+                </div>
+                <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-50 text-sky-600 ring-1 ring-sky-100">
+                  <i class="fas fa-bolt text-sm"></i>
+                </span>
+              </div>
+
+              <div class="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.18em]">
+                <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700">Replica masiva</span>
+                <span class="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-700">Override permitido</span>
+              </div>
+
+              <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
+                <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-3.5">
+                  <label class="block text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Valor del día</label>
+                  <div class="mt-2 flex items-center gap-2">
+                    <input id="tasa-general-input" type="number" min="0" step="0.01" placeholder="36.50"
+                      class="h-11 flex-1 rounded-2xl border border-slate-200 bg-white px-4 text-lg font-black tracking-tight text-slate-900 shadow-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-200" />
+                    <span class="inline-flex h-11 items-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black uppercase tracking-[0.2em] text-slate-600">BCV</span>
+                  </div>
+                  <p id="tasa-general-meta" class="mt-2 text-[11px] leading-5 text-slate-500">Cargando tasa actual...</p>
+                  <p id="tasa-general-status" class="mt-3 text-[11px] leading-5 text-slate-500">Actualiza una sola vez aquí y el sistema empuja la tasa a todas las empresas.</p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-1">
+                  <button id="btn-auto-tasa-general"
+                    class="h-10 rounded-2xl bg-emerald-500 px-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:bg-emerald-400 flex items-center justify-center gap-2">
+                    <i class="fas fa-wand-magic-sparkles text-[11px]"></i>
+                    Auto BCV
+                  </button>
+                  <button id="btn-guardar-tasa-general"
+                    class="h-10 rounded-2xl bg-sky-500 px-3 text-sm font-semibold text-white shadow-lg shadow-sky-900/20 transition hover:bg-sky-400 flex items-center justify-center gap-2">
+                    <i class="fas fa-arrows-rotate text-[11px]"></i>
+                    Aplicar
+                  </button>
+                  <button id="btn-recargar-tasa-general"
+                    class="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 flex items-center justify-center gap-2">
+                    <i class="fas fa-clock-rotate-left text-[11px]"></i>
+                    Recargar
+                  </button>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+            <section class="rounded-[28px] border border-slate-200 bg-white/95 p-4 sm:p-5 text-slate-900 shadow-xl shadow-slate-900/10 backdrop-blur-md">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Alertas de pagos</p>
+                  <h3 class="mt-1 text-lg font-black tracking-tight text-slate-900">Solicitudes por revisar</h3>
+                  <p id="licencia-alertas-meta" class="mt-2 text-[11px] leading-5 text-slate-500">Cargando actividad reciente...</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span id="licencia-alertas-badge" class="inline-flex min-w-[46px] items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">0</span>
+                  <button id="btn-recargar-licencia-alertas" class="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 flex items-center justify-center gap-2">
+                    <i class="fas fa-rotate-right text-[11px]"></i>
+                    Refrescar
+                  </button>
+                </div>
+              </div>
+
+              <div id="licencia-alertas-list" class="mt-4 grid gap-3">
+                <div class="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">Cargando alertas de pagos pendientes...</div>
+              </div>
+
+              <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-xs text-slate-500">Cada aviso te lleva al panel master con la empresa enfocada para revisarla rápido.</p>
+                <a href="/admin-suscripciones" class="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/15 transition hover:bg-slate-800">
+                  <i class="fas fa-chart-column text-[11px]"></i>
+                  Ver dashboard
+                </a>
+              </div>
+            </section>
+
+            <section class="rounded-[28px] border border-slate-200 bg-white/95 p-4 sm:p-5 text-slate-900 shadow-xl shadow-slate-900/10 backdrop-blur-md">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Notificación WhatsApp</p>
+                  <h3 class="mt-1 text-lg font-black tracking-tight text-slate-900">Número de revisión</h3>
+                  <p id="whatsapp-admin-meta" class="mt-2 text-[11px] leading-5 text-slate-500">Cargando configuración...</p>
+                </div>
+                <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                  <i class="fab fa-whatsapp text-lg"></i>
+                </span>
+              </div>
+
+              <label class="mt-4 block text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Destinos</label>
+              <textarea id="whatsapp-admin-destinos" rows="4" placeholder="584121234567&#10;584141112233" class="mt-2 w-full rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200"></textarea>
+              <p class="mt-2 text-[11px] leading-5 text-slate-500">Puedes guardar uno o varios números separados por coma o por línea. Si dejas este campo vacío, el sistema usará el valor definido en variables de entorno si existe.</p>
+              <p id="whatsapp-admin-status" class="mt-3 text-[11px] leading-5 text-slate-500">Las empresas enviarán el pago y este panel te avisará aquí y por WhatsApp cuando haya un destino configurado.</p>
+
+              <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500">Formato sugerido: 58412XXXXXXX</span>
+                <button id="btn-guardar-whatsapp-admin" class="h-10 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:bg-emerald-500 flex items-center justify-center gap-2">
+                  <i class="fas fa-paper-plane text-[11px]"></i>
+                  Guardar destino
+                </button>
+              </div>
+            </section>
           </div>
         </div>
       </div>
@@ -321,10 +430,10 @@
   <!-- Scripts -->
   <script src="/js/layout-nav.js"></script>
   <script src="/js/drawer.js"></script>
-  <script type="module" src="/js/auth-guard.js"></script>
+  <script type="module" src="/js/auth-guard.js?v=20260619b"></script>
   <script type="module" src="/js/theme.js"></script>
   <script type="module" src="/js/alerts.js"></script>
-  <script type="module" src="/js/admin-empresas.js"></script>
+  <script type="module" src="/js/admin-empresas.js?v=20260619b"></script>
 </body>
 
 </html>

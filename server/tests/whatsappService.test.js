@@ -117,4 +117,11 @@ describe('whatsappService', () => {
 
     expect(service.__testables.buildSearchTokens('filtro en divisas usd zelle')).toEqual(['filtro']);
   });
+
+  test('normaliza teléfonos de WhatsApp a formato internacional limpio', () => {
+    const service = loadServiceWithProducts([]);
+
+    expect(service.__testables.normalizeWhatsappPhone('+58 414-8804292')).toBe('584148804292');
+    expect(service.__testables.normalizeWhatsappPhone('584148804292')).toBe('584148804292');
+  });
 });

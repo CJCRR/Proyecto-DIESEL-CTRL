@@ -74,7 +74,7 @@ export const MODULE_DEFINITIONS = [
     label: 'Empresas (Master)',
     description: 'Panel maestro multiempresa.',
     path: '/admin-empresas',
-    routes: ['/admin-empresas', '/pages/admin-empresas.html']
+    routes: ['/admin-empresas', '/pages/admin-empresas.html', '/admin-suscripciones', '/pages/admin-suscripciones.html']
   }
 ];
 

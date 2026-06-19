@@ -144,7 +144,7 @@ app.get('/pages/login.html', (req, res) => {
 const htmlPages = [
     'ajustes.html', 'clientes.html', 'cobranzas.html', 'dashboard.html',
     'index.html', 'inicio.html', 'inventario.html', 'login.html', 'reportes.html', 'usuarios.html',
-    'admin-empresas.html', '404.html', 'terminos.html', 'reset-password.html'
+    'admin-empresas.html', 'admin-suscripciones.html', '404.html', 'terminos.html', 'reset-password.html'
 ];
 htmlPages.forEach(page => {
     app.get(`/pages/${page}`, (req, res) => {
@@ -169,6 +169,7 @@ const prettyRoutes = {
     '/proveedores': 'proveedores.html',
     '/compras': 'compras.html',
     '/admin-empresas': 'admin-empresas.html',
+    '/admin-suscripciones': 'admin-suscripciones.html',
     '/404': '404.html',
     '/terminos': 'terminos.html',
     '/reset-password': 'reset-password.html'

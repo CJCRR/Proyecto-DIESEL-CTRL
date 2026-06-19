@@ -111,17 +111,57 @@ function renderPlanSelection() {
 
     cardsList.innerHTML = PLAN_OPTIONS.map((option) => {
         const active = selectedPlanKey === option.key;
+        const isQuarterly = option.key === 'trimestral';
+        const badgeText = isQuarterly ? 'Ahorra $15' : 'Pago flexible';
+        const badgeClass = isQuarterly
+            ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+            : 'bg-sky-100 text-sky-700 border-sky-200';
+        const iconClass = isQuarterly ? 'fa-layer-group' : 'fa-calendar-days';
+        const coverageText = isQuarterly ? 'Cobertura por 3 meses' : 'Cobertura por 1 mes';
+        const footerText = isQuarterly ? 'Un solo pago, menos gestión mensual.' : 'Ideal si prefieres pagos mes a mes.';
         return `
             <button type="button" data-plan-key="${option.key}"
-                class="w-full text-left p-4 border rounded-2xl transition ${active ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-400'}">
-                <div class="flex items-center justify-between gap-3">
-                    <div>
-                        <p class="text-sm font-semibold text-slate-800">${option.title}</p>
-                        <p class="text-[11px] text-slate-500 mt-1">${option.subtitle}</p>
-                    </div>
-                    <span class="text-xs font-semibold text-slate-700">${formatUsd(option.monthlyUsd)} / mes</span>
+                class="plan-option-card relative w-full overflow-hidden text-left rounded-[24px] border p-4 sm:p-5 transition ${active ? 'border-blue-500 bg-gradient-to-br from-blue-50 via-white to-sky-50 shadow-lg shadow-blue-100/70 ring-1 ring-blue-200/70' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md hover:shadow-slate-200/60'}">
+                <div class="absolute right-4 top-4 ${active ? '' : 'opacity-0'} transition-opacity">
+                    <span class="inline-flex h-8 w-8 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-600/25">
+                        <i class="fa-solid fa-check text-xs"></i>
+                    </span>
                 </div>
-                <div class="mt-3 text-[11px] text-slate-500">Total a pagar: ${formatUsd(option.totalUsd)}</div>
+
+                <div class="flex items-start justify-between gap-4 pr-10">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl ${active ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/25' : 'bg-slate-100 text-slate-600'}">
+                                <i class="fa-solid ${iconClass} text-sm"></i>
+                            </span>
+                            <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${badgeClass}">${badgeText}</span>
+                        </div>
+                        <p class="mt-4 text-lg font-black tracking-tight text-slate-900">${option.title}</p>
+                        <p class="mt-1 text-[12px] leading-5 text-slate-500">${option.subtitle}</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <p class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Por mes</p>
+                        <p class="mt-1 text-lg font-black tracking-tight text-slate-900">${formatUsd(option.monthlyUsd)}</p>
+                    </div>
+                </div>
+
+                <div class="mt-5 grid grid-cols-2 gap-3">
+                    <div class="rounded-2xl border border-slate-200/80 bg-white/80 px-3 py-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Pago total</p>
+                        <p class="mt-1 text-base font-black text-slate-900">${formatUsd(option.totalUsd)}</p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200/80 bg-white/80 px-3 py-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Cobertura</p>
+                        <p class="mt-1 text-sm font-semibold text-slate-800">${coverageText}</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 rounded-2xl border ${active ? 'border-blue-100 bg-white/90' : 'border-slate-100 bg-slate-50/70'} px-3 py-3">
+                    <div class="flex items-start gap-2 text-[11px] leading-5 text-slate-600">
+                        <i class="fa-solid fa-circle-info mt-0.5 ${active ? 'text-blue-500' : 'text-slate-400'}"></i>
+                        <span>${footerText}</span>
+                    </div>
+                </div>
             </button>
         `;
     }).join('');
@@ -131,7 +171,10 @@ function renderPlanSelection() {
             selectedPlanKey = button.dataset.planKey;
             renderPlanSelection();
             if (selectionHelp) {
-                selectionHelp.textContent = `Has seleccionado el plan ${getPlanOptionByKey(selectedPlanKey)?.title || ''}. Pulsa guardar para aplicar.`;
+                const selectedPlan = getPlanOptionByKey(selectedPlanKey);
+                selectionHelp.textContent = selectedPlan
+                    ? `Plan ${selectedPlan.title} seleccionado. Al guardar se actualizará el ciclo de cobro y el monto a pagar.`
+                    : 'Selecciona un plan y pulsa guardar para actualizar tu cuenta.';
             }
         });
     });

@@ -15,7 +15,14 @@ export async function apiFetchJson(url, options = {}) {
             data = await res.text().catch(() => null);
         }
         if (!res.ok) {
-            const baseMsg = (data && data.error) ? data.error : (typeof data === 'string' && data) ? data : `HTTP ${res.status}`;
+            const isHtmlError = typeof data === 'string' && /<!doctype html>|<html/i.test(data);
+            const baseMsg = (data && data.error)
+                ? data.error
+                : isHtmlError
+                    ? (res.status === 404 ? 'Ruta no encontrada en el servidor' : `HTTP ${res.status}`)
+                    : (typeof data === 'string' && data)
+                        ? data
+                        : `HTTP ${res.status}`;
             const err = new Error(baseMsg);
             if (data && typeof data === 'object' && data.code) {
                 err.code = data.code;

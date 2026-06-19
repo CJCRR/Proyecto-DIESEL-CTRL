@@ -2,6 +2,7 @@ const db = require('../db');
 const { insertAlerta } = require('../routes/alertas');
 const { validationError } = require('./validationUtils');
 const XLSX = require('xlsx');
+const logger = require('./logger');
 const { getVentasRango, getTopClientes, getRentabilidadCategorias } = require('./reportesService');
 const { listCompras } = require('./comprasService');
 const { listCuentas } = require('./cobranzasService');
@@ -235,6 +236,139 @@ function getConfigJSON(clave, defObj = {}) {
   }
 }
 
+function formatUsdMonto(value) {
+  const amount = Number(value || 0) || 0;
+  try {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch (_err) {
+    return amount.toFixed(2);
+  }
+}
+
+function formatFechaPagoNotificacion(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Sin fecha';
+
+  const simpleMatch = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+  const date = simpleMatch
+    ? (() => {
+        const [year, month, day] = raw.split('-').map(Number);
+        return new Date(year, month - 1, day, 12, 0, 0, 0);
+      })()
+    : new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return raw;
+  }
+
+  try {
+    return date.toLocaleString('es-VE', {
+      dateStyle: 'short',
+      timeStyle: simpleMatch ? undefined : 'short',
+    });
+  } catch (_err) {
+    return raw;
+  }
+}
+
+function getWhatsappAdminTargets() {
+  const raw = getConfig('whatsapp_admin_notificaciones', '')
+    || process.env.WHATSAPP_ADMIN_NOTIFY_TO
+    || process.env.WHATSAPP_ADMIN_PHONE
+    || '';
+
+  return String(raw)
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildPagoLicenciaAdminMessage(context = {}) {
+  const empresa = context.empresa || {};
+  const pago = context.pago || {};
+  const usuario = context.usuario || {};
+  const empresaNombre = safeStr(empresa.nombre, 120) || `Empresa #${empresa.id || pago.empresa_id || 'N/D'}`;
+  const empresaCodigo = safeStr(empresa.codigo, 60);
+  const tipo = safeStr(pago.tipo, 40) || 'No especificado';
+  const referencia = safeStr(pago.referencia, 120) || 'Sin referencia';
+  const plan = safeStr(empresa.plan, 80) || 'Sin plan';
+  const usuarioLabel = safeStr(usuario.nombre, 120) || safeStr(usuario.username, 120) || 'Portal empresa';
+  const monto = `$${formatUsdMonto(pago.monto_usd)}`;
+  const fecha = formatFechaPagoNotificacion(pago.fecha);
+  const notas = safeStr(pago.notas, 220);
+  const codigoLine = empresaCodigo ? ` (${empresaCodigo})` : '';
+
+  return [
+    'Nuevo pago de licencia pendiente.',
+    `Empresa: ${empresaNombre}${codigoLine}`,
+    `Monto: ${monto}`,
+    `Fecha: ${fecha}`,
+    `Tipo: ${tipo}`,
+    `Referencia: ${referencia}`,
+    `Plan: ${plan}`,
+    `Usuario: ${usuarioLabel}`,
+    notas ? `Notas: ${notas}` : null,
+    'Revisa el panel Empresas (Master) para validarlo.',
+  ].filter(Boolean).join('\n');
+}
+
+function registrarAlertaYWhatsappPagoLicencia(context = {}) {
+  const empresa = context.empresa || {};
+  const pago = context.pago || {};
+  const usuario = context.usuario || {};
+  const empresaNombre = safeStr(empresa.nombre, 120) || `Empresa #${empresa.id || pago.empresa_id || 'N/D'}`;
+  const monto = `$${formatUsdMonto(pago.monto_usd)}`;
+  const mensaje = `${empresaNombre} reportó un pago de licencia por ${monto}.`;
+
+  insertAlerta('licencia_pago_pendiente', mensaje, {
+    pago_id: pago.id || null,
+    empresa_id: empresa.id || pago.empresa_id || null,
+    empresa_nombre: empresaNombre,
+    empresa_codigo: safeStr(empresa.codigo, 60) || null,
+    plan: safeStr(empresa.plan, 80) || null,
+    monto_usd: Number(pago.monto_usd || 0) || 0,
+    fecha_pago: pago.fecha || null,
+    referencia: safeStr(pago.referencia, 120) || null,
+    tipo: safeStr(pago.tipo, 40) || null,
+    estado: safeStr(pago.estado, 20) || 'pendiente',
+    usuario_id: usuario && usuario.id ? Number(usuario.id) : null,
+    usuario_nombre: safeStr(usuario.nombre, 120) || safeStr(usuario.username, 120) || null,
+    origen: safeStr(pago.origen, 40) || 'portal-empresa',
+    panel_path: `/pages/admin-empresas.html?focus=${encodeURIComponent(String(empresa.id || pago.empresa_id || ''))}`,
+  });
+
+  const targets = getWhatsappAdminTargets();
+  if (!targets.length) {
+    return;
+  }
+
+  let sendMessage;
+  try {
+    ({ sendMessage } = require('./whatsappService'));
+  } catch (err) {
+    logger.warn('No se pudo cargar whatsappService para notificar pago de licencia', { message: err.message });
+    return;
+  }
+
+  if (typeof sendMessage !== 'function') {
+    logger.warn('whatsappService no expone sendMessage para notificar pago de licencia');
+    return;
+  }
+
+  const text = buildPagoLicenciaAdminMessage(context);
+  targets.forEach((target) => {
+    Promise.resolve(sendMessage(target, text)).catch((err) => {
+      logger.warn('No se pudo enviar WhatsApp de pago de licencia', {
+        to: target,
+        message: err.message,
+      });
+    });
+  });
+}
+
 // ===== PAGOS DE LICENCIA DESDE PORTAL DE EMPRESA =====
 
 function registrarSolicitudPagoLicencia(empresaId, usuario, payload = {}) {
@@ -272,11 +406,25 @@ function registrarSolicitudPagoLicencia(empresaId, usuario, payload = {}) {
     notas,
   );
 
-  return db.prepare(`
+  const pago = db.prepare(`
       SELECT id, empresa_id, fecha, monto_usd, moneda, referencia, descripcion, origen, estado, tipo, comprobante_url, notas, usuario_id
       FROM pagos_licencia
       WHERE id = ?
     `).get(info.lastInsertRowid);
+
+  const empresa = db.prepare(`
+      SELECT id, nombre, codigo, plan, monto_mensual
+      FROM empresas
+      WHERE id = ?
+    `).get(eid) || { id: eid };
+
+  registrarAlertaYWhatsappPagoLicencia({
+    empresa,
+    pago,
+    usuario,
+  });
+
+  return pago;
 }
 
 function listarPagosLicenciaEmpresa(empresaId, filtros = {}) {
@@ -518,6 +666,68 @@ function guardarTasaBcv(tasa, empresaId) {
 }
 
 /**
+ * Guarda la tasa BCV global y la replica en todas las empresas existentes.
+ *
+ * Esto permite que Superadmin empuje una tasa general del día para todo el
+ * sistema. Luego, cada empresa puede volver a sobrescribir su propia tasa
+ * usando el flujo normal por empresa cuando lo necesite.
+ *
+ * @param {number} tasa
+ * @returns {{ok:true,tasa_bcv:number,actualizado_en:string,empresas_actualizadas:number}}
+ */
+function guardarTasaBcvGeneral(tasa) {
+  const rate = Number(tasa);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw validationError('Tasa inválida', 'TASA_BCV_INVALIDA');
+  }
+
+  const now = new Date().toISOString();
+
+  db.transaction(() => {
+    setConfig('tasa_bcv', rate, now);
+
+    const empresasRows = db.prepare('SELECT id FROM empresas').all();
+    for (const row of empresasRows) {
+      const eid = Number(row && row.id);
+      if (!Number.isFinite(eid) || eid <= 0) continue;
+      setConfig(buildTasaKey(eid), rate, now);
+    }
+  })();
+
+  const totalEmpresas = db.prepare('SELECT COUNT(*) AS total FROM empresas').get();
+  return {
+    ok: true,
+    tasa_bcv: rate,
+    actualizado_en: now,
+    empresas_actualizadas: Number(totalEmpresas && totalEmpresas.total) || 0,
+  };
+}
+
+/**
+ * Busca automáticamente la tasa BCV del día y la replica a todas las empresas.
+ *
+ * @returns {Promise<{ok:boolean,tasa_bcv:number,actualizado_en?:string,empresas_actualizadas?:number,error?:string}>}
+ */
+async function actualizarTasaBcvGeneralAutomatica() {
+  const result = await actualizarTasaBcvAutomatica();
+  const tasa = Number(result && result.tasa_bcv);
+
+  if (!result || result.ok !== true || !Number.isFinite(tasa) || tasa <= 0) {
+    return {
+      ok: false,
+      tasa_bcv: Number.isFinite(tasa) && tasa > 0 ? tasa : 1,
+      error: (result && result.error) || 'No fue posible obtener la tasa automática',
+    };
+  }
+
+  const synced = guardarTasaBcvGeneral(tasa);
+  return {
+    ...synced,
+    ok: true,
+  };
+}
+
+/**
  * Intenta actualizar la tasa BCV consultando varias fuentes externas.
  * Nunca lanza error: devuelve un objeto con `ok=false` y la tasa previa
  * si no se pudo actualizar.
@@ -527,6 +737,17 @@ function guardarTasaBcv(tasa, empresaId) {
  */
 async function actualizarTasaBcvAutomatica(empresaId) {
   const https = require('https');
+  const bcvAgent = new https.Agent({ rejectUnauthorized: false });
+
+  function parseRateCandidate(raw) {
+    if (raw === null || raw === undefined) return NaN;
+    const text = String(raw).trim();
+    if (!text) return NaN;
+    if (text.includes(',')) {
+      return parseFloat(text.replace(/\./g, '').replace(',', '.'));
+    }
+    return parseFloat(text.replace(/[^0-9.]/g, ''));
+  }
 
   async function fetchJSON(url) {
     return new Promise((resolve, reject) => {
@@ -540,9 +761,12 @@ async function actualizarTasaBcvAutomatica(empresaId) {
     });
   }
 
-  async function fetchHTML(url) {
+  async function fetchHTML(url, options = {}) {
     return new Promise((resolve, reject) => {
-      https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'es-VE,es;q=0.9,en;q=0.8' } }, (resp) => {
+      https.get(url, {
+        agent: options.allowInsecureTls ? bcvAgent : undefined,
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'es-VE,es;q=0.9,en;q=0.8' },
+      }, (resp) => {
         let data = '';
         resp.on('data', chunk => { data += chunk; });
         resp.on('end', () => resolve(data));
@@ -555,16 +779,20 @@ async function actualizarTasaBcvAutomatica(empresaId) {
 
     // 1) Scrape BCV oficial
     try {
-      const html = await fetchHTML('https://www.bcv.org.ve/');
+      // El sitio oficial del BCV está respondiendo con una cadena TLS que Node
+      // no valida correctamente en algunos entornos. Limitamos esta tolerancia
+      // solo a esta consulta pública de lectura.
+      const html = await fetchHTML('https://www.bcv.org.ve/', { allowInsecureTls: true });
       const patterns = [
-        /USD\s*<\/strong>\s*([0-9\.]{3,9},[0-9]{2})/i,
-        /USD[^0-9]+([0-9\.]{3,9},[0-9]{2})/i,
-        /D(?:\u00f3|ó)lar\s+USD[^0-9]+([0-9\.]{3,9},[0-9]{2})/i,
+        /dollar-04_2\.png[\s\S]{0,250}?strong[^>]*>\s*([0-9.,]{4,24})\s*<\/strong>/i,
+        /<span>\s*USD\s*<\/span>[\s\S]{0,180}?strong[^>]*>\s*([0-9.,]{4,24})\s*<\/strong>/i,
+        /USD\s*<\/span>[\s\S]{0,180}?([0-9.,]{4,24})[\s\S]{0,120}?Fecha Valor/i,
+        /USD\s+([0-9.,]{4,24})\s*Fecha Valor/i,
       ];
       for (const re of patterns) {
         const m = html.match(re);
         if (m && m[1]) {
-          tasa = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+          tasa = parseRateCandidate(m[1]);
           if (!Number.isNaN(tasa) && tasa > 0) break;
         }
       }
@@ -576,7 +804,7 @@ async function actualizarTasaBcvAutomatica(empresaId) {
     if (!tasa || Number.isNaN(tasa)) {
       try {
         const j = await fetchJSON('https://pydolarve.org/api/v1/dollar?page=bcv');
-        tasa = parseFloat(j?.monitors?.bcv?.price || j?.bcv?.price || j?.price || j?.promedio || j?.[0]?.price);
+        tasa = parseRateCandidate(j?.monitors?.bcv?.price || j?.bcv?.price || j?.price || j?.promedio || j?.[0]?.price);
       } catch (e) {}
     }
 
@@ -584,7 +812,7 @@ async function actualizarTasaBcvAutomatica(empresaId) {
     if (!tasa || Number.isNaN(tasa)) {
       try {
         const j2 = await fetchJSON('https://pydolarvenezuela-api.vercel.app/api/v1/dollar');
-        tasa = parseFloat(j2?.bcv?.price || j2?.BCV?.promedio || j2?.BCV?.price);
+        tasa = parseRateCandidate(j2?.bcv?.price || j2?.BCV?.promedio || j2?.BCV?.price);
       } catch (e) {}
     }
 
@@ -592,7 +820,7 @@ async function actualizarTasaBcvAutomatica(empresaId) {
     if (!tasa || Number.isNaN(tasa)) {
       try {
         const j3 = await fetchJSON('https://api.exchangerate.host/latest?base=USD&symbols=VES');
-        tasa = parseFloat(j3?.rates?.VES);
+        tasa = parseRateCandidate(j3?.rates?.VES);
       } catch (e) {}
     }
 
@@ -1204,6 +1432,8 @@ module.exports = {
   reconciliarStockEmpresa,
   obtenerTasaBcv,
   guardarTasaBcv,
+  guardarTasaBcvGeneral,
+  actualizarTasaBcvGeneralAutomatica,
   actualizarTasaBcvAutomatica,
   obtenerStockMinimo,
   guardarStockMinimo,

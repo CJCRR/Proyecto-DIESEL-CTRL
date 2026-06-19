@@ -261,6 +261,16 @@ function getWahaConfig() {
     };
 }
 
+function normalizeWhatsappPhone(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+        return '';
+    }
+
+    const digits = raw.replace(/\D/g, '');
+    return digits || raw;
+}
+
 function normalizeWahaChatId(value) {
     const raw = String(value || '').trim();
     if (!raw) {
@@ -275,21 +285,27 @@ function normalizeWahaChatId(value) {
         return raw;
     }
 
-    const digits = raw.replace(/\D/g, '');
+    const digits = normalizeWhatsappPhone(raw);
     return digits ? `${digits}@c.us` : raw;
 }
 
 async function sendMessageViaMeta(to, text) {
     const { apiVersion, token, phoneId } = getMetaConfig();
+    const normalizedTo = normalizeWhatsappPhone(to);
 
     if (!token || !phoneId) {
         logger.error('whatsappService: WHATSAPP_TOKEN o WHATSAPP_PHONE_ID no configurados');
         return;
     }
 
+    if (!normalizedTo) {
+        logger.error('whatsappService: número destino inválido para Meta');
+        return;
+    }
+
     const body = JSON.stringify({
         messaging_product: 'whatsapp',
-        to,
+        to: normalizedTo,
         type: 'text',
         text: { body: text },
     });
@@ -674,6 +690,7 @@ module.exports = {
     detectIntent,
     buscarProductos,
     __testables: {
+        normalizeWhatsappPhone,
         buildSearchTokens,
         buildReply,
         shouldQuoteBaseUsd,

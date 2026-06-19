@@ -439,19 +439,22 @@ import { getFirstAllowedRoute, getRouteModuleKey, userHasModulePermission } from
     if (!u) return false;
 
     const path = window.location.pathname;
+    const esPanelEmpresasPretty = path.startsWith('/admin-empresas');
+    const esPanelEmpresasLegacy = path.startsWith('/pages/admin-empresas.html');
+    const esPanelSuscripcionesPretty = path.startsWith('/admin-suscripciones');
+    const esPanelSuscripcionesLegacy = path.startsWith('/pages/admin-suscripciones.html');
 
     // Superadmin: solo panel master y ajustes (2FA)
     if (isSuperAdminRole(u.rol)) {
-      const esPanelEmpresas = path.startsWith('/admin-empresas');
       const esAjustes = path.startsWith('/ajustes');
-      if (!esPanelEmpresas && !esAjustes) {
+      if (!esPanelEmpresasPretty && !esPanelEmpresasLegacy && !esPanelSuscripcionesPretty && !esPanelSuscripcionesLegacy && !esAjustes) {
         window.location.href = getRedirectRouteForUser(u);
         return false;
       }
       return true;
     }
 
-    const esPanelEmpresas = path.startsWith('/admin-empresas');
+    const esPanelEmpresas = esPanelEmpresasPretty || esPanelEmpresasLegacy || esPanelSuscripcionesPretty || esPanelSuscripcionesLegacy;
     if (esPanelEmpresas) {
       // Panel master solo para superadmin
       window.location.href = getRedirectRouteForUser(u);
@@ -525,9 +528,15 @@ import { getFirstAllowedRoute, getRouteModuleKey, userHasModulePermission } from
           const menuItems = [];
           if (userHasModulePermission(currentUser, 'admin_empresas')) {
             menuItems.push(`
-            <a href="/pages/admin-empresas.html" data-module-key="admin_empresas" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+            <a href="/admin-empresas" data-module-key="admin_empresas" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
               <i class="fas fa-building text-blue-600"></i>
               Empresas (Master)
+            </a>
+            `);
+            menuItems.push(`
+            <a href="/admin-suscripciones" data-module-key="admin_empresas" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 transition">
+              <i class="fas fa-chart-pie text-cyan-600"></i>
+              Suscripciones
             </a>
             `);
           }
