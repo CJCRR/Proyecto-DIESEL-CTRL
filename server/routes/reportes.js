@@ -33,6 +33,14 @@ const {
   buildComisionesVendedoresCsv,
 } = require('../services/reportesService');
 
+// Helper para paginación estándar
+function getPaginationParams(query) {
+  const page = Math.max(parseInt(query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 500);
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}
+
 // Middleware para evitar que el superadmin vea datos de ventas de empresas
 function forbidSuperadmin(req, res, next) {
   if (req.usuario && req.usuario.rol === 'superadmin') {
@@ -43,36 +51,38 @@ function forbidSuperadmin(req, res, next) {
 
 router.get('/ventas', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const ventas = getVentasSinDevolucion(req.usuario.empresa_id || null);
+    const { limit, offset } = getPaginationParams(req.query);
+    const ventas = getVentasSinDevolucion(req.usuario.empresa_id || null, { limit, offset });
     res.json(ventas);
   } catch (err) {
-  logger.error('Error en /reportes/ventas', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener ventas', code: 'REPORTE_VENTAS_ERROR' });
+    logger.error('Error en /reportes/ventas', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener ventas', code: 'REPORTE_VENTAS_ERROR' });
   }
 });
 
-// GET /reportes/ventas-rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&vendedor=X&metodo=Y
+// GET /reportes/ventas-rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&vendedor=X&metodo=Y&page=&limit=
 router.get('/ventas-rango', requireAuth, forbidSuperadmin, (req, res) => {
   try {
     const { desde, hasta, cliente, vendedor, metodo } = req.query;
-    const rows = getVentasRango({ desde, hasta, cliente, vendedor, metodo, limit: 1000 }, req.usuario.empresa_id || null);
+    const { page, limit, offset } = getPaginationParams(req.query);
+    const rows = getVentasRango({ desde, hasta, cliente, vendedor, metodo, limit, offset }, req.usuario.empresa_id || null);
     console.log('Ventas encontradas:', rows.length);
-    res.json(rows);
+    res.json({ items: rows, page, limit });
   } catch (err) {
-  logger.error('Error en ventas-rango', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener ventas por rango', code: 'REPORTE_VENTAS_RANGO_ERROR' });
+    logger.error('Error en ventas-rango', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener ventas por rango', code: 'REPORTE_VENTAS_RANGO_ERROR' });
   }
 });
 
@@ -112,14 +122,14 @@ router.get('/ventas/export/csv', requireAuth, forbidSuperadmin, (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err) {
-  logger.error('Error exportando CSV ventas-rango', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al exportar CSV', code: 'REPORTE_VENTAS_CSV_ERROR' });
+    logger.error('Error exportando CSV ventas-rango', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al exportar CSV', code: 'REPORTE_VENTAS_CSV_ERROR' });
   }
 });
 
@@ -132,34 +142,33 @@ router.get('/kpis', requireAuth, forbidSuperadmin, (req, res) => {
     const kpis = getKpis(req.usuario.empresa_id || null, { desde, hasta });
     res.json(kpis);
   } catch (err) {
-  logger.error('Error obteniendo KPIs', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener KPIs', code: 'REPORTE_KPIS_ERROR' });
+    logger.error('Error obteniendo KPIs', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener KPIs', code: 'REPORTE_KPIS_ERROR' });
   }
 });
-
 
 // GET /reportes/top-productos?limit=&desde=&hasta= - Top productos por ventas (cantidad, montos, costo y margen)
 router.get('/top-productos', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 200);
     const { desde, hasta } = req.query;
     const rows = getTopProductos(limit, req.usuario.empresa_id || null, { desde, hasta });
     res.json(rows);
   } catch (err) {
-  logger.error('Error obteniendo top productos', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener top productos', code: 'REPORTE_TOP_PRODUCTOS_ERROR' });
+    logger.error('Error obteniendo top productos', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener top productos', code: 'REPORTE_TOP_PRODUCTOS_ERROR' });
   }
 });
 
@@ -171,14 +180,14 @@ router.get('/margen-productos', requireAuth, forbidSuperadmin, (req, res) => {
     const rows = getMargenProductos({ desde, hasta, limit, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
-  logger.error('Error obteniendo margen-productos', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener margen por producto', code: 'REPORTE_MARGEN_PRODUCTOS_ERROR' });
+    logger.error('Error obteniendo margen-productos', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener margen por producto', code: 'REPORTE_MARGEN_PRODUCTOS_ERROR' });
   }
 });
 
@@ -189,14 +198,14 @@ router.get('/abc/productos', requireAuth, forbidSuperadmin, (req, res) => {
     const rows = getAbcProductos({ desde, hasta, a_pct, b_pct, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
-  logger.error('Error ABC productos', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener ABC de productos', code: 'REPORTE_ABC_PRODUCTOS_ERROR' });
+    logger.error('Error ABC productos', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener ABC de productos', code: 'REPORTE_ABC_PRODUCTOS_ERROR' });
   }
 });
 
@@ -210,14 +219,14 @@ router.get('/inventario', requireAuth, forbidSuperadmin, (req, res) => {
       : getInventario(empresaId);
     res.json(inventario);
   } catch (err) {
-  logger.error('Error obteniendo inventario', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener inventario', code: 'REPORTE_INVENTARIO_ERROR' });
+    logger.error('Error obteniendo inventario', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener inventario', code: 'REPORTE_INVENTARIO_ERROR' });
   }
 });
 
@@ -229,15 +238,15 @@ router.get('/ventas/:id', requireAuth, forbidSuperadmin, (req, res) => {
     }
     res.json(result);
   } catch (err) {
-  logger.error('Error obteniendo venta por id', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null,
-    ventaId: req.params.id
-  });
-  res.status(500).json({ error: 'Error al obtener venta', code: 'REPORTE_VENTA_DETALLE_ERROR' });
+    logger.error('Error obteniendo venta por id', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null,
+      ventaId: req.params.id
+    });
+    res.status(500).json({ error: 'Error al obtener venta', code: 'REPORTE_VENTA_DETALLE_ERROR' });
   }
 });
 
@@ -248,14 +257,14 @@ router.get('/rentabilidad/categorias', requireAuth, forbidSuperadmin, (req, res)
     const rows = getRentabilidadCategorias({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
-  logger.error('Error rentabilidad categorias', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener rentabilidad por categoría', code: 'REPORTE_RENTABILIDAD_CATEGORIAS_ERROR' });
+    logger.error('Error rentabilidad categorias', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener rentabilidad por categoría', code: 'REPORTE_RENTABILIDAD_CATEGORIAS_ERROR' });
   }
 });
 
@@ -265,14 +274,14 @@ router.get('/rentabilidad/proveedores', requireAuth, forbidSuperadmin, (req, res
     const rows = getRentabilidadProveedores({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
-  logger.error('Error rentabilidad proveedores', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener rentabilidad por proveedor', code: 'REPORTE_RENTABILIDAD_PROVEEDORES_ERROR' });
+    logger.error('Error rentabilidad proveedores', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener rentabilidad por proveedor', code: 'REPORTE_RENTABILIDAD_PROVEEDORES_ERROR' });
   }
 });
 
@@ -282,14 +291,14 @@ router.get('/resumen-financiero', requireAuth, forbidSuperadmin, (req, res) => {
     const data = getResumenFinanciero({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(data);
   } catch (err) {
-  logger.error('Error resumen financiero', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener resumen financiero', code: 'REPORTE_RESUMEN_FINANCIERO_ERROR' });
+    logger.error('Error resumen financiero', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener resumen financiero', code: 'REPORTE_RESUMEN_FINANCIERO_ERROR' });
   }
 });
 
@@ -388,14 +397,14 @@ router.get('/rentabilidad/categorias/export/csv', requireAuth, forbidSuperadmin,
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err) {
-  logger.error('Error exportando CSV categorias', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al exportar CSV de categorías', code: 'REPORTE_RENTABILIDAD_CATEGORIAS_CSV_ERROR' });
+    logger.error('Error exportando CSV categorias', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al exportar CSV de categorías', code: 'REPORTE_RENTABILIDAD_CATEGORIAS_CSV_ERROR' });
   }
 });
 
@@ -432,14 +441,14 @@ router.get('/rentabilidad/proveedores/export/csv', requireAuth, forbidSuperadmin
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err) {
-  logger.error('Error exportando CSV proveedores', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al exportar CSV de proveedores', code: 'REPORTE_RENTABILIDAD_PROVEEDORES_CSV_ERROR' });
+    logger.error('Error exportando CSV proveedores', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al exportar CSV de proveedores', code: 'REPORTE_RENTABILIDAD_PROVEEDORES_CSV_ERROR' });
   }
 });
 
@@ -451,14 +460,14 @@ router.get('/bajo-stock', requireAuth, forbidSuperadmin, (req, res) => {
     const { min, items } = getBajoStock(req.query.umbral, req.usuario.empresa_id || null);
     res.json({ min, items });
   } catch (err) {
-  logger.error('Error bajo-stock', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener bajo stock', code: 'REPORTE_BAJO_STOCK_ERROR' });
+    logger.error('Error bajo-stock', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener bajo stock', code: 'REPORTE_BAJO_STOCK_ERROR' });
   }
 });
 
@@ -471,14 +480,14 @@ router.get('/series/ventas-diarias', requireAuth, forbidSuperadmin, (req, res) =
     const rows = getSeriesVentasDiarias(dias, req.usuario.empresa_id || null);
     res.json(rows);
   } catch (err) {
-  logger.error('Error series ventas-diarias', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener ventas diarias', code: 'REPORTE_SERIES_DIARIAS_ERROR' });
+    logger.error('Error series ventas-diarias', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener ventas diarias', code: 'REPORTE_SERIES_DIARIAS_ERROR' });
   }
 });
 
@@ -489,14 +498,14 @@ router.get('/series/ventas-mensuales', requireAuth, forbidSuperadmin, (req, res)
     const rows = getSeriesVentasMensuales(meses, req.usuario.empresa_id || null);
     res.json(rows);
   } catch (err) {
-  logger.error('Error series ventas-mensuales', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener ventas mensuales', code: 'REPORTE_SERIES_MENSUALES_ERROR' });
+    logger.error('Error series ventas-mensuales', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener ventas mensuales', code: 'REPORTE_SERIES_MENSUALES_ERROR' });
   }
 });
 
@@ -507,14 +516,14 @@ router.get('/tendencias/mensuales', requireAuth, forbidSuperadmin, (req, res) =>
     const enhanced = getTendenciasMensuales(meses, req.usuario.empresa_id || null);
     res.json(enhanced);
   } catch (err) {
-  logger.error('Error tendencias mensuales', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener tendencias mensuales', code: 'REPORTE_TENDENCIAS_MENSUALES_ERROR' });
+    logger.error('Error tendencias mensuales', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener tendencias mensuales', code: 'REPORTE_TENDENCIAS_MENSUALES_ERROR' });
   }
 });
 
@@ -526,14 +535,14 @@ router.get('/top-clientes', requireAuth, forbidSuperadmin, (req, res) => {
     const rows = getTopClientes({ desde, hasta, limit, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
-  logger.error('Error top-clientes', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener top clientes', code: 'REPORTE_TOP_CLIENTES_ERROR' });
+    logger.error('Error top-clientes', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener top clientes', code: 'REPORTE_TOP_CLIENTES_ERROR' });
   }
 });
 
@@ -544,14 +553,14 @@ router.get('/abc/clientes', requireAuth, forbidSuperadmin, (req, res) => {
     const rows = getAbcClientes({ desde, hasta, a_pct, b_pct, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
-  logger.error('Error ABC clientes', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener ABC de clientes', code: 'REPORTE_ABC_CLIENTES_ERROR' });
+    logger.error('Error ABC clientes', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener ABC de clientes', code: 'REPORTE_ABC_CLIENTES_ERROR' });
   }
 });
 
@@ -562,14 +571,14 @@ router.get('/vendedores', requireAuth, forbidSuperadmin, (req, res) => {
     const rows = getVendedoresRanking({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(rows);
   } catch (err) {
-  logger.error('Error vendedores comparativa', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener comparativa de vendedores', code: 'REPORTE_VENDEDORES_COMPARATIVA_ERROR' });
+    logger.error('Error vendedores comparativa', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener comparativa de vendedores', code: 'REPORTE_VENDEDORES_COMPARATIVA_ERROR' });
   }
 });
 
@@ -580,14 +589,14 @@ router.get('/vendedores/roi', requireAuth, forbidSuperadmin, (req, res) => {
     const enriched = getVendedoresRoi({ desde, hasta, empresaId: req.usuario.empresa_id || null });
     res.json(enriched);
   } catch (err) {
-  logger.error('Error ROI vendedores', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener ROI por vendedor', code: 'REPORTE_VENDEDORES_ROI_ERROR' });
+    logger.error('Error ROI vendedores', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener ROI por vendedor', code: 'REPORTE_VENDEDORES_ROI_ERROR' });
   }
 });
 
@@ -597,14 +606,14 @@ router.get('/margen/actual', requireAuth, forbidSuperadmin, (req, res) => {
     const data = getMargenActual(req.usuario.empresa_id || null);
     res.json(data);
   } catch (err) {
-  logger.error('Error margen actual', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener margen', code: 'REPORTE_MARGEN_ACTUAL_ERROR' });
+    logger.error('Error margen actual', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener margen', code: 'REPORTE_MARGEN_ACTUAL_ERROR' });
   }
 });
 
@@ -614,16 +623,17 @@ router.get('/margen/actual', requireAuth, forbidSuperadmin, (req, res) => {
 // ===== Historial por cliente =====
 router.get('/historial-cliente', requireAuth, forbidSuperadmin, (req, res) => {
   try {
-    const rows = getHistorialCliente({ ...req.query, empresaId: req.usuario.empresa_id || null });
-    res.json(rows);
+    const { page, limit, offset } = getPaginationParams(req.query);
+    const rows = getHistorialCliente({ ...req.query, empresaId: req.usuario.empresa_id || null, limit, offset });
+    res.json({ items: rows, page, limit });
   } catch (err) {
-  logger.error('Error historial-cliente', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    user: req.usuario ? req.usuario.id : null
-  });
-  res.status(500).json({ error: 'Error al obtener historial', code: 'REPORTE_HISTORIAL_CLIENTE_ERROR' });
+    logger.error('Error historial-cliente', {
+      message: err.message,
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      user: req.usuario ? req.usuario.id : null
+    });
+    res.status(500).json({ error: 'Error al obtener historial', code: 'REPORTE_HISTORIAL_CLIENTE_ERROR' });
   }
 });

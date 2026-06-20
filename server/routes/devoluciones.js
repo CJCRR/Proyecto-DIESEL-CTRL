@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('./auth');
+const { body, validate } = require('../middleware/validation');
 const { registrarDevolucion, getHistorialDevoluciones, getDevolucionConDetalles } = require('../services/devolucionesService');
 
 // El superadmin no debe registrar ni ver devoluciones de empresas
@@ -11,8 +12,68 @@ function forbidSuperadmin(req, res, next) {
   next();
 }
 
+// Validaciones para crear devolución
+const devolucionValidaciones = [
+  body('items')
+    .isArray({ min: 1 })
+    .withMessage('Debe enviar al menos un ítem en la devolución'),
+  body('items.*.codigo')
+    .notEmpty()
+    .isString()
+    .isLength({ max: 64 })
+    .withMessage('Código de producto inválido'),
+  body('items.*.cantidad')
+    .isInt({ min: 1, max: 100000 })
+    .withMessage('Cantidad debe ser un número entero entre 1 y 100000'),
+  body('cliente')
+    .optional()
+    .isString()
+    .isLength({ max: 120 })
+    .withMessage('Nombre de cliente demasiado largo'),
+  body('cliente_doc')
+    .optional()
+    .isString()
+    .isLength({ max: 40 })
+    .withMessage('Documento de cliente inválido'),
+  body('telefono')
+    .optional()
+    .isString()
+    .isLength({ max: 40 })
+    .withMessage('Teléfono inválido'),
+  body('motivo')
+    .optional()
+    .isString()
+    .isLength({ max: 500 })
+    .withMessage('Motivo demasiado largo'),
+  body('venta_original_id')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('ID de venta original inválido'),
+  body('tasa_bcv')
+    .optional()
+    .isFloat({ gt: 0 })
+    .withMessage('La tasa BCV debe ser un número mayor a 0'),
+];
+
+// Validaciones para historial (query params)
+const historialValidaciones = [
+  body('cliente')
+    .optional()
+    .isString()
+    .isLength({ max: 120 })
+    .withMessage('Cliente inválido'),
+  body('desde')
+    .optional()
+    .isISO8601()
+    .withMessage('Fecha desde inválida'),
+  body('hasta')
+    .optional()
+    .isISO8601()
+    .withMessage('Fecha hasta inválida'),
+];
+
 // Registrar una devolución de productos
-router.post('/', requireAuth, forbidSuperadmin, (req, res) => {
+router.post('/', requireAuth, forbidSuperadmin, validate(devolucionValidaciones), (req, res) => {
   try {
     const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
     const usuarioId = req.usuario && req.usuario.id ? req.usuario.id : null;

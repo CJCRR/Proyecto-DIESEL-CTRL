@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const logger = require('../services/logger');
 const { requireAuth, requireRole } = require('./auth');
 const bcrypt = require('bcryptjs');
 const { registrarEventoNegocio } = require('../services/eventosService');
@@ -52,9 +53,9 @@ function parseFechaLocal(value) {
   const simpleMatch = /^\d{4}-\d{2}-\d{2}$/.test(raw);
   const date = simpleMatch
     ? (() => {
-        const [year, month, day] = raw.split('-').map(Number);
-        return new Date(year, month - 1, day);
-      })()
+      const [year, month, day] = raw.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    })()
     : new Date(raw);
   if (Number.isNaN(date.getTime())) return null;
   date.setHours(0, 0, 0, 0);
@@ -173,9 +174,9 @@ function listLicenciaAlertas(limit = 6) {
 
   const pagos = db.prepare(`
     SELECT pl.id, pl.empresa_id, pl.fecha, pl.monto_usd, pl.moneda, pl.referencia, pl.descripcion,
-           pl.origen, pl.estado, pl.tipo, pl.comprobante_url, pl.notas, pl.creado_en,
-           e.nombre AS empresa_nombre, e.codigo AS empresa_codigo, e.plan, e.proximo_cobro,
-           e.dias_gracia, e.estado AS empresa_estado
+      pl.origen, pl.estado, pl.tipo, pl.comprobante_url, pl.notas, pl.creado_en,
+      e.nombre AS empresa_nombre, e.codigo AS empresa_codigo, e.plan, e.proximo_cobro,
+      e.dias_gracia, e.estado AS empresa_estado
     FROM pagos_licencia pl
     INNER JOIN empresas e ON e.id = pl.empresa_id
     WHERE pl.estado = 'pendiente'
@@ -218,7 +219,7 @@ function buildSuscripcionMetricas() {
     SELECT substr(fecha, 1, 7) AS periodo, COALESCE(SUM(monto_usd), 0) AS total_usd
     FROM pagos_licencia
     WHERE estado = 'aplicado'
-      AND substr(fecha, 1, 7) >= ?
+    AND substr(fecha, 1, 7) >= ?
     GROUP BY substr(fecha, 1, 7)
     ORDER BY periodo ASC
   `).all(months[0]);
@@ -226,15 +227,15 @@ function buildSuscripcionMetricas() {
 
   const empresas = db.prepare(`
     SELECT e.id, e.nombre, e.codigo, e.plan, e.estado, e.monto_mensual, e.fecha_alta, e.ultimo_pago_en,
-           e.proximo_cobro, e.dias_gracia,
-           COALESCE(SUM(CASE WHEN pl.estado = 'aplicado' THEN pl.monto_usd ELSE 0 END), 0) AS total_pagado_usd,
-           COALESCE(SUM(CASE WHEN pl.estado = 'aplicado' AND substr(pl.fecha, 1, 7) = ? THEN pl.monto_usd ELSE 0 END), 0) AS ingresos_mes_usd,
-           COUNT(CASE WHEN pl.estado = 'aplicado' THEN 1 END) AS pagos_aplicados,
-           COUNT(CASE WHEN pl.estado = 'pendiente' THEN 1 END) AS pagos_pendientes,
-           AVG(CASE WHEN pl.estado = 'aplicado' THEN pl.monto_usd END) AS ticket_promedio_usd,
-           MIN(CASE WHEN pl.estado = 'aplicado' THEN pl.fecha END) AS primer_pago_en,
-           MAX(CASE WHEN pl.estado = 'aplicado' THEN pl.fecha END) AS ultimo_pago_aplicado_en,
-           MAX(CASE WHEN pl.estado = 'pendiente' THEN pl.fecha END) AS ultimo_pago_pendiente_en
+      e.proximo_cobro, e.dias_gracia,
+      COALESCE(SUM(CASE WHEN pl.estado = 'aplicado' THEN pl.monto_usd ELSE 0 END), 0) AS total_pagado_usd,
+      COALESCE(SUM(CASE WHEN pl.estado = 'aplicado' AND substr(pl.fecha, 1, 7) = ? THEN pl.monto_usd ELSE 0 END), 0) AS ingresos_mes_usd,
+      COUNT(CASE WHEN pl.estado = 'aplicado' THEN 1 END) AS pagos_aplicados,
+      COUNT(CASE WHEN pl.estado = 'pendiente' THEN 1 END) AS pagos_pendientes,
+      AVG(CASE WHEN pl.estado = 'aplicado' THEN pl.monto_usd END) AS ticket_promedio_usd,
+      MIN(CASE WHEN pl.estado = 'aplicado' THEN pl.fecha END) AS primer_pago_en,
+      MAX(CASE WHEN pl.estado = 'aplicado' THEN pl.fecha END) AS ultimo_pago_aplicado_en,
+      MAX(CASE WHEN pl.estado = 'pendiente' THEN pl.fecha END) AS ultimo_pago_pendiente_en
     FROM empresas e
     LEFT JOIN pagos_licencia pl ON pl.empresa_id = e.id
     GROUP BY e.id
@@ -276,12 +277,12 @@ function buildSuscripcionMetricas() {
 
   const actividadReciente = db.prepare(`
     SELECT pl.id, pl.empresa_id, pl.fecha, pl.monto_usd, pl.referencia, pl.tipo, pl.estado, pl.creado_en,
-           e.nombre AS empresa_nombre, e.codigo AS empresa_codigo, e.plan
+      e.nombre AS empresa_nombre, e.codigo AS empresa_codigo, e.plan
     FROM pagos_licencia pl
     INNER JOIN empresas e ON e.id = pl.empresa_id
     ORDER BY CASE WHEN pl.estado = 'pendiente' THEN 0 ELSE 1 END,
-             COALESCE(pl.creado_en, pl.fecha) DESC,
-             pl.id DESC
+      COALESCE(pl.creado_en, pl.fecha) DESC,
+      pl.id DESC
     LIMIT 10
   `).all();
 
@@ -325,10 +326,10 @@ router.get('/', requireAuth, requireRole('superadmin'), (req, res) => {
     }
 
     let sql = `SELECT e.id, e.nombre, e.codigo, e.estado, e.plan, e.monto_mensual, e.fecha_alta, e.fecha_corte, e.dias_gracia,
-              e.ultimo_pago_en, e.proximo_cobro, e.nota_interna, e.rif, e.telefono, e.direccion,
-              cfg.valor AS empresa_config_raw
-                FROM empresas e
-                LEFT JOIN config cfg ON cfg.clave = ('empresa_config:empresa:' || e.id)`;
+      e.ultimo_pago_en, e.proximo_cobro, e.nota_interna, e.rif, e.telefono, e.direccion,
+      cfg.valor AS empresa_config_raw
+      FROM empresas e
+      LEFT JOIN config cfg ON cfg.clave = ('empresa_config:empresa:' || e.id)`;
     if (where.length) {
       sql += ' WHERE ' + where.join(' AND ');
     }
@@ -337,7 +338,6 @@ router.get('/', requireAuth, requireRole('superadmin'), (req, res) => {
     const empresas = db.prepare(sql).all(...params).map(attachEmpresaFlags);
     res.json(empresas);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error listando empresas:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Error al listar empresas' });
   }
@@ -355,7 +355,6 @@ router.post('/tasa-general', requireAuth, requireRole('superadmin'), (req, res) 
     const result = guardarTasaBcvGeneral(tasa);
     res.json(result);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error guardando tasa general:', { message: err.message, stack: err.stack });
     if (err.tipo === 'VALIDACION') {
       return res.status(400).json({ error: err.message });
@@ -370,7 +369,6 @@ router.get('/tasa-general', requireAuth, requireRole('superadmin'), (_req, res) 
     const result = obtenerTasaBcv();
     res.json(result);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error obteniendo tasa general:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'No se pudo obtener la tasa general' });
   }
@@ -385,7 +383,6 @@ router.post('/tasa-general/actualizar', requireAuth, requireRole('superadmin'), 
     }
     res.json(result);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error actualizando tasa general automática:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'No se pudo actualizar la tasa general automática' });
   }
@@ -397,7 +394,6 @@ router.get('/licencia-alertas', requireAuth, requireRole('superadmin'), (req, re
     const result = listLicenciaAlertas(req.query && req.query.limit ? req.query.limit : 6);
     res.json(result);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error listando alertas de licencia:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'No se pudieron obtener las alertas de licencia' });
   }
@@ -409,7 +405,6 @@ router.get('/licencia-metricas', requireAuth, requireRole('superadmin'), (req, r
     const result = buildSuscripcionMetricas();
     res.json(result);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error construyendo métricas de licencia:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'No se pudieron obtener las métricas de licencia' });
   }
@@ -420,7 +415,6 @@ router.get('/licencia-notificaciones-whatsapp', requireAuth, requireRole('supera
   try {
     res.json(getWhatsappAdminNotificationConfig());
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error obteniendo configuración WhatsApp admin:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'No se pudo obtener la configuración de notificaciones' });
   }
@@ -435,7 +429,6 @@ router.post('/licencia-notificaciones-whatsapp', requireAuth, requireRole('super
     const result = saveWhatsappAdminNotificationConfig(destinos);
     res.json({ ok: true, ...result });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error guardando configuración WhatsApp admin:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'No se pudo guardar la configuración de notificaciones' });
   }
@@ -500,8 +493,8 @@ router.post('/', requireAuth, requireRole('superadmin'), (req, res) => {
     );
 
     const nueva = db.prepare(`
-            SELECT id, nombre, codigo, estado, plan, monto_mensual, fecha_alta, fecha_corte, dias_gracia,
-              ultimo_pago_en, proximo_cobro, nota_interna, rif, telefono, direccion
+      SELECT id, nombre, codigo, estado, plan, monto_mensual, fecha_alta, fecha_corte, dias_gracia,
+        ultimo_pago_en, proximo_cobro, nota_interna, rif, telefono, direccion
       FROM empresas
       WHERE id = ?
     `).get(info.lastInsertRowid);
@@ -541,7 +534,6 @@ router.post('/', requireAuth, requireRole('superadmin'), (req, res) => {
       empresa: nuevaConFlags,
     });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error creando empresa:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Error al crear empresa' });
   }
@@ -560,7 +552,6 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
     proximo_cobro,
     nota_interna,
     permitir_anular_venta,
-    // Opcionales para registrar historial de pago de licencia
     registrar_pago_licencia,
     referencia_pago,
     descripcion_pago,
@@ -669,15 +660,14 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
 
     const empresaActualizada = attachEmpresaFlags(db.prepare(`
       SELECT e.id, e.nombre, e.codigo, e.estado, e.plan, e.monto_mensual, e.fecha_alta, e.fecha_corte, e.dias_gracia,
-             e.ultimo_pago_en, e.proximo_cobro, e.nota_interna, e.rif, e.telefono, e.direccion,
-             cfg.valor AS empresa_config_raw
+        e.ultimo_pago_en, e.proximo_cobro, e.nota_interna, e.rif, e.telefono, e.direccion,
+        cfg.valor AS empresa_config_raw
       FROM empresas e
       LEFT JOIN config cfg ON cfg.clave = ('empresa_config:empresa:' || e.id)
       WHERE e.id = ?
     `).get(id));
 
-    // Si se indicó registrar pago de licencia (explícitamente o implícito por actualizar ultimo_pago_en),
-    // crear una fila en pagos_licencia para que el historial de "Plan y pagos" se alimente solo.
+    // Si se indicó registrar pago de licencia
     try {
       const debeRegistrarPago = !!registrar_pago_licencia || ultimoPagoExplicito;
       if (debeRegistrarPago && empresaActualizada) {
@@ -701,7 +691,6 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
         );
       }
     } catch (errInsert) {
-      const logger = require('../services/logger');
       logger.warn('No se pudo registrar pago_licencia asociado a empresa:', { message: errInsert.message });
     }
     try {
@@ -736,7 +725,6 @@ router.patch('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
       empresa: empresaActualizada,
     });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error actualizando empresa:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Error al actualizar empresa' });
   }
@@ -750,7 +738,6 @@ router.get('/:id/pagos-licencia', requireAuth, requireRole('superadmin'), (req, 
     const pagos = listarPagosLicenciaEmpresa(id, estado ? { estado } : {});
     res.json(pagos);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error listando pagos de licencia:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Error al listar pagos de licencia' });
   }
@@ -764,7 +751,6 @@ router.patch('/:id/pagos-licencia/:pagoId/estado', requireAuth, requireRole('sup
     const pago = actualizarEstadoPagoLicencia(id, pagoId, estado, { meses_pagados });
     res.json({ ok: true, pago });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error actualizando estado de pago de licencia:', { message: err.message, stack: err.stack });
     if (err.tipo === 'VALIDACION') {
       return res.status(400).json({ error: err.message });
@@ -790,37 +776,28 @@ router.delete('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
 
     const empresaId = Number(empresa.id);
 
-    // 1) Borrar datos transaccionales e inventario de esa empresa (ventas, compras, presupuestos, productos, métricas, sync, etc.)
+    // 1) Borrar datos transaccionales
     purgeTransactionalData(empresaId);
 
-    // 2) Borrar datos restantes ligados a la empresa (usuarios, proveedores, depósitos, stock por depósito, branding por empresa, etc.)
+    // 2) Borrar datos restantes ligados a la empresa
     const tx = db.transaction(() => {
-      // Usuarios de la empresa (no debería afectar a superadmins globales)
       db.prepare("DELETE FROM usuarios WHERE empresa_id = ? AND (rol IS NULL OR rol != 'superadmin')").run(empresaId);
-
-      // Proveedores de la empresa
       db.prepare('DELETE FROM proveedores WHERE empresa_id = ?').run(empresaId);
-
-      // Stock por depósito y movimientos de depósitos de la empresa
       db.prepare('DELETE FROM stock_por_deposito WHERE empresa_id = ?').run(empresaId);
       db.prepare('DELETE FROM movimientos_deposito WHERE empresa_id = ?').run(empresaId);
       db.prepare('DELETE FROM depositos WHERE empresa_id = ?').run(empresaId);
 
-      // Configuración específica de la empresa (branding, nota, descuentos, devoluciones)
       const eidStr = String(empresaId);
       db.prepare(`DELETE FROM config WHERE clave IN (
-          'empresa_config:empresa:${eidStr}',
-          'descuentos_volumen:empresa:${eidStr}',
-          'devolucion_politica:empresa:${eidStr}',
-          'nota_config:empresa:${eidStr}'
-        )`).run();
+        'empresa_config:empresa:${eidStr}',
+        'descuentos_volumen:empresa:${eidStr}',
+        'devolucion_politica:empresa:${eidStr}',
+        'nota_config:empresa:${eidStr}'
+      )`).run();
 
-      // Métricas y colas de sync (redundante con purgeTransactionalData, pero inofensivo)
       db.prepare('DELETE FROM empresa_metricas_diarias WHERE empresa_id = ?').run(empresaId);
       db.prepare('DELETE FROM sync_outbox WHERE empresa_id = ?').run(empresaId);
       db.prepare('DELETE FROM sync_inbox WHERE empresa_id = ?').run(empresaId);
-
-      // Finalmente eliminar la empresa
       db.prepare('DELETE FROM empresas WHERE id = ?').run(empresaId);
     });
 
@@ -845,7 +822,6 @@ router.delete('/:id', requireAuth, requireRole('superadmin'), (req, res) => {
 
     res.json({ message: 'Empresa eliminada correctamente' });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error eliminando empresa:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Error al eliminar empresa' });
   }
@@ -899,7 +875,6 @@ router.post('/:id/crear-admin', requireAuth, requireRole('superadmin'), (req, re
       empresa: { id: empresa.id, nombre: empresa.nombre, codigo: empresa.codigo }
     });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error creando usuario admin de empresa:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Error al crear usuario admin para la empresa' });
   }

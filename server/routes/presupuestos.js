@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('./auth');
+const { body, validate } = require('../middleware/validation');
 const path = require('path');
 const { obtenerConfigGeneral } = require('../services/ajustesService');
 const tplCompact = require(path.join(__dirname, '..', '..', 'public', 'shared', 'nota-template-compact.js'));
@@ -17,7 +18,88 @@ function safeStr(v, max) {
   return String(v).trim().slice(0, max);
 }
 
-router.get('/', requireAuth, (req, res) => {
+// Validaciones para listar presupuestos (query params)
+const listarValidaciones = [
+  body('desde')
+    .optional()
+    .isISO8601()
+    .withMessage('Fecha desde inválida'),
+  body('hasta')
+    .optional()
+    .isISO8601()
+    .withMessage('Fecha hasta inválida'),
+  body('cliente')
+    .optional()
+    .isString()
+    .isLength({ max: 120 })
+    .withMessage('Cliente inválido'),
+  body('estado')
+    .optional()
+    .isIn(['activo', 'vencido', 'convertido', 'anulado'])
+    .withMessage('Estado inválido'),
+  body('limit')
+    .optional()
+    .isInt({ min: 1, max: 500 })
+    .withMessage('Límite debe ser entre 1 y 500'),
+];
+
+// Validaciones para crear presupuesto
+const crearValidaciones = [
+  body('items')
+    .isArray({ min: 1 })
+    .withMessage('El presupuesto debe contener al menos un producto'),
+  body('items.*.codigo')
+    .notEmpty()
+    .isString()
+    .isLength({ max: 64 })
+    .withMessage('Código de producto inválido'),
+  body('items.*.cantidad')
+    .isInt({ min: 1, max: 100000 })
+    .withMessage('Cantidad debe ser un número entero entre 1 y 100000'),
+  body('items.*.precio_usd')
+    .optional()
+    .isFloat({ min: 0, max: 1e9 })
+    .withMessage('Precio inválido'),
+  body('items.*.deposito_id')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('ID de depósito inválido'),
+  body('cliente')
+    .notEmpty()
+    .isString()
+    .isLength({ max: 120 })
+    .withMessage('El nombre del cliente es obligatorio y no puede exceder 120 caracteres'),
+  body('cedula')
+    .optional()
+    .isString()
+    .isLength({ max: 40 })
+    .withMessage('Cédula inválida'),
+  body('telefono')
+    .optional()
+    .isString()
+    .isLength({ max: 40 })
+    .withMessage('Teléfono inválido'),
+  body('tasa_bcv')
+    .notEmpty()
+    .isFloat({ gt: 0 })
+    .withMessage('La tasa BCV es obligatoria y debe ser mayor a 0'),
+  body('descuento')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Descuento debe ser un número positivo'),
+  body('notas')
+    .optional()
+    .isString()
+    .isLength({ max: 500 })
+    .withMessage('Notas demasiado largas'),
+  body('nivel_precio')
+    .optional()
+    .isString()
+    .isLength({ max: 16 })
+    .withMessage('Nivel de precio inválido'),
+];
+
+router.get('/', requireAuth, validate(listarValidaciones), (req, res) => {
   try {
     const { desde, hasta, cliente, estado, limit = 100 } = req.query;
     const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
@@ -97,12 +179,12 @@ router.get('/nota/:id', requireAuth, async (req, res) => {
     if (!presupuesto) return res.status(404).send('Presupuesto no encontrado');
     const detalles = db.prepare(`
       SELECT pd.cantidad,
-             pd.precio_usd,
-             pd.subtotal_bs,
-             pd.descripcion,
-             pd.codigo,
-             p.marca AS marca,
-             COALESCE(d.codigo, pd.deposito_nombre) AS deposito_codigo
+        pd.precio_usd,
+        pd.subtotal_bs,
+        pd.descripcion,
+        pd.codigo,
+        p.marca AS marca,
+        COALESCE(d.codigo, pd.deposito_nombre) AS deposito_codigo
       FROM presupuesto_detalle pd
       LEFT JOIN productos p ON p.id = pd.producto_id
       LEFT JOIN depositos d ON d.id = pd.deposito_id
@@ -158,7 +240,6 @@ router.get('/nota/:id', requireAuth, async (req, res) => {
 
     const presupuestoConEmpresa = {
       ...presupuesto,
-      // Este campo se usará en la plantilla para mostrar el NRO
       id_global: idGlobal,
       empresa_nombre: empresaNombre,
       empresa_logo_url: logoUrl,
@@ -178,17 +259,17 @@ router.get('/nota/:id', requireAuth, async (req, res) => {
     const tpl = layout === 'standard' ? tplStandard : tplCompact;
     const html = tpl && tpl.buildNotaHTML
       ? await tpl.buildNotaHTML({ venta: presupuestoConEmpresa, detalles }, { tipo: 'PRESUPUESTO', notaCfg })
-      : '<html><body><pre>Plantilla no disponible</pre></body></html>';
+      : '<pre>Plantilla no disponible</pre>';
 
     res.set('Content-Type', 'text/html; charset=utf-8');
-    res.send(html || '<html><body><pre>Presupuesto vacío</pre></body></html>');
+    res.send(html || '<pre>Presupuesto vacío</pre>');
   } catch (err) {
     console.error('Error construyendo nota de presupuesto:', err.message);
     res.status(500).send('Error generando la nota');
   }
 });
 
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, validate(crearValidaciones), (req, res) => {
   const {
     items,
     cliente,
@@ -200,32 +281,14 @@ router.post('/', requireAuth, (req, res) => {
     nivel_precio
   } = req.body || {};
 
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'El presupuesto no contiene productos.' });
-  }
-  if (items.length > MAX_ITEMS) {
-    return res.status(400).json({ error: 'Demasiados items en el presupuesto.' });
-  }
   const clienteSafe = safeStr(cliente, MAX_TEXT);
-  if (!clienteSafe) return res.status(400).json({ error: 'El nombre del cliente es obligatorio.' });
   const cedulaSafe = safeStr(cedula, MAX_DOC);
   const telefonoSafe = safeStr(telefono, MAX_DOC);
   const notasSafe = safeStr(notas, MAX_NOTAS);
   const nivelPrecioSafe = safeStr(nivel_precio, 16) || 'base';
 
   const tasa = parseFloat(tasa_bcv);
-  if (!tasa || Number.isNaN(tasa) || tasa <= 0) {
-    return res.status(400).json({ error: 'Tasa BCV inválida.' });
-  }
   const descuentoNum = Math.max(0, parseFloat(descuento) || 0);
-
-  for (const item of items) {
-    const codigo = safeStr(item.codigo, 64);
-    const cantidad = parseInt(item.cantidad, 10);
-    if (!codigo || Number.isNaN(cantidad) || cantidad <= 0 || cantidad > 100000) {
-      return res.status(400).json({ error: 'Item inválido en el presupuesto.' });
-    }
-  }
 
   try {
     const fecha = new Date().toISOString();
@@ -257,10 +320,6 @@ router.post('/', requireAuth, (req, res) => {
         const producto = db.prepare('SELECT id, codigo, descripcion, precio_usd, deposito_id FROM productos WHERE codigo = ? AND empresa_id = ?').get(codigo, empresaId);
         if (!producto) throw new Error(`Producto ${codigo} no existe`);
 
-        // Si el frontend (POS) envía un precio_usd ya calculado según
-        // el nivel de precio seleccionado, usarlo como fuente de verdad.
-        // Si no viene o es inválido, caer al precio_usd base del producto
-        // para mantener compatibilidad hacia atrás.
         let precio = Number(producto.precio_usd || 0);
         if (item.precio_usd !== undefined && item.precio_usd !== null) {
           const fromPayload = Number(item.precio_usd);
@@ -273,9 +332,6 @@ router.post('/', requireAuth, (req, res) => {
         totalUsd += subtotalUsd;
         totalBs += subtotalBs;
 
-        // Guardar también el depósito asociado a la línea cuando el POS lo envía.
-        // Si no viene en el payload, se guarda el deposito_id actual del producto
-        // solo como referencia aproximada.
         let depId = null;
         if (item.deposito_id !== undefined && item.deposito_id !== null && item.deposito_id !== '') {
           const parsedDep = Number(item.deposito_id);

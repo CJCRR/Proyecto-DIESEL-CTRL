@@ -5,12 +5,14 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const speakeasy = require('speakeasy');
+const logger = require('../services/logger');
 const { signJwt } = require('../middleware/jwt');
 const { isHttpsEnforced } = require('../middleware/security');
 const { registrarEventoNegocio } = require('../services/eventosService');
 const { registrarAuditoria } = require('../services/auditLogService');
 const { sendPasswordResetEmail } = require('../services/emailService');
 const { attachEffectiveModulePermissions, canAccessModule } = require('../services/modulePermissions');
+const { debeSuspenderEmpresa } = require('../services/licenciasService');
 
 // Generar token único
 function generarToken() {
@@ -88,25 +90,6 @@ function limpiarSesionesExpiradas() {
     const logger = require('../services/logger');
     logger.warn('No se pudo limpiar sesiones expiradas:', err.message);
   }
-}
-
-// Cálculo de suspensión automática según proximo_cobro y dias_gracia
-function debeSuspenderEmpresa(estadoActual, proximoCobroStr, diasGracia) {
-  // Si ya está suspendida manualmente, se respeta
-  if (estadoActual === 'suspendida') return true;
-
-  if (!proximoCobroStr) return false;
-
-  const proximoCobro = new Date(proximoCobroStr);
-  if (Number.isNaN(proximoCobro.getTime())) return false;
-
-  const dias = Number.isFinite(Number(diasGracia)) ? Number(diasGracia) : 0;
-  const hoy = new Date();
-  const limiteGracia = new Date(proximoCobro.getTime());
-  limiteGracia.setDate(limiteGracia.getDate() + dias);
-
-  // Suspender si hoy está después del límite de gracia
-  return hoy > limiteGracia;
 }
 
 // POST /auth/login - Iniciar sesión (multiempresa-ready)
@@ -321,7 +304,6 @@ router.post('/login', loginLimiter, (req, res) => {
       usuario: jwtPayload
     });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error en login:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al iniciar sesión' });
   }
@@ -393,7 +375,6 @@ router.get('/verificar', (req, res) => {
       via: 'token'
     });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error verificando sesión:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al verificar sesión' });
   }
@@ -425,9 +406,8 @@ router.post('/2fa/setup', requireAuth, (req, res) => {
       otpauth_url: secret.otpauth_url,
     });
   } catch (err) {
-    const logger = require('../services/logger');
-    logger.error('Error en /auth/2fa/setup:', { message: err.message, stack: err.stack, url: req.originalUrl });
-    res.status(500).json({ error: 'Error al preparar 2FA' });
+    logger.error('Error en autenticación:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    res.status(500).json({ error: 'Error de autenticación' });
   }
 });
 
@@ -464,8 +444,7 @@ router.post('/2fa/enable', requireAuth, (req, res) => {
 
     res.json({ success: true, twofa_enabled: true });
   } catch (err) {
-    const logger = require('../services/logger');
-    logger.error('Error en /auth/2fa/enable:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    logger.error('Error en autenticación:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al habilitar 2FA' });
   }
 });
@@ -503,8 +482,7 @@ router.post('/2fa/disable', requireAuth, (req, res) => {
 
     res.json({ success: true, twofa_enabled: false });
   } catch (err) {
-    const logger = require('../services/logger');
-    logger.error('Error en /auth/2fa/disable:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    logger.error('Error en autenticación:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al deshabilitar 2FA' });
   }
 });
@@ -626,7 +604,7 @@ router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
           ip: req.ip,
           userAgent: req.headers['user-agent']
         });
-      } catch (_) {}
+      } catch (_) { }
 
       try {
         registrarEventoNegocio(empresaId, {
@@ -641,7 +619,7 @@ router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
             proximo_cobro: finTrialIso
           }
         });
-      } catch (_) {}
+      } catch (_) { }
 
       return { empresaId, codigo, finTrialIso };
     });
@@ -663,8 +641,7 @@ router.post('/registro-empresa', registroEmpresaLimiter, (req, res) => {
       }
     });
   } catch (err) {
-    const logger = require('../services/logger');
-    logger.error('Error en auto-registro de empresa:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    logger.error('Error en autenticación:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'Error al registrar la empresa. Intente nuevamente.' });
   }
 });
@@ -734,9 +711,8 @@ router.post('/password-reset-request', forgotPasswordLimiter, (req, res) => {
       return genericResponse();
     }).catch(() => genericResponse());
   } catch (err) {
-    const logger = require('../services/logger');
-    logger.error('Error en /auth/password-reset-request:', { message: err.message, stack: err.stack, url: req.originalUrl });
-    return res.status(500).json({ error: 'Error al procesar la solicitud de recuperación.' });
+    logger.error('Error en autenticación:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    res.status(500).json({ error: 'Error al procesar la solicitud de recuperación.' });
   }
 });
 
@@ -786,13 +762,12 @@ router.post('/password-reset-confirm', (req, res) => {
         ip: req.ip,
         userAgent: req.headers['user-agent']
       });
-    } catch (_) {}
+    } catch (_) { }
 
     return res.json({ success: true, message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión con tu nueva contraseña.' });
   } catch (err) {
-    const logger = require('../services/logger');
-    logger.error('Error en /auth/password-reset-confirm:', { message: err.message, stack: err.stack, url: req.originalUrl });
-    return res.status(500).json({ error: 'Error al actualizar la contraseña.' });
+    logger.error('Error al actualizar la contraseña.:', { message: err.message, stack: err.stack, url: req.originalUrl });
+    res.status(500).json({ error: 'Error al actualizar la contraseña.' });
   }
 });
 
@@ -800,22 +775,79 @@ router.post('/password-reset-confirm', (req, res) => {
 const { verifyJwt } = require('../middleware/jwt');
 function requireAuth(req, res, next) {
   limpiarSesionesExpiradas();
+
   const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.auth_token;
   const jwtToken = req.headers['x-jwt'] || req.cookies?.jwt_token;
 
-  // Primero intenta JWT
+  // ========== PRIMERO: INTENTAR JWT ==========
   if (jwtToken) {
     const user = verifyJwt(jwtToken);
     if (user) {
-      req.usuario = enrichUserPermissionsFromDb(user);
+      // ✅ VALIDACIÓN CRÍTICA: Verificar que el usuario siga existiendo
+      // y que su empresa_id coincida con lo que dice el JWT
+      const usuarioDb = db.prepare(`
+        SELECT u.id, u.username, u.rol, u.activo, u.empresa_id, u.permisos_modulos,
+               e.codigo AS empresa_codigo, e.estado AS empresa_estado,
+               e.proximo_cobro AS empresa_proximo_cobro, e.dias_gracia AS empresa_dias_gracia,
+               e.plan AS empresa_plan
+        FROM usuarios u
+        LEFT JOIN empresas e ON e.id = u.empresa_id
+        WHERE u.id = ? AND u.activo = 1
+      `).get(user.id);
+
+      // Si el usuario no existe o está inactivo, rechazar
+      if (!usuarioDb) {
+        res.clearCookie('auth_token');
+        res.clearCookie('jwt_token');
+        return res.status(401).json({ error: 'Usuario no válido o inactivo', code: 'USUARIO_INVALIDO' });
+      }
+
+      // Si el JWT dice empresa_id pero el usuario ya no pertenece a esa empresa, rechazar
+      // (excepto superadmin que puede tener empresa_id = null)
+      if (user.empresa_id && usuarioDb.empresa_id &&
+        Number(user.empresa_id) !== Number(usuarioDb.empresa_id)) {
+        res.clearCookie('auth_token');
+        res.clearCookie('jwt_token');
+        return res.status(403).json({
+          error: 'Empresa no válida para este usuario',
+          code: 'EMPRESA_NO_VALIDA'
+        });
+      }
+
+      // Si el JWT dice que es superadmin pero el usuario ya no lo es, rechazar
+      if (user.rol === 'superadmin' && usuarioDb.rol !== 'superadmin') {
+        res.clearCookie('auth_token');
+        res.clearCookie('jwt_token');
+        return res.status(403).json({
+          error: 'Rol de usuario ha cambiado. Inicie sesión nuevamente.',
+          code: 'ROL_CAMBIADO'
+        });
+      }
+
+      // Construir el objeto usuario enriquecido con datos frescos de BD
+      const usuarioEnriquecido = attachEffectiveModulePermissions({
+        id: usuarioDb.id,
+        username: usuarioDb.username,
+        rol: usuarioDb.rol,
+        empresa_id: usuarioDb.empresa_id || null,
+        empresa_codigo: usuarioDb.empresa_codigo || null,
+        empresa_estado: usuarioDb.empresa_estado || null,
+        empresa_proximo_cobro: usuarioDb.empresa_proximo_cobro || null,
+        empresa_dias_gracia: usuarioDb.empresa_dias_gracia != null ? Number(usuarioDb.empresa_dias_gracia) : null,
+        empresa_plan: usuarioDb.empresa_plan || null,
+        permisos_modulos: usuarioDb.permisos_modulos
+      });
+
+      req.usuario = usuarioEnriquecido;
       return next();
     }
   }
 
-  // Si no hay JWT válido, intenta token clásico
+  // ========== SEGUNDO: INTENTAR TOKEN CLÁSICO ==========
   if (!token) {
     return res.status(401).json({ error: 'No autorizado' });
   }
+
   try {
     const sesion = db.prepare(`
       SELECT s.*, u.username, u.rol, u.empresa_id, u.permisos_modulos,
@@ -825,9 +857,19 @@ function requireAuth(req, res, next) {
       LEFT JOIN empresas e ON e.id = u.empresa_id
       WHERE s.token = ? AND datetime(s.expira_en) > datetime('now')
     `).get(token);
+
     if (!sesion) {
       return res.status(401).json({ error: 'Sesión inválida' });
     }
+
+    // ✅ Validación adicional: verificar que el usuario siga activo
+    const usuarioActivo = db.prepare('SELECT activo FROM usuarios WHERE id = ?').get(sesion.usuario_id);
+    if (!usuarioActivo || usuarioActivo.activo !== 1) {
+      db.prepare('DELETE FROM sesiones WHERE token = ?').run(token);
+      res.clearCookie('auth_token');
+      return res.status(401).json({ error: 'Usuario inactivo', code: 'USUARIO_INACTIVO' });
+    }
+
     req.usuario = attachEffectiveModulePermissions({
       id: sesion.usuario_id,
       username: sesion.username,
@@ -837,6 +879,7 @@ function requireAuth(req, res, next) {
       empresa_estado: sesion.empresa_estado || null,
       permisos_modulos: sesion.permisos_modulos
     });
+
     next();
   } catch (err) {
     const logger = require('../services/logger');

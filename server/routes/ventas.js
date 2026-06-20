@@ -5,8 +5,8 @@ const { body, validate } = require('../middleware/validation');
 const logger = require('../services/logger');
 const db = require('../db');
 const { registrarVenta, cambiarVendedorVenta, anularVenta } = require('../services/ventasService');
-const { registrarAuditoria } = require('../services/auditLogService');
 const { obtenerConfigGeneral } = require('../services/ajustesService');
+const { debeSuspenderEmpresa } = require('../services/licenciasService');
 
 // El superadmin no debe registrar ventas de ninguna empresa
 function forbidSuperadmin(req, res, next) {
@@ -14,20 +14,6 @@ function forbidSuperadmin(req, res, next) {
         return res.status(403).json({ error: 'Superadmin no puede registrar ventas' });
     }
     next();
-}
-
-function debeSuspenderEmpresa(estadoActual, proximoCobroStr, diasGracia) {
-    if (estadoActual === 'suspendida') return true;
-    if (!proximoCobroStr) return false;
-
-    const proximoCobro = new Date(proximoCobroStr);
-    if (Number.isNaN(proximoCobro.getTime())) return false;
-
-    const dias = Number.isFinite(Number(diasGracia)) ? Number(diasGracia) : 0;
-    const hoy = new Date();
-    const limiteGracia = new Date(proximoCobro.getTime());
-    limiteGracia.setDate(limiteGracia.getDate() + dias);
-    return hoy > limiteGracia;
 }
 
 function blockVentasIfEmpresaSuspendida(req, res, next) {
@@ -44,18 +30,9 @@ function blockVentasIfEmpresaSuspendida(req, res, next) {
             return res.status(400).json({ error: 'Empresa no encontrada para este usuario', code: 'EMPRESA_NO_ENCONTRADA' });
         }
 
-        const estadoActual = (empresa.estado || '').toString().toLowerCase() || 'activa';
-        const suspendida = debeSuspenderEmpresa(estadoActual, empresa.proximo_cobro, empresa.dias_gracia);
+        const estadoLicencia = debeSuspenderEmpresa(empresa.id, db);
 
-        if (suspendida) {
-            if (estadoActual !== 'suspendida') {
-                try {
-                    db.prepare("UPDATE empresas SET estado = 'suspendida', actualizado_en = datetime('now') WHERE id = ?")
-                        .run(empresa.id);
-                } catch (e) {
-                    logger.warn('No se pudo persistir estado suspendida al bloquear ventas', { message: e.message });
-                }
-            }
+        if (estadoLicencia.suspendida) {
             return res.status(403).json({
                 error: 'Tu empresa está suspendida por pago. Puedes ingresar al sistema, pero no registrar ventas hasta regularizar el plan.',
                 code: 'LICENCIA_SUSPENDIDA'
@@ -105,58 +82,58 @@ router.post(
             .withMessage('Nombre de cliente demasiado largo'),
     ]),
     (req, res) => {
-    try {
-        // Asegurar que siempre se pase usuario_id de la sesión si no viene en el payload
-        const payload = {
-            ...req.body,
-            usuario_id: (req.body && req.body.usuario_id != null)
-                ? req.body.usuario_id
-                : (req.usuario ? req.usuario.id : null),
-            // Pasar siempre empresa_id de la sesión para que el servicio filtre por empresa
-            empresa_id: req.body && req.body.empresa_id != null
-                ? req.body.empresa_id
-                : (req.usuario ? req.usuario.empresa_id : null),
-        };
-        const { ventaId, cuentaCobrarId } = registrarVenta(payload);
+        try {
+            // Asegurar que siempre se pase usuario_id de la sesión si no viene en el payload
+            const payload = {
+                ...req.body,
+                usuario_id: (req.body && req.body.usuario_id != null)
+                    ? req.body.usuario_id
+                    : (req.usuario ? req.usuario.id : null),
+                // Pasar siempre empresa_id de la sesión para que el servicio filtre por empresa
+                empresa_id: req.body && req.body.empresa_id != null
+                    ? req.body.empresa_id
+                    : (req.usuario ? req.usuario.empresa_id : null),
+            };
+            const { ventaId, cuentaCobrarId } = registrarVenta(payload);
 
-        // Calcular un número correlativo por empresa para el NRO de la nota
-        // usando la misma lógica que en la ruta de /nota.
-        const empresaId = payload.empresa_id != null
-            ? payload.empresa_id
-            : (req.usuario && req.usuario.empresa_id != null ? req.usuario.empresa_id : null);
+            // Calcular un número correlativo por empresa para el NRO de la nota
+            // usando la misma lógica que en la ruta de /nota.
+            const empresaId = payload.empresa_id != null
+                ? payload.empresa_id
+                : (req.usuario && req.usuario.empresa_id != null ? req.usuario.empresa_id : null);
 
-        let idGlobal = null;
-        if (empresaId != null && ventaId != null) {
-            const filaSeq = db.prepare(`
+            let idGlobal = null;
+            if (empresaId != null && ventaId != null) {
+                const filaSeq = db.prepare(`
         SELECT COUNT(*) AS n
         FROM ventas v2
         JOIN usuarios u2 ON u2.id = v2.usuario_id
         WHERE u2.empresa_id = ? AND v2.id <= ?
       `).get(empresaId, ventaId);
-            const correlativo = filaSeq && filaSeq.n ? Number(filaSeq.n) : Number(ventaId);
-            idGlobal = `VENTA-${correlativo}`;
-        } else if (ventaId != null) {
-            idGlobal = `VENTA-${ventaId}`;
-        }
+                const correlativo = filaSeq && filaSeq.n ? Number(filaSeq.n) : Number(ventaId);
+                idGlobal = `VENTA-${correlativo}`;
+            } else if (ventaId != null) {
+                idGlobal = `VENTA-${ventaId}`;
+            }
 
-    res.json({ message: 'Venta registrada con éxito', ventaId, cuentaCobrarId, idGlobal });
-    } catch (error) {
-        // Log estructurado para diagnóstico, manteniendo respuesta 400 con el mensaje
-        logger.error('Error procesando la venta', {
-            message: error.message,
-            stack: error.stack,
-            url: req.originalUrl,
-            method: req.method,
-            user: req.usuario ? req.usuario.id : null,
-            items: Array.isArray(req.body?.items) ? req.body.items.length : 0,
-            cliente: req.body?.cliente || null
-        });
-        res.status(400).json({
-            error: error.message,
-            code: error.code || 'VENTA_ERROR'
-        });
-    }
-});
+            res.json({ message: 'Venta registrada con éxito', ventaId, cuentaCobrarId, idGlobal });
+        } catch (error) {
+            // Log estructurado para diagnóstico, manteniendo respuesta 400 con el mensaje
+            logger.error('Error procesando la venta', {
+                message: error.message,
+                stack: error.stack,
+                url: req.originalUrl,
+                method: req.method,
+                user: req.usuario ? req.usuario.id : null,
+                items: Array.isArray(req.body?.items) ? req.body.items.length : 0,
+                cliente: req.body?.cliente || null
+            });
+            res.status(400).json({
+                error: error.message,
+                code: error.code || 'VENTA_ERROR'
+            });
+        }
+    });
 
 // DELETE /ventas/:id - Anular una venta (solo admins de empresa)
 router.delete('/:id', requireAuth, requireRole('admin', 'admin_empresa'), (req, res) => {

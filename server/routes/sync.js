@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const logger = require('../services/logger');
 const { requireAuth, requireRole } = require('./auth');
+const { body, validate } = require('../middleware/validation');
 
 function agregarMetricaVenta(empresaId, payload) {
   if (!empresaId || !payload) return;
@@ -43,8 +45,51 @@ function agregarMetricaVenta(empresaId, payload) {
   stmt.run(empresaId, fechaDia, totalBs, totalUsd);
 }
 
+// Validaciones para push de sincronización
+const syncPushValidaciones = [
+  body('origen')
+    .optional()
+    .isString()
+    .isLength({ max: 50 })
+    .withMessage('Origen inválido'),
+  body('eventos')
+    .isArray({ min: 1 })
+    .withMessage('Se requiere un arreglo de eventos'),
+  body('eventos.*.evento_uid')
+    .notEmpty()
+    .isString()
+    .isLength({ max: 120 })
+    .withMessage('evento_uid es requerido y debe ser un string'),
+  body('eventos.*.tipo')
+    .notEmpty()
+    .isString()
+    .isLength({ max: 50 })
+    .withMessage('tipo es requerido y debe ser un string'),
+  body('eventos.*.entidad')
+    .notEmpty()
+    .isString()
+    .isLength({ max: 50 })
+    .withMessage('entidad es requerida y debe ser un string'),
+  body('eventos.*.payload')
+    .optional()
+    .isObject()
+    .withMessage('payload debe ser un objeto'),
+];
+
+// Validaciones para reportes
+const reportesValidaciones = [
+  body('desde')
+    .optional()
+    .isISO8601()
+    .withMessage('Fecha desde inválida'),
+  body('hasta')
+    .optional()
+    .isISO8601()
+    .withMessage('Fecha hasta inválida'),
+];
+
 // POST /sync/push - recibir lote de eventos desde una instalación local
-router.post('/push', requireAuth, (req, res) => {
+router.post('/push', requireAuth, validate(syncPushValidaciones), (req, res) => {
   const usuario = req.usuario;
 
   if (!usuario || !usuario.empresa_id) {
@@ -110,7 +155,6 @@ router.post('/push', requireAuth, (req, res) => {
     const results = tx(eventos);
     res.json({ success: true, results });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error en /sync/push:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Error al procesar sincronización' });
   }
@@ -130,7 +174,7 @@ router.get('/pull', requireAuth, (req, res) => {
 });
 
 // GET /sync/reportes/empresas-diario - resumen tipo "Drive" por empresa (solo superadmin)
-router.get('/reportes/empresas-diario', requireAuth, requireRole('superadmin'), (req, res) => {
+router.get('/reportes/empresas-diario', requireAuth, requireRole('superadmin'), validate(reportesValidaciones), (req, res) => {
   const { desde, hasta } = req.query;
 
   try {
@@ -168,7 +212,6 @@ router.get('/reportes/empresas-diario', requireAuth, requireRole('superadmin'), 
     const filas = db.prepare(sql).all(...params);
     res.json(filas);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error en /sync/reportes/empresas-diario:', { message: err.message, stack: err.stack });
     res.status(500).json({ error: 'Error al obtener reporte de empresas' });
   }

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const router = express.Router();
 const db = require('../db');
+const logger = require('../services/logger');
 const { requireAuth } = require('./auth');
 
 function insertAlerta(tipo, mensaje, dataObj = {}) {
@@ -10,7 +11,6 @@ function insertAlerta(tipo, mensaje, dataObj = {}) {
     db.prepare(`INSERT INTO alertas (tipo, mensaje, data, leido, creado_en) VALUES (?, ?, ?, 0, datetime('now'))`)
       .run(tipo, mensaje, JSON.stringify(dataObj || {}));
   } catch (err) {
-    const logger = require('../services/logger');
     logger.warn('No se pudo insertar alerta', err.message);
   }
 }
@@ -62,7 +62,6 @@ router.get('/stock', requireAuth, (req, res) => {
     `).all(...(empresaId ? [empresaId] : []));
     res.json(rows);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error alertas stock:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'No se pudo obtener alertas de stock' });
   }
@@ -74,7 +73,6 @@ router.get('/morosos', requireAuth, (req, res) => {
     const rows = empresaId ? getMorosos(empresaId) : [];
     res.json(rows);
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error alertas morosos:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'No se pudo obtener clientes morosos' });
   }
@@ -88,17 +86,15 @@ router.get('/resumen', requireAuth, (req, res) => {
       WHERE stock <= 0 AND activo = 1${empresaId ? ' AND empresa_id = ?' : ''}
     `).get(...(empresaId ? [empresaId] : [])).c;
     const morosos = empresaId ? getMorosos(empresaId) : [];
-    // Tareas pendientes: por ahora usamos cantidad de morosos + stock en cero
     const tareas = stockCero + morosos.length;
     res.json({ stock_cero: stockCero, morosos: morosos.length, tareas });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error resumen alertas:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'No se pudo obtener resumen de alertas' });
   }
 });
 
-// Tareas: stock bajo (umbral configurable), morosos vencidos, backup desactualizado
+// Tareas: stock bajo, morosos vencidos, backup desactualizado
 router.get('/tareas', requireAuth, (req, res) => {
   try {
     const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
@@ -199,7 +195,6 @@ router.get('/tareas', requireAuth, (req, res) => {
       }
     });
   } catch (err) {
-    const logger = require('../services/logger');
     logger.error('Error alertas tareas:', { message: err.message, stack: err.stack, url: req.originalUrl });
     res.status(500).json({ error: 'No se pudo obtener tareas' });
   }

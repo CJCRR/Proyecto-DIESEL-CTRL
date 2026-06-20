@@ -34,6 +34,123 @@ const depositosRoutes = require('./routes/depositos');
 const whatsappRoutes = require('./routes/whatsapp');
 
 const app = express();
+
+// ========== RATE LIMIT GLOBAL ==========
+
+// ========== CORS CONFIGURACIÓN ==========
+const cors = require('cors');
+
+const corsOptions = {
+    // Orígenes permitidos (ajusta según tu entorno)
+    origin: (origin, callback) => {
+        // En desarrollo, permitir cualquier origen (incluyendo Postman/Thunder Client que envían origin undefined)
+        if (process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+
+        // En producción, solo permitir orígenes específicos
+        const allowedOrigins = [
+            process.env.FRONTEND_URL,           // Tu dominio principal
+            process.env.FRONTEND_URL?.replace('https://', 'http://'), // Versión http
+            'https://app.nexactrl.com',         // Tu app en producción
+            'https://admin.nexactrl.com',      // Panel admin
+        ].filter(Boolean); // Elimina null/undefined
+
+        // Permitir requests sin origin (Postman, curl, apps móviles)
+        if (!origin || allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+
+        callback(new Error(`Origen no permitido: ${origin}`));
+    },
+
+    // Métodos HTTP permitidos
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+
+    // Headers permitidos
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-JWT',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+    ],
+
+    // Headers expuestos al frontend
+    exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit'],
+
+    // Permitir cookies/sesiones
+    credentials: true,
+
+    // Cache de preflight (OPTIONS) en segundos
+    maxAge: 86400, // 24 horas
+};
+
+app.use(cors(corsOptions));
+
+// Manejar errores de CORS
+app.use((err, req, res, next) => {
+    if (err.message && err.message.includes('Origen no permitido')) {
+        logger.warn('CORS bloqueado', {
+            origin: req.headers.origin,
+            ip: req.ip,
+            path: req.path
+        });
+        return res.status(403).json({
+            error: 'Origen no permitido',
+            code: 'CORS_ORIGIN_BLOCKED'
+        });
+    }
+    next(err);
+});
+
+// Protección contra abuso en todas las APIs, excepto archivos estáticos
+const rateLimit = require('express-rate-limit');
+
+const globalRateLimit = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minuto
+    max: 200, // 200 requests por minuto por IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Excluir archivos estáticos y la landing page
+    skip: (req) => {
+        const path = req.path;
+        // No limitar: archivos estáticos, landing, login page, service worker
+        const isStatic = path.startsWith('/styles') ||
+            path.startsWith('/js') ||
+            path.startsWith('/images') ||
+            path.startsWith('/assets') ||
+            path.startsWith('/config') ||
+            path === '/' ||
+            path === '/login' ||
+            path === '/inicio' ||
+            path.endsWith('.html') ||
+            path.endsWith('.css') ||
+            path.endsWith('.js') ||
+            path.endsWith('.png') ||
+            path.endsWith('.jpg') ||
+            path.endsWith('.svg') ||
+            path.endsWith('.ico');
+        return isStatic;
+    },
+    handler: (req, res) => {
+        logger.warn('Rate limit excedido', {
+            ip: req.ip,
+            path: req.path,
+            method: req.method,
+            userAgent: req.headers['user-agent']
+        });
+        res.status(429).json({
+            error: 'Demasiadas solicitudes. Por favor, espere un momento.',
+            code: 'RATE_LIMIT_EXCEEDED'
+        });
+    }
+});
+
+// Aplicar rate limit global ANTES de las rutas API
+app.use(globalRateLimit);
+
 // Enforce HTTPS y Helmet sólo en producción
 if (process.env.NODE_ENV === 'production') {
     app.use(enforceHTTPS);
@@ -278,7 +395,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
-        logger.info(`Servidor Diesel Ctrl ejecutándose en http://localhost:${PORT}`);
+    logger.info(`Servidor Diesel Ctrl ejecutándose en http://localhost:${PORT}`);
 });
 
 // Graceful shutdown
@@ -288,7 +405,7 @@ function shutdown(signal) {
         logger.info('Servidor cerrado correctamente.');
         // Aquí puedes cerrar conexiones a la base de datos, limpiar recursos, etc.
         if (db && db.close) {
-            try { db.close(); logger.info('Base de datos cerrada.'); } catch (e) {}
+            try { db.close(); logger.info('Base de datos cerrada.'); } catch (e) { }
         }
         process.exit(0);
     });

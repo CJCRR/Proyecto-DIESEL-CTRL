@@ -57,7 +57,7 @@ function appendEmpresaFilter(where, params, { alias = 'v', empresaId } = {}) {
   }
 }
 
-function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500, empresaId }) {
+function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500, offset = 0, empresaId }) {
   const where = [];
   const params = [];
   appendFechaFilters(where, params, { desde, hasta, alias: 'v', campo: 'fecha' });
@@ -68,23 +68,23 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
   const rows = db.prepare(`
-      SELECT v.id, v.fecha, v.cliente,
-        COALESCE(u.nombre_completo, u.username, v.vendedor) AS vendedor,
-        v.metodo_pago, v.referencia,
-           v.tasa_bcv, v.descuento, v.iva_pct, v.total_bs_iva, v.total_usd_iva,
-           COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0) AS total_bs,
-           COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) / NULLIF(v.tasa_bcv,0),
-                    SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),
-                    v.total_bs) AS total_usd,
-           COALESCE(SUM(vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)), 0) AS bruto_bs,
-           COALESCE(SUM(vd.precio_usd * vd.cantidad), 0) AS bruto_usd,
-           COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad * COALESCE(v.tasa_bcv,1)), 0) AS costo_bs,
-           COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad), 0) AS costo_usd,
-           COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0)
-             - COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad * COALESCE(v.tasa_bcv,1)), 0) AS margen_bs,
-           COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) / NULLIF(v.tasa_bcv,0),
-                    SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),
-                    v.total_bs) - COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad),0) AS margen_usd
+    SELECT v.id, v.fecha, v.cliente,
+      COALESCE(u.nombre_completo, u.username, v.vendedor) AS vendedor,
+      v.metodo_pago, v.referencia,
+      v.tasa_bcv, v.descuento, v.iva_pct, v.total_bs_iva, v.total_usd_iva,
+      COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0) AS total_bs,
+      COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) / NULLIF(v.tasa_bcv,0),
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),
+        v.total_bs) AS total_usd,
+      COALESCE(SUM(vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)), 0) AS bruto_bs,
+      COALESCE(SUM(vd.precio_usd * vd.cantidad), 0) AS bruto_usd,
+      COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad * COALESCE(v.tasa_bcv,1)), 0) AS costo_bs,
+      COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd, 0) * vd.cantidad), 0) AS costo_usd,
+      COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0)
+        - COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad * COALESCE(v.tasa_bcv,1)), 0) AS margen_bs,
+      COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))) / NULLIF(v.tasa_bcv,0),
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))),
+        v.total_bs) - COALESCE(SUM(COALESCE(vd.costo_usd, p.costo_usd,0) * vd.cantidad),0) AS margen_usd
     FROM ventas v
     JOIN venta_detalle vd ON vd.venta_id = v.id
     JOIN productos p ON p.id = vd.producto_id
@@ -92,8 +92,8 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
     ${whereSQL}
     GROUP BY v.id
     ORDER BY v.fecha DESC
-    LIMIT ?
-  `).all(...params, limit);
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
   // Devoluciones asociadas a las ventas del rango (por venta)
   const devRows = db.prepare(`
     SELECT d.venta_original_id AS venta_id,
@@ -186,7 +186,8 @@ function queryVentasRango({ desde, hasta, cliente, vendedor, metodo, limit = 500
  * totales normalizados (incluyendo IVA cuando está disponible).
  * @returns {Array<import('../types').Venta>}
  */
-function getVentasSinDevolucion(empresaId) {
+function getVentasSinDevolucion(empresaId, opts = {}) {
+  const { limit = 100, offset = 0 } = opts || {};
   const where = [];
   const params = [];
   appendEmpresaFilter(where, params, { alias: 'v', empresaId });
@@ -194,18 +195,18 @@ function getVentasSinDevolucion(empresaId) {
   const whereSQL = 'WHERE ' + where.join(' AND ');
 
   const rows = db.prepare(`
-      SELECT v.id, v.id_global, v.fecha, v.cliente,
-        COALESCE(u.nombre_completo, u.username, v.vendedor) AS vendedor,
-        u.empresa_id AS empresa_id,
-        v.cedula, v.telefono,
-           v.total_bs, v.tasa_bcv, v.descuento, v.metodo_pago, v.referencia,
-           v.iva_pct, v.total_bs_iva, v.total_usd_iva
+    SELECT v.id, v.id_global, v.fecha, v.cliente,
+      COALESCE(u.nombre_completo, u.username, v.vendedor) AS vendedor,
+      u.empresa_id AS empresa_id,
+      v.cedula, v.telefono,
+      v.total_bs, v.tasa_bcv, v.descuento, v.metodo_pago, v.referencia,
+      v.iva_pct, v.total_bs_iva, v.total_usd_iva
     FROM ventas v
-      LEFT JOIN usuarios u ON u.id = v.usuario_id
+    LEFT JOIN usuarios u ON u.id = v.usuario_id
     ${whereSQL}
     ORDER BY v.fecha DESC
-    LIMIT 100
-  `).all(...params);
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset);
 
   const correlativoStmt = db.prepare(`
       SELECT COUNT(*) AS n
@@ -257,11 +258,11 @@ function getVentasRango(params, empresaId) {
  */
 function buildVentasRangoCsv(params, empresaId) {
   const rows = queryVentasRango({ ...params, empresaId });
-  const header = ['fecha','cliente','vendedor','metodo_pago','referencia','tasa_bcv','descuento','total_bs','total_bs_iva','total_usd','total_usd_iva','bruto_bs','bruto_usd','costo_bs','costo_usd','margen_bs','margen_usd'];
+  const header = ['fecha', 'cliente', 'vendedor', 'metodo_pago', 'referencia', 'tasa_bcv', 'descuento', 'total_bs', 'total_bs_iva', 'total_usd', 'total_usd_iva', 'bruto_bs', 'bruto_usd', 'costo_bs', 'costo_usd', 'margen_bs', 'margen_usd'];
   const toCsv = (val) => {
     if (val === null || val === undefined) return '';
     const s = String(val);
-    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   };
   const lines = rows.map(r => header.map(h => toCsv(r[h])).join(';'));
@@ -474,7 +475,7 @@ function getMargenProductos({ desde, hasta, limit, empresaId }) {
   const params = [];
   appendFechaFilters(where, params, { desde, hasta, alias: 'v', campo: 'fecha' });
   appendEmpresaFilter(where, params, { alias: 'v', empresaId });
-   // Excluir ventas con devoluciones
+  // Excluir ventas con devoluciones
   where.push('NOT EXISTS (SELECT 1 FROM devoluciones d WHERE d.venta_original_id = v.id)');
   const whereSQL = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
@@ -579,8 +580,8 @@ function getInventario(empresaId) {
   }
   const ventaTasa = ventaTasaRow && ventaTasaRow.tasa_bcv ? ventaTasaRow.tasa_bcv : null;
   const tasa = (!Number.isNaN(cfgTasa) && cfgTasa > 0)
-      ? cfgTasa
-      : (!Number.isNaN(ventaTasa) && ventaTasa > 0 ? ventaTasa : 1);
+    ? cfgTasa
+    : (!Number.isNaN(ventaTasa) && ventaTasa > 0 ? ventaTasa : 1);
 
   const params = [];
   let where = '';
@@ -872,7 +873,7 @@ function getSeriesVentasDiarias(dias, empresaId) {
       ${whereVentasSQL}
       GROUP BY dia
       ORDER BY dia ASC
-    `).all(...paramsVentas, `-${dias-1} days`);
+    `).all(...paramsVentas, `-${dias - 1} days`);
 
   // Descuentos por día (en Bs y USD) para ajustar ventas y margen
   const descRows = db.prepare(`
@@ -883,12 +884,12 @@ function getSeriesVentasDiarias(dias, empresaId) {
       ${whereVentasSQL}
       GROUP BY dia
       ORDER BY dia ASC
-    `).all(...paramsVentas, `-${dias-1} days`);
+    `).all(...paramsVentas, `-${dias - 1} days`);
 
   // Devoluciones por día (fecha de la devolución)
   const paramsDev = [];
   const whereDevParts = ["date(d.fecha) >= date('now','localtime', ?)"];
-  paramsDev.push(`-${dias-1} days`);
+  paramsDev.push(`-${dias - 1} days`);
   if (empresaId !== undefined && empresaId !== null) {
     whereDevParts.push(`EXISTS (
       SELECT 1 FROM ventas v
@@ -981,7 +982,7 @@ function getSeriesVentasMensuales(meses, empresaId) {
       ${whereVentasSQL}
       GROUP BY mes
       ORDER BY mes ASC
-    `).all(...paramsVentas, `-${meses*30} days`);
+    `).all(...paramsVentas, `-${meses * 30} days`);
 
   // Descuentos por mes (en Bs y USD) para ajustar ventas y margen
   const descRows = db.prepare(`
@@ -992,12 +993,12 @@ function getSeriesVentasMensuales(meses, empresaId) {
       ${whereVentasSQL}
       GROUP BY mes
       ORDER BY mes ASC
-    `).all(...paramsVentas, `-${meses*30} days`);
+    `).all(...paramsVentas, `-${meses * 30} days`);
 
   // Devoluciones por mes (fecha de la devolución)
   const paramsDev = [];
   const whereDevParts = ["date(d.fecha) >= date('now','localtime', ?)"];
-  paramsDev.push(`-${meses*30} days`);
+  paramsDev.push(`-${meses * 30} days`);
   if (empresaId !== undefined && empresaId !== null) {
     whereDevParts.push(`EXISTS (
       SELECT 1 FROM ventas v
@@ -1676,26 +1677,27 @@ function getComisionesVendedores({ desde, hasta, cliente, vendedor, metodo, empr
     .sort((a, b) => (b.total_usd || 0) - (a.total_usd || 0));
 }
 
-function getHistorialCliente({ q, limit, empresaId }) {
+function getHistorialCliente({ q, limit = 100, offset = 0, empresaId }) {
   if (!q || !q.trim()) return [];
-  const lim = parseInt(limit) || 100;
+  const lim = Math.min(Math.max(parseInt(limit) || 100, 1), 500);
+  const off = Math.max(parseInt(offset) || 0, 0);
   const like = `%${q}%`;
   const where = ["(v.cliente LIKE ? OR v.cedula LIKE ? OR v.telefono LIKE ?)"];
   const params = [like, like, like];
   appendEmpresaFilter(where, params, { alias: 'v', empresaId });
   const whereSQL = 'WHERE ' + where.join(' AND ');
   return db.prepare(`
-      SELECT v.id, v.fecha, v.cliente, v.vendedor, v.metodo_pago, v.tasa_bcv,
-             COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0) as total_bs,
-             COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)))/NULLIF(v.tasa_bcv,0),
-                      SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs) as total_usd
-      FROM ventas v
-      JOIN venta_detalle vd ON vd.venta_id = v.id
-      ${whereSQL}
-      GROUP BY v.id
-      ORDER BY v.fecha DESC
-      LIMIT ?
-    `).all(...params, lim);
+    SELECT v.id, v.fecha, v.cliente, v.vendedor, v.metodo_pago, v.tasa_bcv,
+      COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs, 0) as total_bs,
+      COALESCE(SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1)))/NULLIF(v.tasa_bcv,0),
+        SUM(COALESCE(vd.subtotal_bs, vd.precio_usd * vd.cantidad * COALESCE(v.tasa_bcv,1))), v.total_bs) as total_usd
+    FROM ventas v
+    JOIN venta_detalle vd ON vd.venta_id = v.id
+    ${whereSQL}
+    GROUP BY v.id
+    ORDER BY v.fecha DESC
+    LIMIT ? OFFSET ?
+  `).all(...params, lim, off);
 }
 
 function getRentabilidadCategorias({ desde, hasta, empresaId }) {
@@ -1832,11 +1834,11 @@ function getResumenFinanciero({ desde, hasta, empresaId }) {
 
 function buildRentabilidadCategoriasCsv(params, empresaId) {
   const rows = getRentabilidadCategorias({ ...params, empresaId });
-  const header = ['categoria','total_qty','ingresos_bs','ingresos_usd','costos_bs','costos_usd','margen_bs','margen_usd','margen_pct'];
+  const header = ['categoria', 'total_qty', 'ingresos_bs', 'ingresos_usd', 'costos_bs', 'costos_usd', 'margen_bs', 'margen_usd', 'margen_pct'];
   const toCsv = (val) => {
     if (val === null || val === undefined) return '';
     const s = String(val);
-    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   };
   const lines = rows.map(r => header.map(h => toCsv(r[h])).join(';'));
@@ -1846,11 +1848,11 @@ function buildRentabilidadCategoriasCsv(params, empresaId) {
 
 function buildRentabilidadProveedoresCsv(params, empresaId) {
   const rows = getRentabilidadProveedores({ ...params, empresaId });
-  const header = ['proveedor_id','proveedor','total_qty','ingresos_bs','ingresos_usd','costos_bs','costos_usd','margen_bs','margen_usd','margen_pct'];
+  const header = ['proveedor_id', 'proveedor', 'total_qty', 'ingresos_bs', 'ingresos_usd', 'costos_bs', 'costos_usd', 'margen_bs', 'margen_usd', 'margen_pct'];
   const toCsv = (val) => {
     if (val === null || val === undefined) return '';
     const s = String(val);
-    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   };
   const lines = rows.map(r => header.map(h => toCsv(r[h])).join(';'));
@@ -1860,11 +1862,11 @@ function buildRentabilidadProveedoresCsv(params, empresaId) {
 
 function buildComisionesVendedoresCsv(params, empresaId) {
   const rows = getComisionesVendedores({ ...params, empresaId });
-  const header = ['usuario_id','username','nombre_completo','rol','comision_pct','ventas','total_bs','total_usd','comision_bs','comision_usd'];
+  const header = ['usuario_id', 'username', 'nombre_completo', 'rol', 'comision_pct', 'ventas', 'total_bs', 'total_usd', 'comision_bs', 'comision_usd'];
   const toCsv = (val) => {
     if (val === null || val === undefined) return '';
     const s = String(val);
-    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    if (/[",\n\r;]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   };
   const lines = rows.map(r => header.map(h => toCsv(r[h])).join(';'));
