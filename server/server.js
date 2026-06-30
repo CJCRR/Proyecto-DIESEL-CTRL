@@ -35,21 +35,80 @@ const whatsappRoutes = require('./routes/whatsapp');
 
 const app = express();
 
+// ========== TRUST PROXY (PARA NGINX/CLOUDFLARE) ==========
+// IMPORTANTE: Debe ir ANTES de rate limit
+app.set('trust proxy', 1);
+
+// ========== CORS CONFIGURACIÓN ==========
+const cors = require('cors');
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        
+        if (process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+        
+        const allowedOrigins = [
+            'https://nexactrl.com',
+            'https://www.nexactrl.com',
+            'http://nexactrl.com',
+            'http://www.nexactrl.com',
+        ];
+        
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        
+        logger.warn('CORS bloqueado', { origin });
+        callback(new Error(`Origen no permitido: ${origin}`));
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-JWT',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+    ],
+    exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit'],
+    credentials: true,
+    maxAge: 86400,
+};
+
+app.use(cors(corsOptions));
+
+// Manejar errores de CORS
+app.use((err, req, res, next) => {
+    if (err.message && err.message.includes('Origen no permitido')) {
+        logger.warn('CORS bloqueado', {
+            origin: req.headers.origin,
+            ip: req.ip,
+            path: req.path
+        });
+        return res.status(403).json({
+            error: 'Origen no permitido',
+            code: 'CORS_ORIGIN_BLOCKED'
+        });
+    }
+    next(err);
+});
+
 // ========== RATE LIMIT GLOBAL ==========
-
-
-// Protección contra abuso en todas las APIs, excepto archivos estáticos
 const rateLimit = require('express-rate-limit');
 
 const globalRateLimit = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minuto
-    max: 200, // 200 requests por minuto por IP
+    windowMs: 1 * 60 * 1000,
+    max: 200,
     standardHeaders: true,
     legacyHeaders: false,
-    // Excluir archivos estáticos y la landing page
+    keyGenerator: (req) => {
+        return req.headers['x-forwarded-for'] || req.ip;
+    },
     skip: (req) => {
         const path = req.path;
-        // No limitar: archivos estáticos, landing, login page, service worker
         const isStatic = path.startsWith('/styles') ||
             path.startsWith('/js') ||
             path.startsWith('/images') ||
@@ -81,75 +140,6 @@ const globalRateLimit = rateLimit({
     }
 });
 
-// ========== CORS CONFIGURACIÓN ==========
-const cors = require('cors');
-
-const corsOptions = {
-    // Orígenes permitidos (ajusta según tu entorno)
-    origin: (origin, callback) => {
-        // En desarrollo, permitir cualquier origen (incluyendo Postman/Thunder Client que envían origin undefined)
-        if (process.env.NODE_ENV !== 'production') {
-            return callback(null, true);
-        }
-
-        // En producción, solo permitir orígenes específicos
-        const allowedOrigins = [
-            process.env.FRONTEND_URL,           // Tu dominio principal
-            process.env.FRONTEND_URL?.replace('https://', 'http://'), // Versión http
-            'https://app.nexactrl.com',         // Tu app en producción
-            'https://admin.nexactrl.com',      // Panel admin
-        ].filter(Boolean); // Elimina null/undefined
-
-        // Permitir requests sin origin (Postman, curl, apps móviles)
-        if (!origin || allowedOrigins.includes(origin)) {
-            return callback(null, true);
-        }
-
-        callback(new Error(`Origen no permitido: ${origin}`));
-    },
-
-    // Métodos HTTP permitidos
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-
-    // Headers permitidos
-    allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'X-JWT',
-        'X-Requested-With',
-        'Accept',
-        'Origin',
-    ],
-
-    // Headers expuestos al frontend
-    exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit'],
-
-    // Permitir cookies/sesiones
-    credentials: true,
-
-    // Cache de preflight (OPTIONS) en segundos
-    maxAge: 86400, // 24 horas
-};
-
-app.use(cors(corsOptions));
-
-// Manejar errores de CORS
-app.use((err, req, res, next) => {
-    if (err.message && err.message.includes('Origen no permitido')) {
-        logger.warn('CORS bloqueado', {
-            origin: req.headers.origin,
-            ip: req.ip,
-            path: req.path
-        });
-        return res.status(403).json({
-            error: 'Origen no permitido',
-            code: 'CORS_ORIGIN_BLOCKED'
-        });
-    }
-    next(err);
-});
-
-// Aplicar rate limit global ANTES de las rutas API
 app.use(globalRateLimit);
 
 // Enforce HTTPS y Helmet sólo en producción
