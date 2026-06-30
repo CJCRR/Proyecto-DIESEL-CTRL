@@ -764,7 +764,12 @@ async function cargarReporte() {
     const params = buildReportParams();
 
     try {
-        cacheRows = await apiFetchJson(`/reportes/ventas-rango?${params.toString()}`);
+        const payload = await apiFetchJson(`/reportes/ventas-rango?${params.toString()}`);
+        cacheRows = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.items)
+                ? payload.items
+                : [];
     } catch (err) {
         console.error('Error cargando reporte:', err);
 		if (window.showToast) {
