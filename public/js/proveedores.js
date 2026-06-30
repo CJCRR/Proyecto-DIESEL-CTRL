@@ -5,6 +5,15 @@ import { initCustomSelect } from './modules/ui.js';
 let proveedores = [];
 let proveedorSeleccionadoId = null;
 
+function updateDeleteButtonState() {
+  const btn = document.getElementById('btnEliminarProveedor');
+  if (!btn) return;
+  const disabled = !proveedorSeleccionadoId;
+  btn.disabled = disabled;
+  btn.classList.toggle('opacity-50', disabled);
+  btn.classList.toggle('cursor-not-allowed', disabled);
+}
+
 function limpiarFormulario() {
   proveedorSeleccionadoId = null;
   document.getElementById('p_nombre').value = '';
@@ -14,6 +23,7 @@ function limpiarFormulario() {
   document.getElementById('p_direccion').value = '';
   document.getElementById('p_notas').value = '';
   document.getElementById('p_activo').value = '1';
+  updateDeleteButtonState();
 }
 
 function llenarFormulario(prov) {
@@ -25,6 +35,7 @@ function llenarFormulario(prov) {
   document.getElementById('p_direccion').value = prov.direccion || '';
   document.getElementById('p_notas').value = prov.notas || '';
   document.getElementById('p_activo').value = prov.activo ? '1' : '0';
+  updateDeleteButtonState();
 }
 
 function renderTabla() {
@@ -46,8 +57,9 @@ function renderTabla() {
   tbody.innerHTML = list
     .map(p => {
       const estado = p.activo ? '<span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-bold">Activo</span>' : '<span class="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">Inactivo</span>';
+      const selectedClass = proveedorSeleccionadoId === p.id ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : '';
       return `
-        <tr class="hover:bg-slate-50 cursor-pointer" data-id="${p.id}">
+        <tr class="hover:bg-slate-50 cursor-pointer ${selectedClass}" data-id="${p.id}">
           <td class="p-3 text-sm font-semibold text-slate-800">${escapeHtml(p.nombre || '')}</td>
           <td class="p-3 text-sm text-slate-600">${escapeHtml(p.rif || '')}</td>
           <td class="p-3 text-sm text-slate-600">${escapeHtml(p.telefono || '')}</td>
@@ -116,6 +128,31 @@ async function guardarProveedor() {
   }
 }
 
+async function eliminarProveedorSeleccionado() {
+  if (!proveedorSeleccionadoId) {
+    showToast('Selecciona un proveedor primero', 'error');
+    return;
+  }
+
+  const prov = proveedores.find((item) => item.id === proveedorSeleccionadoId);
+  const nombre = prov && prov.nombre ? prov.nombre : 'este proveedor';
+  const ok = window.confirm(`Se eliminará ${nombre}. Esta acción no se puede deshacer. ¿Continuar?`);
+  if (!ok) return;
+
+  try {
+    await apiFetchJson(`/api/proveedores/${proveedorSeleccionadoId}`, {
+      method: 'DELETE',
+    });
+    proveedores = proveedores.filter((item) => item.id !== proveedorSeleccionadoId);
+    limpiarFormulario();
+    renderTabla();
+    showToast('Proveedor eliminado', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || 'Error eliminando proveedor', 'error');
+  }
+}
+
 function setupUI() {
   document.getElementById('p_buscar').addEventListener('input', () => renderTabla());
   document.getElementById('btnGuardarProveedor').addEventListener('click', (e) => {
@@ -125,6 +162,10 @@ function setupUI() {
   document.getElementById('btnNuevoProveedor').addEventListener('click', (e) => {
     e.preventDefault();
     limpiarFormulario();
+  });
+  document.getElementById('btnEliminarProveedor').addEventListener('click', (e) => {
+    e.preventDefault();
+    eliminarProveedorSeleccionado();
   });
 }
 

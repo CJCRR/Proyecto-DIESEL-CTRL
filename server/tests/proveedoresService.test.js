@@ -6,6 +6,8 @@ const db = require(path.join('..', 'db'));
 const proveedoresService = require(path.join('..', 'services', 'proveedoresService'));
 
 function resetProveedoresData() {
+  db.prepare('DELETE FROM compras').run();
+  db.prepare('UPDATE productos SET proveedor_id = NULL WHERE proveedor_id IS NOT NULL').run();
   db.prepare('DELETE FROM proveedores').run();
 }
 
@@ -50,6 +52,40 @@ describe('proveedoresService', () => {
 
     const reactivado = proveedoresService.toggleProveedorActivo(prov.id, true, empresaId);
     expect(reactivado.activo).toBe(true);
+  });
+
+  test('deleteProveedor elimina proveedor sin compras y limpia referencia en productos', () => {
+    const empresaId = 1;
+    const prov = proveedoresService.createProveedor({ nombre: 'Prov Delete', rif: 'J-DEL' }, empresaId);
+
+    const prod = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, proveedor_id, empresa_id) VALUES (?,?,?,?,?,?,?)'
+    ).run('PROV-DEL-1', 'Prod vinculado', 10, 5, 2, prov.id, empresaId);
+
+    const deleted = proveedoresService.deleteProveedor(prov.id, empresaId);
+    expect(deleted).toEqual({ id: prov.id });
+
+    const providerAfter = db.prepare('SELECT id FROM proveedores WHERE id = ?').get(prov.id);
+    const productAfter = db.prepare('SELECT proveedor_id FROM productos WHERE id = ?').get(prod.lastInsertRowid);
+    expect(providerAfter).toBeUndefined();
+    expect(productAfter.proveedor_id).toBeNull();
+  });
+
+  test('deleteProveedor bloquea eliminación si el proveedor tiene compras', () => {
+    const empresaId = 1;
+    const prov = proveedoresService.createProveedor({ nombre: 'Prov Compras', rif: 'J-COMP' }, empresaId);
+    const userInfo = db.prepare('INSERT INTO usuarios (username, password, rol, activo, empresa_id) VALUES (?, ?, ?, 1, ?)').run(
+      `prov_user_${Math.random().toString(36).slice(2, 8)}`,
+      'x',
+      'admin',
+      empresaId
+    );
+
+    db.prepare(
+      'INSERT INTO compras (proveedor_id, fecha, numero, tasa_bcv, total_bs, total_usd, estado, notas, usuario_id, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(prov.id, '2026-06-30', 'OC-1', 1, 10, 10, 'recibida', '', userInfo.lastInsertRowid, empresaId);
+
+    expect(() => proveedoresService.deleteProveedor(prov.id, empresaId)).toThrow('No se puede eliminar este proveedor porque tiene compras registradas.');
   });
 
   test('listProveedores respeta empresaId y no mezcla empresas', () => {

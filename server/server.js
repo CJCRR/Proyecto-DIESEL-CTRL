@@ -37,6 +37,50 @@ const app = express();
 
 // ========== RATE LIMIT GLOBAL ==========
 
+
+// Protección contra abuso en todas las APIs, excepto archivos estáticos
+const rateLimit = require('express-rate-limit');
+
+const globalRateLimit = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minuto
+    max: 200, // 200 requests por minuto por IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Excluir archivos estáticos y la landing page
+    skip: (req) => {
+        const path = req.path;
+        // No limitar: archivos estáticos, landing, login page, service worker
+        const isStatic = path.startsWith('/styles') ||
+            path.startsWith('/js') ||
+            path.startsWith('/images') ||
+            path.startsWith('/assets') ||
+            path.startsWith('/config') ||
+            path === '/' ||
+            path === '/login' ||
+            path === '/inicio' ||
+            path.endsWith('.html') ||
+            path.endsWith('.css') ||
+            path.endsWith('.js') ||
+            path.endsWith('.png') ||
+            path.endsWith('.jpg') ||
+            path.endsWith('.svg') ||
+            path.endsWith('.ico');
+        return isStatic;
+    },
+    handler: (req, res) => {
+        logger.warn('Rate limit excedido', {
+            ip: req.ip,
+            path: req.path,
+            method: req.method,
+            userAgent: req.headers['user-agent']
+        });
+        res.status(429).json({
+            error: 'Demasiadas solicitudes. Por favor, espere un momento.',
+            code: 'RATE_LIMIT_EXCEEDED'
+        });
+    }
+});
+
 // ========== CORS CONFIGURACIÓN ==========
 const cors = require('cors');
 
@@ -103,49 +147,6 @@ app.use((err, req, res, next) => {
         });
     }
     next(err);
-});
-
-// Protección contra abuso en todas las APIs, excepto archivos estáticos
-const rateLimit = require('express-rate-limit');
-
-const globalRateLimit = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minuto
-    max: 200, // 200 requests por minuto por IP
-    standardHeaders: true,
-    legacyHeaders: false,
-    // Excluir archivos estáticos y la landing page
-    skip: (req) => {
-        const path = req.path;
-        // No limitar: archivos estáticos, landing, login page, service worker
-        const isStatic = path.startsWith('/styles') ||
-            path.startsWith('/js') ||
-            path.startsWith('/images') ||
-            path.startsWith('/assets') ||
-            path.startsWith('/config') ||
-            path === '/' ||
-            path === '/login' ||
-            path === '/inicio' ||
-            path.endsWith('.html') ||
-            path.endsWith('.css') ||
-            path.endsWith('.js') ||
-            path.endsWith('.png') ||
-            path.endsWith('.jpg') ||
-            path.endsWith('.svg') ||
-            path.endsWith('.ico');
-        return isStatic;
-    },
-    handler: (req, res) => {
-        logger.warn('Rate limit excedido', {
-            ip: req.ip,
-            path: req.path,
-            method: req.method,
-            userAgent: req.headers['user-agent']
-        });
-        res.status(429).json({
-            error: 'Demasiadas solicitudes. Por favor, espere un momento.',
-            code: 'RATE_LIMIT_EXCEEDED'
-        });
-    }
 });
 
 // Aplicar rate limit global ANTES de las rutas API

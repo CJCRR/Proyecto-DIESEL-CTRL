@@ -541,6 +541,7 @@ function renderVentasRecientes(filter = '') {
         if (!val) return true;
         return (v.cliente || '').toLowerCase().includes(val)
             || (v.referencia || '').toLowerCase().includes(val)
+            || (v.nro_nota || '').toLowerCase().includes(val)
             || String(v.id).includes(val);
     }).slice(0, 20);
     if (!list.length) {
@@ -550,10 +551,11 @@ function renderVentasRecientes(filter = '') {
     cont.innerHTML = list.map(v => {
         const baseUsd = v.tasa_bcv ? (v.total_bs / v.tasa_bcv) : 0;
         const totalUsd = (v.total_usd_iva != null) ? v.total_usd_iva : baseUsd;
+        const ventaNumero = escapeHtml(v.nro_nota || `VENTA-${v.id}`);
         return `<div class="p-3 border rounded-xl bg-white flex items-center justify-between">
             <div>
                 <div class="font-semibold text-slate-700">${escapeHtml(v.cliente || 'Sin nombre')}</div>
-                <div class="text-[11px] text-slate-500">#${escapeHtml(v.id)} • ${escapeHtml(new Date(v.fecha).toLocaleString())}</div>
+                <div class="text-[11px] text-slate-500">${ventaNumero} • ${escapeHtml(new Date(v.fecha).toLocaleString())}</div>
                 <div class="text-[11px] text-slate-500">Ref: ${escapeHtml(v.referencia || '—')} • ${escapeHtml(v.metodo_pago || '')}</div>
             </div>
             <div class="text-right">

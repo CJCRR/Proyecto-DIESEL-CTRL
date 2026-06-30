@@ -114,10 +114,29 @@ function toggleProveedorActivo(id, activo, empresaId) {
   return getProveedor(id, empresaId);
 }
 
+function deleteProveedor(id, empresaId) {
+  const prov = getProveedor(id, empresaId);
+  if (!prov) return null;
+
+  const compras = db.prepare('SELECT COUNT(*) AS total FROM compras WHERE proveedor_id = ? AND empresa_id = ?').get(id, empresaId);
+  if (Number(compras && compras.total) > 0) {
+    throw validationError('No se puede eliminar este proveedor porque tiene compras registradas.', 'PROV_TIENE_COMPRAS');
+  }
+
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE productos SET proveedor_id = NULL WHERE proveedor_id = ? AND empresa_id = ?').run(id, empresaId);
+    db.prepare('DELETE FROM proveedores WHERE id = ? AND empresa_id = ?').run(id, empresaId);
+  });
+
+  tx();
+  return { id };
+}
+
 module.exports = {
   listProveedores,
   getProveedor,
   createProveedor,
   updateProveedor,
   toggleProveedorActivo,
+  deleteProveedor,
 };

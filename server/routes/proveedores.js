@@ -7,6 +7,7 @@ const {
   createProveedor,
   updateProveedor,
   toggleProveedorActivo,
+  deleteProveedor,
 } = require('../services/proveedoresService');
 
 // GET /proveedores - listado (con filtro opcional q y soloActivos)
@@ -76,6 +77,21 @@ router.post('/:id/activar', requireAuth, requireRole('admin'), (req, res) => {
   } catch (err) {
     console.error('Error cambiando estado de proveedor:', err.message);
     res.status(500).json({ error: 'Error al cambiar estado de proveedor' });
+  }
+});
+
+// DELETE /proveedores/:id - eliminar proveedor (solo admin)
+router.delete('/:id', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : null;
+    const result = deleteProveedor(id, empresaId);
+    if (!result) return res.status(404).json({ error: 'Proveedor no encontrado' });
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error('Error eliminando proveedor:', err.message);
+    if (err.tipo === 'VALIDACION') return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error al eliminar proveedor' });
   }
 });
 

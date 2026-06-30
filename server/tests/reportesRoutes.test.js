@@ -24,7 +24,7 @@ describe('Rutas HTTP /reportes', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(Array.isArray(res.body.items)).toBe(true);
   });
 
   test('GET /reportes/rentabilidad/categorias responde 200 y array JSON', async () => {
@@ -148,8 +148,8 @@ describe('Rutas HTTP /reportes', () => {
       .get(query)
       .set('Authorization', `Bearer ${tokenA}`);
     expect(resA.status).toBe(200);
-    expect(Array.isArray(resA.body)).toBe(true);
-    const clientesA = resA.body.map((r) => r.cliente);
+    expect(Array.isArray(resA.body.items)).toBe(true);
+    const clientesA = resA.body.items.map((r) => r.cliente);
     expect(clientesA).toContain('Cliente A');
     expect(clientesA).not.toContain('Cliente B');
 
@@ -157,8 +157,8 @@ describe('Rutas HTTP /reportes', () => {
       .get(query)
       .set('Authorization', `Bearer ${tokenB}`);
     expect(resB.status).toBe(200);
-    expect(Array.isArray(resB.body)).toBe(true);
-    const clientesB = resB.body.map((r) => r.cliente);
+    expect(Array.isArray(resB.body.items)).toBe(true);
+    const clientesB = resB.body.items.map((r) => r.cliente);
     expect(clientesB).toContain('Cliente B');
     expect(clientesB).not.toContain('Cliente A');
   });
