@@ -624,12 +624,17 @@ async function registrarPresupuesto() {
 
     // Enviar también el precio_usd actual de cada ítem para que el presupuesto
     // respete el nivel de precio seleccionado en el POS
-    const items = carrito.map(item => ({
-        codigo: item.codigo,
-        cantidad: item.cantidad,
-        precio_usd: typeof item.precio_usd === 'number' ? item.precio_usd : Number(item.precio_usd || 0) || 0,
-        deposito_id: item.deposito_id != null ? item.deposito_id : null
-    }));
+    const items = carrito.map(item => {
+        const payload = {
+            codigo: item.codigo,
+            cantidad: item.cantidad,
+            precio_usd: typeof item.precio_usd === 'number' ? item.precio_usd : Number(item.precio_usd || 0) || 0,
+        };
+        if (item.deposito_id != null) {
+            payload.deposito_id = item.deposito_id;
+        }
+        return payload;
+    });
 
     // Abrir ventana de nota inmediatamente para mantener el gesto del usuario
     try {

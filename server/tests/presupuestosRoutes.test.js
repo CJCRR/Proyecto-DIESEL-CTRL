@@ -69,4 +69,33 @@ describe('Rutas HTTP /presupuestos', () => {
     expect(notaRes.text).toContain('$850.00 / Bs 8500.00');
     expect(notaRes.text).toContain('$15.00 / Bs 150.00');
   });
+
+  test('POST /presupuestos acepta productos con stock 0 cuando no se envía deposito_id', async () => {
+    const empresaId = 1;
+    const { token } = createTestUserAndToken({ empresaId });
+    const app = buildApp();
+
+    db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id, deposito_id) VALUES (?,?,?,?,?,?,?)'
+    ).run('PRES-0', 'Producto sin stock', 25, 10, 0, empresaId, null);
+
+    const createRes = await request(app)
+      .post('/presupuestos')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        items: [{ codigo: 'PRES-0', cantidad: 1, precio_usd: 25, deposito_id: null }],
+        cliente: 'Cliente Stock Cero',
+        cedula: 'V-11111111',
+        telefono: '0412-1111111',
+        tasa_bcv: 10,
+        descuento: 0,
+        notas: 'Prueba stock cero'
+      });
+
+    expect(createRes.status).toBe(200);
+    expect(createRes.body).toHaveProperty('presupuestoId');
+
+    const detalle = db.prepare('SELECT codigo, cantidad, deposito_id FROM presupuesto_detalle WHERE presupuesto_id = ?').get(createRes.body.presupuestoId);
+    expect(detalle).toMatchObject({ codigo: 'PRES-0', cantidad: 1, deposito_id: null });
+  });
 });

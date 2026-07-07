@@ -61,8 +61,11 @@ const crearValidaciones = [
     .isFloat({ min: 0, max: 1e9 })
     .withMessage('Precio inválido'),
   body('items.*.deposito_id')
-    .optional()
-    .isInt({ min: 1 })
+    .custom((value) => {
+      if (value === undefined || value === null || value === '') return true;
+      const parsed = Number(value);
+      return Number.isInteger(parsed) && parsed >= 1;
+    })
     .withMessage('ID de depósito inválido'),
   body('cliente')
     .notEmpty()
