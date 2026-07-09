@@ -265,4 +265,37 @@ describe('Rutas HTTP /admin/productos (inventario multi-depósito)', () => {
     expect(tipos).toContain('correccion_stock_depositos');
     expect(tipos).toContain('rebuild_stock');
   });
+
+  test('GET /admin/productos permite buscar por marca principal y por marcas del desglose', async () => {
+    const empresaId = 14;
+    const { token } = createTestUserAndToken({ rol: 'admin', empresaId });
+    const app = buildApp();
+
+    const depId = db.prepare(
+      'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?, ?, ?, ?, 1)'
+    ).run(empresaId, 'Dep Principal', 'DP1', 1).lastInsertRowid;
+
+    const prodMarcaPrincipalId = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('MARCA1', 'Producto marca principal', 10, 5, 3, 'CAT', 'LYC', empresaId, depId).lastInsertRowid;
+
+    const prodMarcaDesgloseId = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('MARCA2', 'Producto marca en desglose', 12, 6, 4, 'CAT', 'OTRA', empresaId, depId).lastInsertRowid;
+
+    db.prepare('INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?, ?, ?, ?)')
+      .run(empresaId, prodMarcaPrincipalId, depId, 3);
+    db.prepare('INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?, ?, ?, ?)')
+      .run(empresaId, prodMarcaDesgloseId, depId, 4);
+    db.prepare('INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad) VALUES (?, ?, ?, ?, ?)')
+      .run(empresaId, prodMarcaDesgloseId, depId, 'LYC', 4);
+
+    const res = await request(app)
+      .get('/admin/productos?q=lyc&limit=20&offset=0')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.items.map((item) => item.codigo)).toEqual(expect.arrayContaining(['MARCA1', 'MARCA2']));
+  });
 });

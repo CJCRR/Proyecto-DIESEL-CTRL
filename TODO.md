@@ -369,3 +369,29 @@ Entonces hay módulos nativos compilados para Windows que se copiaron a Linux. P
 4. `pm2 restart diesel-ctrl`
 
 Con esto `better-sqlite3` se recompila para Linux y el servidor vuelve a arrancar normal.
+
+cd ~/Proyecto-DIESEL-CTRL
+
+# 1. Backup
+cp database.sqlite backups/database-$(date +%Y%m%d_%H%M).sqlite
+
+# 2. Mover base fuera
+mv database.sqlite ~/database.sqlite.backup
+
+# 3. Descartar cambios locales
+git checkout -- node_modules/
+
+# 4. Pull
+git pull origin main
+
+# 5. Eliminar node_modules viejo
+rm -rf node_modules
+
+# 6. Instalar limpio
+npm install
+
+# 7. Restaurar base
+mv ~/database.sqlite.backup database.sqlite
+
+# 8. Reiniciar
+pm2 restart diesel-ctrl

@@ -546,6 +546,11 @@ body.app-shell-body {
   background-color: #f1f5f9;
 }
 
+.inv-marca-suggestions {
+  max-height: 9rem;
+  z-index: 70;
+}
+
 .btn-ge-inv {
   padding-top: 10px;
 }

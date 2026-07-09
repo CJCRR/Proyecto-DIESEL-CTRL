@@ -831,7 +831,21 @@ router.get('/', requireAuth, (req, res) => {
             where.push('p.empresa_id = ?');
             params.push(empresaId);
             where.push('p.activo = 1');
-            if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%' + q + '%', '%' + q + '%'); }
+            if (q) {
+                const likeQ = '%' + q + '%';
+                where.push(`(
+                    lower(p.codigo) LIKE ?
+                    OR lower(p.descripcion) LIKE ?
+                    OR lower(COALESCE(p.marca, '')) LIKE ?
+                    OR EXISTS (
+                        SELECT 1
+                        FROM stock_por_deposito_marca spdm_q
+                        WHERE spdm_q.producto_id = p.id
+                          AND lower(TRIM(COALESCE(spdm_q.marca, ''))) LIKE ?
+                    )
+                )`);
+                params.push(likeQ, likeQ, likeQ, likeQ);
+            }
             if (categoria) {
                 // Coincidencia exacta de categoría normalizada solo por espacios (soporta Ñ y otros acentos)
                 where.push('TRIM(p.categoria) = ?');
@@ -912,7 +926,21 @@ router.get('/', requireAuth, (req, res) => {
         where.push('p.activo = 1');
         where.push('sd.deposito_id = ?');
         params.push(depositoId);
-        if (q) { where.push("(lower(p.codigo) LIKE ? OR lower(p.descripcion) LIKE ?)"); params.push('%' + q + '%', '%' + q + '%'); }
+        if (q) {
+            const likeQ = '%' + q + '%';
+            where.push(`(
+                lower(p.codigo) LIKE ?
+                OR lower(p.descripcion) LIKE ?
+                OR lower(COALESCE(p.marca, '')) LIKE ?
+                OR EXISTS (
+                    SELECT 1
+                    FROM stock_por_deposito_marca spdm_q
+                    WHERE spdm_q.producto_id = p.id
+                      AND lower(TRIM(COALESCE(spdm_q.marca, ''))) LIKE ?
+                )
+            )`);
+            params.push(likeQ, likeQ, likeQ, likeQ);
+        }
         if (categoria) {
             // Coincidencia exacta de categoría normalizada también cuando se filtra por depósito específico
             where.push('TRIM(p.categoria) = ?');

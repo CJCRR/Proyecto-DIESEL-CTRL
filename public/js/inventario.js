@@ -71,10 +71,106 @@ if (stockMarcaModal && stockMarcaModal.parentElement !== document.body) {
 
 let categoriasInventario = [];
 let marcasInventario = [];
+let marcasInventarioProducto = [];
 let depositosInventario = [];
 let codigoOriginalSeleccionado = null;
 let stockPorDepositoBase = [];
 let rebuildHistoryLoaded = false;
+
+function mergeMarcaSuggestionsInventario(...lists) {
+    const seen = new Set();
+    const merged = [];
+    lists.forEach((list) => {
+        (Array.isArray(list) ? list : []).forEach((value) => {
+            const marca = (value || '').toString().trim();
+            if (!marca) return;
+            const key = marca.toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+            merged.push(marca);
+        });
+    });
+    return merged;
+}
+
+function getMarcaSuggestionsInventario() {
+    return mergeMarcaSuggestionsInventario(marcasInventarioProducto, marcasInventario);
+}
+
+async function cargarMarcasProductoInventario(codigo) {
+    if (!codigo) {
+        marcasInventarioProducto = [];
+        return marcasInventarioProducto;
+    }
+    try {
+        const resp = await apiFetchJson(`/admin/productos/marcas-por-producto?codigo=${encodeURIComponent(codigo)}`);
+        const items = Array.isArray(resp && resp.items) ? resp.items : [];
+        marcasInventarioProducto = mergeMarcaSuggestionsInventario(items, marcasInventario);
+    } catch (err) {
+        console.warn('No se pudieron cargar marcas específicas para el producto en inventario:', err);
+        marcasInventarioProducto = mergeMarcaSuggestionsInventario(marcasInventario);
+    }
+    return marcasInventarioProducto;
+}
+
+function hideMarcaFilaSugerencias(scope = stockMarcaEditorEl) {
+    if (!scope) return;
+    scope.querySelectorAll('.js-marca-row-sugerencias').forEach((list) => {
+        list.classList.add('hidden');
+    });
+}
+
+function renderMarcaFilaSugerencias(inputWrap, suggestions = []) {
+    if (!inputWrap) return;
+    const input = inputWrap.querySelector('.js-marca-input');
+    const list = inputWrap.querySelector('.js-marca-row-sugerencias');
+    if (!input || !list) return;
+
+    const query = (input.value || '').toString().toLowerCase().trim();
+    const items = (Array.isArray(suggestions) ? suggestions : [])
+        .filter((marca) => marca && (!query || marca.toString().toLowerCase().includes(query)))
+        .slice(0, 10);
+
+    list.innerHTML = '';
+    if (!items.length) {
+        list.classList.add('hidden');
+        return;
+    }
+
+    items.forEach((marca) => {
+        const li = document.createElement('li');
+        li.textContent = marca;
+        li.dataset.value = marca;
+        li.addEventListener('click', () => {
+            input.value = marca;
+            list.classList.add('hidden');
+            input.focus();
+        });
+        list.appendChild(li);
+    });
+
+    list.classList.remove('hidden');
+}
+
+function bindMarcaAutocompleteFila(inputWrap) {
+    if (!inputWrap) return;
+    const input = inputWrap.querySelector('.js-marca-input');
+    const list = inputWrap.querySelector('.js-marca-row-sugerencias');
+    if (!input || !list) return;
+
+    const showSuggestions = () => {
+        const suggestions = getMarcaSuggestionsInventario();
+        if (!suggestions.length) {
+            list.classList.add('hidden');
+            return;
+        }
+        hideMarcaFilaSugerencias();
+        renderMarcaFilaSugerencias(inputWrap, suggestions);
+    };
+
+    input.addEventListener('focus', showSuggestions);
+    input.addEventListener('input', showSuggestions);
+}
 
 function updateMobileFiltersButton() {
     if (!btnMobileFiltros || !filtrosInventario) return;
@@ -1111,6 +1207,17 @@ function updatePaginationInfo() {
     nextPage.disabled = end >= currentTotal;
 }
 
+function reselectProductoCard(codigo) {
+    const codigoNormalizado = (codigo || '').toString().trim().toUpperCase();
+    if (!codigoNormalizado || !lista) return false;
+    const card = Array.from(lista.querySelectorAll('.inventory-product-card')).find((node) => {
+        return (node.dataset.codigo || '').toString().trim().toUpperCase() === codigoNormalizado;
+    });
+    if (!card) return false;
+    card.click();
+    return true;
+}
+
 // Renderizar lista de productos con filtros aplicados y orden alfabético
 function renderList(items) {
     const qv = q.value.trim().toLowerCase();
@@ -1968,6 +2075,7 @@ async function cargarStockMarcaEditor(codigo) {
     }
     stockMarcaEditorEl.innerHTML = '<div class="text-[11px] text-slate-400">Cargando desglose...</div>';
     try {
+        await cargarMarcasProductoInventario(codigo);
         const res = await fetch('/productos/' + encodeURIComponent(codigo), { credentials: 'same-origin' });
         if (!res.ok) throw new Error('No se pudo cargar el producto');
         const prod = await res.json();
@@ -1998,7 +2106,10 @@ async function cargarStockMarcaEditor(codigo) {
                             const cant = Number(m.cantidad || 0) || 0;
                             return `
                                 <div class="flex items-center gap-1 js-fila-marca" data-index="${i}">
-                                    <input type="text" class="flex-1 px-1 py-0.5 border rounded text-[11px]" placeholder="Marca" value="${marcaLabel}">
+                                    <div class="flex-1 relative js-marca-input-wrap">
+                                        <input type="text" class="w-full px-1 py-0.5 border rounded text-[11px] js-marca-input" placeholder="Marca" value="${escapeHtml(marcaLabel)}" autocomplete="off">
+                                        <ul class="inv-cat-suggestions inv-marca-suggestions hidden js-marca-row-sugerencias"></ul>
+                                    </div>
                                     <input type="number" step="1" min="0" class="w-16 px-1 py-0.5 border rounded text-[11px] text-right" value="${cant}">
                                     <button type="button" class="px-1 py-0.5 text-[10px] text-rose-600 hover:text-rose-800 js-remove-marca" title="Eliminar marca">×</button>
                                 </div>
@@ -2051,13 +2162,21 @@ async function cargarStockMarcaEditor(codigo) {
                     const fila = document.createElement('div');
                     fila.className = 'flex items-center gap-1 js-fila-marca';
                     fila.innerHTML = `
-                        <input type="text" class="flex-1 px-1 py-0.5 border rounded text-[11px]" placeholder="Marca">
+                        <div class="flex-1 relative js-marca-input-wrap">
+                            <input type="text" class="w-full px-1 py-0.5 border rounded text-[11px] js-marca-input" placeholder="Marca" autocomplete="off">
+                            <ul class="inv-cat-suggestions inv-marca-suggestions hidden js-marca-row-sugerencias"></ul>
+                        </div>
                         <input type="number" step="1" min="0" class="w-16 px-1 py-0.5 border rounded text-[11px] text-right" value="0">
                         <button type="button" class="px-1 py-0.5 text-[10px] text-rose-600 hover:text-rose-800 js-remove-marca" title="Eliminar marca">×</button>
                     `;
                     lista.appendChild(fila);
+                    bindMarcaAutocompleteFila(fila.querySelector('.js-marca-input-wrap'));
                 });
             }
+
+            lista.querySelectorAll('.js-marca-input-wrap').forEach((inputWrap) => {
+                bindMarcaAutocompleteFila(inputWrap);
+            });
         });
 
         // El botón se muestra para admins y vendedores (puedeEditarDesgloseMarca),
@@ -2113,8 +2232,11 @@ async function cargarStockMarcaEditor(codigo) {
                             throw new Error(data.error || 'Error guardando desglose por marca');
                         }
                         showToast(data.message || 'Desglose por marca actualizado.', 'success');
-                        // recargar para reflejar lo guardado
-                        await cargarStockMarcaEditor(codigo);
+                        // refrescar lista y rehidratar el producto seleccionado sin recargar la página
+                        await cargarProductos();
+                        if (!reselectProductoCard(codigo)) {
+                            await cargarStockMarcaEditor(codigo);
+                        }
                     } catch (err) {
                         console.error(err);
                         showToast(err.message || 'Error guardando desglose por marca', 'error');
@@ -2127,6 +2249,12 @@ async function cargarStockMarcaEditor(codigo) {
         stockMarcaEditorEl.innerHTML = '<div class="text-[11px] text-rose-500">Error cargando desglose: ' + (err.message || 'Error desconocido') + '</div>';
     }
 }
+
+document.addEventListener('click', (ev) => {
+    if (!stockMarcaEditorEl) return;
+    if (ev.target && ev.target.closest && ev.target.closest('.js-marca-input-wrap')) return;
+    hideMarcaFilaSugerencias();
+});
 
 function renderCategoriaSugerencias(list = []) {
     if (!categoriaSugList) return;
