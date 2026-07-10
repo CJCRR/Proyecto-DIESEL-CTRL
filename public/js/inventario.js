@@ -31,6 +31,10 @@ const filterDeposito = document.getElementById('filterDeposito');
 const filterIncompletosTipo = document.getElementById('filterIncompletosTipo');
 const btnRebuildStock = document.getElementById('btnRebuildStock');
 const rebuildStockMsg = document.getElementById('rebuildStockMsg');
+const btnNormalizeMarcas = document.getElementById('btnNormalizeMarcas');
+const normalizeMarcasMsg = document.getElementById('normalizeMarcasMsg');
+const normalizeMarcasPanel = document.getElementById('normalizeMarcasPanel');
+const normalizeMarcasList = document.getElementById('normalizeMarcasList');
 const rebuildHistoryPanel = document.getElementById('rebuildHistoryPanel');
 const btnToggleRebuildHistory = document.getElementById('btnToggleRebuildHistory');
 const rebuildHistoryBody = document.getElementById('rebuildHistoryBody');
@@ -521,6 +525,208 @@ async function cargarHistorialRebuild(force = false) {
         console.error(err);
         rebuildHistoryList.innerHTML = '<div class="text-[11px] text-rose-500">Error cargando historial de rebuilds.</div>';
     }
+}
+
+function renderNormalizeMarcasResult(data = {}) {
+    if (!normalizeMarcasPanel || !normalizeMarcasList) return;
+    normalizeMarcasPanel.classList.remove('hidden');
+
+    const buildNormalizeCard = (html, toneClass, codigo) => `
+        <button type="button" class="w-full text-left rounded-lg bg-white border border-slate-200 px-2 py-1 transition ${toneClass}" data-normalize-codigo="${escapeHtml(codigo || '')}">
+            ${html}
+        </button>
+    `;
+
+    const productos = Array.isArray(data.productos) ? data.productos : [];
+    const stock = Array.isArray(data.stock) ? data.stock : [];
+    const compras = Array.isArray(data.compras) ? data.compras : [];
+    const manual = Array.isArray(data.manual) ? data.manual : [];
+    const sections = [];
+
+    if (productos.length) {
+        sections.push(`
+            <div>
+                <div class="text-[11px] font-semibold text-emerald-700 mb-1">Marcas principales corregidas</div>
+                <div class="space-y-1">
+                    ${productos.map((item) => `
+                        ${buildNormalizeCard(`
+                            <span class="font-semibold text-slate-700">${escapeHtml(item.codigo || '—')}</span>
+                            <span class="text-slate-500">: ${escapeHtml(item.anterior || '—')} → ${escapeHtml(item.nuevo || '—')}</span>
+                        `, 'hover:border-emerald-300 hover:bg-emerald-50', item.codigo)}
+                    `).join('')}
+                </div>
+            </div>
+        `);
+    }
+
+    if (stock.length) {
+        sections.push(`
+            <div>
+                <div class="text-[11px] font-semibold text-sky-700 mb-1">Filas de stock por marca corregidas</div>
+                <div class="space-y-1">
+                    ${stock.map((item) => `
+                        ${buildNormalizeCard(`
+                            <span class="font-semibold text-slate-700">${escapeHtml(item.codigo || '—')}</span>
+                            <span class="text-slate-500"> · Depósito ${escapeHtml(String(item.deposito_id || '—'))}: ${escapeHtml(item.anterior || '—')} → ${escapeHtml(item.nuevo || '—')}</span>
+                        `, 'hover:border-sky-300 hover:bg-sky-50', item.codigo)}
+                    `).join('')}
+                </div>
+            </div>
+        `);
+    }
+
+    if (compras.length) {
+        sections.push(`
+            <div>
+                <div class="text-[11px] font-semibold text-indigo-700 mb-1">Histórico de compras corregido automáticamente</div>
+                <div class="space-y-1">
+                    ${compras.map((item) => `
+                        ${buildNormalizeCard(`
+                            <span class="font-semibold text-slate-700">${escapeHtml(item.codigo || '—')}</span>
+                            <span class="text-slate-500">: ${escapeHtml(item.anterior || '—')} → ${escapeHtml(item.nuevo || '—')}</span>
+                        `, 'hover:border-indigo-300 hover:bg-indigo-50', item.codigo)}
+                    `).join('')}
+                </div>
+            </div>
+        `);
+    }
+
+    if (manual.length) {
+        sections.push(`
+            <div>
+                <div class="text-[11px] font-semibold text-amber-700 mb-1">Pendientes para revisión manual</div>
+                <div class="text-[10px] text-slate-500 mb-2">Puedes escribir o elegir la marca correcta y aplicarla por fila, sin abrir la ficha del producto.</div>
+                <div class="space-y-1">
+                    ${manual.map((item) => `
+                        <div class="rounded-lg bg-white border border-slate-200 px-2 py-2" data-manual-review-row>
+                            <button type="button" class="w-full text-left hover:text-slate-900 transition" data-normalize-codigo="${escapeHtml(item.codigo || '')}">
+                                <div><span class="font-semibold text-slate-700">${escapeHtml(item.codigo || '—')}</span> · <span class="uppercase text-[10px] text-slate-400">${escapeHtml(item.origen || 'manual')}</span>${item.deposito_id ? ` · Depósito ${escapeHtml(String(item.deposito_id))}` : ''}</div>
+                                <div class="text-slate-500">Actual: ${escapeHtml(item.actual || '—')}</div>
+                                <div class="text-slate-500">Sugeridas: ${escapeHtml((Array.isArray(item.sugeridas) ? item.sugeridas.join(', ') : '—') || '—')}</div>
+                            </button>
+                            <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                                <input type="text" class="flex-1 px-2 py-1 border rounded-lg text-[11px]" value="${escapeHtml((Array.isArray(item.sugeridas) && item.sugeridas[0]) ? item.sugeridas[0] : '')}" data-manual-review-input placeholder="Marca corregida">
+                                <button type="button" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold px-3 py-1.5 transition" data-manual-review-apply data-manual-codigo="${escapeHtml(item.codigo || '')}" data-manual-origen="${escapeHtml(item.origen || '')}" data-manual-actual="${escapeHtml(item.actual || '')}" data-manual-deposito="${item.deposito_id ? escapeHtml(String(item.deposito_id)) : ''}">
+                                    Aplicar
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `);
+    }
+
+    if (!sections.length) {
+        normalizeMarcasList.innerHTML = '<div class="text-[11px] text-slate-400">No se encontraron cambios ni casos pendientes.</div>';
+        return;
+    }
+
+    normalizeMarcasList.innerHTML = sections.join('');
+    normalizeMarcasList.querySelectorAll('[data-normalize-codigo]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const codigo = btn.getAttribute('data-normalize-codigo') || '';
+            if (!codigo) return;
+            try {
+                const focused = await focusProductoEnInventario(codigo);
+                if (!focused) {
+                    showToast(`No se pudo ubicar ${codigo} en inventario.`, 'warning');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast(`Error abriendo ${codigo} en inventario.`, 'error');
+            }
+        });
+    });
+
+    normalizeMarcasList.querySelectorAll('[data-manual-review-apply]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const row = btn.closest('[data-manual-review-row]');
+            const input = row ? row.querySelector('[data-manual-review-input]') : null;
+            const nuevaMarca = input ? String(input.value || '').trim() : '';
+            const codigo = btn.getAttribute('data-manual-codigo') || '';
+            const origen = btn.getAttribute('data-manual-origen') || '';
+            const actual = btn.getAttribute('data-manual-actual') || '';
+            const depositoId = btn.getAttribute('data-manual-deposito') || '';
+
+            if (!nuevaMarca) {
+                showToast('Escribe la marca corregida antes de aplicar.', 'warning');
+                if (input) input.focus();
+                return;
+            }
+
+            btn.disabled = true;
+            if (input) input.disabled = true;
+            btn.textContent = 'Aplicando...';
+
+            try {
+                await resolverRevisionManualMarca({
+                    codigo,
+                    origen,
+                    actual,
+                    depositoId,
+                    nuevaMarca,
+                });
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'No se pudo aplicar la corrección manual.', 'error');
+            } finally {
+                btn.disabled = false;
+                if (input) input.disabled = false;
+                btn.textContent = 'Aplicar';
+            }
+        });
+    });
+}
+
+function updateNormalizeMarcasSummary(data = {}) {
+    if (!normalizeMarcasMsg) return;
+    normalizeMarcasMsg.textContent = `Escaneados: ${data.productosEscaneados || 0}. Productos corregidos: ${data.productosActualizados || 0}. Stock corregido: ${data.filasStockActualizadas || 0}. Compras corregidas: ${data.comprasActualizadas || 0}. Revisiones manuales: ${data.revisionesManuales || 0}.`;
+}
+
+async function ejecutarNormalizacionMarcas({ showSuccessToast = true } = {}) {
+    if (normalizeMarcasMsg) normalizeMarcasMsg.textContent = 'Normalizando marcas, por favor espera...';
+    const codigoSeleccionado = codigoOriginalSeleccionado || null;
+    const res = await fetch('/admin/productos/normalizar-marcas', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al normalizar marcas');
+
+    updateNormalizeMarcasSummary(data);
+    renderNormalizeMarcasResult(data);
+    currentPage = 0;
+    await cargarProductos();
+    if (codigoSeleccionado) {
+        reselectProductoCard(codigoSeleccionado);
+    }
+    if (showSuccessToast) {
+        showToast('Normalización de marcas completada.', 'success');
+    }
+    return data;
+}
+
+async function resolverRevisionManualMarca({ codigo, origen, actual, depositoId, nuevaMarca }) {
+    const res = await fetch('/admin/productos/normalizar-marcas/resolver', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            codigo,
+            origen,
+            actual,
+            deposito_id: depositoId || null,
+            nueva_marca: nuevaMarca,
+        })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error resolviendo la revisión manual');
+    showToast(data.message || 'Corrección manual aplicada.', 'success');
+    await ejecutarNormalizacionMarcas({ showSuccessToast: false });
+    return data;
 }
 
 function renderTrazabilidadProducto(items = []) {
@@ -1218,6 +1424,25 @@ function reselectProductoCard(codigo) {
     return true;
 }
 
+async function focusProductoEnInventario(codigo) {
+    const codigoNormalizado = (codigo || '').toString().trim().toUpperCase();
+    if (!codigoNormalizado) return false;
+
+    if (q) q.value = codigoNormalizado;
+    currentPage = 0;
+    filtroIncompletosActivo = false;
+
+    const topFilterCategoria = document.getElementById('filterCategoria');
+    const topFilterStock = document.getElementById('filterStock');
+    if (topFilterCategoria) topFilterCategoria.value = '';
+    if (topFilterStock) topFilterStock.value = 'all';
+    if (filterDeposito) filterDeposito.value = '';
+    if (filterIncompletosTipo) filterIncompletosTipo.value = '';
+
+    await cargarProductos();
+    return reselectProductoCard(codigoNormalizado);
+}
+
 // Renderizar lista de productos con filtros aplicados y orden alfabético
 function renderList(items) {
     const qv = q.value.trim().toLowerCase();
@@ -1347,7 +1572,7 @@ function renderList(items) {
             const marcasStockUpperSel = (p.marcas_stock || '').toString().toUpperCase();
             const marcaPrincipalUpperSel = (p.marca || '').toString().toUpperCase();
             const marcaTextoSel = marcasStockUpperSel || marcaPrincipalUpperSel;
-            if (f_marca) f_marca.value = marcaTextoSel || '';
+            if (f_marca) f_marca.value = marcaPrincipalUpperSel || '';
             const btnEditarMarcasLabel = document.getElementById('btnEditarMarcasLabel');
             if (btnEditarMarcasLabel) btnEditarMarcasLabel.textContent = marcaTextoSel || '—';
             if (f_deposito) f_deposito.value = p.deposito_id || '';
@@ -2486,7 +2711,10 @@ if (btnMoverDeposito) {
 if (btnRebuildStock) {
     if (!(esEmpresaAdmin || esSuperAdmin)) {
         btnRebuildStock.classList.add('hidden');
+        if (btnNormalizeMarcas) btnNormalizeMarcas.classList.add('hidden');
         if (rebuildStockMsg) rebuildStockMsg.classList.add('hidden');
+        if (normalizeMarcasMsg) normalizeMarcasMsg.classList.add('hidden');
+        if (normalizeMarcasPanel) normalizeMarcasPanel.classList.add('hidden');
         if (rebuildHistoryPanel) rebuildHistoryPanel.classList.add('hidden');
     } else {
         if (rebuildHistoryPanel) rebuildHistoryPanel.classList.remove('hidden');
@@ -2526,6 +2754,20 @@ if (btnRebuildStock) {
                 showToast('Error al recalcular stock de inventario', 'error');
             }
         });
+
+        if (btnNormalizeMarcas) {
+            btnNormalizeMarcas.addEventListener('click', async () => {
+                const confirmar = window.confirm('Esto normalizará las marcas actuales del inventario. Los casos seguros se corregirán automáticamente y los ambiguos se listarán para revisión manual. ¿Continuar?');
+                if (!confirmar) return;
+                try {
+                    await ejecutarNormalizacionMarcas({ showSuccessToast: true });
+                } catch (err) {
+                    console.error(err);
+                    if (normalizeMarcasMsg) normalizeMarcasMsg.textContent = 'Error: ' + (err.message || 'No se pudo normalizar marcas');
+                    showToast('Error al normalizar marcas de inventario', 'error');
+                }
+            });
+        }
 
         if (btnToggleRebuildHistory) {
             setRebuildHistoryExpanded(false);

@@ -298,4 +298,149 @@ describe('Rutas HTTP /admin/productos (inventario multi-depósito)', () => {
     expect(Array.isArray(res.body.items)).toBe(true);
     expect(res.body.items.map((item) => item.codigo)).toEqual(expect.arrayContaining(['MARCA1', 'MARCA2']));
   });
+
+  test('GET /admin/productos/marcas y /marcas-por-producto separan marcas compuestas heredadas', async () => {
+    const empresaId = 15;
+    const { token, userId } = createTestUserAndToken({ rol: 'admin', empresaId });
+    const app = buildApp();
+
+    const depId = db.prepare(
+      'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?, ?, ?, ?, 1)'
+    ).run(empresaId, 'Dep Principal', 'DP1', 1).lastInsertRowid;
+
+    const prodId = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('MCOMP1', 'Producto marca compuesta', 10, 5, 5, 'CAT', '4K / LYC', empresaId, depId).lastInsertRowid;
+
+    const compraId = db.prepare(
+      'INSERT INTO compras (proveedor_id, fecha, numero, tasa_bcv, total_bs, total_usd, estado, notas, usuario_id, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(null, '2026-07-10T10:00:00.000Z', 'CMP-1', 40, 200, 5, 'recibida', '', userId, empresaId).lastInsertRowid;
+
+    db.prepare(
+      'INSERT INTO compra_detalle (compra_id, producto_id, codigo, descripcion, marca, cantidad, costo_usd, subtotal_bs, lote, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(compraId, prodId, 'MCOMP1', 'Producto marca compuesta', '/ 4K DIESEL / RTC', 5, 5, 200, '', '');
+
+    const resGlobal = await request(app)
+      .get('/admin/productos/marcas')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(resGlobal.status).toBe(200);
+    expect(resGlobal.body.items).toEqual(expect.arrayContaining(['4K', 'LYC']));
+    expect(resGlobal.body.items).not.toContain('4K / LYC');
+
+    const resProducto = await request(app)
+      .get('/admin/productos/marcas-por-producto?codigo=MCOMP1')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(resProducto.status).toBe(200);
+    expect(resProducto.body.items).toEqual(expect.arrayContaining(['4K', 'LYC', '4K DIESEL', 'RTC']));
+    expect(resProducto.body.items).not.toContain('/ 4K DIESEL / RTC');
+  });
+
+  test('POST /admin/productos/normalizar-marcas corrige casos seguros y reporta ambiguos', async () => {
+    const empresaId = 16;
+    const { token, userId } = createTestUserAndToken({ rol: 'admin', empresaId });
+    const app = buildApp();
+
+    const depId = db.prepare(
+      'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?, ?, ?, ?, 1)'
+    ).run(empresaId, 'Dep Principal', 'DP1', 1).lastInsertRowid;
+
+    const prodDominanteId = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('NMAR1', 'Producto dominante', 10, 5, 5, 'CAT', '4K / LYC', empresaId, depId).lastInsertRowid;
+    db.prepare('INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?, ?, ?, ?)')
+      .run(empresaId, prodDominanteId, depId, 5);
+    db.prepare('INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad) VALUES (?, ?, ?, ?, ?)')
+      .run(empresaId, prodDominanteId, depId, '4K', 4);
+    db.prepare('INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad) VALUES (?, ?, ?, ?, ?)')
+      .run(empresaId, prodDominanteId, depId, 'LYC', 1);
+
+    const prodFormatoId = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('NMAR2', 'Producto formato', 10, 5, 3, 'CAT', '', empresaId, depId).lastInsertRowid;
+    db.prepare('INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?, ?, ?, ?)')
+      .run(empresaId, prodFormatoId, depId, 3);
+    db.prepare('INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad) VALUES (?, ?, ?, ?, ?)')
+      .run(empresaId, prodFormatoId, depId, '/ AP DIESEL /', 3);
+
+    const compraSafeId = db.prepare(
+      'INSERT INTO compras (proveedor_id, fecha, numero, tasa_bcv, total_bs, total_usd, estado, notas, usuario_id, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(null, '2026-07-10T10:00:00.000Z', 'CMP-SAFE', 40, 120, 3, 'recibida', '', userId, empresaId).lastInsertRowid;
+    db.prepare(
+      'INSERT INTO compra_detalle (compra_id, producto_id, codigo, descripcion, marca, cantidad, costo_usd, subtotal_bs, lote, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(compraSafeId, prodFormatoId, 'NMAR2', 'Producto formato', '/ EBITEN /', 3, 5, 120, '', '');
+
+    const compraManualId = db.prepare(
+      'INSERT INTO compras (proveedor_id, fecha, numero, tasa_bcv, total_bs, total_usd, estado, notas, usuario_id, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(null, '2026-07-10T11:00:00.000Z', 'CMP-MANUAL', 40, 200, 5, 'recibida', '', userId, empresaId).lastInsertRowid;
+    db.prepare(
+      'INSERT INTO compra_detalle (compra_id, producto_id, codigo, descripcion, marca, cantidad, costo_usd, subtotal_bs, lote, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(compraManualId, prodDominanteId, 'NMAR1', 'Producto dominante', '/ 4K DIESEL / RTC', 5, 5, 200, '', '');
+
+    const res = await request(app)
+      .post('/admin/productos/normalizar-marcas')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(Number(res.body.productosActualizados)).toBeGreaterThanOrEqual(2);
+    expect(Number(res.body.filasStockActualizadas)).toBeGreaterThanOrEqual(1);
+    expect(Number(res.body.comprasActualizadas)).toBeGreaterThanOrEqual(1);
+    expect(Number(res.body.revisionesManuales)).toBeGreaterThanOrEqual(1);
+
+    const prodDominante = db.prepare('SELECT marca FROM productos WHERE id = ?').get(prodDominanteId);
+    expect(prodDominante.marca).toBe('4K');
+
+    const prodFormato = db.prepare('SELECT marca FROM productos WHERE id = ?').get(prodFormatoId);
+    expect(prodFormato.marca).toBe('AP DIESEL');
+
+    const stockNormalizado = db.prepare('SELECT marca FROM stock_por_deposito_marca WHERE producto_id = ?').get(prodFormatoId);
+    expect(stockNormalizado.marca).toBe('AP DIESEL');
+
+    const compraSafe = db.prepare('SELECT marca FROM compra_detalle WHERE compra_id = ?').get(compraSafeId);
+    expect(compraSafe.marca).toBe('EBITEN');
+
+    const compraManual = db.prepare('SELECT marca FROM compra_detalle WHERE compra_id = ?').get(compraManualId);
+    expect(compraManual.marca).toBe('/ 4K DIESEL / RTC');
+  });
+
+  test('POST /admin/productos/normalizar-marcas/resolver aplica una corrección manual por fila', async () => {
+    const empresaId = 17;
+    const { token } = createTestUserAndToken({ rol: 'admin', empresaId });
+    const app = buildApp();
+
+    const depId = db.prepare(
+      'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?, ?, ?, ?, 1)'
+    ).run(empresaId, 'Dep Principal', 'DP1', 1).lastInsertRowid;
+
+    const prodId = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('RMAN1', 'Producto manual', 10, 5, 6, 'CAT', 'LYC / ISUZU', empresaId, depId).lastInsertRowid;
+
+    db.prepare('INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?, ?, ?, ?)')
+      .run(empresaId, prodId, depId, 6);
+    db.prepare('INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad) VALUES (?, ?, ?, ?, ?)')
+      .run(empresaId, prodId, depId, 'LYC / ISUZU', 6);
+
+    const res = await request(app)
+      .post('/admin/productos/normalizar-marcas/resolver')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        codigo: 'RMAN1',
+        origen: 'stock',
+        actual: 'LYC / ISUZU',
+        deposito_id: depId,
+        nueva_marca: 'ISUZU',
+      });
+
+    expect(res.status).toBe(200);
+    expect(Number(res.body.filas_afectadas)).toBe(1);
+
+    const stock = db.prepare('SELECT marca FROM stock_por_deposito_marca WHERE producto_id = ? AND deposito_id = ?').get(prodId, depId);
+    expect(stock.marca).toBe('ISUZU');
+
+    const producto = db.prepare('SELECT marca FROM productos WHERE id = ?').get(prodId);
+    expect(producto.marca).toBe('ISUZU');
+  });
 });

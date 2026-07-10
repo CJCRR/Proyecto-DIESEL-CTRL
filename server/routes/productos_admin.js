@@ -8,6 +8,64 @@ const { body, query, validate } = require('../middleware/validation');
 const MAX_IMPORT_ROWS = 5000;
 const MAX_FIELD_LEN = 200;
 
+function normalizeMarcaText(raw) {
+    return String(raw ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function splitMarcaTokens(raw) {
+    const text = normalizeMarcaText(raw);
+    if (!text) return [];
+    return text
+        .split('/')
+        .map((part) => normalizeMarcaText(part))
+        .filter(Boolean);
+}
+
+function uniqueMarcaList(values = []) {
+    const seen = new Set();
+    const result = [];
+    values.forEach((value) => {
+        splitMarcaTokens(value).forEach((marca) => {
+            const key = marca.toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+            result.push(marca.slice(0, MAX_FIELD_LEN));
+        });
+    });
+    return result;
+}
+
+function normalizePrimaryMarca(raw) {
+    const text = normalizeMarcaText(raw);
+    if (!text) return null;
+    const tokens = splitMarcaTokens(text);
+    if (tokens.length === 1) {
+        return tokens[0].slice(0, MAX_FIELD_LEN);
+    }
+    const looksLikeLegacyCompound = text.includes(' / ') || text.startsWith('/') || text.endsWith('/');
+    if (looksLikeLegacyCompound) {
+        return tokens[0].slice(0, MAX_FIELD_LEN);
+    }
+    return text.slice(0, MAX_FIELD_LEN);
+}
+
+function pickDominantMarca(totalsMap) {
+    let bestMarca = null;
+    let bestQty = -1;
+    for (const [marca, cantidad] of totalsMap.entries()) {
+        const qty = Number(cantidad || 0) || 0;
+        if (qty > bestQty) {
+            bestMarca = marca;
+            bestQty = qty;
+            continue;
+        }
+        if (qty === bestQty && bestMarca && String(marca).localeCompare(bestMarca, 'es', { sensitivity: 'base' }) < 0) {
+            bestMarca = marca;
+        }
+    }
+    return bestMarca;
+}
+
 function normalizeStockPorDeposito(items = []) {
     const result = new Map();
     for (const raw of items) {
@@ -82,7 +140,7 @@ router.post(
     costo_usd = costo_usd !== undefined ? parseFloat(costo_usd) : 0;
     stock = parseInt(stock) || 0;
     categoria = categoria ? String(categoria).trim() : null;
-    marca = marca ? String(marca).trim().slice(0, MAX_FIELD_LEN) : null;
+    marca = normalizePrimaryMarca(marca);
     const depositoId = deposito_id ? parseInt(deposito_id, 10) || null : null;
     try {
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
@@ -477,11 +535,7 @@ router.get('/marcas-por-producto', requireAuth, (req, res) => {
             ORDER BY lower(marca) ASC
         `).all(prod.id, empresaId);
 
-        let marcas = rows.map(r => r.marca).filter(Boolean);
-        const marcaProd = prod.marca ? String(prod.marca).trim() : '';
-        if (marcaProd && !marcas.some(m => String(m).trim().toLowerCase() === marcaProd.toLowerCase())) {
-            marcas = [marcaProd, ...marcas];
-        }
+        const marcas = uniqueMarcaList([prod.marca, ...rows.map(r => r.marca)]);
 
         res.json({ items: marcas });
     } catch (err) {
@@ -1045,13 +1099,322 @@ router.get('/marcas', requireAuth, (req, res) => {
               AND TRIM(marca) != ''
             ORDER BY lower(marca) ASC
         `).all(empresaId);
-        const marcas = rows
-            .map(r => r.marca)
-            .filter(Boolean);
+        const marcas = uniqueMarcaList(rows.map(r => r.marca));
         res.json({ items: marcas });
     } catch (err) {
         console.error('Error listando marcas de productos:', err);
         res.status(500).json({ error: 'Error al listar marcas' });
+    }
+});
+
+// POST /admin/productos/normalizar-marcas - Corrige casos seguros y reporta marcas ambiguas
+router.post('/normalizar-marcas', requireAuth, requireRole('admin', 'admin_empresa', 'superadmin'), (req, res) => {
+    try {
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+        const productos = db.prepare(`
+            SELECT id, codigo, marca
+            FROM productos
+            WHERE empresa_id = ? AND activo = 1
+            ORDER BY lower(codigo) ASC
+        `).all(empresaId);
+
+        const selectStockMarcas = db.prepare(`
+            SELECT id, deposito_id, marca, cantidad
+            FROM stock_por_deposito_marca
+            WHERE empresa_id = ? AND producto_id = ? AND cantidad > 0
+            ORDER BY deposito_id ASC, id ASC
+        `);
+        const updateStockMarca = db.prepare('UPDATE stock_por_deposito_marca SET marca = ? WHERE id = ?');
+
+        const selectCompraMarcas = db.prepare(`
+            SELECT cd.id, cd.marca
+            FROM compra_detalle cd
+            JOIN compras c ON c.id = cd.compra_id
+            LEFT JOIN usuarios u ON u.id = c.usuario_id
+            WHERE cd.producto_id = ?
+              AND cd.marca IS NOT NULL
+              AND TRIM(cd.marca) != ''
+              AND (u.empresa_id = ? OR u.empresa_id IS NULL)
+            ORDER BY cd.id ASC
+        `);
+        const updateCompraMarca = db.prepare('UPDATE compra_detalle SET marca = ? WHERE id = ?');
+        const updateProductoMarca = db.prepare('UPDATE productos SET marca = ? WHERE id = ?');
+
+        const productosActualizados = [];
+        const stockActualizadas = [];
+        const comprasActualizadas = [];
+        const revisionesManuales = [];
+
+        const tx = db.transaction(() => {
+            productos.forEach((prod) => {
+                const stockRows = selectStockMarcas.all(empresaId, prod.id);
+                const safeStockTotals = new Map();
+
+                stockRows.forEach((row) => {
+                    const actual = normalizeMarcaText(row.marca);
+                    const tokens = splitMarcaTokens(row.marca);
+                    if (!tokens.length) return;
+
+                    if (tokens.length === 1) {
+                        const normalizada = tokens[0];
+                        if (normalizada !== actual) {
+                            updateStockMarca.run(normalizada, row.id);
+                            stockActualizadas.push({
+                                codigo: prod.codigo,
+                                deposito_id: row.deposito_id,
+                                anterior: actual,
+                                nuevo: normalizada,
+                            });
+                        }
+                        safeStockTotals.set(normalizada, (safeStockTotals.get(normalizada) || 0) + (Number(row.cantidad || 0) || 0));
+                        return;
+                    }
+
+                    revisionesManuales.push({
+                        codigo: prod.codigo,
+                        origen: 'stock',
+                        deposito_id: row.deposito_id,
+                        actual,
+                        sugeridas: tokens,
+                    });
+                });
+
+                const compraRows = selectCompraMarcas.all(prod.id, empresaId);
+                compraRows.forEach((row) => {
+                    const actual = normalizeMarcaText(row.marca);
+                    const tokens = splitMarcaTokens(row.marca);
+                    if (!tokens.length) return;
+
+                    if (tokens.length === 1) {
+                        const normalizada = tokens[0];
+                        if (normalizada !== actual) {
+                            updateCompraMarca.run(normalizada, row.id);
+                            comprasActualizadas.push({
+                                codigo: prod.codigo,
+                                detalle_id: row.id,
+                                anterior: actual,
+                                nuevo: normalizada,
+                            });
+                        }
+                        return;
+                    }
+
+                    revisionesManuales.push({
+                        codigo: prod.codigo,
+                        origen: 'compra',
+                        actual,
+                        sugeridas: tokens,
+                    });
+                });
+
+                const actualPrincipal = normalizeMarcaText(prod.marca);
+                let nuevaPrincipal = null;
+
+                if (safeStockTotals.size) {
+                    nuevaPrincipal = pickDominantMarca(safeStockTotals);
+                } else if (actualPrincipal) {
+                    const tokens = splitMarcaTokens(actualPrincipal);
+                    if (tokens.length === 1) {
+                        nuevaPrincipal = tokens[0];
+                    } else {
+                        revisionesManuales.push({
+                            codigo: prod.codigo,
+                            origen: 'producto',
+                            actual: actualPrincipal,
+                            sugeridas: tokens,
+                        });
+                    }
+                }
+
+                if (nuevaPrincipal && nuevaPrincipal !== actualPrincipal) {
+                    updateProductoMarca.run(nuevaPrincipal, prod.id);
+                    productosActualizados.push({
+                        codigo: prod.codigo,
+                        anterior: actualPrincipal || '—',
+                        nuevo: nuevaPrincipal,
+                    });
+                }
+            });
+        });
+
+        tx();
+
+        if (productosActualizados.length || stockActualizadas.length || comprasActualizadas.length || revisionesManuales.length) {
+            registrarAuditoria({
+                usuario: req.usuario,
+                accion: 'NORMALIZAR_MARCAS_PRODUCTOS',
+                entidad: 'producto',
+                entidadId: null,
+                detalle: {
+                    productos_actualizados: productosActualizados.length,
+                    filas_stock_actualizadas: stockActualizadas.length,
+                    compras_actualizadas: comprasActualizadas.length,
+                    revisiones_manuales: revisionesManuales.length,
+                    preview_productos: productosActualizados.slice(0, 10),
+                    preview_stock: stockActualizadas.slice(0, 10),
+                    preview_compras: comprasActualizadas.slice(0, 10),
+                    preview_manual: revisionesManuales.slice(0, 10),
+                },
+                ip: req.ip,
+                userAgent: req.headers['user-agent'],
+            });
+        }
+
+        return res.json({
+            message: 'Normalización de marcas ejecutada.',
+            productosEscaneados: productos.length,
+            productosActualizados: productosActualizados.length,
+            filasStockActualizadas: stockActualizadas.length,
+            comprasActualizadas: comprasActualizadas.length,
+            revisionesManuales: revisionesManuales.length,
+            productos: productosActualizados.slice(0, 20),
+            stock: stockActualizadas.slice(0, 20),
+            compras: comprasActualizadas.slice(0, 20),
+            manual: revisionesManuales.slice(0, 25),
+        });
+    } catch (err) {
+        console.error('Error normalizando marcas de productos:', err);
+        return res.status(500).json({ error: 'Error normalizando marcas de productos.' });
+    }
+});
+
+router.post('/normalizar-marcas/resolver', requireAuth, requireRole('admin', 'admin_empresa', 'superadmin'), (req, res) => {
+    try {
+        const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
+        const codigo = req.body && req.body.codigo ? String(req.body.codigo).trim().toUpperCase() : '';
+        const origen = req.body && req.body.origen ? String(req.body.origen).trim().toLowerCase() : '';
+        const actual = normalizeMarcaText(req.body && req.body.actual ? req.body.actual : '');
+        const nuevaMarca = normalizePrimaryMarca(req.body && req.body.nueva_marca ? req.body.nueva_marca : '');
+        const depositoId = req.body && req.body.deposito_id !== undefined && req.body.deposito_id !== null && req.body.deposito_id !== ''
+            ? parseInt(req.body.deposito_id, 10)
+            : null;
+
+        if (!codigo) return res.status(400).json({ error: 'Debe indicar el código del producto.' });
+        if (!['producto', 'stock', 'compra'].includes(origen)) return res.status(400).json({ error: 'Origen inválido para la resolución.' });
+        if (!actual) return res.status(400).json({ error: 'Debe indicar la marca actual a resolver.' });
+        if (!nuevaMarca) return res.status(400).json({ error: 'Debe indicar la nueva marca.' });
+        if (splitMarcaTokens(nuevaMarca).length !== 1) {
+            return res.status(400).json({ error: 'La marca nueva debe ser una sola marca, sin combinaciones.' });
+        }
+
+        const prod = db.prepare(`
+            SELECT id, codigo, marca
+            FROM productos
+            WHERE codigo = ? AND empresa_id = ? AND activo = 1
+        `).get(codigo, empresaId);
+
+        if (!prod) return res.status(404).json({ error: 'Producto no encontrado en esta empresa.' });
+
+        const updateProductoMarca = db.prepare('UPDATE productos SET marca = ? WHERE id = ?');
+        const updateStockMarca = db.prepare('UPDATE stock_por_deposito_marca SET marca = ? WHERE id = ?');
+        const updateCompraMarca = db.prepare('UPDATE compra_detalle SET marca = ? WHERE id = ?');
+
+        let filasAfectadas = 0;
+
+        const tx = db.transaction(() => {
+            if (origen === 'producto') {
+                updateProductoMarca.run(nuevaMarca, prod.id);
+                filasAfectadas = 1;
+                return;
+            }
+
+            if (origen === 'stock') {
+                const rows = db.prepare(`
+                    SELECT id, marca
+                    FROM stock_por_deposito_marca
+                    WHERE empresa_id = ?
+                      AND producto_id = ?
+                      AND cantidad > 0
+                      ${depositoId ? 'AND deposito_id = ?' : ''}
+                `).all(...(depositoId ? [empresaId, prod.id, depositoId] : [empresaId, prod.id]));
+
+                rows.forEach((row) => {
+                    if (normalizeMarcaText(row.marca) !== actual) return;
+                    updateStockMarca.run(nuevaMarca, row.id);
+                    filasAfectadas += 1;
+                });
+
+                if (!filasAfectadas) return;
+
+                const stockRowsAfter = db.prepare(`
+                    SELECT marca, cantidad
+                    FROM stock_por_deposito_marca
+                    WHERE empresa_id = ? AND producto_id = ? AND cantidad > 0
+                `).all(empresaId, prod.id);
+
+                const totalsMap = new Map();
+                let ambiguas = false;
+                stockRowsAfter.forEach((row) => {
+                    const tokens = splitMarcaTokens(row.marca);
+                    if (tokens.length !== 1) {
+                        ambiguas = true;
+                        return;
+                    }
+                    const marca = tokens[0];
+                    totalsMap.set(marca, (totalsMap.get(marca) || 0) + (Number(row.cantidad || 0) || 0));
+                });
+
+                if (!ambiguas && totalsMap.size) {
+                    const dominante = pickDominantMarca(totalsMap);
+                    if (dominante) updateProductoMarca.run(dominante, prod.id);
+                } else if (normalizeMarcaText(prod.marca) === actual) {
+                    updateProductoMarca.run(nuevaMarca, prod.id);
+                }
+                return;
+            }
+
+            const rows = db.prepare(`
+                SELECT cd.id, cd.marca
+                FROM compra_detalle cd
+                JOIN compras c ON c.id = cd.compra_id
+                LEFT JOIN usuarios u ON u.id = c.usuario_id
+                WHERE cd.producto_id = ?
+                  AND cd.marca IS NOT NULL
+                  AND TRIM(cd.marca) != ''
+                  AND (u.empresa_id = ? OR u.empresa_id IS NULL)
+            `).all(prod.id, empresaId);
+
+            rows.forEach((row) => {
+                if (normalizeMarcaText(row.marca) !== actual) return;
+                updateCompraMarca.run(nuevaMarca, row.id);
+                filasAfectadas += 1;
+            });
+        });
+
+        tx();
+
+        if (!filasAfectadas) {
+            return res.status(404).json({ error: 'No se encontraron filas pendientes que coincidan con esa revisión.' });
+        }
+
+        registrarAuditoria({
+            usuario: req.usuario,
+            accion: 'RESOLVER_NORMALIZACION_MARCA_MANUAL',
+            entidad: 'producto',
+            entidadId: prod.id,
+            detalle: {
+                codigo,
+                origen,
+                actual,
+                nueva_marca: nuevaMarca,
+                deposito_id: depositoId || null,
+                filas_afectadas: filasAfectadas,
+            },
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+        });
+
+        return res.json({
+            message: 'Revisión manual aplicada correctamente.',
+            codigo,
+            origen,
+            actual,
+            nueva_marca: nuevaMarca,
+            filas_afectadas: filasAfectadas,
+        });
+    } catch (err) {
+        console.error('Error resolviendo revisión manual de marcas:', err);
+        return res.status(500).json({ error: 'Error resolviendo la revisión manual de marcas.' });
     }
 });
 
@@ -1576,6 +1939,7 @@ router.put('/:codigo', requireAuth, (req, res) => {
     descripcion = descripcion ? descripcion.trim() : '';
     precio_usd = precio_usd !== undefined ? parseFloat(precio_usd) : null;
     stock = stock !== undefined ? parseInt(stock) : null;
+    marca = marca !== undefined ? normalizePrimaryMarca(marca) : undefined;
     const depositoId = deposito_id !== undefined && deposito_id !== null
         ? parseInt(deposito_id, 10)
         : null;
