@@ -25,6 +25,7 @@ const usuariosRoutes = require('./routes/usuarios');
 const empresasAdminRoutes = require('./routes/empresas_admin');
 const syncRoutes = require('./routes/sync');
 const cobranzasRoutes = require('./routes/cobranzas');
+const pagosRoutes = require('./routes/pagos');
 const devolucionesRoutes = require('./routes/devoluciones');
 const proveedoresRoutes = require('./routes/proveedores');
 const comprasRoutes = require('./routes/compras');
@@ -42,27 +43,46 @@ app.set('trust proxy', 1);
 // ========== CORS CONFIGURACIÓN ==========
 const cors = require('cors');
 
+function normalizeOriginHost(originValue) {
+    try {
+        return new URL(originValue).host.toLowerCase();
+    } catch (_) {
+        return '';
+    }
+}
+
+function parseAllowedOriginsEnv(value) {
+    return String(value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+
+function getAllowedOrigins() {
+    return [
+        'https://nexactrl.com',
+        'https://www.nexactrl.com',
+        'http://nexactrl.com',
+        'http://www.nexactrl.com',
+        ...parseAllowedOriginsEnv(process.env.CORS_ALLOWED_ORIGINS),
+    ];
+}
+
+function isSamePublicHostOrigin(req, origin) {
+    const originHost = normalizeOriginHost(origin);
+    if (!originHost) return false;
+
+    const requestHost = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+        .split(',')[0]
+        .trim()
+        .toLowerCase();
+
+    return Boolean(requestHost) && originHost === requestHost;
+}
+
 const corsOptions = {
     origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        
-        if (process.env.NODE_ENV !== 'production') {
-            return callback(null, true);
-        }
-        
-        const allowedOrigins = [
-            'https://nexactrl.com',
-            'https://www.nexactrl.com',
-            'http://nexactrl.com',
-            'http://www.nexactrl.com',
-        ];
-        
-        if (allowedOrigins.includes(origin)) {
-            return callback(null, true);
-        }
-        
-        logger.warn('CORS bloqueado', { origin });
-        callback(new Error(`Origen no permitido: ${origin}`));
+        callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -78,7 +98,27 @@ const corsOptions = {
     maxAge: 86400,
 };
 
-app.use(cors(corsOptions));
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+
+    if (!origin) {
+        return cors(corsOptions)(req, res, next);
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+        return cors(corsOptions)(req, res, next);
+    }
+
+    const allowedOrigins = getAllowedOrigins();
+    const isAllowed = allowedOrigins.includes(origin) || isSamePublicHostOrigin(req, origin);
+
+    if (!isAllowed) {
+        logger.warn('CORS bloqueado', { origin });
+        return next(new Error(`Origen no permitido: ${origin}`));
+    }
+
+    return cors(corsOptions)(req, res, next);
+});
 
 // Manejar errores de CORS
 app.use((err, req, res, next) => {
@@ -252,7 +292,7 @@ app.get('/pages/login.html', (req, res) => {
 const htmlPages = [
     'ajustes.html', 'clientes.html', 'cobranzas.html', 'dashboard.html',
     'index.html', 'inicio.html', 'inventario.html', 'login.html', 'reportes.html', 'usuarios.html',
-    'admin-empresas.html', 'admin-suscripciones.html', '404.html', 'terminos.html', 'reset-password.html'
+    'admin-empresas.html', 'admin-suscripciones.html', '404.html', 'terminos.html', 'reset-password.html', 'pagos.html'
 ];
 htmlPages.forEach(page => {
     app.get(`/pages/${page}`, (req, res) => {
@@ -271,6 +311,7 @@ const prettyRoutes = {
     '/clientes': 'clientes.html',
     '/reportes': 'reportes.html',
     '/cobranzas': 'cobranzas.html',
+    '/pagos': 'pagos.html',
     '/ajustes': 'ajustes.html',
     '/usuarios': 'usuarios.html',
     // Las vistas de proveedores y compras se sirven aquí, las APIs ahora viven bajo /api
@@ -336,6 +377,7 @@ app.use('/devoluciones', devolucionesRoutes);
 app.use('/buscar', busquedaRoutes);
 app.use('/backup', backupRoutes);
 app.use('/cobranzas', requireAuth, requireModulePermission('cobranzas'), cobranzasRoutes);
+app.use('/pagos', requireAuth, requireModulePermission('pagos'), pagosRoutes);
 app.use('/alertas', alertasRoutes);
 app.use('/presupuestos', presupuestosRoutes);
 app.use('/sync', syncRoutes);

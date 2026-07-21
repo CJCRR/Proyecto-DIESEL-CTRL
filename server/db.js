@@ -142,6 +142,46 @@ const schema = `
     FOREIGN KEY(cuenta_id) REFERENCES cuentas_cobrar(id)
   );
 
+  CREATE TABLE IF NOT EXISTS cuentas_comision (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    empresa_id INTEGER,
+    usuario_id INTEGER NOT NULL,
+    vendedor_nombre TEXT,
+    rol TEXT,
+    comision_pct REAL DEFAULT 0,
+    total_ventas_bs REAL DEFAULT 0,
+    total_ventas_usd REAL DEFAULT 0,
+    total_comision_bs REAL DEFAULT 0,
+    total_comision_usd REAL DEFAULT 0,
+    saldo_usd REAL DEFAULT 0,
+    periodo_desde TEXT,
+    periodo_hasta TEXT,
+    filtro_cliente TEXT,
+    filtro_metodo TEXT,
+    notas TEXT,
+    estado TEXT DEFAULT 'pendiente',
+    creado_en TEXT DEFAULT (datetime('now')),
+    actualizado_en TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS pagos_comision (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cuenta_comision_id INTEGER NOT NULL,
+    idempotency_key TEXT,
+    fecha TEXT,
+    monto_usd REAL DEFAULT 0,
+    moneda TEXT DEFAULT 'USD',
+    tasa_bcv REAL DEFAULT 1,
+    monto_moneda REAL DEFAULT 0,
+    metodo TEXT,
+    referencia TEXT,
+    notas TEXT,
+    usuario TEXT,
+    creado_en TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY(cuenta_comision_id) REFERENCES cuentas_comision(id)
+  );
+
   CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,

@@ -42,6 +42,13 @@ export const MODULE_DEFINITIONS = [
     routes: ['/cobranzas', '/pages/cobranzas.html']
   },
   {
+    key: 'pagos',
+    label: 'Pagos',
+    description: 'Pago de comisiones y seguimiento por vendedor.',
+    path: '/pagos',
+    routes: ['/pagos', '/pages/pagos.html']
+  },
+  {
     key: 'proveedores',
     label: 'Proveedores',
     description: 'Consulta y mantenimiento de proveedores.',
@@ -81,10 +88,10 @@ export const MODULE_DEFINITIONS = [
 export const MODULE_KEYS = MODULE_DEFINITIONS.map((moduleDef) => moduleDef.key);
 
 const DEFAULT_ROLE_PERMISSION_KEYS = {
-  admin: ['pos', 'inventario', 'dashboard', 'clientes', 'reportes', 'cobranzas', 'proveedores', 'compras', 'usuarios', 'ajustes'],
-  admin_empresa: ['pos', 'inventario', 'dashboard', 'clientes', 'reportes', 'cobranzas', 'proveedores', 'compras', 'usuarios', 'ajustes'],
-  vendedor: ['pos', 'inventario', 'clientes', 'reportes', 'cobranzas', 'proveedores', 'compras'],
-  lectura: ['inventario', 'clientes', 'reportes', 'cobranzas', 'proveedores', 'compras'],
+  admin: ['pos', 'inventario', 'dashboard', 'clientes', 'reportes', 'cobranzas', 'pagos', 'proveedores', 'compras', 'usuarios', 'ajustes'],
+  admin_empresa: ['pos', 'inventario', 'dashboard', 'clientes', 'reportes', 'cobranzas', 'pagos', 'proveedores', 'compras', 'usuarios', 'ajustes'],
+  vendedor: ['pos', 'inventario', 'clientes', 'reportes', 'cobranzas', 'pagos', 'proveedores', 'compras'],
+  lectura: ['inventario', 'clientes', 'reportes', 'cobranzas', 'pagos', 'proveedores', 'compras'],
   superadmin: ['admin_empresas', 'ajustes']
 };
 

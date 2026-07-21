@@ -523,10 +523,12 @@ window.addEventListener('sync-status', (evt) => {
     actualizarSyncPendientes();
 });
 
-async function cargarVentasRecientes() {
+async function cargarVentasRecientes(filter = '') {
     try {
-        ventasRecientesCache = await apiFetchJson('/reportes/ventas');
-        renderVentasRecientes();
+        const params = new URLSearchParams();
+        params.set('limit', filter && String(filter).trim() ? '5000' : '200');
+        ventasRecientesCache = await apiFetchJson(`/reportes/ventas?${params.toString()}`);
+        renderVentasRecientes(filter);
     } catch (err) {
         console.error(err);
         showToast('No se pudieron cargar ventas recientes', 'error');
@@ -790,8 +792,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnDevBuscar = document.getElementById('btn-dev-buscar');
     const inpDevBuscar = document.getElementById('dev-buscar-id');
     if (btnDevBuscar && inpDevBuscar) {
-        btnDevBuscar.addEventListener('click', () => renderVentasRecientes(inpDevBuscar.value));
-        inpDevBuscar.addEventListener('keyup', (e) => { if (e.key === 'Enter') renderVentasRecientes(inpDevBuscar.value); });
+        btnDevBuscar.addEventListener('click', () => cargarVentasRecientes(inpDevBuscar.value));
+        inpDevBuscar.addEventListener('keyup', (e) => { if (e.key === 'Enter') cargarVentasRecientes(inpDevBuscar.value); });
     }
     const btnDevRecientes = document.getElementById('btn-dev-recientes');
     if (btnDevRecientes) btnDevRecientes.addEventListener('click', () => cargarVentasRecientes());

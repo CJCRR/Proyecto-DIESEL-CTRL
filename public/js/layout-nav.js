@@ -7,6 +7,7 @@ const NAV_LINKS = [
   { id: 'clientes', href: '/clientes', icon: 'fa-users', iconColor: 'text-indigo-600', label: 'Clientes' },
   { id: 'reportes', href: '/reportes', icon: 'fa-file-invoice', iconColor: 'text-rose-600', label: 'Reportes' },
   { id: 'cobranzas', href: '/cobranzas', icon: 'fa-money-check-dollar', iconColor: 'text-emerald-600', label: 'Cobranzas' },
+  { id: 'pagos', href: '/pagos', icon: 'fa-hand-holding-dollar', iconColor: 'text-cyan-600', label: 'Pagos' },
   { id: 'proveedores', href: '/proveedores', icon: 'fa-truck-field', iconColor: 'text-orange-600', label: 'Proveedores' },
   { id: 'compras', href: '/compras', icon: 'fa-file-invoice-dollar', iconColor: 'text-lime-600', label: 'Compras' }
 ];

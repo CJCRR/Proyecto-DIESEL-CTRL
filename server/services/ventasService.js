@@ -1,5 +1,7 @@
 const db = require('../db');
 const { insertAlerta } = require('../routes/alertas');
+const logger = require('./logger');
+const { reconcileComisionMensualParaFecha } = require('./pagosService');
 // Referencias de tipos compartidos (VentaPayload, Venta)
 // @ts-check
 
@@ -307,7 +309,20 @@ function registrarVenta(payload) {
     });
 
     try {
-        return transaction();
+        const result = transaction();
+        if (empresaId && usuario_id) {
+            try {
+                reconcileComisionMensualParaFecha({ empresaId, usuarioId: usuario_id, fecha });
+            } catch (syncErr) {
+                logger.warn('No se pudo reconciliar comisión mensual tras registrar venta', {
+                    message: syncErr.message,
+                    stack: syncErr.stack,
+                    empresa_id: empresaId,
+                    usuario_id,
+                });
+            }
+        }
+        return result;
     } catch (error) {
         const esDuplicadoIdGlobal = idGlobalSafe
             && error

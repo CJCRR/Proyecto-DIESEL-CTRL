@@ -762,6 +762,7 @@ async function cargarComisiones() {
 
 async function cargarReporte() {
     const params = buildReportParams();
+    params.set('limit', '5000');
 
     try {
         const payload = await apiFetchJson(`/reportes/ventas-rango?${params.toString()}`);
@@ -918,6 +919,25 @@ if (btnComisionesExport) {
     btnComisionesExport.addEventListener('click', () => {
         const params = buildReportParams();
         window.open(`/reportes/comisiones-vendedores/export/csv?${params.toString()}`, '_blank');
+    });
+}
+
+const btnComisionesManagePayments = document.getElementById('comisiones-manage-payments');
+if (btnComisionesManagePayments) {
+    btnComisionesManagePayments.addEventListener('click', () => {
+        const params = buildReportParams();
+        const desde = params.get('desde');
+        const hasta = params.get('hasta');
+        const vendedor = params.get('vendedor');
+        const anchor = hasta || desde || new Date().toISOString().slice(0, 10);
+        const anchorDate = new Date(anchor);
+        const mes = Number.isNaN(anchorDate.getTime())
+            ? new Date().toISOString().slice(0, 7)
+            : `${anchorDate.getFullYear()}-${String(anchorDate.getMonth() + 1).padStart(2, '0')}`;
+        const pagosParams = new URLSearchParams();
+        pagosParams.set('mes', mes);
+        if (vendedor) pagosParams.set('vendedor', vendedor);
+        window.location.href = `/pagos?${pagosParams.toString()}`;
     });
 }
 

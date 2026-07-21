@@ -1,4 +1,6 @@
 const db = require('../db');
+const logger = require('./logger');
+const { reconcileComisionMensualParaFecha } = require('./pagosService');
 
 const MAX_ITEMS = 200;
 const MAX_TEXT = 120;
@@ -331,6 +333,25 @@ function registrarDevolucion(payload = {}) {
   });
 
   const devolucionId = tx();
+  if (venta_original_id) {
+    try {
+      const ventaAfectada = db.prepare('SELECT usuario_id, fecha FROM ventas WHERE id = ?').get(venta_original_id);
+      if (ventaAfectada && ventaAfectada.usuario_id && ventaAfectada.fecha) {
+        reconcileComisionMensualParaFecha({
+          empresaId,
+          usuarioId: ventaAfectada.usuario_id,
+          fecha: ventaAfectada.fecha,
+        });
+      }
+    } catch (syncErr) {
+      logger.warn('No se pudo reconciliar comisión mensual tras registrar devolución', {
+        message: syncErr.message,
+        stack: syncErr.stack,
+        empresa_id: empresaId,
+        venta_original_id,
+      });
+    }
+  }
   return { devolucionId, total_bs: totalBs, total_usd: totalUsd };
 }
 
