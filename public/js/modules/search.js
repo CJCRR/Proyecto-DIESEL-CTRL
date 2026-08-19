@@ -197,6 +197,10 @@ async function handleResultadoClick(p) {
 
 	function actualizarSelectorMarca() {
 		if (!marcaSelect || !marcaWrapper) return;
+		const syncMarcaAlertState = () => {
+			const necesitaSeleccion = !marcaWrapper.classList.contains('hidden') && !marcaSelect.value;
+			marcaWrapper.dataset.alert = necesitaSeleccion ? 'on' : 'off';
+		};
 		let marcasDisponibles = [];
 		// Buscar depósito seleccionado y usar solo las marcas con stock > 0 en ese depósito
 		let depositoSeleccionadoId = null;
@@ -242,18 +246,24 @@ async function handleResultadoClick(p) {
 				marcaSelect.value = '';
 			}
 			marcaWrapper.classList.add('hidden');
+			marcaWrapper.dataset.alert = 'off';
 		} else {
-			const opts = marcasDisponibles.map((m) => {
+			const opts = [`<option value="">Seleccione marca</option>`].concat(marcasDisponibles.map((m) => {
 				const label = buildLabel(m);
 				return `<option value="${escapeHtml(m.nombre)}">${escapeHtml(label)}</option>`;
-			}).join('');
+			})).join('');
 			marcaSelect.innerHTML = opts;
-			marcaSelect.value = marcasDisponibles[0].nombre;
+			marcaSelect.value = '';
 			marcaWrapper.classList.remove('hidden');
+			syncMarcaAlertState();
 		}
 	}
 
 	if (marcaSelect && marcaWrapper) {
+		marcaSelect.onchange = () => {
+			const necesitaSeleccion = !marcaWrapper.classList.contains('hidden') && !marcaSelect.value;
+			marcaWrapper.dataset.alert = necesitaSeleccion ? 'on' : 'off';
+		};
 		// Configurar actualización reactiva al cambiar de depósito
 		if (depSelect) {
 			// Sobrescribimos el handler para evitar acumular listeners

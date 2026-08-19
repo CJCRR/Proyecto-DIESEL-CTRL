@@ -63,8 +63,9 @@
                                 <option value="">Automático</option>
                             </select>
                         </div>
-                        <div id="pv-marca-wrapper" class="flex items-center gap-2 hidden min-w-[160px]">
+                        <div id="pv-marca-wrapper" class="relative flex items-center gap-2 hidden min-w-[160px]" data-alert="off">
                             <span class="font-semibold uppercase tracking-widest text-[10px]">Marca</span>
+                            <span class="pv-marca-alert-dot" aria-hidden="true"></span>
                             <select id="pv_marca" class="w-full">
                                 <option value=""></option>
                             </select>
@@ -190,6 +191,7 @@
                             <option value="tarjeta">Tarjeta</option>
                             <option value="transferencia">Transferencia</option>
                             <option value="pago_movil">Pago Movil</option>
+                            <option value="Cambio Devolucion">Cambio Devolucion</option>
                             <option value="credito">Crédito</option>
                         </select>
                         <input id="v_ref" type="text" class="p-3 border rounded-xl" placeholder="Referencia (opcional)">

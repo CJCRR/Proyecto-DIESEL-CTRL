@@ -671,6 +671,39 @@ nav.bg-slate-900 {
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
 }
 
+.pv-marca-alert-dot {
+  position: absolute;
+  top: -0.15rem;
+  right: -0.15rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: #dc2626;
+  box-shadow: 0 0 0 2px #fff;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+#pv-marca-wrapper[data-alert="on"] {
+  color: #b45309;
+}
+
+#pv-marca-wrapper[data-alert="on"] .select-pos {
+  border-color: #f59e0b;
+  background-color: #fffaf0;
+}
+
+#pv-marca-wrapper[data-alert="on"] .select-pos:focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.18);
+}
+
+#pv-marca-wrapper[data-alert="on"] .pv-marca-alert-dot {
+  opacity: 1;
+  transform: scale(1);
+}
+
 .bg-blue-700 {
   background-color: var(--brand-primary, #2563eb) !important;
   filter: brightness(0.92);
@@ -1121,6 +1154,10 @@ section {
   .pos-page #pv-deposito-wrapper,
   .pos-page #pv-marca-wrapper {
     width: 100%;
+  }
+
+  .pos-page #pv-marca-wrapper {
+    min-width: 0;
   }
 
   .pos-page #pv-deposito-wrapper select,

@@ -124,11 +124,17 @@ export function agregarAlCarrito() {
 
 	// Marca seleccionada (si aplica)
 	const marcaSelect = document.getElementById('pv_marca');
+	const marcaWrapper = document.getElementById('pv-marca-wrapper');
+	const requiereMarca = !!(marcaWrapper && !marcaWrapper.classList.contains('hidden'));
 	let marcaItem = '';
 	if (marcaSelect && marcaSelect.value) {
 		marcaItem = marcaSelect.value.toString().trim();
 	}
-	if (!marcaItem && productoSeleccionado && productoSeleccionado.marca) {
+	if (requiereMarca && !marcaItem) {
+		showToast('Seleccione la marca correcta antes de agregar el producto.', 'error');
+		return;
+	}
+	if (!requiereMarca && !marcaItem && productoSeleccionado && productoSeleccionado.marca) {
 		marcaItem = productoSeleccionado.marca.toString().trim();
 	}
 
