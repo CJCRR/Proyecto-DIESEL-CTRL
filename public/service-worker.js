@@ -1,4 +1,4 @@
-const CACHE_NAME = 'diesel-ctrl-v3';
+const CACHE_NAME = 'diesel-ctrl-v4';
 const urlsToCache = [
     '/',
     '/styles.css',
