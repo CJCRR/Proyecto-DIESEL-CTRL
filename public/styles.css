@@ -649,6 +649,32 @@ nav.bg-slate-900 {
   text-transform: uppercase;
 }
 
+.pos-input--soft-error {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.15);
+}
+
+.pos-input--error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.18);
+}
+
+.pos-field-hint {
+  min-height: 0.85rem;
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 600;
+  padding-left: 0.25rem;
+}
+
+.pos-field-hint--soft {
+  color: #b45309;
+}
+
+.pos-field-hint--error {
+  color: #dc2626;
+}
+
 /* Selects del POS con estilo consistente */
 .select-pos {
   border-radius: 0.75rem;

@@ -27,6 +27,9 @@ let lastAutoDescuentoVolumen = null;
 let historialModo = 'ventas';
 let vendedoresPOS = [];
 
+const CATALOGO_WARM_CACHE_KEY = 'pos_catalogo_warm_at';
+const CATALOGO_WARM_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
 const tablaCuerpo = document.getElementById('venta-items-cuerpo');
 const btnVender = document.getElementById('btnVender');
 // Toast container
@@ -125,7 +128,51 @@ function precargarTasaCache() {
 }
 
 // Precarga de catálogo de productos en IndexedDB para búsqueda offline
-async function precargarCatalogoProductos() {
+function scheduleLowPriorityTask(task, delay = 0) {
+    const runTask = () => {
+        try {
+            const result = task();
+            if (result && typeof result.catch === 'function') {
+                result.catch((err) => console.warn('Tarea diferida con error', err));
+            }
+        } catch (err) {
+            console.warn('No se pudo ejecutar tarea diferida', err);
+        }
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(() => {
+            if (delay > 0) {
+                setTimeout(runTask, delay);
+            } else {
+                runTask();
+            }
+        }, { timeout: Math.max(1000, delay || 1000) });
+        return;
+    }
+
+    setTimeout(runTask, delay || 0);
+}
+
+function catalogoWarmReciente() {
+    try {
+        const lastWarm = Number(localStorage.getItem(CATALOGO_WARM_CACHE_KEY) || 0);
+        return Number.isFinite(lastWarm) && lastWarm > 0 && (Date.now() - lastWarm) < CATALOGO_WARM_INTERVAL_MS;
+    } catch {
+        return false;
+    }
+}
+
+function marcarCatalogoWarm() {
+    try {
+        localStorage.setItem(CATALOGO_WARM_CACHE_KEY, String(Date.now()));
+    } catch {}
+}
+
+async function precargarCatalogoProductos({ force = false } = {}) {
+    if (!force && catalogoWarmReciente()) {
+        return;
+    }
     try {
         // Traer hasta ~5000 productos; el backend aplica límite
         const productos = await apiFetchJson('/productos?limit=5000');
@@ -143,6 +190,7 @@ async function precargarCatalogoProductos() {
                     console.warn('No se pudo cachear producto al precargar', p.codigo, e);
                 }
             }
+            marcarCatalogoWarm();
             console.log('✅ Catálogo de productos precargado en IndexedDB:', productos.length);
         }
     } catch (err) {
@@ -758,14 +806,20 @@ document.addEventListener('DOMContentLoaded', () => {
         try { localStorage.removeItem('ventas_pendientes'); } catch {}
     
     initOfflineUI();
-    cargarConfigGeneral();
-    cargarVendedoresPOS();
-    actualizarHistorial();
+    void cargarConfigGeneral();
+    void cargarVendedoresPOS();
     actualizarSyncPendientes();
     precargarTasaCache();
-    cargarTasaPV();
-    // Precargar catálogo de productos para búsqueda offline
-    precargarCatalogoProductos();
+    void cargarTasaPV();
+
+    // Diferir cargas no críticas para que el POS quede usable antes en móvil.
+    scheduleLowPriorityTask(() => actualizarHistorial(), 250);
+    scheduleLowPriorityTask(() => {
+        if (navigator.onLine) {
+            return precargarCatalogoProductos();
+        }
+        return null;
+    }, 1200);
 
     const presId = new URLSearchParams(window.location.search).get('presupuesto');
     if (presId) cargarPresupuestoEnPOS(presId);

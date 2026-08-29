@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexa CTRL - Gestión de Ventas</title>
     <link rel="icon" href="/img/nexa3.ico" />
-    <link rel="stylesheet" href="/styles.css?v=20260820a">
+    <link rel="stylesheet" href="/styles.css?v=20260829c">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="/js/disable-autocomplete.js"></script>
@@ -31,7 +31,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                     <div class="md:col-span-8 relative">
                         <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Producto</label>
-                        <input id="buscar"
+                        <input id="buscar" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search" enterkeyhint="search"
                             class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                             placeholder="Ingrese código o descripción...">
                         <ul id="resultados"
@@ -40,7 +40,7 @@
                     </div>
                     <div class="md:col-span-2">
                         <label class="text-[10px] font-black text-slate-400 uppercase mb-1 block">Cant.</label>
-                        <input id="v_cantidad" type="number" value="1" min="1"
+                        <input id="v_cantidad" type="number" value="1" min="1" step="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done"
                             class="w-full p-3 border rounded-xl outline-none font-bold text-center">
                     </div>
                     <div class="md:col-span-2 flex justify-end md:justify-center">
@@ -143,10 +143,18 @@
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
-                        <input id="v_cedula" placeholder="V-00000000"
-                            class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold input-upper">
-                        <input id="v_telefono" placeholder="0414-0000000"
-                            class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold input-upper">
+                        <div class="space-y-1">
+                            <input id="v_cedula" placeholder="V-00000000" inputmode="text" autocomplete="off"
+                                autocapitalize="characters" spellcheck="false" maxlength="12"
+                                class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold input-upper">
+                            <div id="v_cedula_hint" class="pos-field-hint hidden"></div>
+                        </div>
+                        <div class="space-y-1">
+                            <input id="v_telefono" type="tel" placeholder="0414-0000000" inputmode="numeric"
+                                autocomplete="tel-national" spellcheck="false" maxlength="12"
+                                class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold input-upper">
+                            <div id="v_telefono_hint" class="pos-field-hint hidden"></div>
+                        </div>
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 block mb-1">Vendedor /
@@ -161,7 +169,7 @@
                             <label class="text-[10px] font-bold text-slate-400 uppercase">Tasa (Bs/$)</label>
                         </div>
                         <div class="grid grid-cols-12 gap-2 items-center">
-                            <input id="v_tasa" type="number" step="0.01" value="45.50" oninput="actualizarTabla()"
+                            <input id="v_tasa" type="number" step="0.01" value="45.50" inputmode="decimal" enterkeyhint="done" oninput="actualizarTabla()"
                                 class="col-span-8 w-full p-3 border rounded-xl outline-none font-mono font-bold text-blue-600">
                             <button id="btn-pv-actualizar-tasa"
                                 class="col-span-4 p-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">Actualizar</button>
@@ -183,7 +191,7 @@
 
                 <div class="pt-4 border-t space-y-3" data-panel-venta>
                     <div id="pos-pago-detalle" class="grid grid-cols-3 gap-2">
-                        <input id="v_desc" type="number" min="0" step="0.01" class="p-3 border rounded-xl text-center"
+                        <input id="v_desc" type="number" min="0" step="0.01" inputmode="decimal" enterkeyhint="done" class="p-3 border rounded-xl text-center"
                             placeholder="Descuento $" oninput="actualizarTabla()">
                         <select id="v_metodo" class="select-pos w-full">
                             <option value="efectivo_$">Efectivo $</option>
@@ -203,7 +211,7 @@
                             <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Crédito</div>
                         </div>
                         <div class="grid grid-cols-2 gap-2 text-sm">
-                            <input id="v_dias" type="number" min="1" value="21" class="p-2 border rounded-xl"
+                            <input id="v_dias" type="number" min="1" value="21" inputmode="numeric" enterkeyhint="done" class="p-2 border rounded-xl"
                                 placeholder="Días de plazo">
                             <input id="v_fecha_venc" type="date" class="p-2 border rounded-xl"
                                 placeholder="Fecha de vencimiento">
@@ -343,7 +351,7 @@
     <script type="module" src="/js/alerts.js"></script>
     <script src="/js/layout-nav.js"></script>
     <script src="/js/drawer.js"></script>
-    <script type="module" src="/js/app.js?v=20260820a"></script>
+    <script type="module" src="/js/app.js?v=20260829c"></script>
 </body>
 
 </html>

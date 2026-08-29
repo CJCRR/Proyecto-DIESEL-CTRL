@@ -77,6 +77,160 @@ export function initSyncBackupUI() {
 	}
 }
 
+function setFormattedInputValue(input, nextValue) {
+	if (!input) return;
+	if (input.value === nextValue) return;
+	input.value = nextValue;
+	try {
+		input.setSelectionRange(nextValue.length, nextValue.length);
+	} catch (_) {
+		// Algunos navegadores móviles no permiten mover el cursor aquí.
+	}
+}
+
+function setFieldHintState(input, hintEl, state = 'idle', message = '') {
+	if (!input) return;
+	input.classList.remove('pos-input--soft-error', 'pos-input--error');
+	if (hintEl) {
+		hintEl.classList.remove('pos-field-hint--soft', 'pos-field-hint--error');
+		hintEl.classList.add('hidden');
+		hintEl.textContent = '';
+	}
+
+	if (state === 'soft') {
+		input.classList.add('pos-input--soft-error');
+		if (hintEl && message) {
+			hintEl.textContent = message;
+			hintEl.classList.remove('hidden');
+			hintEl.classList.add('pos-field-hint--soft');
+		}
+		return;
+	}
+
+	if (state === 'error') {
+		input.classList.add('pos-input--error');
+		if (hintEl && message) {
+			hintEl.textContent = message;
+			hintEl.classList.remove('hidden');
+			hintEl.classList.add('pos-field-hint--error');
+		}
+	}
+}
+
+function formatCedulaRif(value, forceSeparator = false) {
+	const raw = (value || '')
+		.toString()
+		.toUpperCase()
+		.replace(/\s+/g, '')
+		.replace(/[^A-Z0-9]/g, '');
+
+	if (!raw) return '';
+
+	const prefix = raw.charAt(0);
+	if (!/[VEJGPCR]/.test(prefix)) {
+		return raw.replace(/[^0-9]/g, '');
+	}
+
+	const digits = raw.slice(1).replace(/[^0-9]/g, '');
+	if (digits.length || forceSeparator) {
+		return `${prefix}-${digits}`;
+	}
+
+	return prefix;
+}
+
+function formatTelefono(value, forceSeparator = false) {
+	const digits = (value || '')
+		.toString()
+		.replace(/\D/g, '')
+		.slice(0, 11);
+
+	if (!digits) return '';
+	if (digits.length > 4) {
+		return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+	}
+	if (digits.length === 4 && forceSeparator) {
+		return `${digits}-`;
+	}
+	return digits;
+}
+
+function bindAutoFormatter(input, formatter) {
+	if (!input || input.dataset.autoFormatted === '1') return;
+	input.dataset.autoFormatted = '1';
+
+	const syncValue = (event) => {
+		const inputType = (event && event.inputType) || '';
+		const forceSeparator = !inputType.startsWith('delete');
+		setFormattedInputValue(input, formatter(input.value, forceSeparator));
+	};
+
+	input.addEventListener('input', syncValue);
+	input.addEventListener('blur', () => {
+		setFormattedInputValue(input, formatter(input.value, false));
+	});
+
+	setFormattedInputValue(input, formatter(input.value, false));
+}
+
+function validateCedulaRif(value) {
+	const text = (value || '').toString().trim().toUpperCase();
+	if (!text) return { state: 'idle', message: '' };
+
+	const prefix = text.charAt(0);
+	if (!/[VEJGPCR]/.test(prefix)) {
+		return { state: 'error', message: 'Empiece con V-, J-, G-, E- o similar.' };
+	}
+
+	if (!text.includes('-')) {
+		return { state: 'soft', message: 'El guion se agrega solo, continúe con el número.' };
+	}
+
+	const digits = text.slice(text.indexOf('-') + 1).replace(/\D/g, '');
+	if (!digits.length) {
+		return { state: 'soft', message: 'Ingrese el número de documento.' };
+	}
+	if (digits.length < 6) {
+		return { state: 'soft', message: `Faltan ${6 - digits.length} dígitos como mínimo.` };
+	}
+	if (digits.length > 10) {
+		return { state: 'error', message: 'Demasiados dígitos para ese documento.' };
+	}
+
+	return { state: 'ok', message: '' };
+}
+
+function validateTelefono(value) {
+	const digits = (value || '').toString().replace(/\D/g, '');
+	if (!digits) return { state: 'idle', message: '' };
+	if (digits.length < 4) {
+		return { state: 'soft', message: 'Ingrese el prefijo de 4 dígitos.' };
+	}
+	if (digits.length < 11) {
+		return { state: 'soft', message: `Faltan ${11 - digits.length} dígitos.` };
+	}
+	if (digits.length > 11) {
+		return { state: 'error', message: 'Demasiados dígitos para el teléfono.' };
+	}
+	return { state: 'ok', message: '' };
+}
+
+function bindFieldValidation(input, hintEl, validator) {
+	if (!input || !validator || input.dataset.validatedField === '1') return;
+	input.dataset.validatedField = '1';
+
+	const syncState = () => {
+		const result = validator(input.value);
+		setFieldHintState(input, hintEl, result.state, result.message);
+	};
+
+	input.addEventListener('input', syncState);
+	input.addEventListener('blur', syncState);
+	input.addEventListener('change', syncState);
+	syncState();
+	input.__syncValidationState = syncState;
+}
+
 function getFormCliente() {
 	return {
 		nombre: (document.getElementById('v_cliente')?.value || '').trim().toUpperCase(),
@@ -113,6 +267,8 @@ function renderSugerenciasClientes(list = []) {
 			const tel = document.getElementById('v_telefono');
 			if (ced) ced.value = cedula;
 			if (tel) tel.value = telefono;
+			if (ced && typeof ced.__syncValidationState === 'function') ced.__syncValidationState();
+			if (tel && typeof tel.__syncValidationState === 'function') tel.__syncValidationState();
 			try {
 				if (c.notas) showToast(`Nota cliente: ${c.notas}`, 'info', 4500);
 			} catch {}
@@ -214,9 +370,18 @@ async function upsertClienteDesdeFormulario() {
 export async function initClientesUI() {
 	const btnGuardarCliente = document.getElementById('btnGuardarCliente');
 	const inputNombreCliente = document.getElementById('v_cliente');
+	const inputCedula = document.getElementById('v_cedula');
+	const inputTelefono = document.getElementById('v_telefono');
+	const inputCedulaHint = document.getElementById('v_cedula_hint');
+	const inputTelefonoHint = document.getElementById('v_telefono_hint');
 	const ulSugerenciasClientes = document.getElementById('v_sugerencias_clientes');
 
 	await loadClientes();
+
+	bindAutoFormatter(inputCedula, formatCedulaRif);
+	bindAutoFormatter(inputTelefono, formatTelefono);
+	bindFieldValidation(inputCedula, inputCedulaHint, validateCedulaRif);
+	bindFieldValidation(inputTelefono, inputTelefonoHint, validateTelefono);
 
 	if (inputNombreCliente) {
 		inputNombreCliente.addEventListener('input', (e) => {

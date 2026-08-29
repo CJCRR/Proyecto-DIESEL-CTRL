@@ -3,6 +3,20 @@ const jwt = require('jsonwebtoken');
 
 const isProd = process.env.NODE_ENV === 'production';
 const SECRET = process.env.JWT_SECRET || (!isProd ? 'jwt_dev_secret' : null);
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '365d';
+
+function sanitizeJwtPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return payload;
+  }
+
+  const cleanPayload = { ...payload };
+  delete cleanPayload.exp;
+  delete cleanPayload.iat;
+  delete cleanPayload.nbf;
+  delete cleanPayload.jti;
+  return cleanPayload;
+}
 
 if (!SECRET) {
   // Fallar rápido en producción si no hay secreto JWT configurado
@@ -12,7 +26,7 @@ if (!SECRET) {
 }
 
 function signJwt(payload, options = {}) {
-  return jwt.sign(payload, SECRET, { expiresIn: '8h', ...options });
+  return jwt.sign(sanitizeJwtPayload(payload), SECRET, { expiresIn: JWT_EXPIRES_IN, ...options });
 }
 
 function verifyJwt(token) {

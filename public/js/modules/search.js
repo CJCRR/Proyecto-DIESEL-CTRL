@@ -14,6 +14,11 @@ let _refs = {
 
 let _resultadosActuales = [];
 let _resultadoActivoIndex = -1;
+let _searchRequestSeq = 0;
+let _searchDebounceTimer = null;
+let _searchAbortController = null;
+
+const SEARCH_DEBOUNCE_MS = 180;
 
 function normalizarTextoBusqueda(text) {
 	return (text || '')
@@ -26,11 +31,41 @@ function normalizarTextoBusqueda(text) {
 function setupSearchModule(refs) {
 	Object.assign(_refs, refs);
 	if (_refs.buscarInput) {
-		_refs.buscarInput.addEventListener('input', onBuscarInput);
+		_refs.buscarInput.addEventListener('input', scheduleBuscarInput);
 		_refs.buscarInput.addEventListener('keydown', onBuscarKeydown);
 		// Cerrar resultados al hacer clic fuera del buscador
 		document.addEventListener('click', onDocumentClick);
 	}
+}
+
+function mostrarEstadoResultados(message) {
+	if (!_refs.resultadosUL) return;
+	_refs.resultadosUL.innerHTML = `<li class="p-3 text-xs text-slate-400">${message}</li>`;
+	_refs.resultadosUL.classList.remove('hidden');
+}
+
+function cancelPendingSearch() {
+	if (_searchDebounceTimer) {
+		clearTimeout(_searchDebounceTimer);
+		_searchDebounceTimer = null;
+	}
+	if (_searchAbortController) {
+		_searchAbortController.abort();
+		_searchAbortController = null;
+	}
+}
+
+function scheduleBuscarInput() {
+	const q = getSearchValue();
+	cancelPendingSearch();
+	if (q.length < 2) {
+		ocultarResultados();
+		return;
+	}
+	_searchDebounceTimer = setTimeout(() => {
+		_searchDebounceTimer = null;
+		void onBuscarInput();
+	}, SEARCH_DEBOUNCE_MS);
 }
 
 function updateResultadoActivo() {
@@ -85,6 +120,32 @@ function ocultarResultados() {
 	_resultadoActivoIndex = -1;
 	_refs.resultadosUL.innerHTML = '';
 	_refs.resultadosUL.classList.add('hidden');
+}
+
+function getSearchValue() {
+	return (_refs.buscarInput?.value || '').trim();
+}
+
+function isSearchRequestStale(searchSeq, expectedQuery) {
+	return searchSeq !== _searchRequestSeq || getSearchValue() !== expectedQuery;
+}
+
+async function cacheResultadosLocales(productos = []) {
+	if (!Array.isArray(productos) || !productos.length) return;
+	for (const producto of productos) {
+		try {
+			if (producto && producto.codigo) {
+				await guardarProductoLocal({
+					codigo: producto.codigo,
+					descripcion: producto.descripcion,
+					precio_usd: producto.precio_usd,
+					stock: producto.stock
+				});
+			}
+		} catch (err) {
+			console.warn('No se pudo cachear producto localmente', err);
+		}
+	}
 }
 
 async function handleResultadoClick(p) {
@@ -302,7 +363,8 @@ function onDocumentClick(e) {
 }
 
 async function onBuscarInput() {
-	const q = _refs.buscarInput.value.trim();
+	const q = getSearchValue();
+	const searchSeq = ++_searchRequestSeq;
 	if (q.length < 2) {
 		ocultarResultados();
 		return;
@@ -310,34 +372,29 @@ async function onBuscarInput() {
 
 	const online = navigator.onLine;
 	if (online) {
+		mostrarEstadoResultados('Buscando productos...');
+		_searchAbortController = new AbortController();
 		try {
-			const data = await _refs.apiFetchJson(`/buscar?q=${encodeURIComponent(q)}`);
-			// Guardar resultados en cache local para uso offline
-			if (Array.isArray(data) && data.length) {
-				for (const p of data) {
-					try {
-						if (p && p.codigo) {
-							await guardarProductoLocal({
-								codigo: p.codigo,
-								descripcion: p.descripcion,
-								precio_usd: p.precio_usd,
-								stock: p.stock
-							});
-						}
-					} catch (e) {
-						console.warn('No se pudo cachear producto localmente', e);
-					}
-				}
-			}
+			const data = await _refs.apiFetchJson(`/buscar?q=${encodeURIComponent(q)}`, {
+				skipGlobalLoader: true,
+				signal: _searchAbortController.signal,
+			});
+			_searchAbortController = null;
+			if (isSearchRequestStale(searchSeq, q)) return;
 			renderResultados(data || []);
+			void cacheResultadosLocales(data || []);
 			return;
 		} catch (err) {
+			if (err && err.name === 'AbortError') {
+				return;
+			}
+			_searchAbortController = null;
 			console.warn('Error en búsqueda online, usando cache local si existe', err);
 			// caída a búsqueda offline
 		}
 	}
 
-	await buscarOffline(q);
+	await buscarOffline(q, searchSeq);
 }
 
 function renderResultados(data) {
@@ -369,18 +426,16 @@ function renderResultados(data) {
 	}
 }
 
-async function buscarOffline(q) {
+async function buscarOffline(q, searchSeq = _searchRequestSeq) {
 	try {
 		const todos = await obtenerProductosLocales();
+		if (isSearchRequestStale(searchSeq, q)) return;
 		const term = normalizarTextoBusqueda(q);
 		const filtrados = (todos || []).filter(p => {
 			const codigo = normalizarTextoBusqueda(p.codigo || '');
 			const desc = normalizarTextoBusqueda(p.descripcion || '');
 			return codigo.includes(term) || desc.includes(term);
 		});
-		if (!filtrados.length && _refs.showToast) {
-			_refs.showToast('Sin conexión. No hay coincidencias en cache local.', 'info');
-		}
 		renderResultados(filtrados);
 	} catch (err) {
 		console.warn('Error buscando en cache local de productos', err);

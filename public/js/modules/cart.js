@@ -76,6 +76,41 @@ const buscarInput = document.getElementById('buscar');
 const resultadosUL = document.getElementById('resultados');
 const tablaCuerpo = document.getElementById('venta-items-cuerpo');
 const btnVender = document.getElementById('btnVender');
+const qtyInput = document.getElementById('v_cantidad');
+
+function focusCantidadInput(selectAll = false) {
+	if (!qtyInput) return;
+	qtyInput.focus();
+	if (selectAll) {
+		try {
+			qtyInput.select();
+		} catch (_) {}
+	}
+}
+
+function normalizarCantidadInput() {
+	if (!qtyInput) return;
+	const parsed = parseInt(qtyInput.value, 10);
+	qtyInput.value = Number.isFinite(parsed) && parsed > 0 ? String(parsed) : '1';
+}
+
+function onCantidadKeydown(event) {
+	if (event.key !== 'Enter') return;
+	event.preventDefault();
+	if (modoDevolucion) return;
+	if (!productoSeleccionado) {
+		if (buscarInput) buscarInput.focus();
+		return;
+	}
+	agregarAlCarrito();
+}
+
+if (qtyInput) {
+	qtyInput.addEventListener('focus', () => focusCantidadInput(true));
+	qtyInput.addEventListener('click', () => focusCantidadInput(true));
+	qtyInput.addEventListener('keydown', onCantidadKeydown);
+	qtyInput.addEventListener('blur', normalizarCantidadInput);
+}
 
 // Estas variables vienen de la configuración general del POS
 // (se espera que configGeneral y lastAutoDescuentoVolumen estén en el scope global)
@@ -87,14 +122,12 @@ export function prepararParaAgregar(p) {
 		buscarInput.value = `${p.codigo} - ${p.descripcion}`;
 	}
 	if (resultadosUL) resultadosUL.classList.add('hidden');
-	const qty = document.getElementById('v_cantidad');
-	if (qty) qty.focus();
+	focusCantidadInput(true);
 }
 
 export function agregarAlCarrito() {
 	if (modoDevolucion) { showToast('Usa la selección de venta para devolver.', 'error'); return; }
-	const cantidadInput = document.getElementById('v_cantidad');
-	const cantidad = parseInt(cantidadInput?.value);
+	const cantidad = parseInt(qtyInput?.value, 10);
 
 	if (!productoSeleccionado) { showToast('Por favor, busque y seleccione un producto.', 'error'); return; }
 	if (isNaN(cantidad) || cantidad <= 0) { showToast('Ingrese una cantidad válida.', 'error'); return; }
@@ -551,8 +584,7 @@ export function vaciarCarritoYForm() {
 export function limpiarSeleccion() {
 	productoSeleccionado = null;
 	if (buscarInput) buscarInput.value = '';
-	const qty = document.getElementById('v_cantidad');
-	if (qty) qty.value = 1;
+	if (qtyInput) qtyInput.value = 1;
 	const infoEl = document.getElementById('pv-producto-info');
 	if (infoEl) infoEl.textContent = '';
 	const depWrapper = document.getElementById('pv-deposito-wrapper');
@@ -620,7 +652,6 @@ export function setModoDevolucion(active) {
 		btnVender.classList.toggle('cssbuttons-io-button--dev', modoDevolucion);
 	}
 	if (buscarInput) buscarInput.disabled = modoDevolucion;
-	const qtyInput = document.getElementById('v_cantidad');
 	if (qtyInput) qtyInput.disabled = modoDevolucion;
 	const btnAgregar = document.querySelector('button[onclick="agregarAlCarrito()"]');
 	if (btnAgregar) btnAgregar.disabled = modoDevolucion;

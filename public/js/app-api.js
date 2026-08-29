@@ -3,10 +3,11 @@ import { showGlobalLoader, hideGlobalLoader } from './app-utils.js';
 export const authFetch = (url, options = {}) => fetch(url, { ...options, credentials: 'same-origin' });
 
 export async function apiFetchJson(url, options = {}) {
+    const { skipGlobalLoader = false, ...fetchOptions } = options;
     if (!navigator.onLine) throw new Error('Sin conexión a internet');
-    showGlobalLoader();
+    if (!skipGlobalLoader) showGlobalLoader();
     try {
-        const res = await authFetch(url, options);
+        const res = await authFetch(url, fetchOptions);
         const contentType = res.headers.get('content-type') || '';
         let data = null;
         if (contentType.includes('application/json')) {
@@ -31,6 +32,6 @@ export async function apiFetchJson(url, options = {}) {
         }
         return data;
     } finally {
-        hideGlobalLoader();
+        if (!skipGlobalLoader) hideGlobalLoader();
     }
 }

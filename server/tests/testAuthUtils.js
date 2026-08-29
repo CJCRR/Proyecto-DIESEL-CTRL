@@ -4,6 +4,9 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 
 const db = require(path.join('..', 'db'));
 
+const TEST_SESSION_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
+  const expiraEn = new Date(Date.now() + TEST_SESSION_MAX_AGE_MS).toISOString();
+
 /**
  * Crea un usuario de prueba y una sesión asociada.
  * Permite opcionalmente especificar rol y empresa_id para pruebas multiempresa.

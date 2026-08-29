@@ -19,6 +19,85 @@ function generarToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+const DEFAULT_SESSION_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
+const SESSION_MAX_AGE_MS = (() => {
+  const raw = Number(process.env.SESSION_MAX_AGE_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SESSION_MAX_AGE_MS;
+})();
+const DEFAULT_SESSION_RENEW_THRESHOLD_MS = SESSION_MAX_AGE_MS >= (60 * 24 * 60 * 60 * 1000)
+  ? 30 * 24 * 60 * 60 * 1000
+  : Math.max(60 * 60 * 1000, Math.floor(SESSION_MAX_AGE_MS / 10));
+const SESSION_RENEW_THRESHOLD_MS = (() => {
+  const raw = Number(process.env.SESSION_RENEW_THRESHOLD_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SESSION_RENEW_THRESHOLD_MS;
+})();
+const SESSION_JWT_EXPIRES_IN_SECONDS = Math.max(60, Math.floor(SESSION_MAX_AGE_MS / 1000));
+
+function calcularExpiraEnSesion() {
+  return new Date(Date.now() + SESSION_MAX_AGE_MS);
+}
+
+function parseSessionExpiry(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function obtenerSesionActivaPorToken(token) {
+  if (!token) return null;
+  return db.prepare(`
+    SELECT s.token, s.usuario_id, s.expira_en
+    FROM sesiones s
+    WHERE s.token = ? AND datetime(s.expira_en) > datetime('now')
+  `).get(token);
+}
+
+function sessionNeedsRenewal(expiraEn) {
+  const expiresAt = parseSessionExpiry(expiraEn);
+  if (!expiresAt) return true;
+  return (expiresAt.getTime() - Date.now()) <= SESSION_RENEW_THRESHOLD_MS;
+}
+
+function signSessionJwt(payload) {
+  return signJwt(payload, { expiresIn: SESSION_JWT_EXPIRES_IN_SECONDS });
+}
+
+function buildAuthCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isHttpsEnforced(),
+    maxAge: SESSION_MAX_AGE_MS,
+  };
+}
+
+function setAuthCookies(res, token, jwtToken) {
+  const cookieOptions = buildAuthCookieOptions();
+  res.cookie('auth_token', token, cookieOptions);
+  res.cookie('jwt_token', jwtToken, cookieOptions);
+}
+
+function clearAuthCookies(res) {
+  const { maxAge, ...cookieOptions } = buildAuthCookieOptions();
+  res.clearCookie('auth_token', cookieOptions);
+  res.clearCookie('jwt_token', cookieOptions);
+}
+
+function renovarSesion(token, jwtPayload, res, currentExpiresAt = null) {
+  if (!token || !jwtPayload || !res) return;
+  if (!sessionNeedsRenewal(currentExpiresAt)) return;
+
+  const nextExpiry = calcularExpiraEnSesion().toISOString();
+
+  try {
+    db.prepare('UPDATE sesiones SET expira_en = ? WHERE token = ?').run(nextExpiry, token);
+  } catch (err) {
+    logger.warn('No se pudo renovar sesión activa', { message: err.message, token: token.slice(0, 8) });
+  }
+
+  setAuthCookies(res, token, signSessionJwt(jwtPayload));
+}
+
 function enrichUserPermissionsFromDb(user) {
   if (!user || !user.id) {
     return user;
@@ -230,8 +309,7 @@ router.post('/login', loginLimiter, (req, res) => {
 
     // Crear sesión
     const token = generarToken();
-    const expiraEn = new Date();
-    expiraEn.setHours(expiraEn.getHours() + 8); // Sesión válida por 8 horas
+    const expiraEn = calcularExpiraEnSesion();
 
     db.prepare(`
       INSERT INTO sesiones (usuario_id, token, expira_en)
@@ -280,22 +358,10 @@ router.post('/login', loginLimiter, (req, res) => {
       twofa_enabled: !!usuarioConPermisos.twofa_enabled,
       permisos_modulos: usuarioConPermisos.permisos_modulos
     };
-    const jwtToken = signJwt(jwtPayload);
-    const secureCookies = isHttpsEnforced();
+    const jwtToken = signSessionJwt(jwtPayload);
 
     // Setear ambas cookies: auth_token (clásico) y jwt_token (JWT)
-    res.cookie('auth_token', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: secureCookies,
-      maxAge: 8 * 60 * 60 * 1000
-    });
-    res.cookie('jwt_token', jwtToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: secureCookies,
-      maxAge: 8 * 60 * 60 * 1000
-    });
+    setAuthCookies(res, token, jwtToken);
 
     res.json({
       success: true,
@@ -321,8 +387,7 @@ router.post('/logout', (req, res) => {
       logger.error('Error al cerrar sesión:', { message: err.message, stack: err.stack, url: req.originalUrl });
     }
   }
-
-  res.clearCookie('auth_token');
+  clearAuthCookies(res);
   res.json({ success: true });
 });
 
@@ -336,7 +401,15 @@ router.get('/verificar', (req, res) => {
   if (jwtToken) {
     const user = verifyJwt(jwtToken);
     if (user) {
-      return res.json({ valido: true, usuario: enrichUserPermissionsFromDb(user), via: 'jwt' });
+      const sesionActual = obtenerSesionActivaPorToken(token);
+      if (!sesionActual) {
+        clearAuthCookies(res);
+        return res.status(401).json({ error: 'Sesión inválida o expirada', code: 'SESION_INVALIDA' });
+      }
+
+      const usuarioEnriquecido = enrichUserPermissionsFromDb(user);
+      renovarSesion(token, usuarioEnriquecido, res, sesionActual.expira_en);
+      return res.json({ valido: true, usuario: usuarioEnriquecido, via: 'jwt' });
     }
   }
 
@@ -357,21 +430,23 @@ router.get('/verificar', (req, res) => {
     if (!sesion) {
       return res.status(401).json({ error: 'Sesión inválida o expirada' });
     }
+    const usuarioSesion = attachEffectiveModulePermissions({
+      id: sesion.usuario_id,
+      username: sesion.username,
+      nombre: sesion.nombre_completo,
+      rol: sesion.rol,
+      empresa_id: sesion.empresa_id || null,
+      empresa_codigo: sesion.empresa_codigo || null,
+      empresa_estado: sesion.empresa_estado || null,
+      empresa_proximo_cobro: sesion.empresa_proximo_cobro || null,
+      empresa_dias_gracia: (sesion.empresa_dias_gracia != null ? Number(sesion.empresa_dias_gracia) : null),
+      must_change_password: !!sesion.must_change_password,
+      twofa_enabled: !!sesion.twofa_enabled
+    });
+    renovarSesion(token, usuarioSesion, res, sesion.expira_en);
     res.json({
       valido: true,
-      usuario: {
-        id: sesion.usuario_id,
-        username: sesion.username,
-        nombre: sesion.nombre_completo,
-        rol: sesion.rol,
-        empresa_id: sesion.empresa_id || null,
-        empresa_codigo: sesion.empresa_codigo || null,
-        empresa_estado: sesion.empresa_estado || null,
-        empresa_proximo_cobro: sesion.empresa_proximo_cobro || null,
-        empresa_dias_gracia: (sesion.empresa_dias_gracia != null ? Number(sesion.empresa_dias_gracia) : null),
-        must_change_password: !!sesion.must_change_password,
-        twofa_enabled: !!sesion.twofa_enabled
-      },
+      usuario: usuarioSesion,
       via: 'token'
     });
   } catch (err) {
@@ -783,6 +858,12 @@ function requireAuth(req, res, next) {
   if (jwtToken) {
     const user = verifyJwt(jwtToken);
     if (user) {
+      const sesionActual = obtenerSesionActivaPorToken(token);
+      if (!sesionActual) {
+        clearAuthCookies(res);
+        return res.status(401).json({ error: 'Sesión inválida o expirada', code: 'SESION_INVALIDA' });
+      }
+
       // ✅ VALIDACIÓN CRÍTICA: Verificar que el usuario siga existiendo
       // y que su empresa_id coincida con lo que dice el JWT
       const usuarioDb = db.prepare(`
@@ -797,8 +878,7 @@ function requireAuth(req, res, next) {
 
       // Si el usuario no existe o está inactivo, rechazar
       if (!usuarioDb) {
-        res.clearCookie('auth_token');
-        res.clearCookie('jwt_token');
+        clearAuthCookies(res);
         return res.status(401).json({ error: 'Usuario no válido o inactivo', code: 'USUARIO_INVALIDO' });
       }
 
@@ -806,8 +886,7 @@ function requireAuth(req, res, next) {
       // (excepto superadmin que puede tener empresa_id = null)
       if (user.empresa_id && usuarioDb.empresa_id &&
         Number(user.empresa_id) !== Number(usuarioDb.empresa_id)) {
-        res.clearCookie('auth_token');
-        res.clearCookie('jwt_token');
+        clearAuthCookies(res);
         return res.status(403).json({
           error: 'Empresa no válida para este usuario',
           code: 'EMPRESA_NO_VALIDA'
@@ -816,8 +895,7 @@ function requireAuth(req, res, next) {
 
       // Si el JWT dice que es superadmin pero el usuario ya no lo es, rechazar
       if (user.rol === 'superadmin' && usuarioDb.rol !== 'superadmin') {
-        res.clearCookie('auth_token');
-        res.clearCookie('jwt_token');
+        clearAuthCookies(res);
         return res.status(403).json({
           error: 'Rol de usuario ha cambiado. Inicie sesión nuevamente.',
           code: 'ROL_CAMBIADO'
@@ -828,6 +906,7 @@ function requireAuth(req, res, next) {
       const usuarioEnriquecido = attachEffectiveModulePermissions({
         id: usuarioDb.id,
         username: usuarioDb.username,
+        nombre: user.nombre || user.nombre_completo || usuarioDb.username,
         rol: usuarioDb.rol,
         empresa_id: usuarioDb.empresa_id || null,
         empresa_codigo: usuarioDb.empresa_codigo || null,
@@ -838,6 +917,7 @@ function requireAuth(req, res, next) {
         permisos_modulos: usuarioDb.permisos_modulos
       });
 
+      renovarSesion(token, usuarioEnriquecido, res, sesionActual.expira_en);
       req.usuario = usuarioEnriquecido;
       return next();
     }
@@ -850,7 +930,7 @@ function requireAuth(req, res, next) {
 
   try {
     const sesion = db.prepare(`
-      SELECT s.*, u.username, u.rol, u.empresa_id, u.permisos_modulos,
+            SELECT s.*, u.username, u.nombre_completo, u.rol, u.empresa_id, u.permisos_modulos,
              e.codigo AS empresa_codigo, e.estado AS empresa_estado
       FROM sesiones s
       JOIN usuarios u ON u.id = s.usuario_id
@@ -866,19 +946,22 @@ function requireAuth(req, res, next) {
     const usuarioActivo = db.prepare('SELECT activo FROM usuarios WHERE id = ?').get(sesion.usuario_id);
     if (!usuarioActivo || usuarioActivo.activo !== 1) {
       db.prepare('DELETE FROM sesiones WHERE token = ?').run(token);
-      res.clearCookie('auth_token');
+      clearAuthCookies(res);
       return res.status(401).json({ error: 'Usuario inactivo', code: 'USUARIO_INACTIVO' });
     }
 
     req.usuario = attachEffectiveModulePermissions({
       id: sesion.usuario_id,
       username: sesion.username,
+      nombre: sesion.nombre_completo,
       rol: sesion.rol,
       empresa_id: sesion.empresa_id || null,
       empresa_codigo: sesion.empresa_codigo || null,
       empresa_estado: sesion.empresa_estado || null,
       permisos_modulos: sesion.permisos_modulos
     });
+
+    renovarSesion(token, req.usuario, res, sesion.expira_en);
 
     next();
   } catch (err) {
