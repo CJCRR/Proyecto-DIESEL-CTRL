@@ -6,9 +6,12 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 
 const db = require(path.join('..', 'db'));
 const ventasRoutes = require(path.join('..', 'routes', 'ventas'));
+const ajustesService = require(path.join('..', 'services', 'ajustesService'));
 const { createTestUserAndToken } = require('./testAuthUtils');
 
 function resetVentasData() {
+  db.prepare('DELETE FROM auditoria').run();
+  db.prepare('DELETE FROM stock_por_deposito_marca').run();
   db.prepare('DELETE FROM stock_por_deposito').run();
   db.prepare('DELETE FROM depositos').run();
   db.prepare('DELETE FROM venta_detalle').run();
@@ -190,5 +193,72 @@ describe('Rutas HTTP /ventas', () => {
 
     expect(res.status).toBe(403);
     expect(res.body).toHaveProperty('code', 'VENTA_ANULAR_DESHABILITADA');
+  });
+
+  test('DELETE /ventas/:id anula la venta y responde 200 cuando la función está activada', async () => {
+    const empresaId = 1;
+    const { token, userId } = createTestUserAndToken({ empresaId, rol: 'admin_empresa' });
+    const app = buildApp();
+
+    ajustesService.guardarConfigGeneral({
+      empresa: {
+        nombre: 'Empresa Test',
+        permitir_anular_venta: true,
+      },
+    }, empresaId);
+
+    const depInfo = db
+      .prepare(
+        'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?,?,?,?,1)'
+      )
+      .run(empresaId, 'Dep Ventas Delete', 'DVDLT', 1);
+    const depositoId = depInfo.lastInsertRowid;
+
+    const prodInfo = db
+      .prepare(
+        'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id, deposito_id, marca) VALUES (?,?,?,?,?,?,?,?)'
+      )
+      .run('COD-DELETE', 'Producto Delete', 15, 7, 1, empresaId, depositoId, 'ACME');
+
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prodInfo.lastInsertRowid, depositoId, 1);
+
+    db.prepare(
+      'INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad) VALUES (?,?,?,?,?)'
+    ).run(empresaId, prodInfo.lastInsertRowid, depositoId, 'ACME', 1);
+
+    const venta = db.prepare(`
+      INSERT INTO ventas (fecha, cliente, vendedor, metodo_pago, total_bs, tasa_bcv, usuario_id)
+      VALUES (datetime('now'), 'Cliente Delete', 'Vend Delete', 'EFECTIVO', 150, 10, ?)
+    `).run(userId);
+
+    db.prepare(
+      'INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs, deposito_id, marca) VALUES (?,?,?,?,?,?,?,?)'
+    ).run(venta.lastInsertRowid, prodInfo.lastInsertRowid, 1, 15, 7, 150, depositoId, 'ACME');
+
+    db.prepare('UPDATE productos SET stock = 0 WHERE id = ?').run(prodInfo.lastInsertRowid);
+    db.prepare('UPDATE stock_por_deposito SET cantidad = 0 WHERE producto_id = ? AND deposito_id = ?').run(prodInfo.lastInsertRowid, depositoId);
+    db.prepare('UPDATE stock_por_deposito_marca SET cantidad = 0 WHERE producto_id = ? AND deposito_id = ? AND marca = ?').run(prodInfo.lastInsertRowid, depositoId, 'ACME');
+
+    const res = await request(app)
+      .delete(`/ventas/${venta.lastInsertRowid}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('ok', true);
+
+    const ventaEliminada = db.prepare('SELECT id FROM ventas WHERE id = ?').get(venta.lastInsertRowid);
+    expect(ventaEliminada).toBeUndefined();
+
+    const stockMarca = db
+      .prepare('SELECT cantidad FROM stock_por_deposito_marca WHERE producto_id = ? AND deposito_id = ? AND marca = ?')
+      .get(prodInfo.lastInsertRowid, depositoId, 'ACME');
+    expect(Number(stockMarca.cantidad || 0)).toBe(1);
+
+    const auditRow = db
+      .prepare("SELECT accion FROM auditoria WHERE accion = 'VENTA_ANULADA' AND entidad_id = ?")
+      .get(venta.lastInsertRowid);
+    expect(auditRow).toBeDefined();
   });
 });

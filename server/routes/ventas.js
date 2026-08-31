@@ -6,7 +6,8 @@ const logger = require('../services/logger');
 const db = require('../db');
 const { registrarVenta, cambiarVendedorVenta, anularVenta } = require('../services/ventasService');
 const { obtenerConfigGeneral } = require('../services/ajustesService');
-const { debeSuspenderEmpresa } = require('../services/licenciasService');
+const { registrarAuditoria } = require('../services/auditLogService');
+const { obtenerEstadoLicencia } = require('../services/licenciasService');
 
 // El superadmin no debe registrar ventas de ninguna empresa
 function forbidSuperadmin(req, res, next) {
@@ -30,7 +31,7 @@ function blockVentasIfEmpresaSuspendida(req, res, next) {
             return res.status(400).json({ error: 'Empresa no encontrada para este usuario', code: 'EMPRESA_NO_ENCONTRADA' });
         }
 
-        const estadoLicencia = debeSuspenderEmpresa(empresa.id, db);
+        const estadoLicencia = obtenerEstadoLicencia(empresa.id, db);
 
         if (estadoLicencia.suspendida) {
             return res.status(403).json({

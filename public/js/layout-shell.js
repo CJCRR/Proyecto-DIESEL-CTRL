@@ -1,6 +1,9 @@
 // layout-shell.js - genera header, drawer y footer comunes para todas las páginas
 
 (function () {
+    const APP_UPDATES_SCRIPT_ID = 'app-updates-script';
+    const APP_UPDATES_SCRIPT_SRC = '/js/app-updates.js?v=20260829e';
+
     function getPageConfigFromLocation() {
         try {
             const path = window.location?.pathname || '';
@@ -189,8 +192,37 @@
             body.insertAdjacentHTML('afterbegin', headerHtml + drawerHtml);
             // Insert footer al final
             body.insertAdjacentHTML('beforeend', footerHtml);
+
+            ensureAppUpdatesLoaded();
         } catch (err) {
             console.error('Error inicializando app shell', err);
+        }
+    }
+
+    function ensureAppUpdatesLoaded() {
+        try {
+            if (typeof window === 'undefined' || window.location.pathname.startsWith('/login')) return;
+            if (window.AppUpdates && typeof window.AppUpdates.ensureMounted === 'function') {
+                window.AppUpdates.ensureMounted();
+                return;
+            }
+            if (document.getElementById(APP_UPDATES_SCRIPT_ID)) return;
+
+            const script = document.createElement('script');
+            script.id = APP_UPDATES_SCRIPT_ID;
+            script.src = APP_UPDATES_SCRIPT_SRC;
+            script.onload = () => {
+                try {
+                    if (window.AppUpdates && typeof window.AppUpdates.ensureMounted === 'function') {
+                        window.AppUpdates.ensureMounted();
+                    }
+                } catch (err) {
+                    console.error('Error montando centro de novedades', err);
+                }
+            };
+            document.head.appendChild(script);
+        } catch (err) {
+            console.error('Error cargando centro de novedades', err);
         }
     }
 

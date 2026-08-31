@@ -6,6 +6,7 @@ const db = require(path.join('..', 'db'));
 const { registrarVenta, anularVenta, cambiarVendedorVenta } = require(path.join('..', 'services', 'ventasService'));
 
 function resetVentasData() {
+  db.prepare('DELETE FROM stock_por_deposito_marca').run();
   db.prepare('DELETE FROM stock_por_deposito').run();
   db.prepare('DELETE FROM depositos').run();
   db.prepare('DELETE FROM venta_detalle').run();
@@ -153,6 +154,58 @@ describe('ventasService.registrarVenta', () => {
     expect(() => {
       anularVenta({ ventaId: ventaB.lastInsertRowid, empresaId: empresaAId });
     }).toThrow(/otra empresa/i);
+  });
+
+  test('anularVenta repone el stock por marca para permitir vender de nuevo la misma variante', () => {
+    const empresaId = 1;
+
+    const depInfo = db
+      .prepare(
+        'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?,?,?,?,1)'
+      )
+      .run(empresaId, 'Dep Marca', 'DM1', 1);
+    const depositoId = depInfo.lastInsertRowid;
+
+    const prod = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id, deposito_id, marca) VALUES (?,?,?,?,?,?,?,?)'
+    ).run('COD-MARCA', 'Producto Marca', 12, 6, 2, empresaId, depositoId, 'ACME');
+
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prod.lastInsertRowid, depositoId, 2);
+
+    db.prepare(
+      'INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad) VALUES (?,?,?,?,?)'
+    ).run(empresaId, prod.lastInsertRowid, depositoId, 'ACME', 2);
+
+    const { ventaId } = registrarVenta({
+      items: [{ codigo: 'COD-MARCA', cantidad: 2, deposito_id: depositoId, marca: 'ACME' }],
+      cliente: 'Cliente Marca',
+      vendedor: 'Vendedor Marca',
+      tasa_bcv: 10,
+      descuento: 0,
+      metodo_pago: 'EFECTIVO',
+      usuario_id: null,
+      credito: false,
+      iva_pct: 0,
+      empresa_id: empresaId,
+    });
+
+    const stockMarcaTrasVenta = db
+      .prepare('SELECT cantidad FROM stock_por_deposito_marca WHERE producto_id = ? AND deposito_id = ? AND marca = ?')
+      .get(prod.lastInsertRowid, depositoId, 'ACME');
+    expect(Number(stockMarcaTrasVenta.cantidad || 0)).toBe(0);
+
+    const result = anularVenta({ ventaId, empresaId });
+    expect(result).toEqual({ ok: true });
+
+    const producto = db.prepare('SELECT stock FROM productos WHERE id = ?').get(prod.lastInsertRowid);
+    expect(Number(producto.stock || 0)).toBe(2);
+
+    const stockMarcaRestaurado = db
+      .prepare('SELECT cantidad FROM stock_por_deposito_marca WHERE producto_id = ? AND deposito_id = ? AND marca = ?')
+      .get(prod.lastInsertRowid, depositoId, 'ACME');
+    expect(Number(stockMarcaRestaurado.cantidad || 0)).toBe(2);
   });
 
   test('cambiarVendedorVenta impide asignar vendedor de otra empresa', () => {

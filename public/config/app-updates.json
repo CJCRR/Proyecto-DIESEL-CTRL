@@ -1,0 +1,66 @@
+[
+  {
+    "id": "2026-08-29-pos-fluidez",
+    "tone": "blue",
+    "icon": "fa-mobile-screen-button",
+    "tag": "POS movil",
+    "date": "29 Ago 2026",
+    "title": "Flujo de venta mas agil en telefono",
+    "summary": "El POS responde mejor al escribir, enfoca la cantidad al seleccionar y ahora acepta Enter para agregar mas rapido.",
+    "bullets": [
+      "Busqueda con menos saltos y menos carga por tecla.",
+      "Cantidad optimizada para teclado numerico.",
+      "Atajo directo para agregar desde el campo de cantidad."
+    ],
+    "href": "/pos",
+    "cta": "Probar en POS"
+  },
+  {
+    "id": "2026-08-29-sesion-segura",
+    "tone": "emerald",
+    "icon": "fa-shield-heart",
+    "tag": "Sesion",
+    "date": "29 Ago 2026",
+    "title": "Sesion mas estable y coherente",
+    "summary": "La sesion larga ahora queda alineada entre base de datos, cookies y JWT, con renovacion solo cuando hace falta.",
+    "bullets": [
+      "Login persistente sin expulsar al usuario al rato.",
+      "Logout invalida mejor el acceso por token y JWT.",
+      "Menos renovaciones innecesarias en segundo plano."
+    ],
+    "href": "/pos",
+    "cta": "Ver en uso"
+  },
+  {
+    "id": "2026-08-29-clientes-inteligentes",
+    "tone": "amber",
+    "icon": "fa-address-card",
+    "tag": "Clientes",
+    "date": "29 Ago 2026",
+    "title": "Cedula y telefono con ayuda en vivo",
+    "summary": "Los campos del cliente ahora autocompletan el guion y muestran avisos suaves cuando el dato va incompleto.",
+    "bullets": [
+      "Formato automatico para cedula, RIF y telefono.",
+      "Ayudas visuales discretas sin bloquear la venta.",
+      "Mejor lectura al cargar clientes frecuentes."
+    ],
+    "href": "/pos",
+    "cta": "Revisar cliente"
+  },
+  {
+    "id": "2026-08-29-marcas-y-metodos",
+    "tone": "rose",
+    "icon": "fa-layer-group",
+    "tag": "Catalogo",
+    "date": "29 Ago 2026",
+    "title": "Control mas claro de marca y metodo de pago",
+    "summary": "Cuando un producto tiene varias marcas, el POS ahora lo deja mas visible y exige elegir la correcta antes de vender.",
+    "bullets": [
+      "Selector de marca con alerta visual discreta.",
+      "Nuevo metodo de pago Cambio Devolucion.",
+      "Filtro de reportes alineado con el nuevo metodo."
+    ],
+    "href": "/reportes",
+    "cta": "Ver reportes"
+  }
+]

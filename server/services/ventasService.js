@@ -384,7 +384,7 @@ function anularVenta(params) {
     }
 
      const detalles = db.prepare(`
-     SELECT vd.id, vd.producto_id, vd.cantidad,
+     SELECT vd.id, vd.producto_id, vd.cantidad, vd.marca,
          p.stock AS stock_actual,
          COALESCE(vd.deposito_id, p.deposito_id) AS deposito_id,
          p.empresa_id AS prod_empresa_id
@@ -406,6 +406,19 @@ function anularVenta(params) {
         INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
         VALUES (?, ?, ?, ?)
     `);
+    const selectStockDepMarca = db.prepare(`
+        SELECT cantidad FROM stock_por_deposito_marca
+        WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+    `);
+    const updateStockDepMarcaSuma = db.prepare(`
+        UPDATE stock_por_deposito_marca
+        SET cantidad = cantidad + ?, actualizado_en = datetime('now')
+        WHERE producto_id = ? AND deposito_id = ? AND marca = ?
+    `);
+    const insertStockDepMarca = db.prepare(`
+        INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad)
+        VALUES (?, ?, ?, ?, ?)
+    `);
     const updateProdStock = db.prepare('UPDATE productos SET stock = ? WHERE id = ?');
 
     const deletePagosByCuenta = db.prepare('DELETE FROM pagos_cc WHERE cuenta_id = ?');
@@ -413,13 +426,23 @@ function anularVenta(params) {
     const deleteCuenta = db.prepare('DELETE FROM cuentas_cobrar WHERE id = ?');
 
     const tx = db.transaction(() => {
+        const stockTotalPorProducto = new Map();
+
         // Revertir inventario: sumar nuevamente las cantidades vendidas
         for (const det of detalles) {
             const cantidad = Number(det.cantidad || 0) || 0;
             if (!cantidad) continue;
 
-            const nuevoStock = Number(det.stock_actual || 0) + cantidad;
-            updateProdStock.run(nuevoStock, det.producto_id);
+            const stockPrevio = Number(det.stock_actual || 0) || 0;
+            const acumuladoPrevio = stockTotalPorProducto.get(det.producto_id);
+            if (acumuladoPrevio) {
+                acumuladoPrevio.cantidad += cantidad;
+            } else {
+                stockTotalPorProducto.set(det.producto_id, {
+                    stockBase: stockPrevio,
+                    cantidad,
+                });
+            }
 
             const depId = det.deposito_id;
             if (depId) {
@@ -429,7 +452,22 @@ function anularVenta(params) {
                 } else {
                     insertStockDep.run(det.prod_empresa_id || empresaId || null, det.producto_id, depId, cantidad);
                 }
+
+                const marcaNorm = normalizeMarca(det.marca || '');
+                if (marcaNorm) {
+                    const rowDepMarca = selectStockDepMarca.get(det.producto_id, depId, marcaNorm);
+                    if (rowDepMarca) {
+                        updateStockDepMarcaSuma.run(cantidad, det.producto_id, depId, marcaNorm);
+                    } else {
+                        insertStockDepMarca.run(det.prod_empresa_id || empresaId || null, det.producto_id, depId, marcaNorm, cantidad);
+                    }
+                }
             }
+        }
+
+        for (const [productoId, stockInfo] of stockTotalPorProducto.entries()) {
+            const nuevoStock = Number(stockInfo.stockBase || 0) + Number(stockInfo.cantidad || 0);
+            updateProdStock.run(nuevoStock, productoId);
         }
 
         // Eliminar cuentas por cobrar y pagos asociados a esta venta (si existen)
