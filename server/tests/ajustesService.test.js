@@ -17,9 +17,20 @@ const ajustesService = require(path.join('..', 'services', 'ajustesService'));
 const { sendMessage } = require(path.join('..', 'services', 'whatsappService'));
 
 function resetAjustesData() {
+  db.prepare('DELETE FROM auditoria').run();
+  db.prepare('DELETE FROM movimientos_deposito').run();
+  db.prepare('DELETE FROM stock_por_deposito_marca').run();
   db.prepare('DELETE FROM ajustes_stock').run();
+  db.prepare('DELETE FROM devolucion_detalle').run();
+  db.prepare('DELETE FROM devoluciones').run();
+  db.prepare('DELETE FROM venta_detalle').run();
+  db.prepare('DELETE FROM ventas').run();
+  db.prepare('DELETE FROM compra_detalle').run();
+  db.prepare('DELETE FROM compras').run();
+  db.prepare('DELETE FROM presupuesto_detalle').run();
   db.prepare('DELETE FROM stock_por_deposito').run();
   db.prepare('DELETE FROM productos').run();
+  db.prepare('DELETE FROM depositos').run();
   db.prepare('DELETE FROM alertas').run();
   db.prepare('DELETE FROM pagos_licencia').run();
   db.prepare('DELETE FROM empresas WHERE id != 1').run();
@@ -121,6 +132,61 @@ describe('ajustesService', () => {
 
     const prodAplicado = db.prepare('SELECT stock FROM productos WHERE id = ?').get(prod.lastInsertRowid);
     expect(Number(prodAplicado.stock || 0)).toBe(6);
+  });
+
+  test('reconciliarStockEmpresa consolida stock e historial cuando el mismo codigo quedo partido entre activo e inactivo', () => {
+    const empresaId = 1;
+    const depositoId = db.prepare(
+      'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?,?,?,?,1)'
+    ).run(empresaId, 'Principal', 'PRIN', 1).lastInsertRowid;
+
+    const insertProducto = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id, deposito_id, activo) VALUES (?,?,?,?,?,?,?,?)'
+    );
+
+    const prodActivoId = insertProducto.run('DUP-STK', 'Producto duplicado', 10, 5, 0, empresaId, depositoId, 1).lastInsertRowid;
+    const prodInactivoId = insertProducto.run('DUP-STK', 'Producto duplicado viejo', 10, 5, 2, empresaId, depositoId, 0).lastInsertRowid;
+
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prodActivoId, depositoId, 0);
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prodInactivoId, depositoId, 2);
+    db.prepare(
+      'INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad) VALUES (?,?,?,?,?)'
+    ).run(empresaId, prodInactivoId, depositoId, 'LYC', 2);
+
+    const compraId = db.prepare(
+      "INSERT INTO compras (proveedor_id, fecha, numero, tasa_bcv, total_bs, total_usd, estado, notas, usuario_id, empresa_id) VALUES (NULL, ?, ?, ?, ?, ?, 'recibida', '', NULL, ?)"
+    ).run('2026-09-01T10:00:00.000Z', 'CMP-DUP', 40, 80, 2, empresaId).lastInsertRowid;
+
+    db.prepare(
+      'INSERT INTO compra_detalle (compra_id, producto_id, codigo, descripcion, marca, cantidad, costo_usd, subtotal_bs, lote, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)' 
+    ).run(compraId, prodInactivoId, 'DUP-STK', 'Producto duplicado', 'LYC', 2, 5, 80, '', 'Compra quedó en fila vieja');
+
+    const preview = ajustesService.analizarReconciliacionStockEmpresa(empresaId, { applyUpdates: false });
+    expect(preview.candidatosActualizacion).toBe(1);
+    expect(preview.mismatches).toEqual(expect.arrayContaining([
+      expect.objectContaining({ codigo: 'DUP-STK', stock_anterior: 0, stock_nuevo: 2 }),
+    ]));
+
+    const applied = ajustesService.reconciliarStockEmpresa(empresaId);
+    expect(applied.actualizados).toBe(1);
+
+    const prodActivo = db.prepare('SELECT stock FROM productos WHERE id = ?').get(prodActivoId);
+    const prodInactivo = db.prepare('SELECT stock FROM productos WHERE id = ?').get(prodInactivoId);
+    const stockActivo = db.prepare('SELECT cantidad FROM stock_por_deposito WHERE producto_id = ? AND deposito_id = ?').get(prodActivoId, depositoId);
+    const stockInactivo = db.prepare('SELECT COUNT(*) AS c FROM stock_por_deposito WHERE producto_id = ?').get(prodInactivoId);
+    const stockMarcaActivo = db.prepare('SELECT cantidad FROM stock_por_deposito_marca WHERE producto_id = ? AND deposito_id = ? AND marca = ?').get(prodActivoId, depositoId, 'LYC');
+    const detalleCompra = db.prepare('SELECT producto_id FROM compra_detalle WHERE compra_id = ?').get(compraId);
+
+    expect(Number(prodActivo.stock || 0)).toBe(2);
+    expect(Number(prodInactivo.stock || 0)).toBe(0);
+    expect(Number(stockActivo.cantidad || 0)).toBe(2);
+    expect(Number(stockInactivo.c || 0)).toBe(0);
+    expect(Number(stockMarcaActivo.cantidad || 0)).toBe(2);
+    expect(Number(detalleCompra.producto_id || 0)).toBe(prodActivoId);
   });
 
   test('registrarSolicitudPagoLicencia crea alerta y notificación WhatsApp cuando hay destino configurado', () => {

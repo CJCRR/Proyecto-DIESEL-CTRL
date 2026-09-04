@@ -96,6 +96,27 @@ function safeJsonParse(raw, fallback = null) {
     }
 }
 
+function buildInClause(values = []) {
+    return values.map(() => '?').join(', ');
+}
+
+function getProductoContextByCodigo(codigo, empresaId) {
+    const rows = db.prepare(`
+        SELECT id, codigo, descripcion, marca, activo
+        FROM productos
+        WHERE codigo = ? AND empresa_id = ?
+        ORDER BY activo DESC, id ASC
+    `).all(codigo, empresaId);
+
+    if (!rows.length) return null;
+
+    const producto = rows.find((row) => Number(row && row.activo || 0) === 1) || rows[0];
+    return {
+        producto,
+        productoIds: rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0),
+    };
+}
+
 // POST /admin/productos - Crear nuevo producto
 router.post(
     '/',
@@ -238,15 +259,14 @@ router.get('/actividad', requireAuth, (req, res) => {
         const codigo = codigoRaw.toUpperCase();
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
 
-        const prod = db.prepare(`
-            SELECT id, codigo, descripcion
-            FROM productos
-            WHERE codigo = ? AND empresa_id = ? AND activo = 1
-        `).get(codigo, empresaId);
-
-        if (!prod) {
+        const productContext = getProductoContextByCodigo(codigo, empresaId);
+        if (!productContext) {
             return res.status(404).json({ error: 'Producto no encontrado en esta empresa.' });
         }
+
+        const prod = productContext.producto;
+        const productIds = productContext.productoIds;
+        const productIdsSql = buildInClause(productIds);
 
         // Última venta del producto (por fecha de venta)
         const ultimaVenta = db.prepare(`
@@ -254,10 +274,10 @@ router.get('/actividad', requireAuth, (req, res) => {
             FROM venta_detalle vd
             JOIN ventas v ON v.id = vd.venta_id
             JOIN usuarios u ON u.id = v.usuario_id
-            WHERE vd.producto_id = ? AND u.empresa_id = ?
+            WHERE vd.producto_id IN (${productIdsSql}) AND u.empresa_id = ?
             ORDER BY datetime(v.fecha) DESC, v.id DESC
             LIMIT 1
-        `).get(prod.id, empresaId) || null;
+        `).get(...productIds, empresaId) || null;
 
         // Última compra del producto (por fecha de compra)
         const ultimaCompra = db.prepare(`
@@ -266,10 +286,10 @@ router.get('/actividad', requireAuth, (req, res) => {
             JOIN compras c ON c.id = cd.compra_id
             LEFT JOIN proveedores p ON p.id = c.proveedor_id
             LEFT JOIN usuarios u ON u.id = c.usuario_id
-            WHERE cd.producto_id = ? AND (u.empresa_id = ? OR u.empresa_id IS NULL)
+            WHERE cd.producto_id IN (${productIdsSql}) AND (u.empresa_id = ? OR u.empresa_id IS NULL)
             ORDER BY datetime(c.fecha) DESC, c.id DESC
             LIMIT 1
-        `).get(prod.id, empresaId) || null;
+        `).get(...productIds, empresaId) || null;
 
         res.json({
             producto: prod,
@@ -294,15 +314,14 @@ router.get('/trazabilidad', requireAuth, (req, res) => {
 
         const codigo = codigoRaw.toUpperCase();
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
-        const prod = db.prepare(`
-            SELECT id, codigo, descripcion
-            FROM productos
-            WHERE codigo = ? AND empresa_id = ? AND activo = 1
-        `).get(codigo, empresaId);
-
-        if (!prod) {
+        const productContext = getProductoContextByCodigo(codigo, empresaId);
+        if (!productContext) {
             return res.status(404).json({ error: 'Producto no encontrado en esta empresa.' });
         }
+
+        const prod = productContext.producto;
+        const productIds = productContext.productoIds;
+        const productIdsSql = buildInClause(productIds);
 
         const compras = db.prepare(`
             SELECT c.id AS referencia_id,
@@ -315,11 +334,11 @@ router.get('/trazabilidad', requireAuth, (req, res) => {
             FROM compra_detalle cd
             JOIN compras c ON c.id = cd.compra_id
             LEFT JOIN proveedores p ON p.id = c.proveedor_id
-            WHERE cd.producto_id = ?
+                        WHERE cd.producto_id IN (${productIdsSql})
               AND c.empresa_id = ?
             ORDER BY datetime(c.fecha) DESC, c.id DESC
             LIMIT ?
-        `).all(prod.id, empresaId, limit).map((row) => ({
+                `).all(...productIds, empresaId, limit).map((row) => ({
             tipo: 'compra',
             fecha: row.fecha,
             referencia_id: row.referencia_id,
@@ -345,11 +364,11 @@ router.get('/trazabilidad', requireAuth, (req, res) => {
             JOIN ventas v ON v.id = vd.venta_id
             JOIN usuarios u ON u.id = v.usuario_id
             LEFT JOIN depositos d ON d.id = vd.deposito_id
-            WHERE vd.producto_id = ?
+            WHERE vd.producto_id IN (${productIdsSql})
               AND u.empresa_id = ?
             ORDER BY datetime(v.fecha) DESC, v.id DESC
             LIMIT ?
-        `).all(prod.id, empresaId, limit).map((row) => {
+        `).all(...productIds, empresaId, limit).map((row) => {
             const fechaIso = row.fecha ? new Date(row.fecha).toISOString().slice(0, 10) : '';
             const query = fechaIso
                 ? `?venta_id=${encodeURIComponent(row.referencia_id)}&venta_fecha=${encodeURIComponent(fechaIso)}`
@@ -378,11 +397,11 @@ router.get('/trazabilidad', requireAuth, (req, res) => {
             FROM devolucion_detalle dd
             JOIN devoluciones d ON d.id = dd.devolucion_id
             LEFT JOIN usuarios u ON u.id = d.usuario_id
-            WHERE dd.producto_id = ?
+                        WHERE dd.producto_id IN (${productIdsSql})
               AND (u.empresa_id = ? OR u.empresa_id IS NULL)
             ORDER BY datetime(d.fecha) DESC, d.id DESC
             LIMIT ?
-        `).all(prod.id, empresaId, limit).map((row) => ({
+                `).all(...productIds, empresaId, limit).map((row) => ({
             tipo: 'devolucion',
             fecha: row.fecha,
             referencia_id: row.referencia_id,
@@ -398,10 +417,10 @@ router.get('/trazabilidad', requireAuth, (req, res) => {
         const ajustes = db.prepare(`
             SELECT id AS referencia_id, fecha, diferencia, motivo
             FROM ajustes_stock
-            WHERE producto_id = ?
+            WHERE producto_id IN (${productIdsSql})
             ORDER BY datetime(fecha) DESC, id DESC
             LIMIT ?
-        `).all(prod.id, limit).map((row) => ({
+        `).all(...productIds, limit).map((row) => ({
             tipo: 'ajuste',
             fecha: row.fecha,
             referencia_id: row.referencia_id,
@@ -422,10 +441,10 @@ router.get('/trazabilidad', requireAuth, (req, res) => {
             LEFT JOIN depositos do ON do.id = m.deposito_origen_id
             LEFT JOIN depositos dd ON dd.id = m.deposito_destino_id
             WHERE m.empresa_id = ?
-              AND m.producto_id = ?
+                            AND m.producto_id IN (${productIdsSql})
             ORDER BY datetime(m.creado_en) DESC, m.id DESC
             LIMIT ?
-        `).all(empresaId, prod.id, limit).map((row) => ({
+                `).all(empresaId, ...productIds, limit).map((row) => ({
             tipo: 'movimiento',
             fecha: row.fecha,
             referencia_id: row.referencia_id,
@@ -443,11 +462,11 @@ router.get('/trazabilidad', requireAuth, (req, res) => {
             FROM auditoria
             WHERE empresa_id = ?
               AND entidad = 'producto'
-              AND entidad_id = ?
+                            AND entidad_id IN (${productIdsSql})
               AND accion IN ('AJUSTE_STOCK_DEPOSITOS', 'REBUILD_STOCK_PRODUCTO')
             ORDER BY datetime(fecha) DESC, id DESC
             LIMIT ?
-        `).all(empresaId, prod.id, limit)
+                `).all(empresaId, ...productIds, limit)
             .map((row) => ({ row, payload: safeJsonParse(row.detalle, {}) }))
             .map(({ row, payload }) => {
                 const stockAnterior = Number(payload && payload.stock_anterior || 0) || 0;
@@ -513,27 +532,26 @@ router.get('/marcas-por-producto', requireAuth, (req, res) => {
         const codigo = codigoRaw.toUpperCase();
         const empresaId = req.usuario && req.usuario.empresa_id ? req.usuario.empresa_id : 1;
 
-        const prod = db.prepare(`
-            SELECT id, marca
-            FROM productos
-            WHERE codigo = ? AND empresa_id = ? AND activo = 1
-        `).get(codigo, empresaId);
-
-        if (!prod) {
+        const productContext = getProductoContextByCodigo(codigo, empresaId);
+        if (!productContext) {
             return res.status(404).json({ error: 'Producto no encontrado en esta empresa.' });
         }
+
+        const prod = productContext.producto;
+        const productIds = productContext.productoIds;
+        const productIdsSql = buildInClause(productIds);
 
         const rows = db.prepare(`
             SELECT DISTINCT TRIM(cd.marca) AS marca
             FROM compra_detalle cd
             JOIN compras c ON c.id = cd.compra_id
             LEFT JOIN usuarios u ON u.id = c.usuario_id
-            WHERE cd.producto_id = ?
+            WHERE cd.producto_id IN (${productIdsSql})
               AND cd.marca IS NOT NULL
               AND TRIM(cd.marca) != ''
               AND (u.empresa_id = ? OR u.empresa_id IS NULL)
             ORDER BY lower(marca) ASC
-        `).all(prod.id, empresaId);
+        `).all(...productIds, empresaId);
 
         const marcas = uniqueMarcaList([prod.marca, ...rows.map(r => r.marca)]);
 

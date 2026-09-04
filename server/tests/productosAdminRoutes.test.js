@@ -266,6 +266,53 @@ describe('Rutas HTTP /admin/productos (inventario multi-depósito)', () => {
     expect(tipos).toContain('rebuild_stock');
   });
 
+  test('GET /admin/productos/trazabilidad y /actividad incluyen historial atado a duplicados inactivos del mismo codigo', async () => {
+    const empresaId = 17;
+    const { token, userId } = createTestUserAndToken({ rol: 'admin', empresaId });
+    const app = buildApp();
+
+    const depId = db.prepare(
+      'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?, ?, ?, ?, 1)'
+    ).run(empresaId, 'Dep Principal', 'DP1', 1).lastInsertRowid;
+
+    const insertProducto = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, categoria, marca, empresa_id, deposito_id, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    const prodActivoId = insertProducto.run('TRZDUP', 'Producto duplicado', 10, 5, 0, 'CAT', 'LYC', empresaId, depId, 1).lastInsertRowid;
+    const prodInactivoId = insertProducto.run('TRZDUP', 'Producto duplicado viejo', 10, 5, 2, 'CAT', 'LYC', empresaId, depId, 0).lastInsertRowid;
+
+    const compraId = db.prepare(
+      'INSERT INTO compras (proveedor_id, fecha, numero, tasa_bcv, total_bs, total_usd, estado, notas, usuario_id, empresa_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(null, '2026-09-01T10:00:00.000Z', 'CMP-TRZ', 40, 80, 2, 'recibida', '', userId, empresaId).lastInsertRowid;
+    db.prepare(
+      'INSERT INTO compra_detalle (compra_id, producto_id, codigo, descripcion, marca, cantidad, costo_usd, subtotal_bs, lote, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(compraId, prodInactivoId, 'TRZDUP', 'Producto duplicado', 'LYC', 2, 5, 80, '', 'Compra en fila vieja');
+
+    const ventaId = db.prepare(
+      'INSERT INTO ventas (fecha, cliente, vendedor, cedula, telefono, tasa_bcv, descuento, metodo_pago, referencia, total_bs, iva_pct, total_bs_iva, total_usd_iva, usuario_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('2026-09-02T10:00:00.000Z', 'Cliente Demo', 'Vendedor', '', '', 40, 0, 'efectivo', '', 40, 0, 40, 1, userId).lastInsertRowid;
+    db.prepare(
+      'INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio_usd, costo_usd, subtotal_bs, deposito_id, marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(ventaId, prodActivoId, 1, 10, 5, 40, depId, 'LYC');
+
+    const resTraza = await request(app)
+      .get('/admin/productos/trazabilidad?codigo=TRZDUP&limit=20')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(resTraza.status).toBe(200);
+    expect(resTraza.body.items.map((item) => item.tipo)).toEqual(expect.arrayContaining(['compra', 'venta']));
+    expect(resTraza.body.items.find((item) => item.tipo === 'compra')).toMatchObject({ cantidad: 2, referencia_id: compraId });
+
+    const resActividad = await request(app)
+      .get('/admin/productos/actividad?codigo=TRZDUP')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(resActividad.status).toBe(200);
+    expect(resActividad.body.ultima_compra).toMatchObject({ id: compraId, cantidad: 2 });
+    expect(resActividad.body.ultima_venta).toMatchObject({ id: ventaId, cantidad: 1 });
+  });
+
   test('GET /admin/productos permite buscar por marca principal y por marcas del desglose', async () => {
     const empresaId = 14;
     const { token } = createTestUserAndToken({ rol: 'admin', empresaId });

@@ -42,6 +42,120 @@ function parseFechaLocal(iso) {
   return d;
 }
 
+function buildInClause(values = []) {
+  return values.map(() => '?').join(', ');
+}
+
+function selectRowsByProductIds(table, columns, productIds, extraWhere = '', extraParams = []) {
+  if (!Array.isArray(productIds) || !productIds.length) return [];
+  const sql = `SELECT ${columns} FROM ${table} WHERE producto_id IN (${buildInClause(productIds)})${extraWhere ? ` AND ${extraWhere}` : ''}`;
+  return db.prepare(sql).all(...productIds, ...extraParams);
+}
+
+function countRowsByProductIds(table, productIds, extraWhere = '', extraParams = []) {
+  if (!Array.isArray(productIds) || !productIds.length) return 0;
+  const sql = `SELECT COUNT(*) AS c FROM ${table} WHERE producto_id IN (${buildInClause(productIds)})${extraWhere ? ` AND ${extraWhere}` : ''}`;
+  const row = db.prepare(sql).get(...productIds, ...extraParams);
+  return Number(row && row.c || 0) || 0;
+}
+
+function countAuditoriaByEntidadIds(entidadIds, empresaId) {
+  if (!Array.isArray(entidadIds) || !entidadIds.length) return 0;
+  const sql = `
+    SELECT COUNT(*) AS c
+    FROM auditoria
+    WHERE empresa_id = ?
+      AND entidad = 'producto'
+      AND entidad_id IN (${buildInClause(entidadIds)})
+  `;
+  const row = db.prepare(sql).get(empresaId, ...entidadIds);
+  return Number(row && row.c || 0) || 0;
+}
+
+function hasSplitProductHistory(productIds, empresaId) {
+  return countRowsByProductIds('compra_detalle', productIds) > 0
+    || countRowsByProductIds('venta_detalle', productIds) > 0
+    || countRowsByProductIds('devolucion_detalle', productIds) > 0
+    || countRowsByProductIds('ajustes_stock', productIds) > 0
+    || countRowsByProductIds('presupuesto_detalle', productIds) > 0
+    || countRowsByProductIds('movimientos_deposito', productIds, 'empresa_id = ?', [empresaId]) > 0
+    || countAuditoriaByEntidadIds(productIds, empresaId) > 0;
+}
+
+function consolidateDuplicateProductGroup(activeProduct, siblingProducts, empresaId) {
+  const siblingIds = siblingProducts.map((product) => Number(product.id)).filter((id) => Number.isFinite(id) && id > 0);
+  if (!activeProduct || !siblingIds.length) {
+    return { stockTotal: Number(activeProduct && activeProduct.stock || 0) || 0 };
+  }
+
+  const allIds = [Number(activeProduct.id), ...siblingIds];
+  const stockRows = selectRowsByProductIds('stock_por_deposito', 'producto_id, deposito_id, cantidad', allIds);
+  const stockMarcaRows = selectRowsByProductIds('stock_por_deposito_marca', 'producto_id, deposito_id, marca, cantidad', allIds);
+
+  const stockByDeposito = new Map();
+  stockRows.forEach((row) => {
+    const depositoId = Number(row && row.deposito_id || 0) || 0;
+    if (!depositoId) return;
+    stockByDeposito.set(depositoId, (stockByDeposito.get(depositoId) || 0) + (Number(row && row.cantidad || 0) || 0));
+  });
+
+  const stockMarcaByKey = new Map();
+  stockMarcaRows.forEach((row) => {
+    const depositoId = Number(row && row.deposito_id || 0) || 0;
+    const marca = safeStr(row && row.marca, 120).toUpperCase();
+    if (!depositoId || !marca) return;
+    const key = `${depositoId}::${marca}`;
+    stockMarcaByKey.set(key, (stockMarcaByKey.get(key) || 0) + (Number(row && row.cantidad || 0) || 0));
+  });
+
+  const siblingStockRows = stockRows.filter((row) => Number(row && row.producto_id || 0) !== Number(activeProduct.id));
+  const siblingStockMarcaRows = stockMarcaRows.filter((row) => Number(row && row.producto_id || 0) !== Number(activeProduct.id));
+  const siblingStoredStock = siblingProducts.reduce((acc, product) => acc + (Number(product && product.stock || 0) || 0), 0);
+  const hasSplitHistory = hasSplitProductHistory(siblingIds, empresaId);
+  const needsConsolidation = siblingStockRows.length > 0 || siblingStockMarcaRows.length > 0 || siblingStoredStock !== 0 || hasSplitHistory;
+  const stockTotal = Array.from(stockByDeposito.values()).reduce((acc, qty) => acc + (Number(qty || 0) || 0), 0);
+
+  if (!needsConsolidation) {
+    return {
+      stockTotal,
+      stockRows,
+      needsConsolidation: false,
+      hasAnyStockRows: stockRows.length > 0,
+    };
+  }
+
+  db.prepare(`DELETE FROM stock_por_deposito WHERE producto_id IN (${buildInClause(allIds)})`).run(...allIds);
+  Array.from(stockByDeposito.entries()).forEach(([depositoId, cantidad]) => {
+    db.prepare(`
+      INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad)
+      VALUES (?, ?, ?, ?)
+    `).run(empresaId, activeProduct.id, depositoId, cantidad);
+  });
+
+  db.prepare(`DELETE FROM stock_por_deposito_marca WHERE producto_id IN (${buildInClause(allIds)})`).run(...allIds);
+  Array.from(stockMarcaByKey.entries()).forEach(([key, cantidad]) => {
+    const [depositoId, marca] = key.split('::');
+    db.prepare(`
+      INSERT INTO stock_por_deposito_marca (empresa_id, producto_id, deposito_id, marca, cantidad)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(empresaId, activeProduct.id, Number(depositoId), marca, cantidad);
+  });
+
+  ['compra_detalle', 'venta_detalle', 'devolucion_detalle', 'ajustes_stock', 'presupuesto_detalle'].forEach((table) => {
+    db.prepare(`UPDATE ${table} SET producto_id = ? WHERE producto_id IN (${buildInClause(siblingIds)})`).run(activeProduct.id, ...siblingIds);
+  });
+  db.prepare(`UPDATE movimientos_deposito SET producto_id = ? WHERE empresa_id = ? AND producto_id IN (${buildInClause(siblingIds)})`).run(activeProduct.id, empresaId, ...siblingIds);
+  db.prepare(`UPDATE auditoria SET entidad_id = ? WHERE empresa_id = ? AND entidad = 'producto' AND entidad_id IN (${buildInClause(siblingIds)})`).run(activeProduct.id, empresaId, ...siblingIds);
+  db.prepare(`UPDATE productos SET stock = 0 WHERE id IN (${buildInClause(siblingIds)})`).run(...siblingIds);
+
+  return {
+    stockTotal,
+    stockRows,
+    needsConsolidation: true,
+    hasAnyStockRows: stockRows.length > 0,
+  };
+}
+
 /**
  * Aplica un ajuste de stock puntual sobre un producto identificado por código.
  * Registra el movimiento en `ajustes_stock` y genera una alerta cuando el
@@ -162,6 +276,7 @@ function analizarReconciliacionStockEmpresa(empresaId, options = {}) {
     totalProductos: 0,
     actualizados: 0,
     candidatosActualizacion: 0,
+    duplicadosConsolidados: 0,
     negativos: [],
     sinStockPorDeposito: [],
     mismatches: [],
@@ -169,47 +284,79 @@ function analizarReconciliacionStockEmpresa(empresaId, options = {}) {
 
   db.transaction(() => {
     const productos = db.prepare(`
-      SELECT id, codigo, stock
+      SELECT id, codigo, stock, activo
       FROM productos
       WHERE empresa_id = ?
+      ORDER BY upper(codigo) ASC, activo DESC, id ASC
     `).all(eid);
 
     resultado.totalProductos = productos.length;
-
-    const stmtResumen = db.prepare(`
-      SELECT COUNT(*) AS c, COALESCE(SUM(cantidad), 0) AS total
-      FROM stock_por_deposito
-      WHERE producto_id = ?
-    `);
     const stmtUpdate = db.prepare('UPDATE productos SET stock = ? WHERE id = ?');
 
-    for (const prod of productos) {
-      const row = stmtResumen.get(prod.id) || { c: 0, total: 0 };
-      const filas = Number(row.c || 0);
-      const totalDep = Number(row.total || 0);
-      const stockActual = Number(prod.stock || 0);
+    const productosPorCodigo = new Map();
+    productos.forEach((prod) => {
+      const codigo = safeStr(prod && prod.codigo, 120).toUpperCase();
+      if (!codigo) return;
+      const current = productosPorCodigo.get(codigo) || [];
+      current.push(prod);
+      productosPorCodigo.set(codigo, current);
+    });
 
-      if (filas === 0) {
-        // No hay detalle por depósito: no tocamos el stock pero lo reportamos
-        if (stockActual !== 0) {
-          resultado.sinStockPorDeposito.push({ codigo: prod.codigo, stock_actual: stockActual });
+    productosPorCodigo.forEach((group, codigo) => {
+      if (!Array.isArray(group) || !group.length) return;
+
+      const productoActivo = group.find((prod) => Number(prod && prod.activo || 0) === 1) || group[0];
+      const siblings = group.filter((prod) => Number(prod && prod.id || 0) !== Number(productoActivo.id));
+      const stockActual = Number(productoActivo && productoActivo.stock || 0) || 0;
+
+      let consolidation = null;
+      if (applyUpdates && siblings.length) {
+        consolidation = consolidateDuplicateProductGroup(productoActivo, siblings, eid);
+        if (consolidation && consolidation.needsConsolidation) {
+          resultado.duplicadosConsolidados += 1;
         }
-        continue;
+      }
+
+      const productIdsForRead = [Number(productoActivo.id), ...siblings.map((prod) => Number(prod.id)).filter((id) => Number.isFinite(id) && id > 0)];
+      const stockRows = applyUpdates && consolidation
+        ? (Array.isArray(consolidation.stockRows) ? consolidation.stockRows : [])
+        : selectRowsByProductIds('stock_por_deposito', 'producto_id, deposito_id, cantidad', productIdsForRead);
+      const hasAnyStockRows = applyUpdates && consolidation
+        ? !!consolidation.hasAnyStockRows
+        : stockRows.length > 0;
+      const totalDep = applyUpdates && consolidation
+        ? Number(consolidation.stockTotal || 0) || 0
+        : stockRows.reduce((acc, row) => acc + (Number(row && row.cantidad || 0) || 0), 0);
+      const hasSiblingStockRows = siblings.length > 0 && stockRows.some((row) => Number(row && row.producto_id || 0) !== Number(productoActivo.id));
+      const hasSplitHistory = siblings.length > 0 && hasSplitProductHistory(siblings.map((prod) => Number(prod.id)), eid);
+      const siblingStoredStock = siblings.reduce((acc, prod) => acc + (Number(prod && prod.stock || 0) || 0), 0);
+      const needsConsolidation = hasSiblingStockRows || siblingStoredStock !== 0 || hasSplitHistory;
+
+      if (!hasAnyStockRows) {
+        if (stockActual !== 0 || siblingStoredStock !== 0) {
+          resultado.sinStockPorDeposito.push({ codigo, stock_actual: stockActual, stock_duplicados: siblingStoredStock || 0 });
+        }
+        return;
       }
 
       if (totalDep < 0) {
-        resultado.negativos.push({ codigo: prod.codigo, stock_por_deposito: totalDep });
+        resultado.negativos.push({ codigo, stock_por_deposito: totalDep });
       }
 
-      if (totalDep !== stockActual) {
-        resultado.mismatches.push({ producto_id: prod.id, codigo: prod.codigo, stock_anterior: stockActual, stock_nuevo: totalDep });
+      if (totalDep !== stockActual || needsConsolidation) {
+        resultado.mismatches.push({
+          producto_id: productoActivo.id,
+          codigo,
+          stock_anterior: stockActual,
+          stock_nuevo: totalDep,
+        });
         resultado.candidatosActualizacion += 1;
         if (applyUpdates) {
-          stmtUpdate.run(totalDep, prod.id);
+          stmtUpdate.run(totalDep, productoActivo.id);
           resultado.actualizados += 1;
         }
       }
-    }
+    });
   })();
 
   return resultado;
