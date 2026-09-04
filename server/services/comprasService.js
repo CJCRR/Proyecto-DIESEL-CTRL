@@ -131,7 +131,7 @@ function crearCompra(payload = {}, usuario) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const selectProd = db.prepare('SELECT id, descripcion, marca, stock, deposito_id, empresa_id, costo_usd, precio_usd FROM productos WHERE codigo = ? AND empresa_id = ?');
+    const selectProd = db.prepare('SELECT id, descripcion, marca, stock, deposito_id, empresa_id, costo_usd, precio_usd FROM productos WHERE codigo = ? AND empresa_id = ? AND activo = 1');
     const selectStockDep = db.prepare(`
       SELECT cantidad FROM stock_por_deposito
       WHERE producto_id = ? AND deposito_id = ?

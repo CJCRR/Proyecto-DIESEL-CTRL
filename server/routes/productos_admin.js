@@ -297,7 +297,7 @@ router.get('/trazabilidad', requireAuth, (req, res) => {
         const prod = db.prepare(`
             SELECT id, codigo, descripcion
             FROM productos
-            WHERE codigo = ? AND empresa_id = ?
+            WHERE codigo = ? AND empresa_id = ? AND activo = 1
         `).get(codigo, empresaId);
 
         if (!prod) {

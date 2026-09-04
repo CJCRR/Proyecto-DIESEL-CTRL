@@ -8,6 +8,8 @@
     "dev": "nodemon server/server.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watchAll",
+    "stock:check": "node scripts/rebuild-stock.js --preview",
+    "stock:rebuild": "node scripts/rebuild-stock.js --apply",
     "scss": "sass --watch public/styles/scss/main.scss:public/styles.css",
     "build:scss": "sass public/styles/scss/main.scss:public/styles.css --no-source-map"
   },

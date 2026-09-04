@@ -18,6 +18,7 @@ const { sendMessage } = require(path.join('..', 'services', 'whatsappService'));
 
 function resetAjustesData() {
   db.prepare('DELETE FROM ajustes_stock').run();
+  db.prepare('DELETE FROM stock_por_deposito').run();
   db.prepare('DELETE FROM productos').run();
   db.prepare('DELETE FROM alertas').run();
   db.prepare('DELETE FROM pagos_licencia').run();
@@ -92,6 +93,34 @@ describe('ajustesService', () => {
 
     const cfgOtraEmpresa = ajustesService.obtenerConfigGeneral(empresaId + 1);
     expect(cfgOtraEmpresa.empresa.permitir_anular_venta).toBe(false);
+  });
+
+  test('analizarReconciliacionStockEmpresa detecta desajustes sin modificar stock', () => {
+    const empresaId = 1;
+    const prod = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, empresa_id, activo) VALUES (?,?,?,?,?,?,1)'
+    ).run('RC-1', 'Producto Rebuild', 10, 5, 9, empresaId);
+
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prod.lastInsertRowid, 101, 4);
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prod.lastInsertRowid, 102, 2);
+
+    const preview = ajustesService.analizarReconciliacionStockEmpresa(empresaId, { applyUpdates: false });
+    expect(preview.actualizados).toBe(0);
+    expect(preview.candidatosActualizacion).toBe(1);
+    expect(preview.mismatches[0]).toMatchObject({ codigo: 'RC-1', stock_anterior: 9, stock_nuevo: 6 });
+
+    const prodSinAplicar = db.prepare('SELECT stock FROM productos WHERE id = ?').get(prod.lastInsertRowid);
+    expect(Number(prodSinAplicar.stock || 0)).toBe(9);
+
+    const applied = ajustesService.reconciliarStockEmpresa(empresaId);
+    expect(applied.actualizados).toBe(1);
+
+    const prodAplicado = db.prepare('SELECT stock FROM productos WHERE id = ?').get(prod.lastInsertRowid);
+    expect(Number(prodAplicado.stock || 0)).toBe(6);
   });
 
   test('registrarSolicitudPagoLicencia crea alerta y notificación WhatsApp cuando hay destino configurado', () => {

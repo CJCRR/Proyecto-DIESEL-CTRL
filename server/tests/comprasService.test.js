@@ -6,6 +6,7 @@ const db = require(path.join('..', 'db'));
 const comprasService = require(path.join('..', 'services', 'comprasService'));
 
 function resetComprasData() {
+  db.prepare('DELETE FROM stock_por_deposito_marca').run();
   db.prepare('DELETE FROM stock_por_deposito').run();
   db.prepare('DELETE FROM depositos').run();
   db.prepare('DELETE FROM compra_detalle').run();
@@ -117,5 +118,70 @@ describe('comprasService.crearCompra', () => {
     const detalleCompraEmpresaB = comprasService.getCompra(compraB1, empresaB);
     expect(detalleCompraEmpresaB).toBeDefined();
     expect(detalleCompraEmpresaB.compra.correlativo_empresa).toBe(1);
+  });
+
+  test('actualiza el producto activo cuando existe otro inactivo con el mismo codigo', () => {
+    const empresaId = 1;
+
+    const depInfo = db
+      .prepare(
+        'INSERT INTO depositos (empresa_id, nombre, codigo, es_principal, activo) VALUES (?,?,?,?,1)'
+      )
+      .run(empresaId, 'Dep Compras Dup', 'DCD1', 1);
+    const depositoId = depInfo.lastInsertRowid;
+
+    const user = db
+      .prepare(
+        'INSERT INTO usuarios (username, password, rol, activo, empresa_id) VALUES (?,?,?,?,?)'
+      )
+      .run(`compras_dup_${Date.now()}`, 'testpass', 'admin', 1, empresaId);
+
+    const prov = db
+      .prepare(
+        'INSERT INTO proveedores (nombre, rif, telefono, email, direccion, notas, activo) VALUES (?,?,?,?,?,?,1)'
+      )
+      .run('Proveedor Dup', 'J-456', '', '', '', '');
+
+    const insertProducto = db.prepare(
+      'INSERT INTO productos (codigo, descripcion, precio_usd, costo_usd, stock, proveedor_id, empresa_id, deposito_id, activo) VALUES (?,?,?,?,?,?,?,?,?)'
+    );
+
+    const prodInactivo = insertProducto.run('CP-DUP', 'Producto Viejo', 0, 0, 0, prov.lastInsertRowid, empresaId, depositoId, 0);
+    const prodActivo = insertProducto.run('CP-DUP', 'Producto Nuevo', 0, 0, 0, prov.lastInsertRowid, empresaId, depositoId, 1);
+
+    db.prepare(
+      'INSERT INTO stock_por_deposito (empresa_id, producto_id, deposito_id, cantidad) VALUES (?,?,?,?)'
+    ).run(empresaId, prodActivo.lastInsertRowid, depositoId, 0);
+
+    const result = comprasService.crearCompra(
+      {
+        proveedor_id: prov.lastInsertRowid,
+        fecha: '2024-01-02',
+        numero: 'OC-002',
+        tasa_bcv: 10,
+        notas: 'Prueba compra con duplicado inactivo',
+        items: [
+          {
+            codigo: 'CP-DUP',
+            cantidad: 2,
+            costo_usd: 15,
+          },
+        ],
+      },
+      { id: user.lastInsertRowid, empresa_id: empresaId }
+    );
+
+    expect(result).toBeDefined();
+    expect(result.detalles).toHaveLength(1);
+    expect(result.detalles[0].producto_id).toBe(prodActivo.lastInsertRowid);
+
+    const activoDb = db.prepare('SELECT stock, costo_usd FROM productos WHERE id = ?').get(prodActivo.lastInsertRowid);
+    const inactivoDb = db.prepare('SELECT stock FROM productos WHERE id = ?').get(prodInactivo.lastInsertRowid);
+    const stockDepActivo = db.prepare('SELECT cantidad FROM stock_por_deposito WHERE producto_id = ? AND deposito_id = ?').get(prodActivo.lastInsertRowid, depositoId);
+
+    expect(Number(activoDb.stock || 0)).toBe(2);
+    expect(Number(activoDb.costo_usd || 0)).toBeCloseTo(15);
+    expect(Number(inactivoDb.stock || 0)).toBe(0);
+    expect(Number(stockDepActivo.cantidad || 0)).toBe(2);
   });
 });

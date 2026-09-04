@@ -203,17 +203,23 @@ import { getFirstAllowedRoute, getRouteModuleKey, userHasModulePermission } from
     if (!pill || !textEl || !dotEl) return;
 
     let label = 'Sesión activa';
+    let shortLabel = 'Activa';
     let color = '#22c55e'; // verde por defecto
 
     if (user.empresa_estado === 'suspendida') {
       label = 'Cuenta suspendida';
+      shortLabel = 'Susp.';
       color = '#ef4444';
     } else if (user.empresa_trial && Number(user.empresa_trial.dias_restantes || 0) > 0) {
       label = 'Free trial';
+      shortLabel = 'Trial';
       color = '#fbbf24';
     }
 
     textEl.textContent = label;
+    pill.dataset.shortLabel = shortLabel;
+    pill.setAttribute('title', label);
+    pill.setAttribute('aria-label', label);
     dotEl.style.backgroundColor = color;
     dotEl.style.boxShadow = `0 0 0 2px ${color}33`;
     pill.classList.remove('hidden');

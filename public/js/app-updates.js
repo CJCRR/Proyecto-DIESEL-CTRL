@@ -685,9 +685,9 @@
 
       @media (max-width: 640px) {
         .app-updates-toggle {
-          width: 2.6rem;
-          height: 2.6rem;
-          border-radius: 1rem;
+          width: 2.35rem;
+          height: 2.35rem;
+          border-radius: 0.9rem;
         }
 
         .app-updates-peek {

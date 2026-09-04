@@ -1,5 +1,4 @@
 const db = require('../db');
-const { insertAlerta } = require('../routes/alertas');
 const { validationError } = require('./validationUtils');
 const XLSX = require('xlsx');
 const logger = require('./logger');
@@ -13,6 +12,15 @@ const { appendEmpresaIdFilter } = require('./empresaUtils');
 // ===== AJUSTES DE STOCK =====
 
 const MAX_MOTIVO = 400;
+
+function insertAlerta(tipo, mensaje, dataObj = {}) {
+  try {
+    db.prepare('INSERT INTO alertas (tipo, mensaje, data, leido, creado_en) VALUES (?, ?, ?, 0, datetime(\'now\'))')
+      .run(tipo, mensaje, JSON.stringify(dataObj || {}));
+  } catch (err) {
+    logger.warn('No se pudo insertar alerta', err.message);
+  }
+}
 
 function safeStr(v, max) {
   if (v === null || v === undefined) return '';
@@ -135,16 +143,16 @@ function listarAjustes(limit = 100, codigo, empresaId) {
 // ===== RECONCILIACIÓN DE INVENTARIO =====
 
 /**
- * Recalcula `productos.stock` a partir de `stock_por_deposito` para una empresa.
- * Solo actualiza productos que tienen al menos un registro en stock_por_deposito,
- * tratando esa tabla como fuente de la verdad. Para productos sin filas en
- * stock_por_deposito no modifica el stock y los reporta como anomalía.
+ * Analiza o aplica una reconciliación de `productos.stock` a partir de
+ * `stock_por_deposito` para una empresa.
  *
  * @param {number|null|undefined} empresaId
- * @returns {{empresa_id:number,totalProductos:number,actualizados:number,negativos:Array, sinStockPorDeposito:Array, mismatches:Array}}
+ * @param {{applyUpdates?: boolean}} [options]
+ * @returns {{empresa_id:number,totalProductos:number,actualizados:number,candidatosActualizacion:number,negativos:Array, sinStockPorDeposito:Array, mismatches:Array}}
  */
-function reconciliarStockEmpresa(empresaId) {
+function analizarReconciliacionStockEmpresa(empresaId, options = {}) {
   const eid = Number(empresaId || 1);
+  const applyUpdates = options && options.applyUpdates === true;
   if (!Number.isFinite(eid) || eid <= 0) {
     throw new Error('empresaId inválido para reconciliar stock');
   }
@@ -153,6 +161,7 @@ function reconciliarStockEmpresa(empresaId) {
     empresa_id: eid,
     totalProductos: 0,
     actualizados: 0,
+    candidatosActualizacion: 0,
     negativos: [],
     sinStockPorDeposito: [],
     mismatches: [],
@@ -194,13 +203,29 @@ function reconciliarStockEmpresa(empresaId) {
 
       if (totalDep !== stockActual) {
         resultado.mismatches.push({ producto_id: prod.id, codigo: prod.codigo, stock_anterior: stockActual, stock_nuevo: totalDep });
-        stmtUpdate.run(totalDep, prod.id);
-        resultado.actualizados += 1;
+        resultado.candidatosActualizacion += 1;
+        if (applyUpdates) {
+          stmtUpdate.run(totalDep, prod.id);
+          resultado.actualizados += 1;
+        }
       }
     }
   })();
 
   return resultado;
+}
+
+/**
+ * Recalcula `productos.stock` a partir de `stock_por_deposito` para una empresa.
+ * Solo actualiza productos que tienen al menos un registro en stock_por_deposito,
+ * tratando esa tabla como fuente de la verdad. Para productos sin filas en
+ * stock_por_deposito no modifica el stock y los reporta como anomalía.
+ *
+ * @param {number|null|undefined} empresaId
+ * @returns {{empresa_id:number,totalProductos:number,actualizados:number,candidatosActualizacion:number,negativos:Array, sinStockPorDeposito:Array, mismatches:Array}}
+ */
+function reconciliarStockEmpresa(empresaId) {
+  return analizarReconciliacionStockEmpresa(empresaId, { applyUpdates: true });
 }
 
 // ===== UTILIDADES DE CONFIG =====
@@ -1429,6 +1454,7 @@ function exportarDatosEmpresa(empresaId, opts = {}) {
 module.exports = {
   ajustarStock,
   listarAjustes,
+  analizarReconciliacionStockEmpresa,
   reconciliarStockEmpresa,
   obtenerTasaBcv,
   guardarTasaBcv,
